@@ -1,0 +1,319 @@
+@use "../../styles/mixins" as m;
+
+// The board is a horizontally-scrolling row of columns. On wide screens all 6
+// fit; on narrow screens they snap-scroll one at a time.
+.board {
+  display: flex;
+  gap: var(--sp-3);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  // Bleed a touch into the page padding so cards aren't clipped at the edge,
+  // and make sure the column shadows aren't cut off.
+  padding-bottom: var(--sp-2);
+  // Min height = whatever the viewport leaves below header/topbar — the column
+  // bodies handle their own scrolling.
+  min-height: 0;
+  flex: 1;
+  @include m.scrollbar-thin;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: clamp(280px, 86vw, 320px);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  scroll-snap-align: start;
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out);
+
+  &[data-hover] {
+    background: var(--color-brand-50);
+    border-color: var(--color-brand-500);
+  }
+
+  // The "Perdu" column is visually de-emphasised — it's an outcome, not a goal.
+  &[data-status="perdu"] {
+    background: transparent;
+    border-style: dashed;
+  }
+}
+
+@media (min-width: 768px) {
+  .column { width: 300px; }
+}
+
+.colHead {
+  display: grid;
+  gap: 2px;
+  padding: var(--sp-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.colTitleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.colTitle {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.2px;
+  flex: 1;
+  @include m.truncate;
+}
+
+.colCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.colTotal {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.colBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  overflow-y: auto;
+  @include m.scrollbar-thin;
+}
+
+.empty {
+  padding: var(--sp-4) var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+// ── View toolbar (Kanban / Liste toggle) ───────────────────────────────
+.viewToolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-shrink: 0;
+}
+
+.viewToggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-md);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+}
+
+.viewBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  border: 0;
+
+  &:hover { color: var(--text-primary); }
+}
+
+.viewBtnOn {
+  background: var(--bg-surface);
+  color: var(--color-brand-600);
+  box-shadow: var(--shadow-sm);
+}
+
+.viewCount {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+// ── Liste view (flat table) ────────────────────────────────────────────
+.listWrap {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  overflow-x: auto;
+  flex: 1;
+  min-height: 0;
+  @include m.scrollbar-thin;
+}
+
+.listTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  min-width: 1080px;
+
+  thead th {
+    padding: var(--sp-2) var(--sp-3);
+    text-align: left;
+    background: var(--bg-surface-2);
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  tbody td {
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border-subtle);
+    vertical-align: middle;
+    color: var(--text-primary);
+  }
+
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--bg-surface-2); }
+
+  tbody tr[data-lost] {
+    color: var(--text-muted);
+    .listClient { text-decoration: line-through; color: var(--text-muted); }
+  }
+
+  th.tNum, td.tNum { text-align: right; font-variant-numeric: tabular-nums; }
+}
+
+.mono { font-family: var(--font-mono); }
+.muted { color: var(--text-muted); font-size: var(--fs-xs); }
+
+.listClient {
+  font-weight: 500;
+  color: var(--text-primary);
+  &:hover { color: var(--color-brand-600); text-decoration: underline; }
+}
+
+.listSub {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.listSelect {
+  height: 28px;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--fs-xs);
+}
+
+.listSector {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--sc);
+  background: color-mix(in oklab, var(--sc) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--sc) 28%, transparent);
+}
+
+.listOwner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.listAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--av);
+  color: var(--text-inverted);
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.listOwnerName { @include m.truncate; max-width: 140px; }
+
+.listBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.listBadge {
+  display: inline-flex;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+.listBadgeDanger {
+  display: inline-flex;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--tone-danger);
+  background: color-mix(in oklab, var(--tone-danger) 10%, transparent);
+  border: 1px solid color-mix(in oklab, var(--tone-danger) 30%, transparent);
+  white-space: nowrap;
+}
+
+.listAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  color: var(--color-brand-600);
+  background: var(--color-brand-50);
+  border: 0;
+
+  &:hover { background: color-mix(in oklab, var(--color-brand-500) 20%, transparent); }
+}
+
+.listEmpty {
+  text-align: center;
+  padding: var(--sp-8) var(--sp-4);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+@media (max-width: 900px) {
+  .listOwnerName { display: none; }
+}

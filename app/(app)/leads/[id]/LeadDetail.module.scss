@@ -1,0 +1,480 @@
+@use "../../../styles/mixins" as m;
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.breadcrumbLink {
+  color: var(--text-secondary);
+  &:hover { color: var(--color-brand-600); text-decoration: underline; }
+}
+
+.shortId {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.headerMain {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  line-height: var(--lh-tight);
+}
+
+.urgentTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--tone-danger);
+  background: color-mix(in oklab, var(--tone-danger) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--tone-danger) 30%, transparent);
+}
+
+.tagRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+}
+
+.sector {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--sc);
+  background: color-mix(in oklab, var(--sc) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--sc) 28%, transparent);
+}
+
+// Status pill — reads its tone from a per-status background.
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--text-secondary);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+
+  &[data-status="lead"]     { color: var(--tone-info);    background: color-mix(in oklab, var(--tone-info) 12%, transparent);    border-color: color-mix(in oklab, var(--tone-info) 30%, transparent); }
+  &[data-status="envoye"]   { color: var(--color-brand-600); background: var(--color-brand-50); border-color: color-mix(in oklab, var(--color-brand-500) 32%, transparent); }
+  &[data-status="ouvert"]   { color: var(--tone-warning); background: color-mix(in oklab, var(--tone-warning) 14%, transparent); border-color: color-mix(in oklab, var(--tone-warning) 30%, transparent); }
+  &[data-status="signe"]    { color: var(--tone-success); background: color-mix(in oklab, var(--tone-success) 14%, transparent); border-color: color-mix(in oklab, var(--tone-success) 30%, transparent); }
+  &[data-status="encaisse"] { color: var(--text-inverted); background: var(--tone-success); border-color: var(--tone-success); }
+  &[data-status="perdu"]    { color: var(--text-muted); }
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.badgeDanger {
+  color: var(--tone-danger);
+  background: color-mix(in oklab, var(--tone-danger) 10%, transparent);
+  border-color: color-mix(in oklab, var(--tone-danger) 30%, transparent);
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+// ── Action bar ─────────────────────────────────────────────────────────
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out);
+
+  &:hover { background: var(--bg-surface-2); }
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+}
+
+.btnPrimary {
+  background: var(--color-brand-500);
+  color: var(--text-inverted);
+  border-color: var(--color-brand-500);
+  &:hover { background: var(--color-brand-600); border-color: var(--color-brand-600); }
+}
+
+.btnDanger {
+  color: var(--tone-danger);
+  border-color: color-mix(in oklab, var(--tone-danger) 40%, var(--border-strong));
+  &:hover { background: color-mix(in oklab, var(--tone-danger) 10%, transparent); }
+}
+
+// ── Two-column layout ──────────────────────────────────────────────────
+.layout {
+  display: grid;
+  gap: var(--sp-4);
+  // Mobile: single column. Desktop: main + 320px aside.
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 1024px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    align-items: start;
+  }
+  .aside .card { position: sticky; top: var(--sp-4); }
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+// ── Card primitives ────────────────────────────────────────────────────
+.card {
+  @include m.card;
+  padding: var(--sp-4);
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.cardConfidential {
+  border-color: color-mix(in oklab, var(--tone-warning) 50%, var(--border-subtle));
+  background: color-mix(in oklab, var(--tone-warning) 4%, var(--bg-surface));
+}
+
+.h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.005em;
+}
+
+.h2Count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+.confidentialTag {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--tone-warning);
+  background: color-mix(in oklab, var(--tone-warning) 16%, transparent);
+}
+
+// ── Definition list ────────────────────────────────────────────────────
+.dl {
+  display: grid;
+  gap: var(--sp-3);
+  font-size: var(--fs-sm);
+
+  > div {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  dt {
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+    font-weight: 500;
+    letter-spacing: 0.2px;
+  }
+
+  dd {
+    color: var(--text-primary);
+    word-break: break-word;
+  }
+}
+
+// On wider cards (the desktop main column), arrange dt/dd inline for density.
+@media (min-width: 600px) {
+  .main .dl > div {
+    grid-template-columns: 160px minmax(0, 1fr);
+    align-items: baseline;
+    gap: var(--sp-3);
+  }
+}
+
+.amount {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.note {
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--bg-surface-2);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.empty {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.link {
+  color: var(--color-brand-600);
+  &:hover { text-decoration: underline; }
+}
+
+.mono { font-family: var(--font-mono); }
+
+.ownerRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.ownerAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--av);
+  color: var(--text-inverted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  flex-shrink: 0;
+}
+
+// ── Documents table ────────────────────────────────────────────────────
+.tableWrap {
+  overflow-x: auto;
+  @include m.scrollbar-thin;
+  margin: 0 calc(var(--sp-4) * -1) calc(var(--sp-3) * -1);
+  padding: 0 var(--sp-4) var(--sp-3);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  min-width: 480px;
+
+  th, td {
+    padding: var(--sp-2) var(--sp-3);
+    text-align: left;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  th {
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: var(--fs-xs);
+    letter-spacing: 0.2px;
+    text-transform: uppercase;
+    background: var(--bg-surface-2);
+  }
+
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--bg-surface-2); }
+}
+
+.tNum { text-align: right; font-variant-numeric: tabular-nums; }
+
+.docStatus {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+
+  &[data-status="signe"], &[data-status="paye"] {
+    color: var(--tone-success);
+    background: color-mix(in oklab, var(--tone-success) 12%, transparent);
+    border-color: color-mix(in oklab, var(--tone-success) 30%, transparent);
+  }
+  &[data-status="ouvert"] {
+    color: var(--tone-warning);
+    background: color-mix(in oklab, var(--tone-warning) 12%, transparent);
+    border-color: color-mix(in oklab, var(--tone-warning) 30%, transparent);
+  }
+  &[data-status="retard"], &[data-status="refuse"], &[data-status="expire"] {
+    color: var(--tone-danger);
+    background: color-mix(in oklab, var(--tone-danger) 12%, transparent);
+    border-color: color-mix(in oklab, var(--tone-danger) 30%, transparent);
+  }
+}
+
+// ── Timeline ───────────────────────────────────────────────────────────
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    left: 5px;
+    width: 2px;
+    background: var(--border-subtle);
+  }
+}
+
+.timelineItem {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: var(--sp-3);
+  align-items: baseline;
+  position: relative;
+  font-size: var(--fs-sm);
+}
+
+.timelineDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  border: 2px solid var(--border-strong);
+  margin-top: 4px;
+  z-index: 1;
+
+  [data-kind="received"] & { border-color: var(--tone-info); }
+  [data-kind="doc-issued"] & { border-color: var(--color-brand-500); }
+  [data-kind="doc-signed"] & { border-color: var(--tone-success); background: var(--tone-success); }
+  [data-kind="payment"] & { border-color: var(--tone-success); background: var(--tone-success); }
+  [data-kind="status"] & { border-color: var(--text-muted); }
+  [data-kind="email"] & { border-color: var(--color-brand-500); }
+  [data-kind="note"] & { border-color: var(--text-muted); }
+}
+
+.timelineBody { min-width: 0; }
+
+.timelineLabel {
+  color: var(--text-primary);
+  font-weight: 500;
+  @include m.truncate;
+}
+
+.timelineSub {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  margin-top: 2px;
+}
+
+.timelineTime {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  text-align: right;
+}
+
+.timelineRel {
+  display: block;
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+@media (max-width: 600px) {
+  // On narrow screens the right time column is too cramped — wrap it below
+  // the label instead of hiding it.
+  .timelineItem { grid-template-columns: 16px minmax(0, 1fr); }
+  .timelineTime { grid-column: 2; text-align: left; }
+  .timelineRel { display: inline; margin-left: 6px; }
+}

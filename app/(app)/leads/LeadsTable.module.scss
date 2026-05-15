@@ -1,0 +1,335 @@
+@use "../../styles/mixins" as m;
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+// ── Toolbar ────────────────────────────────────────────────────────────
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-3);
+  height: 36px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  flex: 1 1 240px;
+  min-width: 0;
+
+  &:focus-within {
+    border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-brand-500) 20%, transparent);
+  }
+}
+
+.searchInput {
+  flex: 1;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  min-width: 0;
+
+  &::placeholder { color: var(--text-muted); }
+}
+
+.select {
+  height: 36px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+}
+
+.toggle {
+  height: 36px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+
+  &:hover { background: var(--bg-surface-2); }
+}
+
+.toggleOn {
+  background: var(--color-brand-50);
+  color: var(--color-brand-600);
+  border-color: color-mix(in oklab, var(--color-brand-500) 32%, var(--border-strong));
+}
+
+.exportBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  margin-left: auto;
+
+  &:hover { background: var(--bg-surface-2); }
+}
+
+// ── Filter chip rows ───────────────────────────────────────────────────
+.chipsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.chipsLabel {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-right: var(--sp-2);
+}
+
+.chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  font-weight: 500;
+
+  &:hover { border-color: var(--border-strong); }
+}
+
+.chipOn {
+  background: var(--color-brand-50);
+  border-color: color-mix(in oklab, var(--color-brand-500) 36%, transparent);
+  color: var(--color-brand-600);
+}
+
+.count {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+// ── Table ──────────────────────────────────────────────────────────────
+.tableWrap {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  overflow-x: auto;
+  @include m.scrollbar-thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  min-width: 1100px;
+
+  thead th {
+    padding: var(--sp-2) var(--sp-3);
+    text-align: left;
+    background: var(--bg-surface-2);
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  tbody td {
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border-subtle);
+    vertical-align: top;
+    color: var(--text-primary);
+  }
+
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--bg-surface-2); }
+
+  tbody tr[data-lost] {
+    color: var(--text-muted);
+    .clientLink { text-decoration: line-through; color: var(--text-muted); }
+  }
+
+  // Scoped under .table so the CSS-modules "pure selector" check passes —
+  // a top-level `th[data-align]` rule would be rejected as global.
+  th[data-align="right"], td[data-align="right"] { text-align: right; }
+}
+
+.thBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+
+  &:hover { color: var(--text-primary); }
+}
+
+.sortGlyph {
+  font-size: 9px;
+  color: var(--color-brand-500);
+}
+
+// ── Cell content ───────────────────────────────────────────────────────
+.mono { font-family: var(--font-mono); }
+.muted { color: var(--text-muted); font-size: var(--fs-xs); }
+.nowrap { white-space: nowrap; }
+
+.idLink {
+  color: var(--color-brand-600);
+  &:hover { text-decoration: underline; }
+}
+
+.client {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.clientLink {
+  font-weight: 500;
+  color: var(--text-primary);
+  &:hover { color: var(--color-brand-600); text-decoration: underline; }
+}
+
+.cityMuted {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.urgent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tone-danger) 16%, transparent);
+  color: var(--tone-danger);
+  flex-shrink: 0;
+}
+
+.sector {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--sc);
+  background: color-mix(in oklab, var(--sc) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--sc) 28%, transparent);
+}
+
+.owner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--av);
+  color: var(--text-inverted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  flex-shrink: 0;
+}
+
+.ownerName { @include m.truncate; max-width: 140px; }
+
+.amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.statusPill {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+
+  &[data-status="lead"]     { color: var(--tone-info); background: color-mix(in oklab, var(--tone-info) 12%, transparent); border-color: color-mix(in oklab, var(--tone-info) 30%, transparent); }
+  &[data-status="envoye"]   { color: var(--color-brand-600); background: var(--color-brand-50); border-color: color-mix(in oklab, var(--color-brand-500) 32%, transparent); }
+  &[data-status="ouvert"]   { color: var(--tone-warning); background: color-mix(in oklab, var(--tone-warning) 14%, transparent); border-color: color-mix(in oklab, var(--tone-warning) 30%, transparent); }
+  &[data-status="signe"]    { color: var(--tone-success); background: color-mix(in oklab, var(--tone-success) 14%, transparent); border-color: color-mix(in oklab, var(--tone-success) 30%, transparent); }
+  &[data-status="encaisse"] { color: var(--text-inverted); background: var(--tone-success); border-color: var(--tone-success); }
+  &[data-status="perdu"]    { color: var(--text-muted); }
+}
+
+.subBadge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  font-size: 10px;
+  font-weight: 500;
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.nextFollowup {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  text-align: center;
+  padding: var(--sp-8) var(--sp-4);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+// ── Responsive: hide secondary columns on narrow screens. The table itself
+//    still scrolls horizontally below ~1100 px.
+@media (max-width: 900px) {
+  .colPhone, .colSource { display: none; }
+  .table { min-width: 820px; }
+}
+
+@media (max-width: 600px) {
+  .ownerName { display: none; } // keep just the avatar
+  .toggleOn, .toggle, .select, .exportBtn { font-size: var(--fs-xs); padding: 0 var(--sp-2); }
+}

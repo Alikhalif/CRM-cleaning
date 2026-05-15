@@ -1,0 +1,17 @@
+.shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+}
+
+.main {
+  flex: 1;
+  min-width: 0; // allow children to shrink inside flex
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  flex: 1;
+  padding: var(--sp-6);
+}

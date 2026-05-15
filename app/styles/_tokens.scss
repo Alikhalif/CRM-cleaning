@@ -1,0 +1,107 @@
+// Design tokens — exposed as CSS custom properties so dark mode is a runtime swap.
+// Colors picked from the CDC visual identity (cover: violet primary, mint, yellow)
+// and the four sectors (§4.12.3).
+
+:root {
+  // Brand
+  --color-brand-500: #5b4bcc;
+  --color-brand-600: #4a3cb3;
+  --color-brand-50:  #efedfb;
+
+  --color-mint-500:  #14c890;
+  --color-yellow-500:#f4c430;
+
+  // Sector palette (§4.12.3) — each sector keeps a stable hue across light/dark
+  --sector-urgence:    #ef4444; // Dépannage urgence
+  --sector-nettoyage:  #0ea5e9; // Nettoyage
+  --sector-enr:        #14c890; // Énergies renouvelables
+  --sector-renovation: #f59e0b; // Rénovation bâtiment
+
+  // Semantic tones
+  --tone-info:    #2563eb;
+  --tone-success: #14c890;
+  --tone-warning: #f59e0b;
+  --tone-danger:  #ef4444;
+
+  // Surfaces / neutrals — light mode defaults
+  --bg-app:        #f6f7fb;
+  --bg-surface:    #ffffff;
+  --bg-surface-2:  #f1f2f7;
+  --bg-elevated:   #ffffff;
+
+  --border-subtle: #e6e7ee;
+  --border-strong: #cdd0dc;
+
+  --text-primary:   #0f1226;
+  --text-secondary: #4a4d63;
+  --text-muted:     #8a8da3;
+  --text-inverted:  #ffffff;
+
+  --shadow-sm:  0 1px 2px rgba(15, 18, 38, 0.04), 0 1px 1px rgba(15, 18, 38, 0.03);
+  --shadow-md:  0 4px 12px rgba(15, 18, 38, 0.06), 0 2px 4px rgba(15, 18, 38, 0.04);
+  --shadow-lg:  0 16px 32px rgba(15, 18, 38, 0.10), 0 4px 8px rgba(15, 18, 38, 0.06);
+
+  // Typography
+  --font-sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  --fs-xs:   12px;
+  --fs-sm:   13px;
+  --fs-base: 14px;
+  --fs-md:   15px;
+  --fs-lg:   17px;
+  --fs-xl:   20px;
+  --fs-2xl:  24px;
+  --fs-3xl:  30px;
+
+  --lh-tight:  1.2;
+  --lh-normal: 1.5;
+
+  // Spacing scale (4-pt grid)
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  20px;
+  --sp-6:  24px;
+  --sp-8:  32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  // Radii
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+
+  // Layout
+  --sidebar-w:           240px;
+  --sidebar-w-collapsed: 56px;
+  --topbar-h:            56px;
+
+  // Motion
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast:  120ms;
+  --dur-base:  200ms;
+}
+
+// Dark mode — swap surfaces/text only; sector + brand hues stay (calibrated to remain accessible)
+[data-theme="dark"] {
+  --bg-app:        #0c0e1a;
+  --bg-surface:    #14172a;
+  --bg-surface-2:  #1c2038;
+  --bg-elevated:   #1c2038;
+
+  --border-subtle: #262a45;
+  --border-strong: #353a5c;
+
+  --text-primary:   #f1f2fa;
+  --text-secondary: #b9bcd1;
+  --text-muted:     #7a7e98;
+
+  --color-brand-50: #1f1d3b;
+
+  --shadow-sm:  0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md:  0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg:  0 16px 32px rgba(0, 0, 0, 0.55);
+}

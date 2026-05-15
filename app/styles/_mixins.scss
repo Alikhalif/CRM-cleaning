@@ -1,0 +1,30 @@
+// Reusable mixins — kept tiny on purpose. Add only what's used in 2+ places.
+
+@mixin truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@mixin scrollbar-thin {
+  scrollbar-width: thin;
+  &::-webkit-scrollbar { width: 8px; height: 8px; }
+  &::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 999px;
+  }
+}
+
+@mixin card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+// Sector chip background — accepts a CSS var name like --sector-enr
+@mixin sector-chip($var) {
+  color: var(#{$var});
+  background: color-mix(in oklab, var(#{$var}) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(#{$var}) 28%, transparent);
+}

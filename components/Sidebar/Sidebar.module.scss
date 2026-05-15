@@ -1,0 +1,135 @@
+@use "../../app/styles/mixins" as m;
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar-w);
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  transition: width var(--dur-base) var(--ease-out);
+
+  &[data-collapsed="true"] {
+    width: var(--sidebar-w-collapsed);
+  }
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: var(--topbar-h);
+  padding: 0 var(--sp-4);
+  border-bottom: 1px solid var(--border-subtle);
+  font-weight: 600;
+}
+
+.brandMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  background: var(--color-brand-500);
+  color: var(--text-inverted);
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.brandName {
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+  @include m.truncate;
+}
+
+.nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-3) var(--sp-2);
+  @include m.scrollbar-thin;
+}
+
+.group + .group { margin-top: var(--sp-4); }
+
+.groupLabel {
+  padding: var(--sp-2) var(--sp-3);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+
+  &:hover {
+    background: var(--bg-surface-2);
+    color: var(--text-primary);
+  }
+
+  &[data-active="true"] {
+    background: var(--color-brand-50);
+    color: var(--color-brand-600);
+  }
+}
+
+.navIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  flex-shrink: 0;
+}
+
+.navLabel {
+  @include m.truncate;
+  flex: 1;
+}
+
+.footer {
+  border-top: 1px solid var(--border-subtle);
+  padding: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.footerBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  width: 100%;
+  text-align: left;
+
+  &:hover {
+    background: var(--bg-surface-2);
+    color: var(--text-primary);
+  }
+
+  span { @include m.truncate; }
+}
+
+[data-collapsed="true"] {
+  .brand { justify-content: center; padding: 0 var(--sp-2); }
+  .nav { padding: var(--sp-3) var(--sp-1); }
+  .navLink { justify-content: center; padding: var(--sp-2); }
+  .footerBtn { justify-content: center; padding: var(--sp-2); }
+}

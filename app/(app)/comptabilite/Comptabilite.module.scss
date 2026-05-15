@@ -1,0 +1,414 @@
+@use "../../styles/mixins" as m;
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  margin-top: var(--sp-1);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.clientsLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+
+  &:hover { background: var(--bg-surface-2); }
+}
+
+// ── KPIs ───────────────────────────────────────────────────────────────
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-3);
+}
+
+.kpiCard {
+  @include m.card;
+  padding: var(--sp-4);
+  display: grid;
+  gap: 4px;
+  border-left: 3px solid var(--border-strong);
+
+  &[data-tone="info"]    { border-left-color: var(--tone-info); }
+  &[data-tone="warning"] { border-left-color: var(--tone-warning); }
+  &[data-tone="success"] { border-left-color: var(--tone-success); }
+}
+
+.kpiLabel {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.kpiValue {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: var(--lh-tight);
+}
+
+.kpiHint {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+// ── Tabs ────────────────────────────────────────────────────────────────
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-md);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+  align-self: flex-start;
+  overflow-x: auto;
+  max-width: 100%;
+  @include m.scrollbar-thin;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 6px 14px;
+  border-radius: var(--r-sm);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  white-space: nowrap;
+
+  &:hover { color: var(--text-primary); }
+}
+
+.tabOn {
+  background: var(--bg-surface);
+  color: var(--color-brand-600);
+  box-shadow: var(--shadow-sm);
+}
+
+.tabCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.tabOn .tabCount {
+  background: var(--color-brand-50);
+  border-color: color-mix(in oklab, var(--color-brand-500) 32%, transparent);
+  color: var(--color-brand-600);
+}
+
+// ── Toolbar / filters ──────────────────────────────────────────────────
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-3);
+  height: 36px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  flex: 1 1 240px;
+  min-width: 0;
+
+  &:focus-within {
+    border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-brand-500) 20%, transparent);
+  }
+}
+
+.searchInput {
+  flex: 1;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  min-width: 0;
+
+  &::placeholder { color: var(--text-muted); }
+}
+
+.select {
+  height: 36px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+}
+
+.chipsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.chipsLabel {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-right: var(--sp-2);
+}
+
+.chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  font-weight: 500;
+
+  &:hover { border-color: var(--border-strong); }
+}
+
+.chipOn {
+  background: var(--color-brand-50);
+  border-color: color-mix(in oklab, var(--color-brand-500) 36%, transparent);
+  color: var(--color-brand-600);
+}
+
+.count {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+// ── Table ──────────────────────────────────────────────────────────────
+.tableWrap {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  overflow-x: auto;
+  position: relative;
+  @include m.scrollbar-thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  min-width: 1080px;
+
+  thead th {
+    padding: var(--sp-2) var(--sp-3);
+    text-align: left;
+    background: var(--bg-surface-2);
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  tbody td {
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border-subtle);
+    vertical-align: middle;
+    color: var(--text-primary);
+  }
+
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--bg-surface-2); }
+
+  // Scoped under .table so the CSS-modules pure-selector check passes.
+  th.tNum, td.tNum { text-align: right; font-variant-numeric: tabular-nums; }
+}
+
+.mono { font-family: var(--font-mono); }
+.muted { color: var(--text-muted); font-size: var(--fs-xs); margin-top: 2px; }
+.colDate { white-space: nowrap; }
+
+.numLink {
+  color: var(--color-brand-600);
+  &:hover { text-decoration: underline; }
+}
+
+.clientName { font-weight: 500; }
+
+.entityRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  white-space: nowrap;
+}
+
+.entityDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.canalBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.canalDanger {
+  color: var(--tone-danger);
+  background: color-mix(in oklab, var(--tone-danger) 10%, transparent);
+  border-color: color-mix(in oklab, var(--tone-danger) 30%, transparent);
+}
+
+// ── Status pill (matching DocumentView's palette so the visual is consistent
+//    across the table view and the document view) ─────────────────────
+.statusPill {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+
+  &[data-status="signe"], &[data-status="paye"] {
+    color: var(--tone-success);
+    background: color-mix(in oklab, var(--tone-success) 12%, transparent);
+    border-color: color-mix(in oklab, var(--tone-success) 30%, transparent);
+  }
+  &[data-status="ouvert"], &[data-status="envoye"] {
+    color: var(--tone-warning);
+    background: color-mix(in oklab, var(--tone-warning) 12%, transparent);
+    border-color: color-mix(in oklab, var(--tone-warning) 30%, transparent);
+  }
+  &[data-status="retard"], &[data-status="refuse"], &[data-status="expire"] {
+    color: var(--tone-danger);
+    background: color-mix(in oklab, var(--tone-danger) 12%, transparent);
+    border-color: color-mix(in oklab, var(--tone-danger) 30%, transparent);
+  }
+}
+
+// ── Row actions / kebab menu ───────────────────────────────────────────
+.actionsCell { width: 40px; }
+
+.actionsAnchor { position: relative; }
+
+.kebab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+
+  &:hover { background: var(--bg-surface-2); color: var(--text-primary); }
+}
+
+.menu {
+  position: absolute;
+  top: 32px;
+  right: 0;
+  z-index: 10;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--sp-1);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2);
+  border-radius: var(--r-sm);
+  text-align: left;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  background: transparent;
+
+  &:hover { background: var(--bg-surface-2); }
+}
+
+.empty {
+  text-align: center;
+  padding: var(--sp-8) var(--sp-4);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+// ── Responsive ──────────────────────────────────────────────────────────
+@media (max-width: 900px) {
+  .table { min-width: 820px; }
+  .colDate { font-size: var(--fs-xs); }
+}
+
+@media (max-width: 600px) {
+  .clientsLink { font-size: var(--fs-xs); }
+}

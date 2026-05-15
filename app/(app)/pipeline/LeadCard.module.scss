@@ -1,0 +1,239 @@
+@use "../../styles/mixins" as m;
+
+.card {
+  @include m.card;
+  position: relative;
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  cursor: grab;
+  transition: box-shadow var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out),
+              opacity var(--dur-fast) var(--ease-out);
+
+  &:hover { box-shadow: var(--shadow-md); }
+  &:active { cursor: grabbing; }
+
+  &[data-dragging] {
+    opacity: 0.4;
+    transform: rotate(-1deg) scale(0.98);
+  }
+
+  &[data-lost] {
+    opacity: 0.7;
+    .client { text-decoration: line-through; color: var(--text-muted); }
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.sector {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--sp-2);
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--sc);
+  background: color-mix(in oklab, var(--sc) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--sc) 28%, transparent);
+}
+
+.shortId {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  flex: 1;
+  @include m.truncate;
+}
+
+.kebab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+
+  &:hover { background: var(--bg-surface-2); color: var(--text-primary); }
+}
+
+.body {
+  display: grid;
+  gap: 2px;
+  color: inherit;
+
+  &:hover .client { color: var(--color-brand-600); }
+}
+
+.client {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: var(--lh-tight);
+  @include m.truncate;
+}
+
+.urgent {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tone-danger) 18%, transparent);
+  color: var(--tone-danger);
+  flex-shrink: 0;
+}
+
+.city {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.amount {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+
+.badgeDanger {
+  color: var(--tone-danger);
+  background: color-mix(in oklab, var(--tone-danger) 10%, transparent);
+  border-color: color-mix(in oklab, var(--tone-danger) 30%, transparent);
+}
+
+.owner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--av);
+  color: var(--text-inverted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  flex-shrink: 0;
+}
+
+.lastAction {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  @include m.truncate;
+}
+
+// Hover-only quick action — shows on desktop where pointer = fine.
+// Touch devices fall back to the kebab menu (always visible).
+.sequenceBtn {
+  position: absolute;
+  inset: auto var(--sp-3) var(--sp-3) auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px var(--sp-2);
+  border-radius: 999px;
+  background: var(--color-brand-500);
+  color: var(--text-inverted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
+  pointer-events: none;
+
+  &:hover { background: var(--color-brand-600); }
+}
+
+@media (hover: hover) {
+  .card:hover .sequenceBtn,
+  .card:focus-within .sequenceBtn {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+}
+
+// Touch / coarse pointers can't hover, and the kebab menu carries the action there.
+@media (hover: none) {
+  .sequenceBtn { display: none; }
+}
+
+.menu {
+  position: absolute;
+  top: calc(var(--sp-3) + 28px);
+  right: var(--sp-3);
+  z-index: 10;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--sp-1);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.menuLabel {
+  padding: var(--sp-2) var(--sp-2) var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2);
+  border-radius: var(--r-sm);
+  text-align: left;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+
+  &:hover { background: var(--bg-surface-2); }
+}

@@ -1,0 +1,170 @@
+@use "../../app/styles/mixins" as m;
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10vh var(--sp-4) var(--sp-4);
+  background: rgba(15, 18, 38, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+[data-theme="dark"] .overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.palette {
+  width: 100%;
+  max-width: 640px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-lg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+// ── Search row ─────────────────────────────────────────────────────────
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+
+.input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--fs-md);
+  font-family: inherit;
+  min-width: 0;
+
+  &::placeholder { color: var(--text-muted); }
+}
+
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+}
+
+// ── Results ────────────────────────────────────────────────────────────
+.results {
+  overflow-y: auto;
+  flex: 1;
+  padding: var(--sp-2) 0;
+  @include m.scrollbar-thin;
+}
+
+.empty {
+  padding: var(--sp-6) var(--sp-4);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.group {
+  padding: var(--sp-2) 0;
+}
+
+.group + .group {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.groupLabel {
+  padding: var(--sp-1) var(--sp-4);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.groupList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.rowActive {
+  background: var(--color-brand-50);
+  color: var(--color-brand-600);
+
+  .rowSub { color: var(--color-brand-600); opacity: 0.75; }
+}
+
+.rowIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.rowActive .rowIcon { color: var(--color-brand-600); }
+
+.rowLabel {
+  @include m.truncate;
+  font-weight: 500;
+}
+
+.rowSub {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  @include m.truncate;
+  max-width: 320px;
+}
+
+// ── Footer ─────────────────────────────────────────────────────────────
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-surface-2);
+  font-size: 11px;
+  color: var(--text-muted);
+
+  span { display: inline-flex; align-items: center; gap: 4px; }
+}
+
+.footerShortcut {
+  margin-left: auto;
+}
+
+@media (max-width: 600px) {
+  .overlay { padding: 5vh var(--sp-2) var(--sp-2); }
+  .palette { max-height: 90vh; }
+  .rowSub { display: none; }
+  .footerShortcut { display: none; }
+}

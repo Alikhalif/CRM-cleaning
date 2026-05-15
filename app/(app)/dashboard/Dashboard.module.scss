@@ -1,0 +1,297 @@
+@use "../../styles/mixins" as m;
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  margin-top: var(--sp-1);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+// ── Filter bar ─────────────────────────────────────────────────────────
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+}
+
+.filterGroup {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.filterLabel {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-md);
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+}
+
+.segment {
+  padding: 4px 10px;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  border: 0;
+  white-space: nowrap;
+
+  &:hover { color: var(--text-primary); }
+}
+
+.segmentOn {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+// Sector segments tint to their sector color when active.
+.segmentOn[data-sector] {
+  color: var(--sc);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--sc) 32%, transparent), var(--shadow-sm);
+}
+
+// ── KPI cards ──────────────────────────────────────────────────────────
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--sp-3);
+}
+
+.kpiCard {
+  @include m.card;
+  padding: var(--sp-4);
+  display: grid;
+  gap: 4px;
+}
+
+.kpiLabel {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.kpiValue {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  line-height: var(--lh-tight);
+}
+
+.kpiHint {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+// ── Card grid ──────────────────────────────────────────────────────────
+.grid {
+  display: grid;
+  gap: var(--sp-4);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .grid {
+    grid-template-columns: 2fr 1fr;
+  }
+  // Line chart spans both columns; sector + commerciaux + map fill the rest.
+  .cardLine { grid-column: 1 / -1; }
+  .cardTop  { grid-column: 1; }
+  .cardMap  { grid-column: 1 / -1; }
+}
+
+@media (min-width: 1280px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .cardLine { grid-column: 1 / span 3; }
+  .cardTop  { grid-column: 1 / span 2; }
+  .cardMap  { grid-column: 1 / span 3; }
+}
+
+.card {
+  @include m.card;
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.cardHeader {
+  display: grid;
+  gap: 2px;
+}
+
+.h2 {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.005em;
+}
+
+.cardHint {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+// ── Funnel ──────────────────────────────────────────────────────────────
+.funnel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.funnelRow {
+  display: grid;
+  gap: 4px;
+}
+
+.funnelLabel {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.funnelCount {
+  color: var(--text-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.funnelTrack {
+  height: 10px;
+  background: var(--bg-surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.funnelBar {
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--color-brand-500),
+    color-mix(in oklab, var(--color-brand-500) 60%, var(--tone-success))
+  );
+  border-radius: 999px;
+  transition: width var(--dur-base) var(--ease-out);
+}
+
+.funnelDrop {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+// ── Top commerciaux ────────────────────────────────────────────────────
+.commerciaux {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.commercialRow {
+  display: grid;
+  grid-template-columns: 24px 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.rank {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--av);
+  color: var(--text-inverted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.commercialBody { min-width: 0; }
+
+.commercialName {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  @include m.truncate;
+}
+
+.commercialMeta {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  @include m.truncate;
+}
+
+// ── Map placeholder ────────────────────────────────────────────────────
+.mapPlaceholder {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-6);
+  border-radius: var(--r-md);
+  border: 1px dashed var(--border-strong);
+  background: var(--bg-surface-2);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+
+  p { margin: 0; }
+}

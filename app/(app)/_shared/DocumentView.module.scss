@@ -1,0 +1,385 @@
+@use "../../styles/mixins" as m;
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+// ── Action bar ─────────────────────────────────────────────────────────
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: var(--sp-2) 0;
+  background: var(--bg-app);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+
+  &:hover { background: var(--bg-surface-2); }
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+}
+
+.btnPrimary {
+  background: var(--color-brand-500);
+  color: var(--text-inverted);
+  border-color: var(--color-brand-500);
+  &:hover { background: var(--color-brand-600); border-color: var(--color-brand-600); }
+}
+
+.btnSuccess {
+  background: var(--tone-success);
+  color: var(--text-inverted);
+  border-color: var(--tone-success);
+  &:hover { background: color-mix(in oklab, var(--tone-success) 80%, black); }
+}
+
+// ── Document "paper" ───────────────────────────────────────────────────
+.document {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--sp-8) var(--sp-8) var(--sp-6);
+  max-width: 820px;
+  width: 100%;
+  margin: 0 auto;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
+}
+
+@media (max-width: 600px) {
+  .document { padding: var(--sp-5) var(--sp-4); }
+}
+
+// ── Header ─────────────────────────────────────────────────────────────
+.head {
+  display: grid;
+  gap: var(--sp-5);
+  grid-template-columns: 1fr;
+
+  @media (min-width: 600px) {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.entity {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: start;
+}
+
+.entityLogo {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-md);
+  background: var(--ec);
+  color: var(--text-inverted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  font-size: var(--fs-md);
+}
+
+.entityName {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.entityMeta {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.docMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+
+  @media (min-width: 600px) {
+    align-items: flex-end;
+    text-align: right;
+  }
+}
+
+.docType {
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: var(--text-primary);
+}
+
+.docNum {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.docStatus {
+  display: inline-flex;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+
+  &[data-status="signe"], &[data-status="paye"] {
+    color: var(--tone-success);
+    background: color-mix(in oklab, var(--tone-success) 12%, transparent);
+    border-color: color-mix(in oklab, var(--tone-success) 30%, transparent);
+  }
+  &[data-status="ouvert"], &[data-status="envoye"] {
+    color: var(--tone-warning);
+    background: color-mix(in oklab, var(--tone-warning) 12%, transparent);
+    border-color: color-mix(in oklab, var(--tone-warning) 30%, transparent);
+  }
+  &[data-status="retard"], &[data-status="refuse"], &[data-status="expire"] {
+    color: var(--tone-danger);
+    background: color-mix(in oklab, var(--tone-danger) 12%, transparent);
+    border-color: color-mix(in oklab, var(--tone-danger) 30%, transparent);
+  }
+}
+
+.docDates {
+  display: grid;
+  gap: 4px;
+  font-size: var(--fs-xs);
+
+  > div {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-start;
+    @media (min-width: 600px) {
+      justify-content: flex-end;
+    }
+  }
+
+  dt { color: var(--text-muted); }
+  dd { color: var(--text-primary); font-weight: 500; }
+}
+
+// ── Client ─────────────────────────────────────────────────────────────
+.client {
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  background: var(--bg-surface-2);
+}
+
+.clientLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.clientName {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.clientMeta {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.6;
+}
+
+// ── Signature banner ───────────────────────────────────────────────────
+.signatureBanner {
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid color-mix(in oklab, var(--color-brand-500) 32%, var(--border-subtle));
+  border-radius: var(--r-md);
+  background: var(--color-brand-50);
+  color: var(--color-brand-600);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+
+  strong {
+    display: block;
+    margin-bottom: 2px;
+    font-size: var(--fs-sm);
+  }
+}
+
+// ── Lines ──────────────────────────────────────────────────────────────
+.linesSection {
+  overflow-x: auto;
+  @include m.scrollbar-thin;
+}
+
+.lines {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  min-width: 560px;
+
+  thead th {
+    padding: var(--sp-2) var(--sp-3);
+    text-align: left;
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    border-bottom: 2px solid var(--border-strong);
+    background: transparent;
+  }
+
+  tbody td {
+    padding: var(--sp-3);
+    border-bottom: 1px solid var(--border-subtle);
+    vertical-align: top;
+  }
+
+  tbody tr:last-child td { border-bottom: 2px solid var(--border-strong); }
+
+  .tNum { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+}
+
+// ── Totals row ─────────────────────────────────────────────────────────
+.totalsRow {
+  display: grid;
+  gap: var(--sp-4);
+  grid-template-columns: 1fr;
+
+  @media (min-width: 600px) {
+    grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+    align-items: start;
+  }
+}
+
+.terms {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.termsLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.termsBank {
+  margin-top: var(--sp-2);
+}
+
+.termsRefuse {
+  margin-top: var(--sp-2);
+  color: var(--tone-danger);
+}
+
+.totals {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  background: var(--bg-surface-2);
+}
+
+.totalRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 4px;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+}
+
+.totalValue {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.totalRowMuted { color: var(--text-muted); font-size: var(--fs-xs); padding: 4px; }
+.totalRowBold {
+  border-top: 1px solid var(--border-strong);
+  margin-top: 4px;
+  padding-top: 8px;
+  font-weight: 700;
+  font-size: var(--fs-md);
+}
+.totalRowHighlight {
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  background: var(--color-brand-50);
+  color: var(--color-brand-600);
+  font-weight: 600;
+}
+
+// ── Footer ─────────────────────────────────────────────────────────────
+.footer {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.footerLink {
+  color: var(--text-muted);
+}
+
+.link {
+  color: var(--color-brand-600);
+  &:hover { text-decoration: underline; }
+}
+
+.mono { font-family: var(--font-mono); }
+
+// ── Print ──────────────────────────────────────────────────────────────
+// Hide app chrome (sidebar + topbar + actions) and lay out as a single A4
+// page. The sidebar and topbar carry [data-no-print] (added in their
+// components) which globals.scss hides for print.
+@media print {
+  .page { gap: 0; }
+  .actions { display: none; }
+  .document {
+    box-shadow: none;
+    border: 0;
+    padding: 0;
+    max-width: none;
+    margin: 0;
+  }
+}

@@ -1,0 +1,231 @@
+@use "../../styles/mixins" as m;
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.subtitle {
+  margin-top: var(--sp-1);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+// ── Toolbar ────────────────────────────────────────────────────────────
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-3);
+  height: 36px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  flex: 1 1 240px;
+  min-width: 0;
+
+  &:focus-within {
+    border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-brand-500) 20%, transparent);
+  }
+}
+
+.searchInput {
+  flex: 1;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  min-width: 0;
+
+  &::placeholder { color: var(--text-muted); }
+}
+
+.select {
+  height: 36px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+}
+
+.newBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--color-brand-500);
+  color: var(--text-inverted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  margin-left: auto;
+
+  &:hover { background: var(--color-brand-600); }
+}
+
+.count {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+// ── Table ──────────────────────────────────────────────────────────────
+.tableWrap {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  overflow-x: auto;
+  @include m.scrollbar-thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+  min-width: 1080px;
+
+  thead th {
+    padding: var(--sp-2) var(--sp-3);
+    text-align: left;
+    background: var(--bg-surface-2);
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: nowrap;
+  }
+
+  tbody td {
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border-subtle);
+    vertical-align: middle;
+    color: var(--text-primary);
+  }
+
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--bg-surface-2); }
+
+  th.tNum, td.tNum { text-align: right; font-variant-numeric: tabular-nums; }
+}
+
+.mono { font-family: var(--font-mono); }
+.muted { color: var(--text-muted); font-size: var(--fs-xs); }
+.colWide { @include m.truncate; max-width: 240px; }
+
+.nameLink {
+  font-weight: 500;
+  color: var(--text-primary);
+  &:hover { color: var(--color-brand-600); text-decoration: underline; }
+}
+
+// ── Type / origin pills ───────────────────────────────────────────────
+.typePill {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+
+  &[data-type="pro"] {
+    color: var(--color-brand-600);
+    background: var(--color-brand-50);
+    border-color: color-mix(in oklab, var(--color-brand-500) 32%, transparent);
+  }
+  &[data-type="particulier"] {
+    color: var(--tone-info);
+    background: color-mix(in oklab, var(--tone-info) 10%, transparent);
+    border-color: color-mix(in oklab, var(--tone-info) 30%, transparent);
+  }
+}
+
+.originPill {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+
+  &[data-origin="lead"] {
+    color: var(--tone-success);
+    background: color-mix(in oklab, var(--tone-success) 10%, transparent);
+    border-color: color-mix(in oklab, var(--tone-success) 28%, transparent);
+  }
+}
+
+// ── Sector chip ────────────────────────────────────────────────────────
+.sectors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.sectorChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--sc);
+  background: color-mix(in oklab, var(--sc) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--sc) 28%, transparent);
+  white-space: nowrap;
+}
+
+.empty {
+  text-align: center;
+  padding: var(--sp-8) var(--sp-4);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+@media (max-width: 900px) {
+  .colWide { display: none; }
+  .table { min-width: 820px; }
+}
+
+@media (max-width: 600px) {
+  .newBtn span { display: none; }
+}
