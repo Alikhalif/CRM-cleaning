@@ -243,14 +243,50 @@ export default function QuoteEditor({
     });
   };
 
-  // Aperçu PDF stays a stub — needs a signed-URL PDF route which is
-  // separate work. Keep it visible so the UX expectation is preserved.
-  const stubPreview = () => {
+  // Aperçu PDF: the draft doesn't exist in the DB yet, so we save as
+  // brouillon first, then open the rendered PDF in a new tab. The user
+  // can then continue editing or send from the document detail page.
+  const preview = () => {
+    setServerError(null);
+    if (!draft.clientId) {
+      setServerError("Sélectionnez un client avant d'afficher l'aperçu.");
+      return;
+    }
+    if (draft.lines.length === 0) {
+      setServerError("Ajoutez au moins une ligne avant d'afficher l'aperçu.");
+      return;
+    }
     setSubmitting("preview");
-    setTimeout(() => {
-      alert("Stub : GET /api/quotes/:id/preview-pdf (URL signée — pas encore implémenté).");
-      setSubmitting(null);
-    }, 0);
+    const payload: DraftInput = {
+      clientId: draft.clientId,
+      entityId: draft.entityId,
+      issuedAt: draft.issuedAt,
+      validUntil: draft.validUntil,
+      paymentTermSlug: draft.paymentTermSlug,
+      acomptePct: draft.acomptePct,
+      notes: draft.notes,
+      lines: draft.lines.map((l) => ({
+        prestationId: l.prestationId,
+        label: l.label,
+        quantity: l.quantity,
+        unit: l.unit,
+        unitPriceHt: l.unitPriceHt,
+        vatRate: l.vatRate,
+        discountPct: l.discountPct,
+      })),
+    };
+    startTransition(async () => {
+      const result = await createDevis(payload, "draft");
+      if (!result.ok) {
+        setServerError(result.error);
+        setSubmitting(null);
+        return;
+      }
+      // Open the rendered PDF in a new tab and route the user to the
+      // saved draft so they can keep editing or send it.
+      window.open(`/api/documents/${result.id}/preview-pdf`, "_blank", "noopener,noreferrer");
+      router.push(`/devis/${result.id}`);
+    });
   };
 
   const selectedClient = clients.find((c) => c.id === draft.clientId);
@@ -574,7 +610,7 @@ export default function QuoteEditor({
                 type="button"
                 className={styles.btnSecondary}
                 disabled={submitting !== null}
-                onClick={stubPreview}
+                onClick={preview}
               >
                 Aperçu PDF
               </button>

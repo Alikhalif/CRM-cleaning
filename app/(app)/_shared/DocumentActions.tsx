@@ -76,16 +76,15 @@ export default function DocumentActions({ doc }: Props) {
   return (
     <>
       <nav className={styles.actions} aria-label="Actions document" data-no-print>
-        <button
-          type="button"
+        <a
+          href={`/api/documents/${doc.id}/preview-pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
           className={`${styles.btn} ${styles.btnPrimary}`}
-          disabled={busy !== null}
-          onClick={() => {
-            if (typeof window !== "undefined") window.print();
-          }}
+          aria-disabled={busy !== null}
         >
-          <Icon name="check" size={14} /> Télécharger PDF
-        </button>
+          <Icon name="check" size={14} /> Aperçu PDF
+        </a>
 
         {isDevisDraft && (
           <button
@@ -129,16 +128,6 @@ export default function DocumentActions({ doc }: Props) {
           </button>
         )}
 
-        <button
-          type="button"
-          className={styles.btn}
-          disabled={busy !== null}
-          onClick={() =>
-            stub("regen", `Stub : POST /api/documents/${doc.id}/regenerate (PDF — pas encore wired).`)
-          }
-        >
-          Régénérer
-        </button>
       </nav>
 
       {error && (
