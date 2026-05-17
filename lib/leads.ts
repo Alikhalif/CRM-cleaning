@@ -33,8 +33,14 @@ export type Commercial = {
 export type Lead = {
   id: string;
   shortId: string; // e.g. "L-1042"
-  client: string; // display name (person or company)
+  client: string; // display name (person or company) — composed on read
   isCompany: boolean;
+  // Raw name parts kept alongside the composed `client` so the edit-contact
+  // modal can pre-fill them losslessly. Persisted as separate DB columns
+  // (client_first_name / client_last_name / client_company) per CDC §5.2.
+  firstName?: string;
+  lastName?: string;
+  company?: string;
   email: string;
   phone: string;
   address: string; // street
@@ -53,6 +59,11 @@ export type Lead = {
   // Set when an n8n WF2 sequence is scheduled or a manual call-back is queued.
   nextFollowupAt?: string;
   isUrgent?: boolean;
+  // NRP = « Ne Répond Pas ». Set by the commercial when a contact attempt
+  // fails (no answer / no reply). Cleared manually once contact resumes.
+  // Orthogonal to status — a lead can be NRP at any pipeline stage.
+  isNrp: boolean;
+  nrpAt?: string;
   siret?: string;
   vatIntra?: string;
   notes?: string;

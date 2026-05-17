@@ -1,12 +1,8 @@
-// Dashboard mock data + aggregations.
-//
-// Synthesises 90 days of daily metrics, sliced by sector × channel, so the
-// global filter bar (période + secteur + canal) actually does something.
-// The Pipeline/Leads pages still read MOCK_LEADS — this module is intentionally
-// independent. When Supabase is wired both will hit the same DB views.
+// Pure dashboard aggregators. No data fetching, no mock data — the real
+// row set is built server-side in lib/dashboard-server.ts and passed in
+// as DailyMetric[]. These functions filter / roll up / score.
 
-import type { Sector } from "./leads";
-import { MOCK_COMMERCIAUX } from "./leads-mock";
+import type { Commercial, Sector } from "./leads";
 
 export type Channel = "mano" | "auto";
 export type Period = "7d" | "30d" | "90d";
@@ -17,82 +13,120 @@ export type DashboardFilter = {
   channel: Channel | "all";
 };
 
+// A single bucket of activity: one date × sector × channel × owner. Buckets
+// roll up by summation across whichever dimensions a given aggregator cares
+// about. ownerId is nullable because some legacy rows (or unattributed leads)
+// have no owner; top-commercial rankings exclude them, but they still count
+// toward team-wide KPIs.
 export type DailyMetric = {
   date: string; // YYYY-MM-DD UTC
   sector: Sector;
   channel: Channel;
+  ownerId: string | null;
   leads: number;
   devisSent: number;
+  devisSentAmount: number; // EUR — sum of total_ttc of the devis sent that day
+  devisOpened: number; // count of devis that reached status ≥ "ouvert"
   devisSigned: number;
   caSigned: number; // EUR
-  encaisse: number; // EUR (CA effectively cashed)
+  encaisse: number; // EUR (acomptes + finales paid)
+  encaisseCount: number; // count of paid acompte/finale events (funnel stage)
 };
 
 const SECTORS: Sector[] = ["urgence", "nettoyage", "enr", "renovation"];
-const CHANNELS: Channel[] = ["mano", "auto"];
 
-// CDC §1.3 + §4.12.3: weights tuned to ~150 leads/month with realistic mix.
-// avgTicket roughly aligns with the catalogue ranges per sector.
-const SECTOR_PROFILE: Record<Sector, { weight: number; avgTicket: number }> = {
-  urgence:    { weight: 0.20, avgTicket: 450 },
-  nettoyage:  { weight: 0.45, avgTicket: 1500 },
-  enr:        { weight: 0.20, avgTicket: 18000 },
-  renovation: { weight: 0.15, avgTicket: 38000 },
-};
-
-// Linear-congruential PRNG. Seeded per day so the timeline is stable across
-// reloads but still varies day-to-day.
-function seeded(seed: number) {
-  let s = seed >>> 0 || 1;
-  return () => {
-    s = Math.imul(s, 1664525) + 1013904223;
-    s = s >>> 0;
-    return s / 0x100000000;
-  };
-}
-
-// Anchor "today" once at module load — keeps everything deterministic within a session.
+// "Today" pinned at module load so filterSeries is deterministic within a
+// page render (the cutoff doesn't drift between memo recomputes).
 const TODAY = (() => {
   const d = new Date();
   d.setUTCHours(0, 0, 0, 0);
   return d;
 })();
 
-function buildSeries(): DailyMetric[] {
-  const out: DailyMetric[] = [];
-  for (let dayOffset = 89; dayOffset >= 0; dayOffset--) {
-    const date = new Date(TODAY);
-    date.setUTCDate(date.getUTCDate() - dayOffset);
-    const iso = date.toISOString().slice(0, 10);
-    const rng = seeded(Math.floor(date.getTime() / 86_400_000));
+// ── Real-data path ───────────────────────────────────────────────────
+// Buckets a flat row set (leads + their documents) into DailyMetric[].
+// Pure — server fetches live in lib/dashboard-server.ts.
 
-    // Slight weekend dampening so the chart "breathes" weekly.
-    const dow = date.getUTCDay();
-    const dowMult = dow === 0 || dow === 6 ? 0.55 : 1;
+export type RawLead = {
+  receivedAt: string;
+  sector: Sector;
+  channel: Channel | null;
+  ownerId: string | null;
+  status: string;
+  amount: number;
+};
 
-    for (const sector of SECTORS) {
-      for (const channel of CHANNELS) {
-        const profile = SECTOR_PROFILE[sector];
-        const channelMult = channel === "mano" ? 0.55 : 0.45;
-        const noise = 0.7 + rng() * 0.6;
-        const baseLeads = 5 * profile.weight * channelMult * noise * dowMult;
-        const leads = Math.round(baseLeads);
-        const sentRate = 0.7 + rng() * 0.15;
-        const signedRate = 0.2 + rng() * 0.15;
-        const encRate = 0.85 + rng() * 0.1;
-        const devisSent = Math.min(leads, Math.round(leads * sentRate));
-        const devisSigned = Math.min(devisSent, Math.round(leads * signedRate));
-        const ticketNoise = 0.85 + rng() * 0.3;
-        const caSigned = Math.round(devisSigned * profile.avgTicket * ticketNoise);
-        const encaisse = Math.round(caSigned * encRate);
-        out.push({ date: iso, sector, channel, leads, devisSent, devisSigned, caSigned, encaisse });
+export type RawDoc = {
+  type: "devis" | "acompte" | "finale";
+  status: string;
+  issuedAt: string;
+  signedAt: string | null;
+  paidAt: string | null;
+  totalTtc: number;
+  sector: Sector;
+  channel: Channel | null;
+  ownerId: string | null;
+};
+
+export function buildDailySeriesFromRows(
+  leads: RawLead[],
+  docs: RawDoc[],
+): DailyMetric[] {
+  const map = new Map<string, DailyMetric>();
+  const key = (date: string, sector: Sector, channel: Channel, ownerId: string | null) =>
+    `${date}|${sector}|${channel}|${ownerId ?? ""}`;
+  const bump = (
+    date: string,
+    sector: Sector,
+    channel: Channel,
+    ownerId: string | null,
+    field: Exclude<keyof DailyMetric, "date" | "sector" | "channel" | "ownerId">,
+    value: number,
+  ) => {
+    if (!date) return;
+    const k = key(date, sector, channel, ownerId);
+    let cell = map.get(k);
+    if (!cell) {
+      cell = {
+        date, sector, channel, ownerId,
+        leads: 0, devisSent: 0, devisSentAmount: 0,
+        devisOpened: 0, devisSigned: 0,
+        caSigned: 0, encaisse: 0, encaisseCount: 0,
+      };
+      map.set(k, cell);
+    }
+    cell[field] += value;
+  };
+
+  for (const lead of leads) {
+    const channel: Channel = lead.channel ?? "mano";
+    bump(lead.receivedAt.slice(0, 10), lead.sector, channel, lead.ownerId, "leads", 1);
+  }
+
+  for (const doc of docs) {
+    const channel: Channel = doc.channel ?? "mano";
+    if (doc.type === "devis") {
+      bump(doc.issuedAt.slice(0, 10), doc.sector, channel, doc.ownerId, "devisSent", 1);
+      bump(doc.issuedAt.slice(0, 10), doc.sector, channel, doc.ownerId, "devisSentAmount", doc.totalTtc);
+      // "Opened" is monotone: once a devis reaches ouvert/signe, it counts.
+      // Bucket on issuedAt so the funnel reads as a snapshot of the cohort
+      // issued in the window, not as separate timelines per stage.
+      if (doc.status === "ouvert" || doc.status === "signe") {
+        bump(doc.issuedAt.slice(0, 10), doc.sector, channel, doc.ownerId, "devisOpened", 1);
       }
+      if (doc.status === "signe" && doc.signedAt) {
+        const d = doc.signedAt.slice(0, 10);
+        bump(d, doc.sector, channel, doc.ownerId, "devisSigned", 1);
+        bump(d, doc.sector, channel, doc.ownerId, "caSigned", doc.totalTtc);
+      }
+    } else if ((doc.type === "acompte" || doc.type === "finale") && doc.paidAt) {
+      bump(doc.paidAt.slice(0, 10), doc.sector, channel, doc.ownerId, "encaisse", doc.totalTtc);
+      bump(doc.paidAt.slice(0, 10), doc.sector, channel, doc.ownerId, "encaisseCount", 1);
     }
   }
-  return out;
-}
 
-export const DAILY_SERIES = buildSeries();
+  return [...map.values()];
+}
 
 export function filterSeries(series: DailyMetric[], f: DashboardFilter): DailyMetric[] {
   const days = f.period === "7d" ? 7 : f.period === "30d" ? 30 : 90;
@@ -122,16 +156,10 @@ export type Kpis = {
 export function computeKpis(filtered: DailyMetric[]): Kpis {
   const leads = sumBy(filtered, "leads");
   const devisSent = sumBy(filtered, "devisSent");
+  const devisSentAmount = sumBy(filtered, "devisSentAmount");
   const devisSigned = sumBy(filtered, "devisSigned");
   const caSigned = sumBy(filtered, "caSigned");
   const caEncaisse = sumBy(filtered, "encaisse");
-  // Approx the "envoyés" amount from the sector × avg-ticket mix.
-  const devisSentAmount = SECTORS.reduce((s, sec) => {
-    const sectorSent = filtered
-      .filter((d) => d.sector === sec)
-      .reduce((m, d) => m + d.devisSent, 0);
-    return s + sectorSent * SECTOR_PROFILE[sec].avgTicket;
-  }, 0);
   return {
     leads,
     devisSent,
@@ -175,20 +203,18 @@ export function aggregateByDay(filtered: DailyMetric[]): DailyTotals[] {
 // ── Funnel ──────────────────────────────────────────────────────────────
 export type FunnelStage = { label: string; count: number };
 
+// All five stages now read from real DB state. "Devis ouverts" counts devis
+// whose status reached ouvert or beyond (monotone — once opened, always
+// counted). "Encaissés" counts paid acompte/finale events; one signed devis
+// can produce two encaissés (acompte then finale) so this stage can exceed
+// "Signés" when the data window catches both payments.
 export function funnel(filtered: DailyMetric[]): FunnelStage[] {
-  const leads = sumBy(filtered, "leads");
-  const sent = sumBy(filtered, "devisSent");
-  // The synthesized series doesn't track "ouvert" — derive a plausible
-  // open-rate figure (typical e-sign tracked-link open rate ~85%).
-  const opened = Math.round(sent * 0.85);
-  const signed = sumBy(filtered, "devisSigned");
-  const enc = Math.round(signed * 0.92);
   return [
-    { label: "Leads",         count: leads },
-    { label: "Devis envoyés", count: sent },
-    { label: "Devis ouverts", count: opened },
-    { label: "Signés",        count: signed },
-    { label: "Encaissés",     count: enc },
+    { label: "Leads",         count: sumBy(filtered, "leads") },
+    { label: "Devis envoyés", count: sumBy(filtered, "devisSent") },
+    { label: "Devis ouverts", count: sumBy(filtered, "devisOpened") },
+    { label: "Signés",        count: sumBy(filtered, "devisSigned") },
+    { label: "Encaissés",     count: sumBy(filtered, "encaisseCount") },
   ];
 }
 
@@ -215,30 +241,41 @@ export type CommercialPerf = {
   spark: number[]; // last 30 days, signed count
 };
 
-// Distribute team-wide totals across the 5 commerciaux with stable weights.
-const OWNER_WEIGHTS = [0.27, 0.22, 0.2, 0.18, 0.13];
+// Aggregate the filtered series by actual owner_id. Commerciaux without any
+// activity in the filter window still appear in the ranking with zeroed
+// counters — easier to spot inactive sales than to silently hide them.
+export function topCommerciaux(
+  filtered: DailyMetric[],
+  commerciaux: Commercial[],
+): CommercialPerf[] {
+  const byOwner = new Map<string, DailyMetric[]>();
+  for (const m of filtered) {
+    if (!m.ownerId) continue;
+    const arr = byOwner.get(m.ownerId) ?? [];
+    arr.push(m);
+    byOwner.set(m.ownerId, arr);
+  }
 
-export function topCommerciaux(filtered: DailyMetric[]): CommercialPerf[] {
-  const dailyTotals = aggregateByDay(filtered);
-  const last30 = dailyTotals.slice(-30);
-  return MOCK_COMMERCIAUX.map((c, idx) => {
-    const w = OWNER_WEIGHTS[idx] ?? 0.1;
-    const leads = dailyTotals.reduce((s, d) => s + d.leads * w, 0);
-    const signed = dailyTotals.reduce((s, d) => s + d.devisSigned * w, 0);
-    const caSigned = dailyTotals.reduce((s, d) => s + d.caSigned * w, 0);
-    const spark = last30.map((d) => d.devisSigned * w);
-    return {
-      id: c.id,
-      name: c.name,
-      initials: c.initials,
-      color: c.color,
-      leads: Math.round(leads),
-      signed: Math.round(signed),
-      caSigned: Math.round(caSigned),
-      conversion: leads === 0 ? 0 : signed / leads,
-      spark,
-    };
-  }).sort((a, b) => b.caSigned - a.caSigned);
+  return commerciaux
+    .map((c) => {
+      const rows = byOwner.get(c.id) ?? [];
+      const leads = sumBy(rows, "leads");
+      const signed = sumBy(rows, "devisSigned");
+      const caSigned = sumBy(rows, "caSigned");
+      const dailySpark = aggregateByDay(rows).slice(-30);
+      return {
+        id: c.id,
+        name: c.name,
+        initials: c.initials,
+        color: c.color,
+        leads,
+        signed,
+        caSigned,
+        conversion: leads === 0 ? 0 : signed / leads,
+        spark: dailySpark.map((d) => d.devisSigned),
+      };
+    })
+    .sort((a, b) => b.caSigned - a.caSigned);
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────

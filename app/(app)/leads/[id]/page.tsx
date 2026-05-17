@@ -13,7 +13,9 @@ import {
   needsEnvoi,
   needsSignature,
 } from "@/lib/leads";
-import { getLeadDetail } from "@/lib/leads-mock";
+// First page wired to real Supabase reads. Other pages still use leads-mock
+// until they're migrated one by one.
+import { getAllCommerciaux, getLeadDetail } from "@/lib/leads-server";
 import LeadActions from "./LeadActions";
 import styles from "./LeadDetail.module.scss";
 
@@ -27,13 +29,16 @@ type PageProps = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: PageProps) {
   const { id } = await params;
-  const detail = getLeadDetail(id);
+  const detail = await getLeadDetail(id);
   return { title: detail ? detail.lead.client : "Lead introuvable" };
 }
 
 export default async function LeadDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const detail = getLeadDetail(id);
+  const [detail, commerciaux] = await Promise.all([
+    getLeadDetail(id),
+    getAllCommerciaux(),
+  ]);
   if (!detail) notFound();
 
   const { lead, owner, documents, timeline } = detail;
@@ -82,6 +87,11 @@ export default async function LeadDetailPage({ params }: PageProps) {
             <span className={styles.statusPill} data-status={lead.status}>
               {statusLabel}
             </span>
+            {lead.isNrp && (
+              <span className={`${styles.badge} ${styles.badgeNrp}`} title="Ne répond pas">
+                NRP
+              </span>
+            )}
             {needsEnvoi(lead) ? (
               <span className={`${styles.badge} ${styles.badgeDanger}`}>
                 <Icon name="alert" size={11} /> Canal manquant
@@ -108,7 +118,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
             <span className={styles.muted}>· {lead.city}</span>
           </div>
         </div>
-        <LeadActions lead={lead} />
+        <LeadActions lead={lead} commerciaux={commerciaux} />
       </header>
 
       <div className={styles.layout}>

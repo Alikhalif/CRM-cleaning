@@ -303,6 +303,17 @@
   line-height: 1.5;
 }
 
+.errorBox {
+  margin-top: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--color-danger-50, #fef2f2);
+  color: var(--color-danger-600, #b91c1c);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
 // ── Actions ────────────────────────────────────────────────────────────
 .actions {
   display: flex;

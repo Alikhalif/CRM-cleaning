@@ -1,9 +1,15 @@
 import PipelineBoard from "./PipelineBoard";
 import styles from "./Pipeline.module.scss";
+import { getAllCommerciaux, getAllLeads } from "@/lib/leads-server";
 
 export const metadata = { title: "Pipeline" };
 
-export default function PipelinePage() {
+export default async function PipelinePage() {
+  const [leads, commerciaux] = await Promise.all([
+    getAllLeads(),
+    getAllCommerciaux(),
+  ]);
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -14,7 +20,7 @@ export default function PipelinePage() {
           </p>
         </div>
       </header>
-      <PipelineBoard />
+      <PipelineBoard initialLeads={leads} commerciaux={commerciaux} />
     </div>
   );
 }

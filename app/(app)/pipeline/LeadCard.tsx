@@ -29,6 +29,7 @@ type Props = {
   onMove: (id: string, target: LeadStatus) => void;
   onSetEnvoi: (id: string, value: SubEnvoi) => void;
   onSetSignature: (id: string, value: SubSignature) => void;
+  onSetNrp: (id: string, nrp: boolean) => void;
   onLaunchSequence: (lead: Lead) => void;
 };
 
@@ -41,6 +42,7 @@ export default function LeadCard({
   onMove,
   onSetEnvoi,
   onSetSignature,
+  onSetNrp,
   onLaunchSequence,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -118,6 +120,11 @@ export default function LeadCard({
 
       <footer className={styles.foot}>
         <div className={styles.badges}>
+          {lead.isNrp && (
+            <span className={`${styles.badge} ${styles.badgeNrp}`} title="Ne répond pas">
+              NRP
+            </span>
+          )}
           {missingEnvoi && (
             <span className={`${styles.badge} ${styles.badgeDanger}`}>
               <Icon name="alert" size={11} /> Canal manquant
@@ -176,6 +183,17 @@ export default function LeadCard({
               <Icon name="zap" size={14} /> Lancer séquence
             </button>
           )}
+
+          <button
+            type="button"
+            className={styles.menuItem}
+            onClick={() => {
+              onSetNrp(lead.id, !lead.isNrp);
+              setMenuOpen(false);
+            }}
+          >
+            {lead.isNrp ? "Retirer NRP" : "Marquer NRP (ne répond pas)"}
+          </button>
 
           {(lead.status === "envoye" || lead.status === "ouvert") && (
             <>

@@ -1,0 +1,215 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+  background: rgba(15, 18, 38, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+[data-theme="dark"] .overlay {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.modal {
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-lg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+// ── Header ─────────────────────────────────────────────────────────────
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.subtitle {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.closeBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--bg-surface-2);
+    color: var(--text-primary);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// ── Body ───────────────────────────────────────────────────────────────
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  overflow-y: auto;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.optional {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.input {
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  font-family: inherit;
+
+  &:focus {
+    outline: 0;
+    border-color: var(--color-brand-500, var(--color-brand-600));
+    box-shadow: 0 0 0 2px var(--color-brand-50, rgba(91, 75, 204, 0.15));
+  }
+}
+
+.flagsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.flagChip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--sp-1) var(--sp-2);
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+
+  &:hover {
+    background: var(--bg-surface-2);
+  }
+}
+
+.flagChipOn {
+  border-color: var(--color-brand-600);
+  background: var(--color-brand-50, rgba(91, 75, 204, 0.12));
+  color: var(--color-brand-700, var(--color-brand-600));
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--color-danger-50, #fef2f2);
+  color: var(--color-danger-600, #b91c1c);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+
+// ── Footer ─────────────────────────────────────────────────────────────
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-surface-2);
+}
+
+.btnGhost,
+.btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.btnGhost {
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+
+  &:hover:not(:disabled) {
+    background: var(--bg-surface-2);
+  }
+}
+
+.btnPrimary {
+  border: 1px solid var(--color-brand-600);
+  background: var(--color-brand-600);
+  color: white;
+
+  &:hover:not(:disabled) {
+    background: var(--color-brand-700, var(--color-brand-600));
+  }
+}
+
+.btnGhost:disabled,
+.btnPrimary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

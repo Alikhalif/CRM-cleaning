@@ -10,11 +10,11 @@ import {
   SECTOR_VAR,
   SOURCE_LABEL,
   formatEUR,
+  type Commercial,
   type Lead,
   type LeadStatus,
   type Source,
 } from "@/lib/leads";
-import { MOCK_COMMERCIAUX, MOCK_LEADS } from "@/lib/leads-mock";
 import styles from "./LeadsTable.module.scss";
 
 type SortKey = "shortId" | "receivedAt" | "client" | "amount" | "lastActionAt" | "nextFollowupAt";
@@ -28,24 +28,31 @@ const ALL_SOURCES: Source[] = [
   "recommandation",
 ];
 
-export default function LeadsTable() {
+type Props = {
+  leads: Lead[];
+  commerciaux: Commercial[];
+};
+
+export default function LeadsTable({ leads, commerciaux }: Props) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<Set<LeadStatus>>(new Set());
   const [sourceFilter, setSourceFilter] = useState<Set<Source>>(new Set());
   const [ownerFilter, setOwnerFilter] = useState<string>("");
   const [showPerdu, setShowPerdu] = useState(false);
+  const [nrpOnly, setNrpOnly] = useState(false);
   const [sort, setSort] = useState<SortState>({ by: "receivedAt", dir: "desc" });
 
   const ownersById = useMemo(
-    () => new Map(MOCK_COMMERCIAUX.map((c) => [c.id, c])),
-    [],
+    () => new Map(commerciaux.map((c) => [c.id, c])),
+    [commerciaux],
   );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    const rows = MOCK_LEADS.filter((l) => {
+    const rows = leads.filter((l) => {
       if (!showPerdu && l.status === "perdu") return false;
+      if (nrpOnly && !l.isNrp) return false;
       if (statusFilter.size > 0 && !statusFilter.has(l.status)) return false;
       if (sourceFilter.size > 0 && !sourceFilter.has(l.source)) return false;
       if (ownerFilter && l.ownerId !== ownerFilter) return false;
@@ -58,7 +65,7 @@ export default function LeadsTable() {
 
     rows.sort((a, b) => compareLeads(a, b, sort));
     return rows;
-  }, [search, statusFilter, sourceFilter, ownerFilter, showPerdu, sort]);
+  }, [leads, search, statusFilter, sourceFilter, ownerFilter, showPerdu, nrpOnly, sort]);
 
   const toggleSet = <T,>(set: Set<T>, value: T): Set<T> => {
     const next = new Set(set);
@@ -155,7 +162,7 @@ export default function LeadsTable() {
           aria-label="Filtrer par commercial"
         >
           <option value="">Tous les commerciaux</option>
-          {MOCK_COMMERCIAUX.map((c) => (
+          {commerciaux.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
@@ -204,9 +211,23 @@ export default function LeadsTable() {
         ))}
       </div>
 
+      <div className={styles.chipsRow}>
+        <span className={styles.chipsLabel}>Filtre rapide</span>
+        <button
+          type="button"
+          className={`${styles.chip} ${nrpOnly ? styles.chipOn : ""}`}
+          onClick={() => setNrpOnly((v) => !v)}
+          aria-pressed={nrpOnly}
+          title="N'afficher que les leads marqués NRP (ne répond pas)"
+        >
+          NRP uniquement
+        </button>
+      </div>
+
       <p className={styles.count}>
         {filtered.length} lead{filtered.length > 1 ? "s" : ""}
         {!showPerdu && " · perdus masqués"}
+        {nrpOnly && " · NRP uniquement"}
       </p>
 
       <div className={styles.tableWrap}>
@@ -247,6 +268,11 @@ export default function LeadsTable() {
                       <Link href={`/leads/${l.id}`} className={styles.clientLink}>
                         {l.client}
                       </Link>
+                      {l.isNrp && (
+                        <span className={styles.nrpBadge} title="Ne répond pas">
+                          NRP
+                        </span>
+                      )}
                     </div>
                     <div className={styles.cityMuted}>{l.city}</div>
                   </td>

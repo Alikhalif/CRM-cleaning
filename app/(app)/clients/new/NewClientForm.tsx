@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import Icon from "@/components/Icon/Icon";
 import {
   SECTOR_LABEL,
   SECTOR_VAR,
   type ClientType,
   type Sector,
 } from "@/lib/leads";
+import { createDirectClient } from "./actions";
 import styles from "./NewClient.module.scss";
 
 const SECTORS: Sector[] = ["urgence", "nettoyage", "enr", "renovation"];
@@ -28,6 +30,8 @@ export default function NewClientForm() {
   const [sectors, setSectors] = useState<Set<Sector>>(new Set());
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
 
   const toggleSector = (s: Sector) => {
     setSectors((cur) => {
@@ -40,31 +44,32 @@ export default function NewClientForm() {
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setServerError(null);
     setSubmitting(true);
-    const payload = {
-      type,
-      origin: "direct" as const,
-      name,
-      contactName: type === "pro" ? contactName : undefined,
-      email,
-      phone,
-      address,
-      postalCode,
-      city,
-      siret: type === "pro" ? siret : undefined,
-      vatIntra: type === "pro" ? vatIntra : undefined,
-      sectors: [...sectors],
-      note: note || undefined,
-    };
-    // Yields to the browser so the button transition is visible before alert blocks.
-    setTimeout(() => {
-      alert(
-        `Stub : POST /api/clients\n\nPayload :\n${JSON.stringify(payload, null, 2)}\n\n` +
-          "Aucun backend connecté — retour à la liste.",
-      );
+    startTransition(async () => {
+      const result = await createDirectClient({
+        type,
+        name,
+        contactName,
+        email,
+        phone,
+        address,
+        postalCode,
+        city,
+        siret,
+        vatIntra,
+        sectors: [...sectors],
+        note,
+      });
       setSubmitting(false);
-      router.push("/clients");
-    }, 0);
+      if (!result.ok) {
+        setServerError(result.error);
+        return;
+      }
+      // Land the user on the newly-created client's detail page so they can
+      // immediately verify and start working from there.
+      router.push(`/clients/${result.id}`);
+    });
   };
 
   return (
@@ -230,6 +235,12 @@ export default function NewClientForm() {
           placeholder="Contexte, contact bouche-à-oreille, contraintes particulières…"
         />
       </fieldset>
+
+      {serverError && (
+        <p className={styles.errorBanner} role="alert">
+          <Icon name="alert" size={14} /> {serverError}
+        </p>
+      )}
 
       <div className={styles.actions}>
         <Link href="/clients" className={styles.btnGhost}>Annuler</Link>

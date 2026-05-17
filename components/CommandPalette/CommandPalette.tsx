@@ -4,12 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon, { type IconName } from "@/components/Icon/Icon";
 import { NAV_GROUPS } from "@/lib/nav";
-import { DOC_TYPE_LABEL, type DocumentType } from "@/lib/leads";
-import {
-  MOCK_CLIENTS,
-  MOCK_DOCUMENTS,
-  MOCK_LEADS,
-} from "@/lib/leads-mock";
+import type { PaletteEntity } from "@/lib/palette-server";
 import { setStoredValue, useClientValue, useStoredValue } from "@/lib/client-store";
 import styles from "./CommandPalette.module.scss";
 
@@ -44,10 +39,12 @@ const GROUP_LABEL: Record<PaletteResult["group"], string> = {
   document: "Documents",
 };
 
-const DOC_TYPE_TO_PATH: Record<DocumentType, "devis" | "factures"> = {
-  devis: "devis",
-  acompte: "factures",
-  finale: "factures",
+// Map the wire-format entity kinds back onto the palette's UI grouping and
+// the icon set. The router-href is already baked in by palette-server.
+const KIND_TO_ICON: Record<PaletteEntity["kind"], IconName> = {
+  lead: "leads",
+  client: "commerciaux",
+  document: "comptabilite",
 };
 
 export default function CommandPalette() {
@@ -55,6 +52,13 @@ export default function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [rawActiveIndex, setActiveIndex] = useState(0);
+  // Fetched on every open so a freshly-created devis/client appears
+  // immediately. Three queries × ≤500 rows each — cheap enough that
+  // caching across opens isn't worth the staleness window. Loading state
+  // is derived (entities === null && error === null) so we don't have to
+  // setState synchronously inside the effect body.
+  const [entities, setEntities] = useState<PaletteEntity[] | null>(null);
+  const [indexError, setIndexError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -105,6 +109,30 @@ export default function CommandPalette() {
   // setState, so the lint rule is happy.
   useEffect(() => {
     if (open) requestAnimationFrame(() => inputRef.current?.focus());
+  }, [open]);
+
+  // Refresh the index every open. AbortController guards against the user
+  // closing the palette before the fetch resolves. We intentionally do NOT
+  // clear `entities` first — stale results stay visible until the new
+  // fetch returns, avoiding a flash of "Loading…" when the user already
+  // had a usable index.
+  useEffect(() => {
+    if (!open) return;
+    const ac = new AbortController();
+    fetch("/api/palette-index", { signal: ac.signal, cache: "no-store" })
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data: { entities: PaletteEntity[] }) => {
+        setEntities(data.entities);
+        setIndexError(null);
+      })
+      .catch((err: unknown) => {
+        if (ac.signal.aborted) return;
+        setIndexError(err instanceof Error ? err.message : "Erreur de chargement");
+      });
+    return () => ac.abort();
   }, [open]);
 
   // ── Build the index (re-derives when MOCK data changes; cheap with 16 leads) ──
@@ -167,45 +195,22 @@ export default function CommandPalette() {
       },
     );
 
-    // Leads
-    for (const lead of MOCK_LEADS) {
+    // Leads / clients / documents from the lazily-fetched index. Until the
+    // first fetch resolves we only show pages + actions — still useful for
+    // navigation while the entity index loads.
+    for (const e of entities ?? []) {
       results.push({
-        id: `lead-${lead.id}`,
-        group: "lead",
-        label: lead.client,
-        sublabel: `${lead.shortId} · ${lead.city} · ${lead.email}`,
-        icon: "leads",
-        href: `/leads/${lead.id}`,
-      });
-    }
-
-    // Clients
-    for (const client of MOCK_CLIENTS) {
-      results.push({
-        id: `client-${client.id}`,
-        group: "client",
-        label: client.name,
-        sublabel: `${client.city} · ${client.email}`,
-        icon: "commerciaux",
-        href: `/clients/${client.id}`,
-      });
-    }
-
-    // Documents
-    for (const doc of MOCK_DOCUMENTS) {
-      const lead = MOCK_LEADS.find((l) => l.id === doc.leadId);
-      results.push({
-        id: `doc-${doc.id}`,
-        group: "document",
-        label: doc.num,
-        sublabel: `${DOC_TYPE_LABEL[doc.type]}${lead ? " · " + lead.client : ""}`,
-        icon: "comptabilite",
-        href: `/${DOC_TYPE_TO_PATH[doc.type]}/${doc.id}`,
+        id: e.id,
+        group: e.kind,
+        label: e.label,
+        sublabel: e.sublabel,
+        icon: KIND_TO_ICON[e.kind],
+        href: e.href,
       });
     }
 
     return results;
-  }, [theme]);
+  }, [theme, entities]);
 
   // ── Filter + group ───────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -307,7 +312,15 @@ export default function CommandPalette() {
         </div>
 
         <ul ref={listRef} id="palette-results" className={styles.results} role="listbox">
-          {filtered.length === 0 && (
+          {indexError && (
+            <li className={styles.empty}>
+              Index indisponible ({indexError}) — seules les pages sont listées.
+            </li>
+          )}
+          {!indexError && entities === null && (
+            <li className={styles.empty}>Chargement de l&apos;index…</li>
+          )}
+          {entities !== null && !indexError && filtered.length === 0 && (
             <li className={styles.empty}>Aucun résultat pour « {query} »</li>
           )}
           {GROUP_ORDER.map((g) => {

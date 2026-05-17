@@ -15,7 +15,6 @@ import {
   type ClientType,
   type Sector,
 } from "@/lib/leads";
-import { getAllClients, getClientStats } from "@/lib/leads-mock";
 import styles from "./Clients.module.scss";
 
 type Row = {
@@ -24,19 +23,12 @@ type Row = {
   lastActivityAt: string;
 };
 
-export default function ClientsList() {
+type Props = { rows: Row[] };
+
+export default function ClientsList({ rows }: Props) {
   const [search, setSearch] = useState("");
   const [type, setType] = useState<ClientType | "all">("all");
   const [origin, setOrigin] = useState<ClientOrigin | "all">("all");
-
-  const rows: Row[] = useMemo(
-    () =>
-      getAllClients().map((client) => {
-        const s = getClientStats(client);
-        return { client, caEncaisse: s.caEncaisse, lastActivityAt: s.lastActivityAt };
-      }),
-    [],
-  );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

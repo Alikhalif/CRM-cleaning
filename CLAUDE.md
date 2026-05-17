@@ -38,6 +38,10 @@ There is no test command. Don't claim "tests pass" — verify changes by running
 
 **Turbopack root pin.** [next.config.ts](next.config.ts) hard-codes `turbopack.root` to this directory because the user-home machine has multiple lockfiles; Turbopack would otherwise pick the wrong one and resolve the wrong `node_modules`. Don't remove the pin.
 
+## Backend
+
+Supabase infrastructure has been scaffolded but no page reads from it yet — every screen still pulls from [lib/leads-mock.ts](lib/leads-mock.ts). [docs/SUPABASE.md](docs/SUPABASE.md) is the runbook (local Docker or hosted, migrations, seed, type generation, suggested page-migration order). The migrations under [supabase/migrations/](supabase/migrations/) are the schema of record — note that the SQL column names follow CDC §5.2 verbatim (`client_first_name`, `client_email`, …) while the current TS types in `lib/leads.ts` use the simplified shape; reconcile per-page when migrating.
+
 ## Domain
 
 Product/business spec lives in [docs/SPEC.md](docs/SPEC.md) (auto-imported above) — six-stage pipeline, role matrix, the four sectors with their deposit %/VAT, multi-entity invoicing, n8n WF1/WF2, and the open conflicts between the CDC and the n8n doc. Treat the CDC ([Cahier-des-charges-CGK-CRM.pdf](Cahier-des-charges-CGK-CRM.pdf)) as the reference when the two PDFs disagree.

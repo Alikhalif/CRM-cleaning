@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
 import RelativeTime from "@/components/RelativeTime/RelativeTime";
 import { setStoredValue, useStoredValue } from "@/lib/client-store";
@@ -18,8 +18,14 @@ import {
   type SubEnvoi,
   type SubSignature,
 } from "@/lib/leads";
-import { MOCK_COMMERCIAUX, MOCK_LEADS } from "@/lib/leads-mock";
 import LeadCard from "./LeadCard";
+import {
+  launchSequence as launchSequenceAction,
+  setLeadNrp,
+  updateLeadStatus,
+  updateLeadSubEnvoi,
+  updateLeadSubSignature,
+} from "./actions";
 import styles from "./PipelineBoard.module.scss";
 
 const VIEW_KEY = "cgk-pipeline-view";
@@ -29,17 +35,27 @@ const STATUS_ORDER: Record<LeadStatus, number> = {
   lead: 0, envoye: 1, ouvert: 2, signe: 3, encaisse: 4, perdu: 5,
 };
 
-export default function PipelineBoard() {
-  const [leads, setLeads] = useState<Lead[]>(MOCK_LEADS);
+type Props = {
+  initialLeads: Lead[];
+  commerciaux: Commercial[];
+};
+
+export default function PipelineBoard({ initialLeads, commerciaux }: Props) {
+  // Local state seeded from the server fetch. Optimistic updates apply
+  // immediately; the server action runs in a transition and rolls back on
+  // error.
+  const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [hoverColumn, setHoverColumn] = useState<LeadStatus | null>(null);
+  const [, startTransition] = useTransition();
+
   const view: View =
     useStoredValue(VIEW_KEY, "kanban") === "liste" ? "liste" : "kanban";
   const setView = (next: View) => setStoredValue(VIEW_KEY, next);
 
   const ownersById = useMemo(
-    () => new Map(MOCK_COMMERCIAUX.map((c) => [c.id, c])),
-    [],
+    () => new Map(commerciaux.map((c) => [c.id, c])),
+    [commerciaux],
   );
 
   const byColumn = useMemo(() => {
@@ -63,18 +79,56 @@ export default function PipelineBoard() {
     [leads],
   );
 
-  const move = (id: string, target: LeadStatus) => {
-    setLeads((curr) =>
-      curr.map((l) => (l.id === id ? applyStatusChange(l, target) : l)),
-    );
+  // Optimistic helper: applies a transform locally, runs the server action,
+  // rolls back if the server says no.
+  const optimistic = (
+    transform: (curr: Lead[]) => Lead[],
+    action: () => Promise<{ ok: true } | { ok: false; error: string }>,
+  ) => {
+    const previous = leads;
+    setLeads(transform);
+    startTransition(async () => {
+      const result = await action();
+      if (!result.ok) {
+        setLeads(previous);
+        alert(`Échec de la mise à jour : ${result.error}`);
+      }
+    });
   };
 
+  const move = (id: string, target: LeadStatus) =>
+    optimistic(
+      (curr) => curr.map((l) => (l.id === id ? applyStatusChange(l, target) : l)),
+      () => updateLeadStatus(id, target),
+    );
+
   const setEnvoi = (id: string, value: SubEnvoi) =>
-    setLeads((curr) => curr.map((l) => (l.id === id ? { ...l, subEnvoi: value } : l)));
+    optimistic(
+      (curr) => curr.map((l) => (l.id === id ? { ...l, subEnvoi: value } : l)),
+      () => updateLeadSubEnvoi(id, value),
+    );
 
   const setSignature = (id: string, value: SubSignature) =>
-    setLeads((curr) =>
-      curr.map((l) => (l.id === id ? { ...l, subSignature: value } : l)),
+    optimistic(
+      (curr) => curr.map((l) => (l.id === id ? { ...l, subSignature: value } : l)),
+      () => updateLeadSubSignature(id, value),
+    );
+
+  const setNrp = (id: string, nrp: boolean) =>
+    optimistic(
+      (curr) =>
+        curr.map((l) =>
+          l.id === id
+            ? {
+                ...l,
+                isNrp: nrp,
+                nrpAt: nrp ? new Date().toISOString() : undefined,
+                lastActionLabel: nrp ? "Lead marqué NRP" : "Lead NRP retiré",
+                lastActionAt: new Date().toISOString(),
+              }
+            : l,
+        ),
+      () => setLeadNrp(id, nrp),
     );
 
   const launchSequence = (lead: Lead) => {
@@ -85,18 +139,20 @@ export default function PipelineBoard() {
       )
     )
       return;
-    setLeads((curr) =>
-      curr.map((l) =>
-        l.id === lead.id
-          ? {
-              ...l,
-              status: "envoye",
-              subEnvoi: "auto",
-              lastActionLabel: "Séquence n8n lancée",
-              lastActionAt: new Date().toISOString(),
-            }
-          : l,
-      ),
+    optimistic(
+      (curr) =>
+        curr.map((l) =>
+          l.id === lead.id
+            ? {
+                ...l,
+                status: "envoye",
+                subEnvoi: "auto",
+                lastActionLabel: "Séquence n8n lancée",
+                lastActionAt: new Date().toISOString(),
+              }
+            : l,
+        ),
+      () => launchSequenceAction(lead.id),
     );
   };
 
@@ -191,6 +247,7 @@ export default function PipelineBoard() {
                       onMove={move}
                       onSetEnvoi={setEnvoi}
                       onSetSignature={setSignature}
+                      onSetNrp={setNrp}
                       onLaunchSequence={launchSequence}
                     />
                   ))}

@@ -169,6 +169,19 @@
   border-color: color-mix(in oklab, var(--sc) 36%, transparent);
 }
 
+.errorBanner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  background: color-mix(in oklab, var(--tone-danger) 10%, transparent);
+  color: var(--tone-danger);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+
 // ── Actions ───────────────────────────────────────────────────────────
 .actions {
   display: flex;

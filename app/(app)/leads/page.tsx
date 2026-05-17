@@ -1,9 +1,17 @@
 import LeadsTable from "./LeadsTable";
 import styles from "./Leads.module.scss";
+import { getAllCommerciaux, getAllLeads } from "@/lib/leads-server";
 
 export const metadata = { title: "Leads & devis" };
 
-export default function LeadsPage() {
+export default async function LeadsPage() {
+  // Server-side fetch — runs once per request, ships rendered HTML to the
+  // client which then takes over for filter/sort/search interactions.
+  const [leads, commerciaux] = await Promise.all([
+    getAllLeads(),
+    getAllCommerciaux(),
+  ]);
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -14,7 +22,7 @@ export default function LeadsPage() {
           </p>
         </div>
       </header>
-      <LeadsTable />
+      <LeadsTable leads={leads} commerciaux={commerciaux} />
     </div>
   );
 }

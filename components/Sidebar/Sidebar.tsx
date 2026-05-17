@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Icon from "../Icon/Icon";
+import { logout } from "@/app/(auth)/actions";
 import { NAV_GROUPS } from "@/lib/nav";
 import { setStoredValue, useStoredValue } from "@/lib/client-store";
 import styles from "./Sidebar.module.scss";
@@ -86,6 +87,17 @@ export default function Sidebar() {
           <Icon name="panel-left" size={18} />
           {!collapsed && <span>Réduire</span>}
         </button>
+        <form action={logout}>
+          <button
+            type="submit"
+            className={styles.footerBtn}
+            aria-label="Se déconnecter"
+            title="Se déconnecter"
+          >
+            <Icon name="x" size={18} />
+            {!collapsed && <span>Déconnexion</span>}
+          </button>
+        </form>
       </div>
     </aside>
   );

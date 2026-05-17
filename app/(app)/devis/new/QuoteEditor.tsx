@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useMemo, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
 import {
   DEFAULT_ACOMPTE_PCT,
@@ -11,15 +11,14 @@ import {
   SECTOR_LABEL,
   formatEUR,
   type PaymentTermSlug,
-  type Prestation,
 } from "@/lib/leads";
-import {
-  MOCK_CLIENTS,
-  MOCK_ENTITIES,
-  MOCK_LEADS,
-  MOCK_PRESTATIONS,
-  defaultEntityForSector,
-} from "@/lib/leads-mock";
+import type {
+  ClientOption,
+  EntityOption,
+  LeadContext,
+  PrestationOption,
+} from "@/lib/devis-server";
+import { createDevis, type CreateDevisIntent, type DraftInput } from "./actions";
 import styles from "./QuoteEditor.module.scss";
 
 type DraftLine = {
@@ -44,6 +43,14 @@ type Draft = {
   lines: DraftLine[];
 };
 
+type Props = {
+  clients: ClientOption[];
+  entities: EntityOption[];
+  prestations: PrestationOption[];
+  leadContext: LeadContext | null;
+  preselectedClientId: string | null;
+};
+
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -55,32 +62,29 @@ function plusDays(iso: string, days: number): string {
 }
 
 function makeLineId(): string {
-  // Crypto-free, just unique within this draft.
   return `dl_${Math.random().toString(36).slice(2, 9)}`;
 }
 
-// Pre-fills the draft from a lead or a client passed via query string.
-function buildInitialDraft(searchParams: URLSearchParams): Draft {
-  const leadId = searchParams.get("lead");
-  const clientId = searchParams.get("client");
-  const lead = leadId ? MOCK_LEADS.find((l) => l.id === leadId) : null;
-  const client = clientId ? MOCK_CLIENTS.find((c) => c.id === clientId) : null;
+function buildInitialDraft(
+  clients: ClientOption[],
+  entities: EntityOption[],
+  leadContext: LeadContext | null,
+  preselectedClientId: string | null,
+): Draft {
+  // Resolve a client id from either the explicit ?client= param or by
+  // following the lead's source_lead_id → matching client (lead-origin
+  // clients have source_lead_id = lead.id).
+  const resolvedClient =
+    (preselectedClientId && clients.find((c) => c.id === preselectedClientId)) ||
+    (leadContext && clients.find((c) => c.sourceLeadId === leadContext.id)) ||
+    null;
 
-  // Derive a sector to seed defaults from whichever side is provided.
-  const sector =
-    lead?.sector ??
-    (client?.sectors[0] ?? null);
-
-  // Try to resolve a Client row from a Lead context: the converted-from-lead
-  // clients have id "cl_{ld_xxx-minus-ld_}".
-  const resolvedClientId =
-    client?.id ??
-    (lead ? MOCK_CLIENTS.find((c) => c.sourceLeadId === lead.id)?.id ?? "" : "");
-
+  const sector = leadContext?.sector ?? resolvedClient?.sectors[0] ?? null;
   const issuedAt = today();
+
   return {
-    clientId: resolvedClientId,
-    entityId: sector ? defaultEntityForSector(sector).id : MOCK_ENTITIES[0].id,
+    clientId: resolvedClient?.id ?? "",
+    entityId: entities[0]?.id ?? "",
     issuedAt,
     validUntil: plusDays(issuedAt, 30),
     paymentTermSlug: sector ? DEFAULT_PAYMENT_TERM[sector] : "30j",
@@ -90,13 +94,22 @@ function buildInitialDraft(searchParams: URLSearchParams): Draft {
   };
 }
 
-export default function QuoteEditor() {
-  const searchParams = useSearchParams();
+export default function QuoteEditor({
+  clients,
+  entities,
+  prestations,
+  leadContext,
+  preselectedClientId,
+}: Props) {
   const router = useRouter();
 
-  const [draft, setDraft] = useState<Draft>(() => buildInitialDraft(searchParams));
+  const [draft, setDraft] = useState<Draft>(() =>
+    buildInitialDraft(clients, entities, leadContext, preselectedClientId),
+  );
   const [picker, setPicker] = useState("");
-  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState<CreateDevisIntent | "preview" | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
 
   // ── Derived ──────────────────────────────────────────────────────────
   const totals = useMemo(() => {
@@ -139,7 +152,7 @@ export default function QuoteEditor() {
   const removeLine = (id: string) =>
     setDraft((d) => ({ ...d, lines: d.lines.filter((l) => l.id !== id) }));
 
-  const addLine = (prestation?: Prestation) => {
+  const addLine = (prestation?: PrestationOption) => {
     const line: DraftLine = prestation
       ? {
           id: makeLineId(),
@@ -163,63 +176,85 @@ export default function QuoteEditor() {
     setDraft((d) => ({ ...d, lines: [...d.lines, line] }));
   };
 
-  // Prestations grouped by sector for the picker dropdown.
   const prestationsBySector = useMemo(() => {
-    const by = new Map<string, Prestation[]>();
-    for (const p of MOCK_PRESTATIONS) {
+    const by = new Map<string, PrestationOption[]>();
+    for (const p of prestations) {
       const arr = by.get(p.sector) ?? [];
       arr.push(p);
       by.set(p.sector, arr);
     }
     return by;
-  }, []);
+  }, [prestations]);
 
   const onPickPrestation = (id: string) => {
     if (!id) return;
     if (id === "__blank__") {
       addLine();
     } else {
-      const p = MOCK_PRESTATIONS.find((x) => x.id === id);
+      const p = prestations.find((x) => x.id === id);
       if (p) addLine(p);
     }
-    setPicker(""); // reset
+    setPicker("");
   };
 
-  // ── Submit stubs ─────────────────────────────────────────────────────
-  const stubSubmit = (kind: "draft" | "preview" | "send") => {
+  // ── Submit ───────────────────────────────────────────────────────────
+  const submit = (intent: CreateDevisIntent) => {
+    setServerError(null);
     if (!draft.clientId) {
-      alert("Sélectionnez un client avant d'enregistrer le devis.");
+      setServerError("Sélectionnez un client avant d'enregistrer le devis.");
       return;
     }
     if (draft.lines.length === 0) {
-      alert("Ajoutez au moins une ligne au devis.");
+      setServerError("Ajoutez au moins une ligne au devis.");
       return;
     }
-    setSubmitting(kind);
-    const payload = {
-      ...draft,
-      totals: {
-        totalHt: round2(totals.totalHt),
-        totalVat: round2(totals.totalVat),
-        totalTtc: round2(totals.totalTtc),
-        acompteAmount: round2(totals.acompteAmount),
-        soldeDu: round2(totals.soldeDu),
-      },
+    setSubmitting(intent);
+
+    // Strip the client-only id field; the server doesn't need it.
+    const payload: DraftInput = {
+      clientId: draft.clientId,
+      entityId: draft.entityId,
+      issuedAt: draft.issuedAt,
+      validUntil: draft.validUntil,
+      paymentTermSlug: draft.paymentTermSlug,
+      acomptePct: draft.acomptePct,
+      notes: draft.notes,
+      lines: draft.lines.map((l) => ({
+        prestationId: l.prestationId,
+        label: l.label,
+        quantity: l.quantity,
+        unit: l.unit,
+        unitPriceHt: l.unitPriceHt,
+        vatRate: l.vatRate,
+        discountPct: l.discountPct,
+      })),
     };
+
+    startTransition(async () => {
+      const result = await createDevis(payload, intent);
+      if (!result.ok) {
+        setServerError(result.error);
+        setSubmitting(null);
+        return;
+      }
+      // Successful insert — jump to Comptabilité on the devis tab so the
+      // user sees the new row immediately.
+      router.push(`/comptabilite?tab=devis`);
+    });
+  };
+
+  // Aperçu PDF stays a stub — needs a signed-URL PDF route which is
+  // separate work. Keep it visible so the UX expectation is preserved.
+  const stubPreview = () => {
+    setSubmitting("preview");
     setTimeout(() => {
-      const action =
-        kind === "draft"
-          ? "POST /api/quotes (status=brouillon)"
-          : kind === "preview"
-            ? "GET /api/quotes/:id/preview-pdf (URL signée)"
-            : "POST /api/quotes/:id/send (déclenche la signature électronique)";
-      alert(`Stub : ${action}\n\nPayload :\n${JSON.stringify(payload, null, 2)}`);
+      alert("Stub : GET /api/quotes/:id/preview-pdf (URL signée — pas encore implémenté).");
       setSubmitting(null);
-      if (kind !== "preview") router.push("/comptabilite?tab=devis");
     }, 0);
   };
 
-  const selectedClient = MOCK_CLIENTS.find((c) => c.id === draft.clientId);
+  const selectedClient = clients.find((c) => c.id === draft.clientId);
+  const selectedEntity = entities.find((e) => e.id === draft.entityId);
 
   return (
     <div className={styles.page}>
@@ -234,6 +269,9 @@ export default function QuoteEditor() {
         <h1 className={styles.title}>Nouveau devis</h1>
         <p className={styles.subtitle}>
           Éditeur ligne par ligne · pré-rempli depuis le lead/client de contexte
+          {leadContext && (
+            <> · contexte lead <strong>{leadContext.shortId}</strong> ({leadContext.clientName})</>
+          )}
         </p>
       </header>
 
@@ -251,7 +289,7 @@ export default function QuoteEditor() {
                   className={styles.input}
                 >
                   <option value="">— Sélectionner —</option>
-                  {MOCK_CLIENTS.map((c) => (
+                  {clients.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name} {c.type === "pro" ? "(Pro)" : "(Part.)"}
                     </option>
@@ -268,7 +306,7 @@ export default function QuoteEditor() {
                   onChange={(e) => set("entityId", e.target.value)}
                   className={styles.input}
                 >
-                  {MOCK_ENTITIES.map((e) => (
+                  {entities.map((e) => (
                     <option key={e.id} value={e.id}>{e.legalName}</option>
                   ))}
                 </select>
@@ -511,10 +549,15 @@ export default function QuoteEditor() {
               )}
             </div>
 
-            {selectedClient && (
+            {selectedClient && selectedEntity && (
               <p className={styles.contextHint}>
-                Pour <strong>{selectedClient.name}</strong> ·{" "}
-                {MOCK_ENTITIES.find((e) => e.id === draft.entityId)?.legalName}
+                Pour <strong>{selectedClient.name}</strong> · {selectedEntity.legalName}
+              </p>
+            )}
+
+            {serverError && (
+              <p className={styles.errorBox} role="alert">
+                {serverError}
               </p>
             )}
 
@@ -523,7 +566,7 @@ export default function QuoteEditor() {
                 type="button"
                 className={styles.btnGhost}
                 disabled={submitting !== null}
-                onClick={() => stubSubmit("draft")}
+                onClick={() => submit("draft")}
               >
                 {submitting === "draft" ? "Enregistrement…" : "Sauvegarder brouillon"}
               </button>
@@ -531,7 +574,7 @@ export default function QuoteEditor() {
                 type="button"
                 className={styles.btnSecondary}
                 disabled={submitting !== null}
-                onClick={() => stubSubmit("preview")}
+                onClick={stubPreview}
               >
                 Aperçu PDF
               </button>
@@ -539,7 +582,7 @@ export default function QuoteEditor() {
                 type="button"
                 className={styles.btnPrimary}
                 disabled={submitting !== null}
-                onClick={() => stubSubmit("send")}
+                onClick={() => submit("send")}
               >
                 {submitting === "send" ? "Envoi…" : "Envoyer au client"}
               </button>
@@ -604,8 +647,4 @@ function Row({
 
 function clamp(min: number, max: number, v: number): number {
   return Math.max(min, Math.min(max, v));
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }

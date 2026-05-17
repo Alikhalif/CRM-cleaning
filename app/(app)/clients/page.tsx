@@ -1,9 +1,11 @@
 import ClientsList from "./ClientsList";
 import styles from "./Clients.module.scss";
+import { getAllClientsForList } from "@/lib/clients-server";
 
 export const metadata = { title: "Clients" };
 
-export default function ClientsPage() {
+export default async function ClientsPage() {
+  const rows = await getAllClientsForList();
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -14,7 +16,7 @@ export default function ClientsPage() {
           </p>
         </div>
       </header>
-      <ClientsList />
+      <ClientsList rows={rows} />
     </div>
   );
 }

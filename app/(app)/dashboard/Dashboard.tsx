@@ -2,9 +2,14 @@
 
 import { useMemo, useState } from "react";
 import Icon from "@/components/Icon/Icon";
-import { SECTOR_LABEL, SECTOR_VAR, formatEUR, type Sector } from "@/lib/leads";
 import {
-  DAILY_SERIES,
+  SECTOR_LABEL,
+  SECTOR_VAR,
+  formatEUR,
+  type Commercial,
+  type Sector,
+} from "@/lib/leads";
+import {
   aggregateByDay,
   caBySector,
   computeKpis,
@@ -12,6 +17,7 @@ import {
   funnel,
   topCommerciaux,
   type Channel,
+  type DailyMetric,
   type DashboardFilter,
   type Period,
 } from "@/lib/dashboard";
@@ -27,19 +33,21 @@ const PERIODS: { value: Period; label: string }[] = [
 const SECTORS: Sector[] = ["urgence", "nettoyage", "enr", "renovation"];
 const CHANNELS: Channel[] = ["mano", "auto"];
 
-export default function Dashboard() {
+type Props = { series: DailyMetric[]; commerciaux: Commercial[] };
+
+export default function Dashboard({ series: dailySeries, commerciaux }: Props) {
   const [filter, setFilter] = useState<DashboardFilter>({
     period: "30d",
     sector: "all",
     channel: "all",
   });
 
-  const filtered = useMemo(() => filterSeries(DAILY_SERIES, filter), [filter]);
+  const filtered = useMemo(() => filterSeries(dailySeries, filter), [dailySeries, filter]);
   const kpis = useMemo(() => computeKpis(filtered), [filtered]);
   const daily = useMemo(() => aggregateByDay(filtered), [filtered]);
   const stages = useMemo(() => funnel(filtered), [filtered]);
   const sectors = useMemo(() => caBySector(filtered), [filtered]);
-  const top = useMemo(() => topCommerciaux(filtered), [filtered]);
+  const top = useMemo(() => topCommerciaux(filtered, commerciaux), [filtered, commerciaux]);
 
   const series = useMemo(
     () => [
@@ -59,7 +67,7 @@ export default function Dashboard() {
         <div>
           <h1 className={styles.title}>Dashboard</h1>
           <p className={styles.subtitle}>
-            Vue de pilotage commercial · {periodLabel.toLowerCase()} · données simulées
+            Vue de pilotage commercial · {periodLabel.toLowerCase()}
           </p>
         </div>
       </header>
@@ -111,9 +119,14 @@ export default function Dashboard() {
                       style={{ width: `${width}%` }}
                     />
                   </div>
-                  {i > 0 && (
+                  {i > 0 && drop > 0 && (
                     <p className={styles.funnelDrop}>
                       −{drop.toFixed(0)} % vs. étape précédente
+                    </p>
+                  )}
+                  {i > 0 && drop < 0 && (
+                    <p className={styles.funnelDrop}>
+                      +{(-drop).toFixed(0)} % vs. étape précédente
                     </p>
                   )}
                 </li>

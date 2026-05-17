@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
 import RelativeTime from "@/components/RelativeTime/RelativeTime";
 import {
@@ -14,14 +15,25 @@ import {
   type DossierFlag,
   type DossierStatus,
   type PaymentStatus,
+  type Technician,
 } from "@/lib/leads";
 import {
-  MOCK_TECHNICIANS,
   computePlanificationKpis,
-  getAllDossiers,
   getOutstandingAcomptes,
   type DossierWithContext,
-} from "@/lib/leads-mock";
+} from "@/lib/dossiers-shared";
+import {
+  editDossier,
+  finalizeDossier,
+  generateFactureFinale,
+  markAcomptePaid,
+  planifyDossier,
+  soldDossier,
+  type EditDossierInput,
+  type PlanifyInput,
+} from "./actions";
+import EditDossierModal from "./EditDossierModal";
+import PlanifyDossierModal from "./PlanifyDossierModal";
 import styles from "./Planification.module.scss";
 
 const STATUSES: DossierStatus[] = ["a_planifier", "planifie", "finalise", "solde"];
@@ -42,21 +54,31 @@ const DATE = new Intl.DateTimeFormat("fr-FR", {
   minute: "2-digit",
 });
 
-export default function Planification() {
+type Props = {
+  initialRows: DossierWithContext[];
+  technicians: Technician[];
+};
+
+export default function Planification({ initialRows, technicians }: Props) {
+  const router = useRouter();
+  const [rows, setRows] = useState(initialRows);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<Set<DossierStatus>>(new Set());
   const [paymentFilter, setPaymentFilter] = useState<Set<PaymentStatus>>(new Set());
   const [flagFilter, setFlagFilter] = useState<Set<DossierFlag>>(new Set());
   const [technicianFilter, setTechnicianFilter] = useState<string>("");
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [planifyTarget, setPlanifyTarget] = useState<DossierWithContext | null>(null);
+  const [editTarget, setEditTarget] = useState<DossierWithContext | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
 
-  const allRows = useMemo(() => getAllDossiers(), []);
-  const kpis = useMemo(() => computePlanificationKpis(allRows), [allRows]);
-  const outstanding = useMemo(() => getOutstandingAcomptes(allRows), [allRows]);
+  const kpis = useMemo(() => computePlanificationKpis(rows), [rows]);
+  const outstanding = useMemo(() => getOutstandingAcomptes(rows), [rows]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return allRows
+    return rows
       .filter((r) => {
         if (statusFilter.size > 0 && !statusFilter.has(r.dossier.status)) return false;
         if (paymentFilter.size > 0 && !paymentFilter.has(r.dossier.paymentStatus)) return false;
@@ -72,7 +94,6 @@ export default function Planification() {
         return true;
       })
       .sort((a, b) => {
-        // À planifier first, then by planned date asc, then by updatedAt desc.
         const order: Record<DossierStatus, number> = {
           a_planifier: 0, planifie: 1, finalise: 2, solde: 3,
         };
@@ -83,7 +104,7 @@ export default function Planification() {
         }
         return +new Date(b.dossier.updatedAt) - +new Date(a.dossier.updatedAt);
       });
-  }, [allRows, search, statusFilter, paymentFilter, flagFilter, technicianFilter]);
+  }, [rows, search, statusFilter, paymentFilter, flagFilter, technicianFilter]);
 
   // Click-outside / Escape close any row menu.
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -108,6 +129,151 @@ export default function Planification() {
     return n;
   };
 
+  // Generic optimistic helper — patch the local row, call the server, roll
+  // back on failure. Same pattern the pipeline uses.
+  const optimistic = (
+    dossierId: string,
+    patch: (r: DossierWithContext) => DossierWithContext,
+    runServer: () => Promise<{ ok: true } | { ok: false; error: string }>,
+  ) => {
+    setServerError(null);
+    const previous = rows;
+    setRows((cur) =>
+      cur.map((r) => (r.dossier.id === dossierId ? patch(r) : r)),
+    );
+    startTransition(async () => {
+      const result = await runServer();
+      if (!result.ok) {
+        setRows(previous);
+        setServerError(result.error);
+      }
+    });
+  };
+
+  const onFinalize = (r: DossierWithContext) =>
+    optimistic(
+      r.dossier.id,
+      (row) => ({
+        ...row,
+        dossier: { ...row.dossier, status: "finalise", updatedAt: new Date().toISOString() },
+      }),
+      () => finalizeDossier(r.dossier.id),
+    );
+
+  const onSold = (r: DossierWithContext) =>
+    optimistic(
+      r.dossier.id,
+      (row) => ({
+        ...row,
+        dossier: {
+          ...row.dossier,
+          status: "solde",
+          paymentStatus: "solde",
+          updatedAt: new Date().toISOString(),
+        },
+      }),
+      () => soldDossier(r.dossier.id),
+    );
+
+  // The modal calls into the action directly (not via the optimistic helper)
+  // so it can show its own submitting state + inline error. On success we
+  // patch local state to reflect the new schedule, close the modal, and let
+  // revalidatePath refresh other routes in the background.
+  const onPlanifySubmit = async (input: PlanifyInput) => {
+    if (!planifyTarget) return { ok: false as const, error: "Aucun dossier sélectionné." };
+    const result = await planifyDossier(planifyTarget.dossier.id, input);
+    if (result.ok) {
+      setRows((cur) =>
+        cur.map((r) =>
+          r.dossier.id === planifyTarget.dossier.id
+            ? {
+                ...r,
+                dossier: {
+                  ...r.dossier,
+                  status: "planifie",
+                  plannedAt: input.plannedAt,
+                  technicianId: input.technicianId ?? undefined,
+                  durationHours: input.durationHours ?? undefined,
+                  updatedAt: new Date().toISOString(),
+                },
+                technician: input.technicianId
+                  ? technicians.find((t) => t.id === input.technicianId)
+                  : undefined,
+              }
+            : r,
+        ),
+      );
+    }
+    return result;
+  };
+
+  // Edit follows the same shape as planify: the modal owns its own submit
+  // state + error display; we patch local rows on success and let
+  // revalidatePath refresh elsewhere.
+  const onEditSubmit = async (input: EditDossierInput) => {
+    if (!editTarget) return { ok: false as const, error: "Aucun dossier sélectionné." };
+    const result = await editDossier(editTarget.dossier.id, input);
+    if (result.ok) {
+      setRows((cur) =>
+        cur.map((r) =>
+          r.dossier.id === editTarget.dossier.id
+            ? {
+                ...r,
+                dossier: {
+                  ...r.dossier,
+                  plannedAt: input.plannedAt ?? undefined,
+                  technicianId: input.technicianId ?? undefined,
+                  durationHours: input.durationHours ?? undefined,
+                  notes: input.notes ?? undefined,
+                  flags: input.flags,
+                  updatedAt: new Date().toISOString(),
+                },
+                technician: input.technicianId
+                  ? technicians.find((t) => t.id === input.technicianId)
+                  : undefined,
+              }
+            : r,
+        ),
+      );
+    }
+    return result;
+  };
+
+  // Finale generation is a write that ends with a navigation — we route the
+  // user to the new document so they can review/send it. No optimistic patch
+  // is needed since the page is unmounting.
+  const onGenerateFinale = (r: DossierWithContext) => {
+    setServerError(null);
+    startTransition(async () => {
+      const result = await generateFactureFinale(r.dossier.id);
+      if (!result.ok) {
+        setServerError(result.error);
+        return;
+      }
+      router.push(`/factures/${result.id}`);
+    });
+  };
+
+  const onMarkAcomptePaid = (r: DossierWithContext) => {
+    if (!r.acompteDoc) return;
+    const acompteId = r.acompteDoc.id;
+    optimistic(
+      r.dossier.id,
+      (row) => ({
+        ...row,
+        dossier: {
+          ...row.dossier,
+          paymentStatus: "acompte_paye",
+          updatedAt: new Date().toISOString(),
+        },
+        acompteDoc: row.acompteDoc
+          ? { ...row.acompteDoc, status: "paye", paidAt: new Date().toISOString() }
+          : row.acompteDoc,
+      }),
+      () => markAcomptePaid(acompteId, r.dossier.id),
+    );
+  };
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -118,6 +284,12 @@ export default function Planification() {
           </p>
         </div>
       </header>
+
+      {serverError && (
+        <p className={styles.errorBanner} role="alert">
+          <Icon name="alert" size={14} /> {serverError}
+        </p>
+      )}
 
       <section className={styles.kpis}>
         <KpiCard
@@ -185,12 +357,7 @@ export default function Planification() {
                   <button
                     type="button"
                     className={styles.encaisserBtn}
-                    onClick={() =>
-                      alert(
-                        `Stub : POST /api/invoices/${r.acompteDoc?.id}/mark-paid · ` +
-                          "déclenche la bascule du dossier en planifiable.",
-                      )
-                    }
+                    onClick={() => onMarkAcomptePaid(r)}
                   >
                     Encaisser
                   </button>
@@ -221,7 +388,7 @@ export default function Planification() {
         >
           <option value="">Tous les intervenants</option>
           <option value="__none__">Sans intervenant</option>
-          {MOCK_TECHNICIANS.map((t) => (
+          {technicians.map((t) => (
             <option key={t.id} value={t.id}>{t.name}</option>
           ))}
         </select>
@@ -297,6 +464,11 @@ export default function Planification() {
                 row={r}
                 isMenuOpen={openMenu === r.dossier.id}
                 onToggleMenu={() => setOpenMenu(openMenu === r.dossier.id ? null : r.dossier.id)}
+                onPlanify={() => setPlanifyTarget(r)}
+                onEdit={() => setEditTarget(r)}
+                onFinalize={() => onFinalize(r)}
+                onGenerateFinale={() => onGenerateFinale(r)}
+                onSold={() => onSold(r)}
               />
             ))}
             {filtered.length === 0 && (
@@ -309,6 +481,23 @@ export default function Planification() {
           </tbody>
         </table>
       </div>
+
+      {planifyTarget && (
+        <PlanifyDossierModal
+          row={planifyTarget}
+          technicians={technicians}
+          onClose={() => setPlanifyTarget(null)}
+          onSubmit={onPlanifySubmit}
+        />
+      )}
+      {editTarget && (
+        <EditDossierModal
+          row={editTarget}
+          technicians={technicians}
+          onClose={() => setEditTarget(null)}
+          onSubmit={onEditSubmit}
+        />
+      )}
     </div>
   );
 }
@@ -339,14 +528,22 @@ function Row({
   row,
   isMenuOpen,
   onToggleMenu,
+  onPlanify,
+  onEdit,
+  onFinalize,
+  onGenerateFinale,
+  onSold,
 }: {
   row: DossierWithContext;
   isMenuOpen: boolean;
   onToggleMenu: () => void;
+  onPlanify: () => void;
+  onEdit: () => void;
+  onFinalize: () => void;
+  onGenerateFinale: () => void;
+  onSold: () => void;
 }) {
   const { dossier, lead, technician, devisDoc, finaleDoc, acompteDoc } = row;
-
-  const stub = (message: string) => alert(message);
 
   return (
     <tr data-status={dossier.status}>
@@ -461,7 +658,7 @@ function Row({
                   role="menuitem"
                   onClick={() => {
                     onToggleMenu();
-                    stub(`Stub : PATCH /api/dossiers/${dossier.id} status=planifie + ouverture du planificateur.`);
+                    onPlanify();
                   }}
                 >
                   Planifier l&apos;intervention
@@ -474,7 +671,7 @@ function Row({
                   role="menuitem"
                   onClick={() => {
                     onToggleMenu();
-                    stub(`Stub : PATCH /api/dossiers/${dossier.id} status=finalise + génération facture finale.`);
+                    onFinalize();
                   }}
                 >
                   Marquer comme réalisé
@@ -487,7 +684,7 @@ function Row({
                   role="menuitem"
                   onClick={() => {
                     onToggleMenu();
-                    stub(`Stub : POST /api/dossiers/${dossier.id}/final-invoice (génère FAC-).`);
+                    onGenerateFinale();
                   }}
                 >
                   Émettre la facture finale
@@ -505,7 +702,7 @@ function Row({
                   role="menuitem"
                   onClick={() => {
                     onToggleMenu();
-                    stub(`Stub : PATCH /api/dossiers/${dossier.id} payment_status=solde + status=solde.`);
+                    onSold();
                   }}
                 >
                   Marquer soldé
@@ -517,7 +714,7 @@ function Row({
                 role="menuitem"
                 onClick={() => {
                   onToggleMenu();
-                  stub(`Stub : ouverture modale d'édition (intervenant, date, notes, drapeaux).`);
+                  onEdit();
                 }}
               >
                 Modifier le dossier

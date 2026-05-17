@@ -1,19 +1,42 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
-import { canLaunchSequence, type Lead } from "@/lib/leads";
+import { canLaunchSequence, type Commercial, type Lead } from "@/lib/leads";
+import { setLeadNrp } from "@/app/(app)/pipeline/actions";
+import EditContactModal from "./EditContactModal";
+import MarkLostModal from "./MarkLostModal";
+import ReassignLeadModal from "./ReassignLeadModal";
 import styles from "./LeadDetail.module.scss";
 
 // Action buttons for the lead detail header. All handlers are stubs — they
 // confirm intent and surface what they *would* do once Supabase + n8n are
 // wired. None of them mutate persisted state today.
 
-type Props = { lead: Lead };
+type Props = { lead: Lead; commerciaux: Commercial[] };
 
-export default function LeadActions({ lead }: Props) {
+export default function LeadActions({ lead, commerciaux }: Props) {
+  const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
+  const [lostModalOpen, setLostModalOpen] = useState(false);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [reassignModalOpen, setReassignModalOpen] = useState(false);
+  const [, startTransition] = useTransition();
+
+  const onToggleNrp = () => {
+    setBusy("nrp");
+    startTransition(async () => {
+      const result = await setLeadNrp(lead.id, !lead.isNrp);
+      setBusy(null);
+      if (!result.ok) {
+        alert(`Échec de la mise à jour : ${result.error}`);
+        return;
+      }
+      router.refresh();
+    });
+  };
 
   const stub = (action: string, message: string) => {
     setBusy(action);
@@ -35,9 +58,19 @@ export default function LeadActions({ lead }: Props) {
     stub("sequence", "Stub : POST /webhook/relance-devis vers n8n.");
   };
 
-  const onLost = () => {
-    if (!confirm("Marquer ce lead comme perdu ?")) return;
-    stub("lost", "Stub : PATCH /api/leads/{id} status=perdu.");
+  const onLostDone = () => {
+    setLostModalOpen(false);
+    router.refresh();
+  };
+
+  const onContactDone = () => {
+    setContactModalOpen(false);
+    router.refresh();
+  };
+
+  const onReassignDone = () => {
+    setReassignModalOpen(false);
+    router.refresh();
   };
 
   const eligible = canLaunchSequence(lead);
@@ -66,9 +99,18 @@ export default function LeadActions({ lead }: Props) {
       )}
       <button
         type="button"
+        className={`${styles.btn} ${lead.isNrp ? styles.btnNrpOn : ""}`}
+        disabled={busy !== null}
+        onClick={onToggleNrp}
+        title={lead.isNrp ? "Retirer le marqueur NRP" : "Marquer comme ne répondant pas"}
+      >
+        {busy === "nrp" ? "…" : lead.isNrp ? "Retirer NRP" : "Marquer NRP"}
+      </button>
+      <button
+        type="button"
         className={styles.btn}
         disabled={busy !== null}
-        onClick={() => stub("edit", "Stub : modale d'édition des coordonnées.")}
+        onClick={() => setContactModalOpen(true)}
       >
         Modifier coordonnées
       </button>
@@ -76,7 +118,7 @@ export default function LeadActions({ lead }: Props) {
         type="button"
         className={styles.btn}
         disabled={busy !== null}
-        onClick={() => stub("reassign", "Stub : modale de réassignation à un autre commercial.")}
+        onClick={() => setReassignModalOpen(true)}
       >
         Réassigner
       </button>
@@ -85,10 +127,35 @@ export default function LeadActions({ lead }: Props) {
           type="button"
           className={`${styles.btn} ${styles.btnDanger}`}
           disabled={busy !== null}
-          onClick={onLost}
+          onClick={() => setLostModalOpen(true)}
         >
           <Icon name="x" size={14} /> Marquer perdu
         </button>
+      )}
+
+      {lostModalOpen && (
+        <MarkLostModal
+          lead={lead}
+          onClose={() => setLostModalOpen(false)}
+          onDone={onLostDone}
+        />
+      )}
+
+      {contactModalOpen && (
+        <EditContactModal
+          lead={lead}
+          onClose={() => setContactModalOpen(false)}
+          onDone={onContactDone}
+        />
+      )}
+
+      {reassignModalOpen && (
+        <ReassignLeadModal
+          lead={lead}
+          commerciaux={commerciaux}
+          onClose={() => setReassignModalOpen(false)}
+          onDone={onReassignDone}
+        />
       )}
     </div>
   );

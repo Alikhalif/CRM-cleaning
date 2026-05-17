@@ -10,14 +10,14 @@ import {
   SECTOR_VAR,
   formatEUR,
 } from "@/lib/leads";
-import { getClientById, getClientStats } from "@/lib/leads-mock";
+import { getClientById, getClientStats } from "@/lib/clients-server";
 import styles from "./ClientDetail.module.scss";
 
 type PageProps = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: PageProps) {
   const { id } = await params;
-  const client = getClientById(id);
+  const client = await getClientById(id);
   return { title: client ? client.name : "Client introuvable" };
 }
 
@@ -29,10 +29,10 @@ const DATE = new Intl.DateTimeFormat("fr-FR", {
 
 export default async function ClientDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const client = getClientById(id);
+  const client = await getClientById(id);
   if (!client) notFound();
 
-  const { documents, caEncaisse, caSigne, lastActivityAt } = getClientStats(client);
+  const { documents, caEncaisse, caSigne, lastActivityAt } = await getClientStats(client);
 
   return (
     <div className={styles.page}>

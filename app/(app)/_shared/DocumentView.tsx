@@ -5,7 +5,7 @@ import {
   PAYMENT_TERMS,
   formatEUR,
 } from "@/lib/leads";
-import type { DocumentDetail } from "@/lib/leads-mock";
+import type { DocumentDetail } from "@/lib/documents-shared";
 import DocumentActions from "./DocumentActions";
 import styles from "./DocumentView.module.scss";
 

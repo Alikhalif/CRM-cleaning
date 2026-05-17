@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
 import {
   DOC_STATUS_LABEL,
@@ -12,13 +12,10 @@ import {
   type DocumentStatus,
   type DocumentType,
   type FactureStatus,
+  type LegalEntity,
 } from "@/lib/leads";
-import {
-  computeAccountingKpis,
-  getAllDocumentsWithContext,
-  MOCK_ENTITIES,
-  type DocumentWithContext,
-} from "@/lib/leads-mock";
+import { computeAccountingKpis, type DocumentWithContext } from "@/lib/documents-shared";
+import { duplicateDocument } from "../_shared/document-actions";
 import styles from "./Comptabilite.module.scss";
 
 type Tab = "devis" | "acompte" | "finale";
@@ -38,17 +35,38 @@ const DATE = new Intl.DateTimeFormat("fr-FR", {
   year: "numeric",
 });
 
-export default function Comptabilite() {
+type Props = {
+  rows: DocumentWithContext[];
+  entities: LegalEntity[];
+};
+
+export default function Comptabilite({ rows: allRows, entities }: Props) {
   const searchParams = useSearchParams();
   const tab = (searchParams.get("tab") as Tab) ?? "devis";
   const tabType = TABS.find((t) => t.value === tab)?.type ?? "devis";
 
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [entityFilter, setEntityFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<Set<DocumentStatus>>(new Set());
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [busyDoc, setBusyDoc] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
 
-  const allRows = useMemo(() => getAllDocumentsWithContext(), []);
+  const onDuplicate = (docId: string, docType: DocumentType) => {
+    setBusyDoc(docId);
+    startTransition(async () => {
+      const result = await duplicateDocument(docId);
+      setBusyDoc(null);
+      if (!result.ok) {
+        alert(`Échec de la duplication : ${result.error}`);
+        return;
+      }
+      const href = docType === "devis" ? `/devis/${result.id}` : `/factures/${result.id}`;
+      router.push(href);
+    });
+  };
+
   const kpis = useMemo(() => computeAccountingKpis(allRows), [allRows]);
 
   const tabRows = useMemo(() => allRows.filter((r) => r.doc.type === tabType), [allRows, tabType]);
@@ -169,7 +187,7 @@ export default function Comptabilite() {
           aria-label="Filtrer par entité"
         >
           <option value="">Toutes les entités</option>
-          {MOCK_ENTITIES.map((e) => (
+          {entities.map((e) => (
             <option key={e.id} value={e.id}>{e.legalName}</option>
           ))}
         </select>
@@ -226,6 +244,8 @@ export default function Comptabilite() {
                 tabType={tabType}
                 isMenuOpen={openMenu === r.doc.id}
                 onToggleMenu={() => setOpenMenu(openMenu === r.doc.id ? null : r.doc.id)}
+                onDuplicate={() => onDuplicate(r.doc.id, r.doc.type)}
+                isBusy={busyDoc === r.doc.id}
               />
             ))}
             {filtered.length === 0 && (
@@ -269,11 +289,15 @@ function Row({
   tabType,
   isMenuOpen,
   onToggleMenu,
+  onDuplicate,
+  isBusy,
 }: {
   row: DocumentWithContext;
   tabType: DocumentType;
   isMenuOpen: boolean;
   onToggleMenu: () => void;
+  onDuplicate: () => void;
+  isBusy: boolean;
 }) {
   const { doc, lead, entity, totalHt } = row;
   const issued = new Date(doc.issuedAt);
@@ -361,9 +385,13 @@ function Row({
                 type="button"
                 className={styles.menuItem}
                 role="menuitem"
-                onClick={() => alert(`Stub : POST /api/documents/${doc.id}/duplicate (brouillon).`)}
+                disabled={isBusy}
+                onClick={() => {
+                  onToggleMenu();
+                  onDuplicate();
+                }}
               >
-                Dupliquer
+                {isBusy ? "Duplication…" : "Dupliquer"}
               </button>
               <Link href={`/leads/${lead.id}`} className={styles.menuItem} role="menuitem">
                 Ouvrir le lead {lead.shortId}
