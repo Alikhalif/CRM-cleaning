@@ -1,4 +1,5 @@
 import CommandPalette from "@/components/CommandPalette/CommandPalette";
+import RealtimeNotifications from "@/components/RealtimeNotifications/RealtimeNotifications";
 import Sidebar from "@/components/Sidebar/Sidebar";
 import Topbar from "@/components/Topbar/Topbar";
 import { getUnreadCount } from "@/lib/notifications";
@@ -22,6 +23,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <main className={styles.content}>{children}</main>
       </div>
       <CommandPalette />
+      {user && <RealtimeNotifications userId={user.id} />}
     </div>
   );
 }

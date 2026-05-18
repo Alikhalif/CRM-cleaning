@@ -1,9 +1,10 @@
-import Link from "next/link";
 import Icon from "@/components/Icon/Icon";
-import RelativeTime from "@/components/RelativeTime/RelativeTime";
 import { getRecentNotifications } from "@/lib/notifications";
 import { markAllRead } from "./actions";
+import NotificationRow from "./NotificationRow";
 import styles from "./Notifications.module.scss";
+
+export const metadata = { title: "Notifications" };
 
 // Thin wrapper so the form action matches Next's expected signature
 // (formData → void). The real action returns a Result we want to keep for
@@ -12,8 +13,6 @@ async function markAllReadFormAction() {
   "use server";
   await markAllRead();
 }
-
-export const metadata = { title: "Notifications" };
 
 export default async function NotificationsPage() {
   const notifications = await getRecentNotifications(100);
@@ -47,44 +46,10 @@ export default async function NotificationsPage() {
             répond à un devis, qu&apos;un appel arrive, ou qu&apos;un lead vous est attribué.
           </li>
         )}
-        {notifications.map((n) => {
-          const unread = n.read_at === null;
-          const body = (
-            <>
-              <div className={styles.itemHead}>
-                <span className={styles.kind} data-kind={n.kind}>
-                  {labelForKind(n.kind)}
-                </span>
-                <RelativeTime iso={n.created_at} className={styles.relTime} />
-              </div>
-              <p className={styles.itemTitle}>{n.title}</p>
-              {n.body && <p className={styles.itemBody}>{n.body}</p>}
-            </>
-          );
-          return (
-            <li key={n.id} className={`${styles.item} ${unread ? styles.itemUnread : ""}`}>
-              {n.href ? (
-                <Link href={n.href} className={styles.itemLink}>{body}</Link>
-              ) : (
-                <div className={styles.itemLink}>{body}</div>
-              )}
-            </li>
-          );
-        })}
+        {notifications.map((n) => (
+          <NotificationRow key={n.id} notification={n} />
+        ))}
       </ul>
     </div>
   );
-}
-
-// Short human label for the kind chip. Stays string-keyed so adding new
-// kinds doesn't require a type extension — unknowns fall back to the raw string.
-function labelForKind(kind: string): string {
-  return {
-    "email.reply": "Réponse email",
-    "call.missed.inbound": "Appel manqué",
-    "call.missed.outbound": "Appel non répondu",
-    "call.inbound": "Appel entrant",
-    "lead.assigned": "Lead attribué",
-    "lead.lost": "Lead perdu",
-  }[kind] ?? kind;
 }
