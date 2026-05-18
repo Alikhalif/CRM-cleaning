@@ -101,15 +101,25 @@
   }
 }
 
-.dot {
+// Unread-count badge over the bell. Replaces the old simple red dot —
+// we now show the actual count (capped at "99+" for sanity).
+.badge {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
   background: var(--tone-danger);
+  color: var(--text-inverted);
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 2px solid var(--bg-surface);
+  font-variant-numeric: tabular-nums;
 }
 
 .viewSwitcher {
@@ -152,4 +162,139 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+// ── Dropdowns (Vue selector + user menu) ───────────────────────────────
+.menuAnchor {
+  position: relative;
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 240px;
+  padding: var(--sp-2);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+// Anchor the user menu's dropdown to the right edge instead of the left
+// so it doesn't spill past the viewport on the corner avatar button.
+.dropdownRight {
+  left: auto;
+  right: 0;
+}
+
+.dropdownLabel {
+  padding: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.dropdownItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  border-radius: var(--r-sm);
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+  text-decoration: none;
+  width: 100%;
+
+  &:hover { background: var(--bg-surface-2); }
+}
+
+.dropdownItemDanger {
+  color: var(--tone-danger);
+  &:hover { background: color-mix(in oklab, var(--tone-danger) 10%, transparent); }
+}
+
+.dropdownDivider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: var(--sp-1) 0;
+}
+
+.dropdownEmpty {
+  padding: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.dropdownHint {
+  margin-top: var(--sp-1);
+  padding: var(--sp-2);
+  border-top: 1px dashed var(--border-subtle);
+  font-size: var(--fs-2xs);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+// ── User menu header (avatar + name + email) ──────────────────────────
+.userHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+}
+
+.userHeaderAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-brand-500);
+  color: var(--text-inverted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.userHeaderText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.userHeaderName {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userHeaderEmail {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// ── Disabled states for the not-yet-built buttons (Période / Activité / Bell)
+.filterChip:disabled,
+.iconBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

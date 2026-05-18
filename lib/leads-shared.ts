@@ -13,9 +13,26 @@ function sourceLabel(s: Lead["source"]): string {
   }[s];
 }
 
+// Audit event shape — narrow subset of what audit_logs stores, just the
+// fields the timeline cares about. Server-side mapper fills this.
+export type AuditTimelineEvent = {
+  id: string;
+  action: string;
+  createdAt: string;
+  // Pre-shaped human label + sublabel — the mapper knows the action namespace.
+  label: string;
+  sublabel?: string;
+  kind: TimelineEvent["kind"];
+};
+
 // Build a reverse-chronological activity timeline for a lead from its
-// documents + status. The lead-detail page renders this directly.
-export function buildTimeline(lead: Lead, docs: CrmDocument[]): TimelineEvent[] {
+// documents + status + optional audit events (calls, email replies,
+// metadata edits). The lead-detail page renders this directly.
+export function buildTimeline(
+  lead: Lead,
+  docs: CrmDocument[],
+  auditEvents: AuditTimelineEvent[] = [],
+): TimelineEvent[] {
   const events: TimelineEvent[] = [
     {
       id: `${lead.id}_received`,
@@ -82,6 +99,16 @@ export function buildTimeline(lead: Lead, docs: CrmDocument[]): TimelineEvent[] 
       at: lead.lastActionAt,
       label: "Lead marqué perdu",
       sublabel: lead.lostReason,
+    });
+  }
+
+  for (const e of auditEvents) {
+    events.push({
+      id: e.id,
+      kind: e.kind,
+      at: e.createdAt,
+      label: e.label,
+      sublabel: e.sublabel,
     });
   }
 

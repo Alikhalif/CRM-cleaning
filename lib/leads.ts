@@ -99,6 +99,8 @@ export type TimelineEventKind =
   | "received"
   | "status"
   | "email"
+  | "email-reply"
+  | "call"
   | "doc-issued"
   | "doc-signed"
   | "payment"

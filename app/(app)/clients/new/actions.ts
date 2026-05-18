@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
+import { auditLog } from "@/lib/audit";
 import type { Database } from "@/lib/supabase/database.types";
 import type { ClientType, Sector } from "@/lib/leads";
 
@@ -98,5 +99,11 @@ export async function createDirectClient(
   }
 
   revalidatePath("/clients");
+  await auditLog({
+    action: "client.create",
+    entityType: "client",
+    entityId: inserted.id,
+    after: { type: input.type, name: input.name.trim() },
+  });
   return { ok: true, id: inserted.id };
 }

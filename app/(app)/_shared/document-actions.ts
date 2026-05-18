@@ -2,6 +2,7 @@
 
 import { renderToBuffer } from "@react-pdf/renderer";
 import { revalidatePath } from "next/cache";
+import { auditLog } from "@/lib/audit";
 import { sendBrevoEmail } from "@/lib/brevo";
 import { getDocumentById } from "@/lib/documents-server";
 import DocumentPdf from "@/lib/pdf/DocumentPdf";
@@ -42,6 +43,7 @@ export async function markDocumentSent(id: string): Promise<Result> {
   if (error) return { ok: false, error: error.message };
   revalidatePath("/comptabilite");
   revalidatePath(`/devis/${id}`);
+  await auditLog({ action: "document.mark_sent", entityType: "document", entityId: id });
   return { ok: true };
 }
 
@@ -96,6 +98,12 @@ export async function markDocumentPaid(
   revalidatePath("/comptabilite");
   revalidatePath("/planification");
   revalidatePath(`/factures/${id}`);
+  await auditLog({
+    action: "document.mark_paid",
+    entityType: "document",
+    entityId: id,
+    after: { type: doc.type, paymentReference: paymentReference.trim() || null },
+  });
   return { ok: true };
 }
 
@@ -199,6 +207,13 @@ export async function duplicateDocument(id: string): Promise<DuplicateResult> {
   }
 
   revalidatePath("/comptabilite");
+  await auditLog({
+    action: "document.duplicate",
+    entityType: "document",
+    entityId: inserted.id,
+    before: { sourceId: id },
+    after: { num: inserted.num, type: src.type },
+  });
   return { ok: true, id: inserted.id, num: inserted.num };
 }
 
@@ -266,6 +281,16 @@ ${escapeHtml(input.message).replace(/\n/g, "<br>")}
 
   revalidatePath("/comptabilite");
   revalidatePath(`/${detail.doc.type === "devis" ? "devis" : "factures"}/${id}`);
+  await auditLog({
+    action: "document.send_email",
+    entityType: "document",
+    entityId: id,
+    after: {
+      recipient: input.recipient.trim(),
+      subject: input.subject.trim(),
+      type: detail.doc.type,
+    },
+  });
   return { ok: true };
 }
 

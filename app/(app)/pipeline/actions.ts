@@ -2,6 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
+import { auditLog } from "@/lib/audit";
+import { notify } from "@/lib/notifications";
+import { initiateCall } from "@/lib/ringover";
 import type { LeadStatus, SubEnvoi, SubSignature } from "@/lib/leads";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -49,6 +52,7 @@ export async function updateLeadStatus(id: string, target: LeadStatus): Promise<
   revalidatePath("/pipeline");
   revalidatePath("/leads");
   revalidatePath(`/leads/${id}`);
+  await auditLog({ action: "lead.status.change", entityType: "lead", entityId: id, after: { status: target } });
   return { ok: true };
 }
 
@@ -61,6 +65,7 @@ export async function updateLeadSubEnvoi(id: string, value: SubEnvoi): Promise<R
   const { error } = await supabase.from("leads").update(updates as never).eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/pipeline");
+  await auditLog({ action: "lead.sub_envoi.set", entityType: "lead", entityId: id, after: { subEnvoi: value } });
   return { ok: true };
 }
 
@@ -73,6 +78,7 @@ export async function updateLeadSubSignature(id: string, value: SubSignature): P
   const { error } = await supabase.from("leads").update(updates as never).eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/pipeline");
+  await auditLog({ action: "lead.sub_signature.set", entityType: "lead", entityId: id, after: { subSignature: value } });
   return { ok: true };
 }
 
@@ -146,6 +152,18 @@ export async function updateLeadContact(
   revalidatePath("/pipeline");
   revalidatePath("/leads");
   revalidatePath(`/leads/${id}`);
+  await auditLog({
+    action: "lead.contact.update",
+    entityType: "lead",
+    entityId: id,
+    after: {
+      email: input.email.trim() || null,
+      phone: input.phone.trim() || null,
+      addressLine: input.addressLine.trim() || null,
+      postalCode: input.postalCode.trim() || null,
+      city: input.city.trim() || null,
+    },
+  });
   return { ok: true };
 }
 
@@ -156,6 +174,22 @@ export async function updateLeadContact(
 export async function reassignLead(id: string, newOwnerId: string): Promise<Result> {
   if (!newOwnerId) return { ok: false, error: "Sélectionnez un commercial." };
   const supabase = await supabaseServer();
+
+  // Capture a display name for the notification before mutating — the read
+  // is RLS-scoped, but the inserting user already has access to the lead
+  // (otherwise reassign would have been blocked).
+  const { data: leadBefore } = await supabase
+    .from("leads")
+    .select("client_first_name, client_last_name, client_company, is_company, short_id")
+    .eq("id", id)
+    .maybeSingle<{
+      client_first_name: string | null;
+      client_last_name: string | null;
+      client_company: string | null;
+      is_company: boolean;
+      short_id: string;
+    }>();
+
   const updates: LeadUpdate = {
     owner_id: newOwnerId,
     last_action_label: "Lead réassigné",
@@ -163,9 +197,30 @@ export async function reassignLead(id: string, newOwnerId: string): Promise<Resu
   };
   const { error } = await supabase.from("leads").update(updates as never).eq("id", id);
   if (error) return { ok: false, error: error.message };
+
   revalidatePath("/pipeline");
   revalidatePath("/leads");
   revalidatePath(`/leads/${id}`);
+  await auditLog({ action: "lead.reassign", entityType: "lead", entityId: id, after: { ownerId: newOwnerId } });
+
+  // Notify the new owner. Skip if reassigning to oneself — would be noise.
+  const { data: { user: actor } } = await supabase.auth.getUser();
+  if (leadBefore && actor && actor.id !== newOwnerId) {
+    const clientLabel = leadBefore.is_company
+      ? (leadBefore.client_company ?? leadBefore.short_id)
+      : `${leadBefore.client_first_name ?? ""} ${leadBefore.client_last_name ?? ""}`.trim() ||
+        leadBefore.short_id;
+    await notify({
+      userId: newOwnerId,
+      kind: "lead.assigned",
+      entityType: "lead",
+      entityId: id,
+      title: `Nouveau lead : ${clientLabel}`,
+      body: `Lead ${leadBefore.short_id} vous a été réassigné.`,
+      href: `/leads/${id}`,
+    });
+  }
+
   return { ok: true };
 }
 
@@ -189,6 +244,7 @@ export async function markLeadLost(id: string, reason: string): Promise<Result> 
   revalidatePath("/pipeline");
   revalidatePath("/leads");
   revalidatePath(`/leads/${id}`);
+  await auditLog({ action: "lead.lost", entityType: "lead", entityId: id, after: { reason: trimmed } });
   return { ok: true };
 }
 
@@ -211,6 +267,7 @@ export async function setLeadNrp(id: string, nrp: boolean): Promise<Result> {
   revalidatePath("/pipeline");
   revalidatePath("/leads");
   revalidatePath(`/leads/${id}`);
+  await auditLog({ action: "lead.nrp.set", entityType: "lead", entityId: id, after: { nrp } });
   return { ok: true };
 }
 
@@ -228,6 +285,56 @@ export async function launchSequence(id: string): Promise<Result> {
   };
   const { error } = await supabase.from("leads").update(updates as never).eq("id", id);
   if (error) return { ok: false, error: error.message };
+  revalidatePath("/pipeline");
+  revalidatePath(`/leads/${id}`);
+  await auditLog({ action: "lead.sequence.launch", entityType: "lead", entityId: id });
+  return { ok: true };
+}
+
+// Click-to-call: ring the commercial's Ringover device, which then dials
+// the lead's phone. Runs in fake mode unless RINGOVER_API_KEY +
+// RINGOVER_API_BASE are configured — fake mode still goes through the
+// audit log so the activity is visible.
+export async function callLead(id: string): Promise<Result> {
+  const supabase = await supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Non authentifié." };
+
+  const { data: lead, error } = await supabase
+    .from("leads")
+    .select("client_phone")
+    .eq("id", id)
+    .maybeSingle<{ client_phone: string | null }>();
+  if (error || !lead) return { ok: false, error: "Lead introuvable." };
+  if (!lead.client_phone) return { ok: false, error: "Ce lead n'a pas de téléphone." };
+
+  const result = await initiateCall({
+    fromAgentId: user.id, // Ringover maps Supabase user id → agent via env later
+    toNumber: lead.client_phone,
+    leadId: id,
+  });
+  if (!result.ok) return { ok: false, error: `Ringover : ${result.error}` };
+
+  await auditLog({
+    action: "lead.call.outbound",
+    entityType: "lead",
+    entityId: id,
+    after: {
+      toNumber: lead.client_phone,
+      callId: result.callId,
+      fake: result.fake,
+    },
+  });
+
+  // Also bump last_action so the timeline reflects the call attempt.
+  await supabase
+    .from("leads")
+    .update({
+      last_action_label: result.fake ? "Appel (fake) lancé" : "Appel lancé",
+      last_action_at: new Date().toISOString(),
+    } as never)
+    .eq("id", id);
+
   revalidatePath("/pipeline");
   revalidatePath(`/leads/${id}`);
   return { ok: true };

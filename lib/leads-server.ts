@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseServer } from "./supabase/server";
-import { buildTimeline } from "./leads-shared";
+import { buildTimeline, type AuditTimelineEvent } from "./leads-shared";
+import { supabaseServiceRole } from "./supabase/service";
 import type {
   Commercial,
   CrmDocument,
@@ -241,7 +242,169 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
   const uiLead = mapLead(lead);
   const uiDocs = (docs ?? []).map((d) => mapDocument(d as DocumentRow));
   const owner = lead.owner ? mapOwner(lead.owner) : undefined;
-  const timeline = buildTimeline(uiLead, uiDocs);
+
+  // Audit events for this lead — read via service-role because audit_logs
+  // RLS is "admin only" by design (CDC §8.2). The caller is already proven
+  // to have access to the lead above (RLS-scoped fetch returned a row), so
+  // the bypass is contained and safe — we filter to events about this
+  // specific lead only.
+  const auditEvents = await fetchLeadAuditEvents(lead.id);
+  const timeline = buildTimeline(uiLead, uiDocs, auditEvents);
 
   return { lead: uiLead, owner, documents: uiDocs, timeline };
+}
+
+// ── Audit-event → timeline mapper ────────────────────────────────────
+// Stays in the server file (uses service-role) but produces the pure
+// AuditTimelineEvent shape that buildTimeline (in leads-shared.ts) merges.
+
+type AuditRow = {
+  id: string;
+  action: string;
+  created_at: string;
+  after: Json | null;
+};
+
+async function fetchLeadAuditEvents(leadId: string): Promise<AuditTimelineEvent[]> {
+  const supabase = await supabaseServiceRole();
+  const { data, error } = await supabase
+    .from("audit_logs")
+    .select("id, action, created_at, after")
+    .eq("entity_type", "lead")
+    .eq("entity_id", leadId)
+    .order("created_at", { ascending: false })
+    .limit(50)
+    .returns<AuditRow[]>();
+  if (error || !data) return [];
+
+  const out: AuditTimelineEvent[] = [];
+  for (const row of data) {
+    const event = mapAuditRowToTimeline(row);
+    if (event) out.push(event);
+  }
+  return out;
+}
+
+function mapAuditRowToTimeline(row: AuditRow): AuditTimelineEvent | null {
+  const after = (row.after ?? {}) as Record<string, unknown>;
+
+  // Phone calls — outbound initiate + webhook event states.
+  if (row.action === "lead.call.outbound") {
+    const fake = after.fake === true;
+    return {
+      id: row.id,
+      action: row.action,
+      createdAt: row.created_at,
+      kind: "call",
+      label: fake ? "Appel sortant (Ringover fake)" : "Appel sortant lancé",
+      sublabel: typeof after.toNumber === "string" ? `vers ${after.toNumber}` : undefined,
+    };
+  }
+  if (row.action.startsWith("lead.call.outbound.")) {
+    const phase = row.action.replace("lead.call.outbound.", "");
+    const labelByPhase: Record<string, string> = {
+      ringing: "Appel sortant — sonnerie",
+      answered: "Appel sortant — répondu",
+      ended: "Appel sortant — terminé",
+      missed: "Appel sortant — manqué",
+    };
+    const dur = typeof after.durationSeconds === "number" ? `${after.durationSeconds}s` : undefined;
+    return {
+      id: row.id,
+      action: row.action,
+      createdAt: row.created_at,
+      kind: "call",
+      label: labelByPhase[phase] ?? `Appel — ${phase}`,
+      sublabel: dur,
+    };
+  }
+  if (row.action.startsWith("lead.call.inbound.")) {
+    const phase = row.action.replace("lead.call.inbound.", "");
+    const labelByPhase: Record<string, string> = {
+      ringing: "Appel entrant — sonnerie",
+      answered: "Appel entrant — répondu",
+      ended: "Appel entrant — terminé",
+      missed: "Appel entrant — manqué",
+    };
+    const from = typeof after.from === "string" ? after.from : undefined;
+    return {
+      id: row.id,
+      action: row.action,
+      createdAt: row.created_at,
+      kind: "call",
+      label: labelByPhase[phase] ?? `Appel entrant — ${phase}`,
+      sublabel: from ? `de ${from}` : undefined,
+    };
+  }
+
+  // Email reply from a client (matched via doc number in subject).
+  if (row.action === "lead.email.reply") {
+    const from = typeof after.from === "string" ? after.from : "(inconnu)";
+    const subject = typeof after.subject === "string" ? after.subject : undefined;
+    return {
+      id: row.id,
+      action: row.action,
+      createdAt: row.created_at,
+      kind: "email-reply",
+      label: `Réponse email reçue — ${from}`,
+      sublabel: subject,
+    };
+  }
+
+  // Metadata changes worth surfacing.
+  if (row.action === "lead.contact.update") {
+    return {
+      id: row.id,
+      action: row.action,
+      createdAt: row.created_at,
+      kind: "note",
+      label: "Coordonnées modifiées",
+    };
+  }
+  if (row.action === "lead.nrp.set") {
+    return {
+      id: row.id,
+      action: row.action,
+      createdAt: row.created_at,
+      kind: "note",
+      label: after.nrp === true ? "Marqué NRP (ne répond pas)" : "NRP retiré",
+    };
+  }
+  if (row.action === "lead.reassign") {
+    return {
+      id: row.id,
+      action: row.action,
+      createdAt: row.created_at,
+      kind: "note",
+      label: "Lead réassigné",
+    };
+  }
+  if (row.action === "lead.sequence.launch") {
+    return {
+      id: row.id,
+      action: row.action,
+      createdAt: row.created_at,
+      kind: "email",
+      label: "Séquence n8n lancée",
+    };
+  }
+
+  // Status changes — only surface for actions not already covered by the
+  // doc-issued / doc-signed / lost branches in buildTimeline.
+  if (row.action === "lead.status.change") {
+    const status = typeof after.status === "string" ? after.status : "(inconnu)";
+    // The "perdu" status is already rendered from lead.status === "perdu";
+    // doc-related statuses are already shown via the doc events. Skip dupes.
+    if (status === "perdu" || status === "signe" || status === "envoye") return null;
+    return {
+      id: row.id,
+      action: row.action,
+      createdAt: row.created_at,
+      kind: "status",
+      label: `Statut → ${status}`,
+    };
+  }
+
+  // Anything else — drop silently (auth events, etc. don't belong on a lead timeline).
+  return null;
 }

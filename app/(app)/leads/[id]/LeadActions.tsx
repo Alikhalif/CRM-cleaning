@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
 import { canLaunchSequence, type Commercial, type Lead } from "@/lib/leads";
-import { setLeadNrp } from "@/app/(app)/pipeline/actions";
+import { callLead, setLeadNrp } from "@/app/(app)/pipeline/actions";
 import EditContactModal from "./EditContactModal";
 import MarkLostModal from "./MarkLostModal";
 import ReassignLeadModal from "./ReassignLeadModal";
@@ -32,6 +32,24 @@ export default function LeadActions({ lead, commerciaux }: Props) {
       setBusy(null);
       if (!result.ok) {
         alert(`Échec de la mise à jour : ${result.error}`);
+        return;
+      }
+      router.refresh();
+    });
+  };
+
+  const onCall = () => {
+    if (!lead.phone) {
+      alert("Ce lead n'a pas de numéro de téléphone.");
+      return;
+    }
+    if (!confirm(`Lancer un appel vers ${lead.phone} via Ringover ?`)) return;
+    setBusy("call");
+    startTransition(async () => {
+      const result = await callLead(lead.id);
+      setBusy(null);
+      if (!result.ok) {
+        alert(`Échec de l'appel : ${result.error}`);
         return;
       }
       router.refresh();
@@ -78,6 +96,18 @@ export default function LeadActions({ lead, commerciaux }: Props) {
 
   return (
     <div className={styles.actions}>
+      {lead.phone && (
+        <button
+          type="button"
+          className={styles.btn}
+          disabled={busy !== null}
+          onClick={onCall}
+          title="Click-to-call via Ringover"
+        >
+          <Icon name="phone" size={14} />
+          {busy === "call" ? "Appel…" : "Appeler"}
+        </button>
+      )}
       {!closed && (
         <Link
           href={`/devis/new?lead=${lead.id}`}

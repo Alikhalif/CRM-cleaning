@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
+import { auditLog } from "@/lib/audit";
 import { sendDocumentByEmail } from "@/app/(app)/_shared/document-actions";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -204,6 +205,21 @@ export async function createDevis(draft: DraftInput, intent: CreateDevisIntent):
   revalidatePath("/pipeline");
   revalidatePath("/leads");
   if (client.source_lead_id) revalidatePath(`/leads/${client.source_lead_id}`);
+
+  await auditLog({
+    action: "document.create",
+    entityType: "document",
+    entityId: inserted.id,
+    after: {
+      num: inserted.num,
+      type: "devis",
+      status,
+      leadId: client.source_lead_id,
+      clientId: client.id,
+      totalTtc: totals.totalTtc,
+      intent,
+    },
+  });
 
   // ── 10. If intent=send, actually fire the email via Brevo. We look up
   // the lead's email to use as the recipient. If the lead has no email or

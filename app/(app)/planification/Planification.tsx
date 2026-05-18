@@ -32,6 +32,7 @@ import {
   type EditDossierInput,
   type PlanifyInput,
 } from "./actions";
+import ConfirmInterventionModal from "./ConfirmInterventionModal";
 import EditDossierModal from "./EditDossierModal";
 import PlanifyDossierModal from "./PlanifyDossierModal";
 import styles from "./Planification.module.scss";
@@ -70,6 +71,7 @@ export default function Planification({ initialRows, technicians }: Props) {
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [planifyTarget, setPlanifyTarget] = useState<DossierWithContext | null>(null);
   const [editTarget, setEditTarget] = useState<DossierWithContext | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<DossierWithContext | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
@@ -466,6 +468,7 @@ export default function Planification({ initialRows, technicians }: Props) {
                 onToggleMenu={() => setOpenMenu(openMenu === r.dossier.id ? null : r.dossier.id)}
                 onPlanify={() => setPlanifyTarget(r)}
                 onEdit={() => setEditTarget(r)}
+                onConfirmEmail={() => setConfirmTarget(r)}
                 onFinalize={() => onFinalize(r)}
                 onGenerateFinale={() => onGenerateFinale(r)}
                 onSold={() => onSold(r)}
@@ -496,6 +499,13 @@ export default function Planification({ initialRows, technicians }: Props) {
           technicians={technicians}
           onClose={() => setEditTarget(null)}
           onSubmit={onEditSubmit}
+        />
+      )}
+      {confirmTarget && (
+        <ConfirmInterventionModal
+          row={confirmTarget}
+          onClose={() => setConfirmTarget(null)}
+          onDone={() => setConfirmTarget(null)}
         />
       )}
     </div>
@@ -530,6 +540,7 @@ function Row({
   onToggleMenu,
   onPlanify,
   onEdit,
+  onConfirmEmail,
   onFinalize,
   onGenerateFinale,
   onSold,
@@ -539,6 +550,7 @@ function Row({
   onToggleMenu: () => void;
   onPlanify: () => void;
   onEdit: () => void;
+  onConfirmEmail: () => void;
   onFinalize: () => void;
   onGenerateFinale: () => void;
   onSold: () => void;
@@ -662,6 +674,19 @@ function Row({
                   }}
                 >
                   Planifier l&apos;intervention
+                </button>
+              )}
+              {dossier.status === "planifie" && lead.email && dossier.plannedAt && (
+                <button
+                  type="button"
+                  className={styles.menuItem}
+                  role="menuitem"
+                  onClick={() => {
+                    onToggleMenu();
+                    onConfirmEmail();
+                  }}
+                >
+                  Envoyer confirmation client
                 </button>
               )}
               {dossier.status === "planifie" && (

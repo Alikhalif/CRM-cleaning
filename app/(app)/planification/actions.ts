@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
+import { auditLog } from "@/lib/audit";
+import { sendBrevoEmail } from "@/lib/brevo";
 import type { Database } from "@/lib/supabase/database.types";
 
 // Dossier mutations exposed to the Planification page. Each one is a small
@@ -49,6 +51,17 @@ export async function editDossier(id: string, input: EditDossierInput): Promise<
   const { error } = await supabase.from("dossiers").update(updates as never).eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/planification");
+  await auditLog({
+    action: "dossier.edit",
+    entityType: "dossier",
+    entityId: id,
+    after: {
+      plannedAt: input.plannedAt,
+      technicianId: input.technicianId,
+      durationHours: input.durationHours,
+      flags: input.flags,
+    },
+  });
   return { ok: true };
 }
 
@@ -71,6 +84,16 @@ export async function planifyDossier(id: string, input: PlanifyInput): Promise<R
   const { error } = await supabase.from("dossiers").update(updates as never).eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/planification");
+  await auditLog({
+    action: "dossier.planify",
+    entityType: "dossier",
+    entityId: id,
+    after: {
+      plannedAt: input.plannedAt,
+      technicianId: input.technicianId,
+      durationHours: input.durationHours,
+    },
+  });
   return { ok: true };
 }
 
@@ -85,6 +108,7 @@ export async function finalizeDossier(id: string): Promise<Result> {
   const { error } = await supabase.from("dossiers").update(updates as never).eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/planification");
+  await auditLog({ action: "dossier.finalize", entityType: "dossier", entityId: id });
   return { ok: true };
 }
 
@@ -99,6 +123,7 @@ export async function soldDossier(id: string): Promise<Result> {
   const { error } = await supabase.from("dossiers").update(updates as never).eq("id", id);
   if (error) return { ok: false, error: error.message };
   revalidatePath("/planification");
+  await auditLog({ action: "dossier.sold", entityType: "dossier", entityId: id });
   return { ok: true };
 }
 
@@ -252,6 +277,19 @@ export async function generateFactureFinale(dossierId: string): Promise<Generate
   revalidatePath("/comptabilite");
   revalidatePath(`/leads/${dossier.lead_id}`);
 
+  await auditLog({
+    action: "dossier.finale.create",
+    entityType: "document",
+    entityId: inserted.id,
+    after: {
+      num: inserted.num,
+      type: "finale",
+      dossierId: dossier.id,
+      sourceDevisId: devis.id,
+      totalTtc: finaleTotalTtc,
+    },
+  });
+
   return { ok: true, id: inserted.id, num: inserted.num };
 }
 
@@ -289,5 +327,60 @@ export async function markAcomptePaid(
   revalidatePath("/planification");
   revalidatePath("/comptabilite");
   revalidatePath(`/factures/${documentId}`);
+  await auditLog({
+    action: "dossier.acompte_paid",
+    entityType: "dossier",
+    entityId: dossierId,
+    after: { documentId },
+  });
   return { ok: true };
+}
+
+export type ConfirmInterventionInput = {
+  recipient: string;
+  subject: string;
+  message: string; // plain text — wrapped into a minimal HTML envelope below
+};
+
+// Send the client an "intervention confirmée" email from the Planification
+// page. No PDF attachment — this is a short transactional confirmation, not
+// a document. The planificatrice edits the message in the modal before
+// sending; we trust the input (RLS already gates her view of the dossier).
+export async function sendInterventionConfirmation(
+  dossierId: string,
+  input: ConfirmInterventionInput,
+): Promise<Result> {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.recipient)) {
+    return { ok: false, error: "Email destinataire invalide." };
+  }
+  if (!input.subject.trim()) return { ok: false, error: "Objet requis." };
+
+  const htmlContent = `<div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#1a1f3a;">
+${escapeHtml(input.message).replace(/\n/g, "<br>")}
+</div>`;
+
+  const result = await sendBrevoEmail({
+    to: input.recipient.trim(),
+    subject: input.subject.trim(),
+    htmlContent,
+  });
+  if (!result.ok) return { ok: false, error: `Brevo : ${result.error}` };
+
+  await auditLog({
+    action: "dossier.confirmation_email",
+    entityType: "dossier",
+    entityId: dossierId,
+    after: { recipient: input.recipient.trim(), subject: input.subject.trim() },
+  });
+
+  return { ok: true };
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }

@@ -22,7 +22,8 @@ export type IconName =
   | "alert"
   | "x"
   | "check"
-  | "phone";
+  | "phone"
+  | "logout";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   dashboard: (
@@ -120,6 +121,13 @@ const PATHS: Record<IconName, React.ReactNode> = {
   check: <path d="m4 12 5 5L20 6" />,
   phone: (
     <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2 4.2 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.7.6 2.5a2 2 0 0 1-.5 2L7.9 9.4a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2-.5c.8.3 1.6.5 2.5.6A2 2 0 0 1 22 16.9z" />
+  ),
+  logout: (
+    <>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5" />
+      <path d="M21 12H9" />
+    </>
   ),
 };
 
