@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
+import { sendDocumentByEmail } from "@/app/(app)/_shared/document-actions";
 import type { Database } from "@/lib/supabase/database.types";
 
 // Server actions for the new-devis editor. All money is recomputed here from
@@ -36,7 +37,7 @@ export type DraftInput = {
 export type CreateDevisIntent = "draft" | "send";
 
 export type Result =
-  | { ok: true; id: string; num: string }
+  | { ok: true; id: string; num: string; emailWarning?: string }
   | { ok: false; error: string };
 
 function round2(n: number): number {
@@ -204,5 +205,48 @@ export async function createDevis(draft: DraftInput, intent: CreateDevisIntent):
   revalidatePath("/leads");
   if (client.source_lead_id) revalidatePath(`/leads/${client.source_lead_id}`);
 
-  return { ok: true, id: inserted.id, num: inserted.num };
+  // ── 10. If intent=send, actually fire the email via Brevo. We look up
+  // the lead's email to use as the recipient. If the lead has no email or
+  // Brevo refuses (unverified sender, bad API key), the devis stays saved
+  // and we surface the failure as a non-fatal warning — the user can retry
+  // from the document detail page with the SendEmailModal.
+  let emailWarning: string | undefined;
+  if (intent === "send" && client.source_lead_id) {
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("client_email, client_first_name, client_last_name, client_company, is_company")
+      .eq("id", client.source_lead_id)
+      .maybeSingle<{
+        client_email: string | null;
+        client_first_name: string | null;
+        client_last_name: string | null;
+        client_company: string | null;
+        is_company: boolean;
+      }>();
+
+    if (!lead?.client_email) {
+      emailWarning = "Devis créé, mais aucun email enregistré sur le lead — envoi non effectué.";
+    } else {
+      const recipientName = lead.is_company
+        ? (lead.client_company ?? "")
+        : `${lead.client_first_name ?? ""} ${lead.client_last_name ?? ""}`.trim();
+      const greeting = recipientName ? `Bonjour ${recipientName},` : "Bonjour,";
+      const sendResult = await sendDocumentByEmail(inserted.id, {
+        recipient: lead.client_email,
+        subject: `Devis ${num}`,
+        message: `${greeting}
+
+Veuillez trouver ci-joint notre devis ${num}.
+
+N'hésitez pas à revenir vers nous pour toute question.
+
+Cordialement,`,
+      });
+      if (!sendResult.ok) {
+        emailWarning = `Devis enregistré mais envoi email échoué : ${sendResult.error}`;
+      }
+    }
+  }
+
+  return { ok: true, id: inserted.id, num: inserted.num, emailWarning };
 }

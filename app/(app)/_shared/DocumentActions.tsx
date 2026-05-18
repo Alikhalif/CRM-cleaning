@@ -1,38 +1,44 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
-import type { CrmDocument } from "@/lib/leads";
+import type { CrmDocument, Lead, LegalEntity } from "@/lib/leads";
 import {
   duplicateDocument,
   markDocumentPaid,
   markDocumentSent,
 } from "./document-actions";
+import SendEmailModal from "./SendEmailModal";
 import styles from "./DocumentView.module.scss";
 
-// Action bar for the document view.
-// - "Télécharger PDF" still uses window.print (the page's print stylesheet
-//   lays out as A4 and hides chrome) — no signed-URL PDF route yet.
-// - "Envoyer par email" + "Régénérer" stay stubs (need Brevo + a PDF
-//   rendering layer respectively).
-// - "Marquer envoyé", "Marquer payée", "Dupliquer" are real.
+// Action bar for the document view. Every button is real — "Aperçu PDF"
+// streams from the server-rendered PDF route, "Envoyer par email" pushes
+// through Brevo with the PDF attached.
+//
+// `?send=1` query param auto-opens the SendEmailModal — used by the
+// Comptabilité row menu to deep-link straight into the send flow.
 
-type Props = { doc: CrmDocument };
+type Props = { doc: CrmDocument; lead: Lead; entity: LegalEntity };
 
-export default function DocumentActions({ doc }: Props) {
+export default function DocumentActions({ doc, lead, entity }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Auto-open the send modal when arriving via /?send=1 (the Comptabilité
+  // row menu links here). One-shot — clears the param after opening so a
+  // page refresh doesn't re-open the modal forever.
+  const [emailOpen, setEmailOpen] = useState(() => searchParams.get("send") === "1");
   const [, startTransition] = useTransition();
 
-  const stub = (label: string, message: string) => {
-    setBusy(label);
-    setTimeout(() => {
-      alert(message);
-      setBusy(null);
-    }, 0);
-  };
+  useEffect(() => {
+    if (searchParams.get("send") === "1") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("send");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [searchParams]);
 
   const run = (label: string, action: () => Promise<{ ok: true } | { ok: false; error: string }>) => {
     setError(null);
@@ -101,9 +107,7 @@ export default function DocumentActions({ doc }: Props) {
           type="button"
           className={styles.btn}
           disabled={busy !== null}
-          onClick={() =>
-            stub("email", `Stub : POST /api/documents/${doc.id}/send (Brevo — pas encore wired).`)
-          }
+          onClick={() => setEmailOpen(true)}
         >
           Envoyer par email
         </button>
@@ -134,6 +138,20 @@ export default function DocumentActions({ doc }: Props) {
         <p className={styles.errorBanner} role="alert" data-no-print>
           <Icon name="alert" size={14} /> {error}
         </p>
+      )}
+
+      {emailOpen && (
+        <SendEmailModal
+          doc={doc}
+          defaultRecipient={lead.email}
+          defaultRecipientName={lead.client}
+          entityName={entity.legalName}
+          onClose={() => setEmailOpen(false)}
+          onDone={() => {
+            setEmailOpen(false);
+            router.refresh();
+          }}
+        />
       )}
     </>
   );

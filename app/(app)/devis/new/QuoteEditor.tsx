@@ -237,6 +237,16 @@ export default function QuoteEditor({
         setSubmitting(null);
         return;
       }
+      // Email send is best-effort when intent="send" — if Brevo refused,
+      // the devis is saved but no email left. Surface the warning + park
+      // the user on the document detail page so they can retry from the
+      // SendEmailModal (which shows the same Brevo error live).
+      if (result.emailWarning) {
+        setServerError(result.emailWarning);
+        setSubmitting(null);
+        router.push(`/devis/${result.id}`);
+        return;
+      }
       // Successful insert — jump to Comptabilité on the devis tab so the
       // user sees the new row immediately.
       router.push(`/comptabilite?tab=devis`);

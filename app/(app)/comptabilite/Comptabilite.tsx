@@ -373,14 +373,13 @@ function Row({
               <Link href={docHref} className={styles.menuItem} role="menuitem">
                 Voir le document
               </Link>
-              <button
-                type="button"
+              <Link
+                href={`${docHref}?send=1`}
                 className={styles.menuItem}
                 role="menuitem"
-                onClick={() => alert(`Stub : POST /api/documents/${doc.id}/send (email).`)}
               >
                 Envoyer par email
-              </button>
+              </Link>
               <button
                 type="button"
                 className={styles.menuItem}

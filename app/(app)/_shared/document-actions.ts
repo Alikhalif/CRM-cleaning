@@ -1,6 +1,10 @@
 "use server";
 
+import { renderToBuffer } from "@react-pdf/renderer";
 import { revalidatePath } from "next/cache";
+import { sendBrevoEmail } from "@/lib/brevo";
+import { getDocumentById } from "@/lib/documents-server";
+import DocumentPdf from "@/lib/pdf/DocumentPdf";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
 import type { DocumentType } from "@/lib/leads";
@@ -197,3 +201,80 @@ export async function duplicateDocument(id: string): Promise<DuplicateResult> {
   revalidatePath("/comptabilite");
   return { ok: true, id: inserted.id, num: inserted.num };
 }
+
+export type SendEmailInput = {
+  recipient: string;
+  subject: string;
+  message: string; // plain text — wrapped into a minimal HTML envelope below
+};
+
+// ── Send a document by email via Brevo. Attaches the PDF rendered on the
+// fly from the same DocumentPdf component used by the preview route, so
+// the user gets exactly what they see in the browser. On success persists
+// sent_to_email + bumps a devis-brouillon to envoyé (it has actually been
+// sent now, not just marked).
+export async function sendDocumentByEmail(
+  id: string,
+  input: SendEmailInput,
+): Promise<Result> {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.recipient)) {
+    return { ok: false, error: "Email destinataire invalide." };
+  }
+  if (!input.subject.trim()) return { ok: false, error: "Objet requis." };
+
+  // Fetch + render server-side. RLS scopes the read; if the caller can't
+  // see the doc, getDocumentById returns null and we 404 early.
+  const detail = await getDocumentById(id);
+  if (!detail) return { ok: false, error: "Document introuvable." };
+
+  const pdfBytes = await renderToBuffer(DocumentPdf({ detail }));
+
+  // Minimal HTML wrapper — preserves linebreaks from the textarea. Brevo
+  // also accepts text-only via `textContent` but HTML renders better in
+  // mainstream clients.
+  const htmlContent = `<div style="font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.5;color:#1a1f3a;">
+${escapeHtml(input.message).replace(/\n/g, "<br>")}
+<hr style="margin-top:24px;border:none;border-top:1px solid #d8dbe8;">
+<p style="color:#666e8a;font-size:12px;">${escapeHtml(detail.entity.legalName)} · ${detail.doc.num} ci-joint en PDF.</p>
+</div>`;
+
+  const result = await sendBrevoEmail({
+    to: input.recipient.trim(),
+    toName: detail.lead.client,
+    subject: input.subject.trim(),
+    htmlContent,
+    attachment: {
+      name: `${detail.doc.num}.pdf`,
+      bytes: pdfBytes,
+    },
+  });
+  if (!result.ok) return { ok: false, error: `Brevo : ${result.error}` };
+
+  // Persist send tracking. If it was a brouillon devis, transition to envoye
+  // (we sent it — same semantics as Marquer envoyé, just real this time).
+  const supabase = await supabaseServer();
+  const updates: DocumentUpdate = {
+    sent_to_email: input.recipient.trim(),
+    ...(detail.doc.type === "devis" && detail.doc.status === "brouillon"
+      ? { status: "envoye" as const }
+      : {}),
+  };
+  await supabase
+    .from("documents")
+    .update(updates as never)
+    .eq("id", id);
+
+  revalidatePath("/comptabilite");
+  revalidatePath(`/${detail.doc.type === "devis" ? "devis" : "factures"}/${id}`);
+  return { ok: true };
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+

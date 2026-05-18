@@ -31,7 +31,7 @@ export default function DocumentView({ detail }: Props) {
 
   return (
     <div className={styles.page}>
-      <DocumentActions doc={doc} />
+      <DocumentActions doc={doc} lead={lead} entity={entity} />
 
       <article className={styles.document} aria-label={`${DOC_TYPE_LABEL[doc.type]} ${doc.num}`}>
         <header className={styles.head}>
