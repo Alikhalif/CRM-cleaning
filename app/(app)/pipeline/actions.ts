@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
+import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import { notify } from "@/lib/notifications";
 import { initiateCall } from "@/lib/ringover";
 import type { LeadStatus, SubEnvoi, SubSignature } from "@/lib/leads";
@@ -274,8 +275,14 @@ export async function setLeadNrp(id: string, nrp: boolean): Promise<Result> {
 // Stub for the n8n WF2 trigger — for now it just flips the lead to
 // envoye·auto + writes a timeline label, the same shape the mock used.
 // When the n8n integration lands, replace the body with the JWT-signed
-// POST to /webhook/relance-devis.
+// POST to /webhook/relance-devis. Gated by the runtime app_settings
+// toggle so an admin can disable it without a redeploy + a stale browser
+// tab can't trigger the action when it's off (defense in depth — the UI
+// hides the button via the same setting).
 export async function launchSequence(id: string): Promise<Result> {
+  if (!(await isN8nSequenceEnabled())) {
+    return { ok: false, error: "Séquence n8n désactivée par l'administrateur." };
+  }
   const supabase = await supabaseServer();
   const updates: LeadUpdate = {
     status: "envoye",

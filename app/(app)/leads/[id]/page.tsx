@@ -16,6 +16,7 @@ import {
 // First page wired to real Supabase reads. Other pages still use leads-mock
 // until they're migrated one by one.
 import { getAllCommerciaux, getLeadDetail } from "@/lib/leads-server";
+import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import LeadActions from "./LeadActions";
 import styles from "./LeadDetail.module.scss";
 
@@ -35,9 +36,10 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function LeadDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const [detail, commerciaux] = await Promise.all([
+  const [detail, commerciaux, n8nEnabled] = await Promise.all([
     getLeadDetail(id),
     getAllCommerciaux(),
+    isN8nSequenceEnabled(),
   ]);
   if (!detail) notFound();
 
@@ -118,7 +120,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
             <span className={styles.muted}>· {lead.city}</span>
           </div>
         </div>
-        <LeadActions lead={lead} commerciaux={commerciaux} />
+        <LeadActions lead={lead} commerciaux={commerciaux} n8nEnabled={n8nEnabled} />
       </header>
 
       <div className={styles.layout}>

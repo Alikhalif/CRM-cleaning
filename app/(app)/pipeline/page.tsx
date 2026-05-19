@@ -1,13 +1,15 @@
 import PipelineBoard from "./PipelineBoard";
 import styles from "./Pipeline.module.scss";
+import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import { getAllCommerciaux, getAllLeads } from "@/lib/leads-server";
 
 export const metadata = { title: "Pipeline" };
 
 export default async function PipelinePage() {
-  const [leads, commerciaux] = await Promise.all([
+  const [leads, commerciaux, n8nEnabled] = await Promise.all([
     getAllLeads(),
     getAllCommerciaux(),
+    isN8nSequenceEnabled(),
   ]);
 
   return (
@@ -20,7 +22,7 @@ export default async function PipelinePage() {
           </p>
         </div>
       </header>
-      <PipelineBoard initialLeads={leads} commerciaux={commerciaux} />
+      <PipelineBoard initialLeads={leads} commerciaux={commerciaux} n8nEnabled={n8nEnabled} />
     </div>
   );
 }

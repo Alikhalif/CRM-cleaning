@@ -31,6 +31,7 @@ type Props = {
   onSetSignature: (id: string, value: SubSignature) => void;
   onSetNrp: (id: string, nrp: boolean) => void;
   onLaunchSequence: (lead: Lead) => void;
+  n8nEnabled: boolean;
 };
 
 export default function LeadCard({
@@ -44,10 +45,11 @@ export default function LeadCard({
   onSetSignature,
   onSetNrp,
   onLaunchSequence,
+  n8nEnabled,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const sequenceEligible = canLaunchSequence(lead);
+  const sequenceEligible = canLaunchSequence(lead, n8nEnabled);
   const missingEnvoi = needsEnvoi(lead);
   const missingSignature = needsSignature(lead);
 

@@ -15,9 +15,9 @@ import styles from "./LeadDetail.module.scss";
 // confirm intent and surface what they *would* do once Supabase + n8n are
 // wired. None of them mutate persisted state today.
 
-type Props = { lead: Lead; commerciaux: Commercial[] };
+type Props = { lead: Lead; commerciaux: Commercial[]; n8nEnabled: boolean };
 
-export default function LeadActions({ lead, commerciaux }: Props) {
+export default function LeadActions({ lead, commerciaux, n8nEnabled }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [lostModalOpen, setLostModalOpen] = useState(false);
@@ -91,7 +91,7 @@ export default function LeadActions({ lead, commerciaux }: Props) {
     router.refresh();
   };
 
-  const eligible = canLaunchSequence(lead);
+  const eligible = canLaunchSequence(lead, n8nEnabled);
   const closed = lead.status === "encaisse" || lead.status === "perdu";
 
   return (

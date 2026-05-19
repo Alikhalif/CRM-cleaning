@@ -38,9 +38,10 @@ const STATUS_ORDER: Record<LeadStatus, number> = {
 type Props = {
   initialLeads: Lead[];
   commerciaux: Commercial[];
+  n8nEnabled: boolean;
 };
 
-export default function PipelineBoard({ initialLeads, commerciaux }: Props) {
+export default function PipelineBoard({ initialLeads, commerciaux, n8nEnabled }: Props) {
   // Local state seeded from the server fetch. Optimistic updates apply
   // immediately; the server action runs in a transition and rolls back on
   // error.
@@ -190,6 +191,7 @@ export default function PipelineBoard({ initialLeads, commerciaux }: Props) {
           ownersById={ownersById}
           onMove={move}
           onLaunchSequence={launchSequence}
+          n8nEnabled={n8nEnabled}
         />
       ) : (
         <div className={styles.board}>
@@ -249,6 +251,7 @@ export default function PipelineBoard({ initialLeads, commerciaux }: Props) {
                       onSetSignature={setSignature}
                       onSetNrp={setNrp}
                       onLaunchSequence={launchSequence}
+                      n8nEnabled={n8nEnabled}
                     />
                   ))}
                   {cards.length === 0 && (
@@ -274,9 +277,10 @@ type ListViewProps = {
   ownersById: Map<string, Commercial>;
   onMove: (id: string, target: LeadStatus) => void;
   onLaunchSequence: (lead: Lead) => void;
+  n8nEnabled: boolean;
 };
 
-function ListView({ rows, ownersById, onMove, onLaunchSequence }: ListViewProps) {
+function ListView({ rows, ownersById, onMove, onLaunchSequence, n8nEnabled }: ListViewProps) {
   return (
     <div className={styles.listWrap}>
       <table className={styles.listTable}>
@@ -367,8 +371,9 @@ function ListView({ rows, ownersById, onMove, onLaunchSequence }: ListViewProps)
                   <RelativeTime iso={lead.lastActionAt} className={styles.muted} />
                 </td>
                 <td>
-                  {(lead.status === "lead" ||
-                    (lead.status === "envoye" && lead.subEnvoi === "mano")) && (
+                  {n8nEnabled &&
+                    (lead.status === "lead" ||
+                      (lead.status === "envoye" && lead.subEnvoi === "mano")) && (
                     <button
                       type="button"
                       className={styles.listAction}

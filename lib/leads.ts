@@ -347,7 +347,12 @@ export function needsSignature(lead: Lead): boolean {
 
 // "Lancer séquence" (n8n WF2) is offered only on `lead` or `envoye·mano` cards
 // that haven't been signed — see CDC §4.3 + spec/SPEC.md.
-export function canLaunchSequence(lead: Lead): boolean {
+// Pure eligibility check — given a lead AND the global "n8n sequence
+// enabled" toggle (fetched from app_settings server-side), does the
+// "Lancer séquence" button apply? The toggle is admin-controlled at
+// /settings/integrations so it can be flipped without a redeploy.
+export function canLaunchSequence(lead: Lead, n8nEnabled: boolean): boolean {
+  if (!n8nEnabled) return false;
   if (lead.status === "lead") return true;
   if (lead.status === "envoye" && lead.subEnvoi === "mano") return true;
   return false;
