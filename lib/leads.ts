@@ -64,6 +64,11 @@ export type Lead = {
   // Orthogonal to status — a lead can be NRP at any pipeline stage.
   isNrp: boolean;
   nrpAt?: string;
+  // Optional minimal-shape documents for pipeline bucketing. Populated by
+  // getAllLeads (the listing fetcher) so the Kanban can detect paid acompte
+  // and paid finale without an extra round-trip. Not populated by every
+  // fetcher — undefined means "we don't know, treat conservatively".
+  documents?: { id: string; type: "devis" | "acompte" | "finale"; status: string }[];
   siret?: string;
   vatIntra?: string;
   notes?: string;
@@ -71,6 +76,26 @@ export type Lead = {
   // Confidential — only visible if the current user holds the immobTravaux
   // permission (CDC §3.5). Encrypted at rest in production.
   immobTravauxAnnotation?: string;
+  // Post-signature delay the client requested, captured by the commercial.
+  // Surfaces on the planificatrice's queue so urgent ones float.
+  interventionDelay?: InterventionDelay;
+  interventionDelayNotes?: string;
+};
+
+// CDC §4.5 — the 5 standard delay buckets + free-text for everything else.
+export type InterventionDelay =
+  | "sous_72h"
+  | "1_semaine"
+  | "15_jours"
+  | "1_mois"
+  | "personnalise";
+
+export const INTERVENTION_DELAY_LABEL: Record<InterventionDelay, string> = {
+  sous_72h:     "Sous 72 heures",
+  "1_semaine":  "1 semaine",
+  "15_jours":   "15 jours",
+  "1_mois":     "1 mois",
+  personnalise: "Délai personnalisé",
 };
 
 // Devis + factures share one table in the CDC (§5.2 documents). The status
@@ -80,6 +105,8 @@ export type DevisStatus = "brouillon" | "envoye" | "ouvert" | "signe" | "refuse"
 export type FactureStatus = "brouillon" | "envoye" | "paye" | "retard";
 export type DocumentStatus = DevisStatus | FactureStatus;
 
+// Optional refusal reason — set when a devis is marked refused via the
+// MarkRefusedModal. Persisted in documents.refusal_reason (devis only).
 // `Document` clashes with the DOM `Document` global, so we prefix.
 export type CrmDocument = {
   id: string;
@@ -93,6 +120,7 @@ export type CrmDocument = {
   paidAt?: string;
   acomptePct?: number; // only on devis avec acompte
   acompteAmount?: number;
+  refusalReason?: string; // only set when status=refuse on a devis
 };
 
 export type TimelineEventKind =
@@ -300,14 +328,56 @@ export const DOC_STATUS_LABEL: Record<DocumentStatus, string> = {
 };
 
 // CDC §4.3 — the six pipeline columns, in display order.
-export const PIPELINE_COLUMNS: { status: LeadStatus; label: string; hint?: string }[] = [
-  { status: "lead", label: "Lead entrant", hint: "Nouveau lead, pas encore traité" },
-  { status: "envoye", label: "Devis envoyé", hint: "Sous-statut Mano ou Auto requis" },
-  { status: "ouvert", label: "Devis ouvert", hint: "Le client a ouvert le lien" },
-  { status: "signe", label: "Signé", hint: "Sous-statut Sans/Avec acompte requis" },
-  { status: "encaisse", label: "Encaissé", hint: "Facture finale payée" },
-  { status: "perdu", label: "Perdu", hint: "Lead non converti" },
+// Pipeline column key — broader than LeadStatus to surface the two
+// payment milestones (acompte / finale) as their own swimlanes. Two of
+// the keys ("acompte_paye" and "encaisse" with paid-finale) are derived
+// from the documents linked to each lead, not from leads.status alone.
+export type PipelineColumnKey =
+  | "lead"
+  | "envoye"
+  | "ouvert"
+  | "signe"
+  | "acompte_paye"
+  | "encaisse"
+  | "perdu";
+
+export const PIPELINE_COLUMNS: { status: PipelineColumnKey; label: string; hint?: string }[] = [
+  { status: "lead",         label: "Lead entrant",       hint: "Nouveau lead, pas encore traité" },
+  { status: "envoye",       label: "Devis envoyé",       hint: "Sous-statut Mano ou Auto requis" },
+  { status: "ouvert",       label: "Devis ouvert",       hint: "Le client a ouvert le lien" },
+  { status: "signe",        label: "Signé",              hint: "Sous-statut Sans/Avec acompte requis" },
+  { status: "acompte_paye", label: "Acompte encaissé",   hint: "Glisser ici = marquer la facture d'acompte payée" },
+  { status: "encaisse",     label: "Encaissement final", hint: "Glisser ici = marquer la facture finale payée" },
+  { status: "perdu",        label: "Perdu",              hint: "Lead non converti" },
 ];
+
+// Compute the most-advanced pipeline column for a lead from its status +
+// linked documents. Used by the Kanban to bucket cards and by the lead
+// detail PipelineProgress component for consistency.
+export function pipelineColumnFor(lead: Lead): PipelineColumnKey {
+  if (lead.status === "perdu") return "perdu";
+  const docs = lead.documents ?? [];
+  const hasPaidFinale  = docs.some((d) => d.type === "finale"  && d.status === "paye");
+  const hasPaidAcompte = docs.some((d) => d.type === "acompte" && d.status === "paye");
+  if (hasPaidFinale) return "encaisse";
+  if (hasPaidAcompte) return "acompte_paye";
+  // Fall back to leads.status — covers lead / envoye / ouvert / signe / encaisse
+  // (the last when status is encaisse but no finale doc tagged paid yet, e.g. legacy data).
+  return lead.status as PipelineColumnKey;
+}
+
+// Quick lookup: does this lead have an unpaid invoice of the given type?
+// Returns the doc id if so. Used by the Kanban drag-handler to know which
+// document to mark paid when a card is dragged into Acompte / Encaisse.
+export function unpaidInvoiceId(
+  lead: Lead,
+  type: "acompte" | "finale",
+): string | null {
+  const doc = (lead.documents ?? []).find(
+    (d) => d.type === type && d.status !== "paye",
+  );
+  return doc?.id ?? null;
+}
 
 export const SECTOR_LABEL: Record<Sector, string> = {
   urgence: "Urgence",

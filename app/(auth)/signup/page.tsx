@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { signup } from "../actions";
+import GoogleSignInButton from "../GoogleSignInButton";
 import styles from "../auth.module.scss";
 
 export const metadata = { title: "Créer un compte" };
@@ -23,6 +24,12 @@ export default async function SignupPage({ searchParams }: PageProps) {
       </header>
 
       {params.error && <p className={styles.error}>{params.error}</p>}
+
+      <GoogleSignInButton next={next} />
+
+      <div className={styles.divider} role="separator" aria-orientation="horizontal">
+        <span>ou</span>
+      </div>
 
       <form action={signup} className={styles.form}>
         <input type="hidden" name="next" value={next} />

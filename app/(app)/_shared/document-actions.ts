@@ -47,6 +47,47 @@ export async function markDocumentSent(id: string): Promise<Result> {
   return { ok: true };
 }
 
+// ── Mark a devis as refused with a capture motif. CDC §2.3 / §4.4:
+// captures WHY the devis was rejected so the commercial can issue a
+// follow-up devis with adjusted pricing/scope. Only valid on devis (and
+// only when the devis isn't already signe/paye).
+export async function markDocumentRefused(
+  id: string,
+  reason: string,
+): Promise<Result> {
+  const trimmed = reason.trim();
+  if (!trimmed) return { ok: false, error: "Motif de refus requis." };
+
+  const supabase = await supabaseServer();
+  const { data: doc } = await supabase
+    .from("documents")
+    .select("id, type, status, lead_id")
+    .eq("id", id)
+    .maybeSingle<{ id: string; type: DocumentType; status: string; lead_id: string | null }>();
+  if (!doc) return { ok: false, error: "Document introuvable." };
+  if (doc.type !== "devis") return { ok: false, error: "Seul un devis peut être refusé." };
+  if (doc.status === "signe") return { ok: false, error: "Un devis signé ne peut pas être refusé." };
+  if (doc.status === "refuse") return { ok: false, error: "Devis déjà refusé." };
+
+  const updates: DocumentUpdate = {
+    status: "refuse",
+    refusal_reason: trimmed,
+  };
+  const { error } = await supabase.from("documents").update(updates as never).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/comptabilite");
+  revalidatePath(`/devis/${id}`);
+  if (doc.lead_id) revalidatePath(`/leads/${doc.lead_id}`);
+  await auditLog({
+    action: "document.mark_refused",
+    entityType: "document",
+    entityId: id,
+    after: { reason: trimmed },
+  });
+  return { ok: true };
+}
+
 // ── Mark an invoice (acompte or finale) as paid. Also syncs the parent
 // dossier's payment_status — acompte → acompte_paye, finale → solde + close
 // the dossier — so the planification view stays consistent without the

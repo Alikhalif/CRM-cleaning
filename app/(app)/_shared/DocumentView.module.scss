@@ -48,6 +48,29 @@
   &:hover { background: color-mix(in oklab, var(--tone-success) 80%, black); }
 }
 
+.btnDanger {
+  color: var(--tone-danger);
+  border-color: color-mix(in oklab, var(--tone-danger) 40%, var(--border-strong));
+  &:hover { background: color-mix(in oklab, var(--tone-danger) 10%, transparent); }
+}
+
+.refusalBanner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  background: color-mix(in oklab, var(--tone-danger) 8%, transparent);
+  border: 1px solid color-mix(in oklab, var(--tone-danger) 30%, transparent);
+  color: var(--tone-danger);
+  font-size: var(--fs-sm);
+}
+
+.refusalHint {
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+}
+
 .errorBanner {
   display: flex;
   align-items: center;

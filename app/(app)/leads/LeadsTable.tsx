@@ -183,17 +183,23 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
 
       <div className={styles.chipsRow}>
         <span className={styles.chipsLabel}>Statut</span>
-        {PIPELINE_COLUMNS.map((c) => (
-          <button
-            key={c.status}
-            type="button"
-            className={`${styles.chip} ${statusFilter.has(c.status) ? styles.chipOn : ""}`}
-            onClick={() => setStatusFilter((s) => toggleSet(s, c.status))}
-            aria-pressed={statusFilter.has(c.status)}
-          >
-            {c.label}
-          </button>
-        ))}
+        {PIPELINE_COLUMNS
+          // The "acompte_paye" pipeline column is derived from documents,
+          // not a real LeadStatus — drop it from the leads-list filter.
+          .filter((c): c is { status: LeadStatus; label: string; hint?: string } =>
+            c.status !== "acompte_paye"
+          )
+          .map((c) => (
+            <button
+              key={c.status}
+              type="button"
+              className={`${styles.chip} ${statusFilter.has(c.status) ? styles.chipOn : ""}`}
+              onClick={() => setStatusFilter((s) => toggleSet(s, c.status))}
+              aria-pressed={statusFilter.has(c.status)}
+            >
+              {c.label}
+            </button>
+          ))}
       </div>
 
       <div className={styles.chipsRow}>

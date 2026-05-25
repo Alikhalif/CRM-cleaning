@@ -87,6 +87,9 @@ export type LeadRowJoined = {
   nrp_at: string | null;
   lost_reason: string | null;
   immob_travaux_annotation: string | null;
+  intervention_delay: string | null;
+  intervention_delay_notes: string | null;
+  notes: string | null;
   activity: { slug: string } | null;
   source: { slug: string } | null;
   owner: OwnerRow | null;
@@ -126,6 +129,9 @@ export function mapLead(row: LeadRowJoined): Lead {
     nrpAt: row.nrp_at ?? undefined,
     lostReason: row.lost_reason ?? undefined,
     immobTravauxAnnotation: row.immob_travaux_annotation ?? undefined,
+    interventionDelay: (row.intervention_delay ?? undefined) as Lead["interventionDelay"],
+    interventionDelayNotes: row.intervention_delay_notes ?? undefined,
+    notes: row.notes ?? undefined,
   };
 }
 
@@ -177,6 +183,7 @@ export async function getAllLeads(): Promise<Lead[]> {
         estimated_amount, owner_id, status, sub_envoi, sub_signature,
         received_at, last_action_label, last_action_at, next_followup_at,
         is_urgent, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
+        intervention_delay, intervention_delay_notes, notes,
         activity:activities(slug),
         source:lead_sources(slug),
         owner:users!leads_owner_id_fkey(id, first_name, last_name, color)
@@ -185,7 +192,29 @@ export async function getAllLeads(): Promise<Lead[]> {
     .order("last_action_at", { ascending: false, nullsFirst: false });
 
   if (error || !data) return [];
-  return (data as unknown as LeadRowJoined[]).map(mapLead);
+
+  const leads = (data as unknown as LeadRowJoined[]).map(mapLead);
+
+  // Batch-fetch minimal docs per lead so the Kanban can bucket cards into
+  // "Acompte encaissé" / "Encaissement final" without an N+1 round-trip.
+  // Cheap: same RLS as the leads query, single IN-list.
+  const leadIds = leads.map((l) => l.id);
+  if (leadIds.length > 0) {
+    const { data: docs } = await supabase
+      .from("documents")
+      .select("id, type, status, lead_id")
+      .in("lead_id", leadIds)
+      .returns<{ id: string; type: "devis" | "acompte" | "finale"; status: string; lead_id: string }[]>();
+    const byLead = new Map<string, { id: string; type: "devis" | "acompte" | "finale"; status: string }[]>();
+    for (const d of docs ?? []) {
+      const arr = byLead.get(d.lead_id) ?? [];
+      arr.push({ id: d.id, type: d.type, status: d.status });
+      byLead.set(d.lead_id, arr);
+    }
+    for (const lead of leads) lead.documents = byLead.get(lead.id) ?? [];
+  }
+
+  return leads;
 }
 
 // All commerciaux for the filter dropdown + owner avatars. Until Supabase
@@ -221,6 +250,7 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
         estimated_amount, owner_id, status, sub_envoi, sub_signature,
         received_at, last_action_label, last_action_at, next_followup_at,
         is_urgent, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
+        intervention_delay, intervention_delay_notes, notes,
         activity:activities(slug),
         source:lead_sources(slug),
         owner:users!leads_owner_id_fkey(id, first_name, last_name, color)

@@ -20,6 +20,17 @@ export type DocumentWithContext = {
   lead: Lead;
   entity: LegalEntity;
   totalHt: number;
+  // Dossier-derived info — present when the lead has a dossier (i.e. it's
+  // signed). Lets Comptabilité surface the assigned technician + intervention
+  // status next to each devis/facture row.
+  dossier?: {
+    technicianId?: string;
+    technicianName?: string;
+    technicianInitials?: string;
+    technicianColor?: string;
+    status: "a_planifier" | "planifie" | "finalise" | "solde";
+    plannedAt?: string;
+  };
 };
 
 // Detail-view shape — adds line items and computed totals on top of CrmDocument.

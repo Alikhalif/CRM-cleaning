@@ -40,6 +40,14 @@
     background: transparent;
     border-style: dashed;
   }
+
+  // The two payment-stage columns get a subtle success-tone accent — the
+  // cards in them represent money actually collected, not just signed-on-paper.
+  &[data-status="acompte_paye"],
+  &[data-status="encaisse"] {
+    background: color-mix(in oklab, var(--tone-success) 4%, var(--bg-surface));
+    border-color: color-mix(in oklab, var(--tone-success) 30%, var(--border-subtle));
+  }
 }
 
 @media (min-width: 768px) {

@@ -75,6 +75,7 @@ type DocumentRowJoined = {
   paid_at: string | null;
   acompte_pct: number | null;
   acompte_amount: number | null;
+  refusal_reason: string | null;
   entity: EntityRow | null;
   lead: LeadRowJoined | null;
 };
@@ -92,6 +93,7 @@ function mapDocumentBase(row: DocumentRowJoined): CrmDocument {
     paidAt: row.paid_at ?? undefined,
     acomptePct: row.acompte_pct ?? undefined,
     acompteAmount: row.acompte_amount ?? undefined,
+    refusalReason: row.refusal_reason ?? undefined,
   };
 }
 
@@ -112,7 +114,7 @@ export async function getAllDocumentsWithContext(): Promise<DocumentWithContext[
     .select(
       `
         id, num, type, status, lead_id, total_ttc, issued_at,
-        signed_at, paid_at, acompte_pct, acompte_amount,
+        signed_at, paid_at, acompte_pct, acompte_amount, refusal_reason,
         entity:legal_entities(
           id, legal_name, legal_form, siret, ape_code, vat_number,
           address, contact_email, contact_phone, iban, bic,
@@ -125,6 +127,7 @@ export async function getAllDocumentsWithContext(): Promise<DocumentWithContext[
           estimated_amount, owner_id, status, sub_envoi, sub_signature,
           received_at, last_action_label, last_action_at, next_followup_at,
           is_urgent, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
+          intervention_delay, intervention_delay_notes, notes,
           activity:activities(slug),
           source:lead_sources(slug),
           owner:users!leads_owner_id_fkey(id, first_name, last_name, color)
@@ -135,6 +138,28 @@ export async function getAllDocumentsWithContext(): Promise<DocumentWithContext[
 
   if (error || !data) return [];
 
+  // Collect lead ids so we can batch-fetch dossiers + technicians in a
+  // single round-trip rather than per-row N+1 queries.
+  const leadIds = (data as unknown as DocumentRowJoined[])
+    .map((row) => row.lead?.id)
+    .filter((id): id is string => Boolean(id));
+
+  type DossierJoined = {
+    lead_id: string;
+    status: "a_planifier" | "planifie" | "finalise" | "solde";
+    planned_at: string | null;
+    technician: { id: string; name: string; initials: string; color: string | null } | null;
+  };
+  const dossierByLead = new Map<string, DossierJoined>();
+  if (leadIds.length > 0) {
+    const { data: dossiers } = await supabase
+      .from("dossiers")
+      .select("lead_id, status, planned_at, technician:technicians(id, name, initials, color)")
+      .in("lead_id", leadIds)
+      .returns<DossierJoined[]>();
+    for (const d of dossiers ?? []) dossierByLead.set(d.lead_id, d);
+  }
+
   const rows: DocumentWithContext[] = [];
   for (const row of data as unknown as DocumentRowJoined[]) {
     if (!row.entity || !row.lead) continue;
@@ -143,7 +168,20 @@ export async function getAllDocumentsWithContext(): Promise<DocumentWithContext[
     const uiEntity = mapEntity(row.entity);
     const vatRate = VAT_BY_SECTOR[uiLead.sector];
     const totalHt = Math.round((baseDoc.totalTtc / (1 + vatRate / 100)) * 100) / 100;
-    rows.push({ doc: baseDoc, lead: uiLead, entity: uiEntity, totalHt });
+
+    const d = dossierByLead.get(row.lead.id);
+    const dossier = d
+      ? {
+          technicianId: d.technician?.id,
+          technicianName: d.technician?.name,
+          technicianInitials: d.technician?.initials,
+          technicianColor: d.technician?.color ?? "#5b4bcc",
+          status: d.status,
+          plannedAt: d.planned_at ?? undefined,
+        }
+      : undefined;
+
+    rows.push({ doc: baseDoc, lead: uiLead, entity: uiEntity, totalHt, dossier });
   }
   return rows;
 }
@@ -278,7 +316,7 @@ export async function getDocumentById(id: string) {
     .select(
       `
         id, num, type, status, lead_id, total_ttc, issued_at,
-        signed_at, paid_at, acompte_pct, acompte_amount,
+        signed_at, paid_at, acompte_pct, acompte_amount, refusal_reason,
         entity:legal_entities(
           id, legal_name, legal_form, siret, ape_code, vat_number,
           address, contact_email, contact_phone, iban, bic,
@@ -291,6 +329,7 @@ export async function getDocumentById(id: string) {
           estimated_amount, owner_id, status, sub_envoi, sub_signature,
           received_at, last_action_label, last_action_at, next_followup_at,
           is_urgent, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
+          intervention_delay, intervention_delay_notes, notes,
           activity:activities(slug),
           source:lead_sources(slug),
           owner:users!leads_owner_id_fkey(id, first_name, last_name, color)

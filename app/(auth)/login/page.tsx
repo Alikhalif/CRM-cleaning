@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { login } from "../actions";
+import GoogleSignInButton from "../GoogleSignInButton";
 import styles from "../auth.module.scss";
 
 export const metadata = { title: "Connexion" };
@@ -22,6 +23,12 @@ export default async function LoginPage({ searchParams }: PageProps) {
 
       {params.notice && <p className={styles.notice}>{params.notice}</p>}
       {params.error && <p className={styles.error}>{params.error}</p>}
+
+      <GoogleSignInButton next={next} />
+
+      <div className={styles.divider} role="separator" aria-orientation="horizontal">
+        <span>ou</span>
+      </div>
 
       <form action={login} className={styles.form}>
         <input type="hidden" name="next" value={next} />

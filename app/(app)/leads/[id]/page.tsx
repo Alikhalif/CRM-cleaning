@@ -10,23 +10,37 @@ import {
   SECTOR_VAR,
   SOURCE_LABEL,
   formatEUR,
-  needsEnvoi,
-  needsSignature,
 } from "@/lib/leads";
-// First page wired to real Supabase reads. Other pages still use leads-mock
-// until they're migrated one by one.
 import { getAllCommerciaux, getLeadDetail } from "@/lib/leads-server";
 import { isN8nSequenceEnabled } from "@/lib/app-settings";
+import CallNotesCard from "./CallNotesCard";
+import FollowupCard from "./FollowupCard";
+import ImmobAnnotationCard from "./ImmobAnnotationCard";
+import InterventionDelayCard from "./InterventionDelayCard";
 import LeadActions from "./LeadActions";
+import PipelineProgress from "./PipelineProgress";
 import styles from "./LeadDetail.module.scss";
 
-// In production this comes from the authenticated session + RLS-aware claims.
-// Hardcoded here while auth isn't wired so the conditional Immobilier/Travaux
-// section (CDC §3.5) renders something useful in mocks. Set to false to verify
-// it disappears.
+// CDC §3.5 — visible only if the current user holds the immobTravaux
+// permission. Hardcoded true while the permission resolver lives outside
+// the session claims; flip to false to verify it disappears.
 const CURRENT_USER_HAS_IMMOB_TRAVAUX = true;
 
-type PageProps = { params: Promise<{ id: string }> };
+// Tabs the user can toggle via ?tab=… in the URL. Each one filters which
+// sections of the page are visible. Default = informations.
+const TABS = [
+  { key: "informations", label: "Informations" },
+  { key: "historique",   label: "Historique" },
+  { key: "devis",        label: "Devis" },
+  { key: "documents",    label: "Documents" },
+  { key: "intervention", label: "Intervention" },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
+
+type PageProps = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+};
 
 export async function generateMetadata({ params }: PageProps) {
   const { id } = await params;
@@ -34,8 +48,12 @@ export async function generateMetadata({ params }: PageProps) {
   return { title: detail ? detail.lead.client : "Lead introuvable" };
 }
 
-export default async function LeadDetailPage({ params }: PageProps) {
+export default async function LeadDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const { tab: tabParam } = await searchParams;
+  const tab: TabKey =
+    TABS.find((t) => t.key === tabParam)?.key ?? "informations";
+
   const [detail, commerciaux, n8nEnabled] = await Promise.all([
     getLeadDetail(id),
     getAllCommerciaux(),
@@ -46,7 +64,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
   const { lead, owner, documents, timeline } = detail;
   const statusLabel =
     PIPELINE_COLUMNS.find((c) => c.status === lead.status)?.label ?? lead.status;
-  const showImmobTravaux = CURRENT_USER_HAS_IMMOB_TRAVAUX;
+
   const dateFmt = new Intl.DateTimeFormat("fr-FR", {
     day: "2-digit",
     month: "short",
@@ -59,134 +77,280 @@ export default async function LeadDetailPage({ params }: PageProps) {
     minute: "2-digit",
   });
 
+  // Ancienneté in days — purely visual. Date.now() is fine in a server
+  // component (re-rendered per request); the purity lint rule is overzealous
+  // here, so the helper isolates it.
+  const ageDays = daysSince(lead.receivedAt);
+  // Sum of devis amounts (use latest non-brouillon, fallback to estimate).
+  const lastDevis = documents.find((d) => d.type === "devis" && d.status !== "brouillon");
+  const devisAmount = lastDevis?.totalTtc ?? lead.amount;
+
+  const devisCount = documents.filter((d) => d.type === "devis").length;
+  const docsCount = documents.length;
+
   return (
     <div className={styles.page}>
       <nav className={styles.breadcrumb} aria-label="Fil d'Ariane">
         <Link href="/leads" className={styles.breadcrumbLink}>
-          Leads &amp; devis
+          Leads
         </Link>
         <span aria-hidden="true">/</span>
-        <span className={styles.shortId}>{lead.shortId}</span>
+        <span>{lead.client}</span>
       </nav>
 
-      <header className={styles.header}>
-        <div className={styles.headerMain}>
-          <div className={styles.titleRow}>
-            <h1 className={styles.title}>{lead.client}</h1>
-            {lead.isUrgent && (
-              <span className={styles.urgentTag}>
-                <Icon name="alert" size={12} /> Urgent
-              </span>
-            )}
-          </div>
-          <div className={styles.tagRow}>
-            <span
-              className={styles.sector}
-              style={{ ["--sc" as string]: `var(${SECTOR_VAR[lead.sector]})` }}
-            >
-              {SECTOR_LABEL[lead.sector]}
-            </span>
-            <span className={styles.statusPill} data-status={lead.status}>
-              {statusLabel}
-            </span>
-            {lead.isNrp && (
-              <span className={`${styles.badge} ${styles.badgeNrp}`} title="Ne répond pas">
-                NRP
-              </span>
-            )}
-            {needsEnvoi(lead) ? (
-              <span className={`${styles.badge} ${styles.badgeDanger}`}>
-                <Icon name="alert" size={11} /> Canal manquant
-              </span>
-            ) : (
-              lead.subEnvoi && (
-                <span className={styles.badge}>
-                  {lead.subEnvoi === "mano" ? "Mano" : "Auto"}
+      {/* ── Big header card with sector avatar + identity + actions + progress ── */}
+      <section className={styles.heroCard}>
+        <div className={styles.heroRow}>
+          <span
+            className={styles.heroAvatar}
+            style={{ ["--sc" as string]: `var(${SECTOR_VAR[lead.sector]})` }}
+            aria-hidden="true"
+            title={SECTOR_LABEL[lead.sector]}
+          >
+            <Icon name={sectorIcon(lead.sector)} size={32} />
+          </span>
+
+          <div className={styles.heroIdentity}>
+            <div className={styles.heroNameRow}>
+              <h1 className={styles.heroName}>{lead.client}</h1>
+              <span className={styles.heroId}>#{lead.shortId.replace(/^L-/, "")}</span>
+              {lead.subEnvoi && (
+                <span
+                  className={styles.heroChannelChip}
+                  data-channel={lead.subEnvoi}
+                  title={lead.subEnvoi === "auto" ? "Séquence n8n" : "Envoi manuel"}
+                >
+                  <Icon name={lead.subEnvoi === "auto" ? "zap" : "edit"} size={11} />
+                  {lead.subEnvoi === "auto" ? "Auto" : "Mano"}
                 </span>
-              )
-            )}
-            {needsSignature(lead) ? (
-              <span className={`${styles.badge} ${styles.badgeDanger}`}>
-                <Icon name="alert" size={11} /> Acompte ?
-              </span>
-            ) : (
-              lead.subSignature && (
-                <span className={styles.badge}>
-                  {lead.subSignature === "avec" ? "Avec acompte" : "Sans acompte"}
+              )}
+              {lead.isUrgent && (
+                <span className={styles.urgentTag}>
+                  <Icon name="alert" size={11} /> Urgent
                 </span>
-              )
-            )}
-            <span className={styles.muted}>· {SOURCE_LABEL[lead.source]}</span>
-            <span className={styles.muted}>· {lead.city}</span>
+              )}
+              {lead.isNrp && (
+                <span className={`${styles.badge} ${styles.badgeNrp}`} title="Ne répond pas">
+                  NRP
+                </span>
+              )}
+            </div>
+            <div className={styles.heroMeta}>
+              <span
+                className={styles.sector}
+                style={{ ["--sc" as string]: `var(${SECTOR_VAR[lead.sector]})` }}
+              >
+                {SECTOR_LABEL[lead.sector]}
+              </span>
+              <span className={styles.heroLoc}>
+                <Icon name="leads" size={11} /> {lead.city}
+              </span>
+              <span className={styles.muted}>
+                Source : {SOURCE_LABEL[lead.source]}
+              </span>
+              <span className={styles.muted}>
+                Créé <RelativeTime iso={lead.receivedAt} />
+              </span>
+              <span className={styles.statusPill} data-status={lead.status}>
+                {statusLabel}
+              </span>
+            </div>
           </div>
+
+          <LeadActions lead={lead} commerciaux={commerciaux} n8nEnabled={n8nEnabled} />
         </div>
-        <LeadActions lead={lead} commerciaux={commerciaux} n8nEnabled={n8nEnabled} />
-      </header>
 
-      <div className={styles.layout}>
-        <main className={styles.main}>
-          <section className={styles.card}>
-            <h2 className={styles.h2}>Coordonnées</h2>
-            <dl className={styles.dl}>
-              <div>
-                <dt>Type</dt>
-                <dd>{lead.isCompany ? "Professionnel" : "Particulier"}</dd>
-              </div>
-              <div>
-                <dt>Email</dt>
-                <dd>
-                  <a href={`mailto:${lead.email}`} className={styles.link}>
-                    {lead.email}
-                  </a>
-                </dd>
-              </div>
-              <div>
-                <dt>Téléphone</dt>
-                <dd>
-                  <a href={`tel:${lead.phone.replace(/\s/g, "")}`} className={styles.link}>
-                    {lead.phone}
-                  </a>
-                </dd>
-              </div>
-              <div>
-                <dt>Adresse</dt>
-                <dd>
-                  {lead.address}
-                  <br />
-                  {lead.postalCode} {lead.city}
-                </dd>
-              </div>
-              {lead.isCompany && lead.siret && (
+        <PipelineProgress lead={lead} docs={documents.map((d) => ({ type: d.type, status: d.status }))} />
+      </section>
+
+      {/* ── 4 KPI cards ───────────────────────────────────────────────── */}
+      <section className={styles.kpiRow}>
+        <KpiCard
+          icon="comptabilite"
+          label="Montant devis"
+          value={formatEUR(devisAmount)}
+        />
+        <KpiCard
+          icon="leads"
+          label="Ancienneté"
+          value={`${ageDays} jour${ageDays > 1 ? "s" : ""}`}
+        />
+        <KpiCard
+          icon="search"
+          label="Source"
+          value={SOURCE_LABEL[lead.source]}
+        />
+        <KpiCard
+          icon="commerciaux"
+          label="Commercial"
+          value={owner?.name ?? "Non assigné"}
+          accentColor={owner?.color}
+          initials={owner?.initials}
+        />
+      </section>
+
+      {/* ── Tabs ──────────────────────────────────────────────────────── */}
+      <nav className={styles.tabs} aria-label="Sections du lead">
+        {TABS.map((t) => {
+          const count =
+            t.key === "historique" ? timeline.length :
+            t.key === "devis"      ? devisCount :
+            t.key === "documents"  ? docsCount :
+            null;
+          const active = t.key === tab;
+          return (
+            <Link
+              key={t.key}
+              href={`/leads/${lead.id}?tab=${t.key}`}
+              scroll={false}
+              className={`${styles.tab} ${active ? styles.tabOn : ""}`}
+              aria-current={active ? "page" : undefined}
+            >
+              {t.label}
+              {count !== null && <span className={styles.tabCount}>{count}</span>}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* ── Tab content ───────────────────────────────────────────────── */}
+      {tab === "informations" && (
+        <div className={styles.layout}>
+          <main className={styles.main}>
+            <section className={styles.card}>
+              <h2 className={styles.h2}>Coordonnées</h2>
+              <dl className={styles.dl}>
                 <div>
-                  <dt>SIRET</dt>
-                  <dd className={styles.mono}>{lead.siret}</dd>
+                  <dt>Client</dt>
+                  <dd>{lead.client}</dd>
                 </div>
-              )}
-              {lead.isCompany && lead.vatIntra && (
                 <div>
-                  <dt>N° TVA intracom.</dt>
-                  <dd className={styles.mono}>{lead.vatIntra}</dd>
+                  <dt>Type</dt>
+                  <dd>{lead.isCompany ? "Professionnel" : "Particulier"}</dd>
                 </div>
-              )}
-            </dl>
-            {lead.notes && (
-              <p className={styles.note}>
-                <strong>Note : </strong>
-                {lead.notes}
-              </p>
+                <div>
+                  <dt>Téléphone</dt>
+                  <dd>
+                    <a href={`tel:${lead.phone.replace(/\s/g, "")}`} className={styles.link}>
+                      {lead.phone}
+                    </a>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Email</dt>
+                  <dd>
+                    <a href={`mailto:${lead.email}`} className={styles.link}>
+                      {lead.email}
+                    </a>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Adresse</dt>
+                  <dd>
+                    {lead.address && (
+                      <>
+                        {lead.address}
+                        <br />
+                      </>
+                    )}
+                    {lead.postalCode} {lead.city}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Source</dt>
+                  <dd>{SOURCE_LABEL[lead.source]}</dd>
+                </div>
+                {lead.isCompany && lead.siret && (
+                  <div>
+                    <dt>SIRET</dt>
+                    <dd className={styles.mono}>{lead.siret}</dd>
+                  </div>
+                )}
+                {lead.isCompany && lead.vatIntra && (
+                  <div>
+                    <dt>N° TVA intracom.</dt>
+                    <dd className={styles.mono}>{lead.vatIntra}</dd>
+                  </div>
+                )}
+              </dl>
+            </section>
+          </main>
+
+          <aside className={styles.aside}>
+            <CallNotesCard
+              leadId={lead.id}
+              initialNotes={lead.notes ?? ""}
+              initialNextFollowup={lead.nextFollowupAt}
+            />
+            <FollowupCard leadId={lead.id} currentFollowup={lead.nextFollowupAt} />
+            {/* Post-signature gate: show as soon as the lead is signed,
+                or keep showing if a delay was already captured (e.g. lead
+                reverted to an earlier status — don't lose the answer). */}
+            {(lead.status === "signe" || lead.status === "encaisse" || lead.interventionDelay) && (
+              <InterventionDelayCard
+                leadId={lead.id}
+                initialDelay={lead.interventionDelay}
+                initialNotes={lead.interventionDelayNotes ?? ""}
+              />
             )}
-          </section>
+            {CURRENT_USER_HAS_IMMOB_TRAVAUX && (
+              <ImmobAnnotationCard
+                leadId={lead.id}
+                initialValue={lead.immobTravauxAnnotation ?? ""}
+              />
+            )}
+          </aside>
+        </div>
+      )}
 
-          <section className={styles.card}>
-            <h2 className={styles.h2}>
-              Devis &amp; factures
-              <span className={styles.h2Count}>{documents.length}</span>
-            </h2>
-            {documents.length === 0 ? (
-              <p className={styles.empty}>
-                Aucun document émis pour ce lead. Cliquez sur « Générer devis » pour démarrer.
-              </p>
-            ) : (
+      {tab === "historique" && (
+        <section className={styles.card}>
+          <h2 className={styles.h2}>Activité</h2>
+          {timeline.length === 0 ? (
+            <p className={styles.empty}>Aucun événement sur ce lead.</p>
+          ) : (
+            <ol className={styles.timeline}>
+              {timeline.map((e) => (
+                <li key={e.id} className={styles.timelineItem} data-kind={e.kind}>
+                  <span className={styles.timelineDot} aria-hidden="true" />
+                  <div className={styles.timelineBody}>
+                    <p className={styles.timelineLabel}>{e.label}</p>
+                    {e.sublabel && <p className={styles.timelineSub}>{e.sublabel}</p>}
+                  </div>
+                  <div className={styles.timelineTime}>
+                    <time dateTime={e.at}>{dateTimeFmt.format(new Date(e.at))}</time>
+                    <RelativeTime iso={e.at} className={styles.timelineRel} />
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      )}
+
+      {(tab === "devis" || tab === "documents") && (
+        <section className={styles.card}>
+          <h2 className={styles.h2}>
+            {tab === "devis" ? "Devis liés" : "Tous les documents"}
+            <span className={styles.h2Count}>
+              {tab === "devis" ? devisCount : docsCount}
+            </span>
+          </h2>
+          {(() => {
+            const rows =
+              tab === "devis"
+                ? documents.filter((d) => d.type === "devis")
+                : documents;
+            if (rows.length === 0) {
+              return (
+                <p className={styles.empty}>
+                  {tab === "devis"
+                    ? "Aucun devis pour ce lead. Cliquez sur « Générer devis » pour démarrer."
+                    : "Aucun document émis pour ce lead."}
+                </p>
+              );
+            }
+            return (
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
                   <thead>
@@ -199,7 +363,7 @@ export default async function LeadDetailPage({ params }: PageProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {documents.map((d) => (
+                    {rows.map((d) => (
                       <tr key={d.id}>
                         <td className={styles.mono}>
                           <Link
@@ -222,94 +386,74 @@ export default async function LeadDetailPage({ params }: PageProps) {
                   </tbody>
                 </table>
               </div>
-            )}
-          </section>
+            );
+          })()}
+        </section>
+      )}
 
-          <section className={styles.card}>
-            <h2 className={styles.h2}>Activité</h2>
-            <ol className={styles.timeline}>
-              {timeline.map((e) => (
-                <li key={e.id} className={styles.timelineItem} data-kind={e.kind}>
-                  <span className={styles.timelineDot} aria-hidden="true" />
-                  <div className={styles.timelineBody}>
-                    <p className={styles.timelineLabel}>{e.label}</p>
-                    {e.sublabel && <p className={styles.timelineSub}>{e.sublabel}</p>}
-                  </div>
-                  <div className={styles.timelineTime}>
-                    <time dateTime={e.at}>{dateTimeFmt.format(new Date(e.at))}</time>
-                    <RelativeTime iso={e.at} className={styles.timelineRel} />
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </section>
+      {tab === "intervention" && (
+        <section className={styles.card}>
+          <h2 className={styles.h2}>Intervention</h2>
+          <p className={styles.empty}>
+            Les détails de l&apos;intervention (date, intervenant, durée) apparaîtront ici
+            une fois le dossier planifié depuis la page Planification.
+          </p>
+        </section>
+      )}
+    </div>
+  );
+}
 
-          {showImmobTravaux && (
-            <section className={`${styles.card} ${styles.cardConfidential}`}>
-              <h2 className={styles.h2}>
-                <Icon name="alert" size={14} /> Annotation Immobilier / Travaux
-                <span className={styles.confidentialTag}>Confidentiel</span>
-              </h2>
-              {lead.immobTravauxAnnotation ? (
-                <p className={styles.note}>{lead.immobTravauxAnnotation}</p>
-              ) : (
-                <p className={styles.empty}>Aucune annotation pour ce lead.</p>
-              )}
-            </section>
-          )}
-        </main>
+// ── Sub-components ─────────────────────────────────────────────────────
 
-        <aside className={styles.aside}>
-          <section className={styles.card}>
-            <h2 className={styles.h2}>Aperçu</h2>
-            <dl className={styles.dl}>
-              <div>
-                <dt>Montant estimé</dt>
-                <dd className={styles.amount}>{formatEUR(lead.amount)}</dd>
-              </div>
-              <div>
-                <dt>Commercial</dt>
-                <dd>
-                  {owner ? (
-                    <span className={styles.ownerRow}>
-                      <span
-                        className={styles.ownerAvatar}
-                        style={{ ["--av" as string]: owner.color }}
-                        aria-hidden="true"
-                      >
-                        {owner.initials}
-                      </span>
-                      {owner.name}
-                    </span>
-                  ) : (
-                    "Non assigné"
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt>Source</dt>
-                <dd>{SOURCE_LABEL[lead.source]}</dd>
-              </div>
-              <div>
-                <dt>Reçu le</dt>
-                <dd>
-                  {dateFmt.format(new Date(lead.receivedAt))}
-                  <span className={styles.muted}> · </span>
-                  <RelativeTime iso={lead.receivedAt} className={styles.muted} />
-                </dd>
-              </div>
-              <div>
-                <dt>Dernière action</dt>
-                <dd>
-                  {lead.lastActionLabel}
-                  <span className={styles.muted}> · </span>
-                  <RelativeTime iso={lead.lastActionAt} className={styles.muted} />
-                </dd>
-              </div>
-            </dl>
-          </section>
-        </aside>
+function KpiCard({
+  icon,
+  label,
+  value,
+  accentColor,
+  initials,
+}: {
+  icon: Parameters<typeof Icon>[0]["name"];
+  label: string;
+  value: string;
+  accentColor?: string;
+  initials?: string;
+}) {
+  return (
+    <div className={styles.kpiCard}>
+      {initials ? (
+        <span
+          className={styles.kpiAvatar}
+          style={{ ["--av" as string]: accentColor ?? "var(--color-brand-500)" }}
+          aria-hidden="true"
+        >
+          {initials}
+        </span>
+      ) : (
+        <span className={styles.kpiIcon} aria-hidden="true">
+          <Icon name={icon} size={16} />
+        </span>
+      )}
+      <div className={styles.kpiBody}>
+        <p className={styles.kpiLabel}>{label}</p>
+        <p className={styles.kpiValue}>{value}</p>
       </div>
     </div>
   );
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+
+function daysSince(iso: string): number {
+  return Math.max(0, Math.floor((Date.now() - +new Date(iso)) / 86_400_000));
+}
+
+function sectorIcon(sector: string): Parameters<typeof Icon>[0]["name"] {
+  // Map sectors to icons from the inline set. Fallback to "leads" for safety.
+  return {
+    urgence: "zap",
+    nettoyage: "check",
+    enr: "sun",
+    renovation: "edit",
+  }[sector] as Parameters<typeof Icon>[0]["name"] ?? "leads";
 }

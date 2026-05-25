@@ -12,9 +12,12 @@ import {
   formatEUR,
   needsEnvoi,
   needsSignature,
+  pipelineColumnFor,
+  unpaidInvoiceId,
   type Commercial,
   type Lead,
   type LeadStatus,
+  type PipelineColumnKey,
   type SubEnvoi,
   type SubSignature,
 } from "@/lib/leads";
@@ -26,13 +29,14 @@ import {
   updateLeadSubEnvoi,
   updateLeadSubSignature,
 } from "./actions";
+import { markDocumentPaid } from "@/app/(app)/_shared/document-actions";
 import styles from "./PipelineBoard.module.scss";
 
 const VIEW_KEY = "cgk-pipeline-view";
 type View = "kanban" | "liste";
 
-const STATUS_ORDER: Record<LeadStatus, number> = {
-  lead: 0, envoye: 1, ouvert: 2, signe: 3, encaisse: 4, perdu: 5,
+const COLUMN_ORDER: Record<PipelineColumnKey, number> = {
+  lead: 0, envoye: 1, ouvert: 2, signe: 3, acompte_paye: 4, encaisse: 5, perdu: 6,
 };
 
 type Props = {
@@ -47,7 +51,7 @@ export default function PipelineBoard({ initialLeads, commerciaux, n8nEnabled }:
   // error.
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [hoverColumn, setHoverColumn] = useState<LeadStatus | null>(null);
+  const [hoverColumn, setHoverColumn] = useState<PipelineColumnKey | null>(null);
   const [, startTransition] = useTransition();
 
   const view: View =
@@ -60,20 +64,22 @@ export default function PipelineBoard({ initialLeads, commerciaux, n8nEnabled }:
   );
 
   const byColumn = useMemo(() => {
-    const map = new Map<LeadStatus, Lead[]>();
+    const map = new Map<PipelineColumnKey, Lead[]>();
     for (const col of PIPELINE_COLUMNS) map.set(col.status, []);
     const sorted = [...leads].sort(
       (a, b) => +new Date(b.lastActionAt) - +new Date(a.lastActionAt),
     );
-    for (const lead of sorted) map.get(lead.status)?.push(lead);
+    // Use pipelineColumnFor (status + paid documents) so Acompte / Encaisse
+    // columns get populated automatically when invoices flip to paid.
+    for (const lead of sorted) map.get(pipelineColumnFor(lead))?.push(lead);
     return map;
   }, [leads]);
 
-  // Flat list (Liste view) — same data, sorted by pipeline order then activity.
+  // Flat list (Liste view) — same data, sorted by pipeline column then activity.
   const flat = useMemo(
     () =>
       [...leads].sort((a, b) => {
-        const so = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+        const so = COLUMN_ORDER[pipelineColumnFor(a)] - COLUMN_ORDER[pipelineColumnFor(b)];
         if (so !== 0) return so;
         return +new Date(b.lastActionAt) - +new Date(a.lastActionAt);
       }),
@@ -97,11 +103,84 @@ export default function PipelineBoard({ initialLeads, commerciaux, n8nEnabled }:
     });
   };
 
-  const move = (id: string, target: LeadStatus) =>
+  const move = (id: string, target: PipelineColumnKey) => {
+    const lead = leads.find((l) => l.id === id);
+    if (!lead) return;
+    const currentCol = pipelineColumnFor(lead);
+    if (currentCol === target) return;
+
+    // CDC monotone: forbid backward moves through Acompte / Encaissé /
+    // Perdu (you can't "un-pay" or "un-lose" by drag).
+    if (COLUMN_ORDER[currentCol] > COLUMN_ORDER[target] && target !== "lead" && target !== "envoye" && target !== "ouvert" && target !== "signe") {
+      alert("Ce mouvement n'est pas autorisé (CDC §2.2 — pipeline monotone).");
+      return;
+    }
+
+    // Drop into "Acompte encaissé" → mark the lead's unpaid acompte invoice as paid.
+    if (target === "acompte_paye") {
+      const acompteId = unpaidInvoiceId(lead, "acompte");
+      if (!acompteId) {
+        alert("Aucune facture d'acompte à encaisser pour ce lead.");
+        return;
+      }
+      optimistic(
+        (curr) =>
+          curr.map((l) =>
+            l.id === id
+              ? {
+                  ...l,
+                  documents: (l.documents ?? []).map((d) =>
+                    d.id === acompteId ? { ...d, status: "paye" } : d,
+                  ),
+                  lastActionLabel: "Acompte encaissé",
+                  lastActionAt: new Date().toISOString(),
+                }
+              : l,
+          ),
+        () => markDocumentPaid(acompteId),
+      );
+      return;
+    }
+
+    // Drop into "Encaissement final" → mark the lead's unpaid finale invoice as paid.
+    // The markDocumentPaid action already cascades dossier.payment_status = 'solde'.
+    if (target === "encaisse") {
+      const finaleId = unpaidInvoiceId(lead, "finale");
+      if (!finaleId) {
+        // No unpaid finale — fall through to the regular status update.
+        // Useful for legacy leads where status=encaisse but no doc was tagged.
+        optimistic(
+          (curr) => curr.map((l) => (l.id === id ? applyStatusChange(l, "encaisse") : l)),
+          () => updateLeadStatus(id, "encaisse"),
+        );
+        return;
+      }
+      optimistic(
+        (curr) =>
+          curr.map((l) =>
+            l.id === id
+              ? {
+                  ...l,
+                  status: "encaisse",
+                  documents: (l.documents ?? []).map((d) =>
+                    d.id === finaleId ? { ...d, status: "paye" } : d,
+                  ),
+                  lastActionLabel: "Facture finale encaissée",
+                  lastActionAt: new Date().toISOString(),
+                }
+              : l,
+          ),
+        () => markDocumentPaid(finaleId),
+      );
+      return;
+    }
+
+    // Otherwise — regular status-only update (lead / envoye / ouvert / signe / perdu).
     optimistic(
-      (curr) => curr.map((l) => (l.id === id ? applyStatusChange(l, target) : l)),
-      () => updateLeadStatus(id, target),
+      (curr) => curr.map((l) => (l.id === id ? applyStatusChange(l, target as LeadStatus) : l)),
+      () => updateLeadStatus(id, target as LeadStatus),
     );
+  };
 
   const setEnvoi = (id: string, value: SubEnvoi) =>
     optimistic(
@@ -275,7 +354,7 @@ export default function PipelineBoard({ initialLeads, commerciaux, n8nEnabled }:
 type ListViewProps = {
   rows: Lead[];
   ownersById: Map<string, Commercial>;
-  onMove: (id: string, target: LeadStatus) => void;
+  onMove: (id: string, target: PipelineColumnKey) => void;
   onLaunchSequence: (lead: Lead) => void;
   n8nEnabled: boolean;
 };

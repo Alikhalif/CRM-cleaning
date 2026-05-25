@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseServiceRole } from "@/lib/supabase/service";
 import { auditLog } from "@/lib/audit";
 import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import { notify } from "@/lib/notifications";
@@ -298,6 +299,138 @@ export async function launchSequence(id: string): Promise<Result> {
   return { ok: true };
 }
 
+export type NewLeadInput = {
+  isCompany: boolean;
+  // Identity — caller passes the relevant set based on isCompany.
+  firstName: string;
+  lastName: string;
+  companyName: string;
+  // Contact
+  email: string;
+  phone: string;
+  // Address (optional)
+  addressLine: string;
+  postalCode: string;
+  city: string;
+  // Routing — required
+  activitySlug: "urgence" | "nettoyage" | "enr" | "renovation";
+  sourceSlug:
+    | "google_ads"
+    | "meta_ads"
+    | "site_web"
+    | "telephone"
+    | "recommandation";
+  ownerId: string;
+  estimatedAmount: number | null;
+  notes: string;
+};
+
+export type CreateLeadResult =
+  | { ok: true; id: string; shortId: string }
+  | { ok: false; error: string };
+
+type LeadInsert = Database["public"]["Tables"]["leads"]["Insert"];
+
+// Create a new lead from the "Nouveau lead" modal. Computes the next
+// short_id (L-####) by reading the current max — racy under heavy
+// concurrent inserts, but adequate for low/medium volume. If we need
+// guaranteed-unique short_ids at scale, replace with a SQL sequence.
+export async function createLead(input: NewLeadInput): Promise<CreateLeadResult> {
+  // ── Validate ──────────────────────────────────────────────────────
+  if (input.isCompany && !input.companyName.trim()) {
+    return { ok: false, error: "Raison sociale requise pour un compte pro." };
+  }
+  if (!input.isCompany && !`${input.firstName} ${input.lastName}`.trim()) {
+    return { ok: false, error: "Nom du contact requis." };
+  }
+  if (!input.phone.trim()) {
+    return { ok: false, error: "Téléphone requis." };
+  }
+  if (input.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email)) {
+    return { ok: false, error: "Format d'email invalide." };
+  }
+  if (!input.ownerId) {
+    return { ok: false, error: "Sélectionnez un commercial responsable." };
+  }
+
+  const supabase = await supabaseServer();
+
+  // ── Resolve activity + source ids ─────────────────────────────────
+  const { data: activity } = await supabase
+    .from("activities")
+    .select("id")
+    .eq("slug", input.activitySlug)
+    .maybeSingle<{ id: string }>();
+  if (!activity) return { ok: false, error: "Activité introuvable." };
+
+  const { data: source } = await supabase
+    .from("lead_sources")
+    .select("id")
+    .eq("slug", input.sourceSlug)
+    .maybeSingle<{ id: string }>();
+  if (!source) return { ok: false, error: "Source de lead introuvable." };
+
+  // ── Compute next short_id ─────────────────────────────────────────
+  // Read the highest existing "L-NNNN" via lexical sort. Bypass RLS via
+  // service-role so commerciaux can see the global counter, not just
+  // their own leads' ids.
+  const svc = await supabaseServiceRole();
+  const { data: maxRow } = await svc
+    .from("leads")
+    .select("short_id")
+    .ilike("short_id", "L-%")
+    .order("short_id", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ short_id: string }>();
+  const lastN = maxRow ? parseInt(maxRow.short_id.replace(/^L-/, ""), 10) || 1000 : 1000;
+  const nextShortId = `L-${lastN + 1}`;
+
+  // ── Insert the lead ───────────────────────────────────────────────
+  const payload: LeadInsert = {
+    short_id: nextShortId,
+    is_company: input.isCompany,
+    client_first_name: input.isCompany ? null : (input.firstName.trim() || null),
+    client_last_name:  input.isCompany ? null : (input.lastName.trim() || null),
+    client_company:    input.isCompany ? input.companyName.trim() : null,
+    client_email: input.email.trim() || null,
+    client_phone: input.phone.trim() || null,
+    client_address: {
+      line1: input.addressLine.trim() || null,
+      postal_code: input.postalCode.trim() || null,
+      city: input.city.trim() || null,
+    },
+    estimated_amount: input.estimatedAmount,
+    owner_id: input.ownerId,
+    activity_id: activity.id,
+    source_id: source.id,
+    status: "lead",
+    received_at: new Date().toISOString(),
+    last_action_label: "Lead créé manuellement",
+    last_action_at: new Date().toISOString(),
+    notes: input.notes.trim() || null,
+  };
+
+  const { data: inserted, error } = await supabase
+    .from("leads")
+    .insert(payload as never)
+    .select("id, short_id")
+    .maybeSingle<{ id: string; short_id: string }>();
+  if (error || !inserted) {
+    return { ok: false, error: `Échec de la création : ${error?.message ?? "inconnu"}.` };
+  }
+
+  await auditLog({
+    action: "lead.create",
+    entityType: "lead",
+    entityId: inserted.id,
+    after: { shortId: inserted.short_id, activity: input.activitySlug, source: input.sourceSlug },
+  });
+
+  revalidatePath("/pipeline");
+  revalidatePath("/leads");
+  return { ok: true, id: inserted.id, shortId: inserted.short_id };
+}
+
 // Click-to-call: ring the commercial's Ringover device, which then dials
 // the lead's phone. Runs in fake mode unless RINGOVER_API_KEY +
 // RINGOVER_API_BASE are configured — fake mode still goes through the
@@ -344,5 +477,96 @@ export async function callLead(id: string): Promise<Result> {
 
   revalidatePath("/pipeline");
   revalidatePath(`/leads/${id}`);
+  return { ok: true };
+}
+
+// Persist the "Notes d'appel" textarea on the lead detail page. Writes to
+// the shared `notes` column. Debounced client-side; called once per pause.
+export async function updateLeadNotes(id: string, notes: string): Promise<Result> {
+  const supabase = await supabaseServer();
+  const updates: LeadUpdate = {
+    notes: notes.trim() || null,
+  };
+  const { error } = await supabase.from("leads").update(updates as never).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/leads/${id}`);
+  await auditLog({
+    action: "lead.notes.update",
+    entityType: "lead",
+    entityId: id,
+    after: { length: notes.length },
+  });
+  return { ok: true };
+}
+
+// Quick-relance: set the next_followup_at marker on the lead. The
+// optional `hours` argument is added to now(); null clears the marker.
+export async function setLeadFollowup(id: string, hours: number | null): Promise<Result> {
+  const supabase = await supabaseServer();
+  const nextAt = hours === null ? null : new Date(Date.now() + hours * 3_600_000).toISOString();
+  const updates: LeadUpdate = {
+    next_followup_at: nextAt,
+    last_action_label: hours === null
+      ? "Relance annulée"
+      : `À rappeler ${hours <= 24 ? "sous 24H" : hours <= 48 ? "sous 48H" : "après 48 heures"}`,
+    last_action_at: new Date().toISOString(),
+  };
+  const { error } = await supabase.from("leads").update(updates as never).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/pipeline");
+  revalidatePath(`/leads/${id}`);
+  await auditLog({
+    action: "lead.followup.set",
+    entityType: "lead",
+    entityId: id,
+    after: { hours, nextAt },
+  });
+  return { ok: true };
+}
+
+// Post-signature delay capture. delay = null clears the choice;
+// delay = enum value sets the bucket. Notes are independent (may be set
+// even with no bucket selected). Both are autosaved by the card.
+export async function updateInterventionDelay(
+  id: string,
+  delay: "sous_72h" | "1_semaine" | "15_jours" | "1_mois" | "personnalise" | null,
+  notes: string,
+): Promise<Result> {
+  const supabase = await supabaseServer();
+  const updates: LeadUpdate = {
+    intervention_delay: delay,
+    intervention_delay_notes: notes.trim() || null,
+  };
+  const { error } = await supabase.from("leads").update(updates as never).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/leads/${id}`);
+  revalidatePath("/planification");
+  await auditLog({
+    action: "lead.intervention_delay.update",
+    entityType: "lead",
+    entityId: id,
+    after: { delay, hasNotes: notes.trim().length > 0 },
+  });
+  return { ok: true };
+}
+
+// Inline editor for the confidential Immobilier/Travaux annotation.
+// Guarded server-side by the immobTravaux permission once that's wired.
+export async function updateImmobTravauxAnnotation(
+  id: string,
+  annotation: string,
+): Promise<Result> {
+  const supabase = await supabaseServer();
+  const updates: LeadUpdate = {
+    immob_travaux_annotation: annotation.trim() || null,
+  };
+  const { error } = await supabase.from("leads").update(updates as never).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath(`/leads/${id}`);
+  await auditLog({
+    action: "lead.immob_travaux.update",
+    entityType: "lead",
+    entityId: id,
+  });
   return { ok: true };
 }

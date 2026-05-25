@@ -33,6 +33,16 @@ export default function DocumentView({ detail }: Props) {
     <div className={styles.page}>
       <DocumentActions doc={doc} lead={lead} entity={entity} />
 
+      {doc.status === "refuse" && doc.refusalReason && (
+        <aside className={styles.refusalBanner} role="status" data-no-print>
+          <strong>Devis refusé :</strong> {doc.refusalReason}
+          <span className={styles.refusalHint}>
+            Prix initial : <strong>{(doc.totalTtc).toLocaleString("fr-FR")} €</strong> ·
+            Dupliquez ce devis et ajustez le prix pour relancer le client.
+          </span>
+        </aside>
+      )}
+
       <article className={styles.document} aria-label={`${DOC_TYPE_LABEL[doc.type]} ${doc.num}`}>
         <header className={styles.head}>
           <div className={styles.entity}>

@@ -9,6 +9,7 @@ import {
   markDocumentPaid,
   markDocumentSent,
 } from "./document-actions";
+import MarkRefusedModal from "./MarkRefusedModal";
 import SendEmailModal from "./SendEmailModal";
 import styles from "./DocumentView.module.scss";
 
@@ -30,6 +31,7 @@ export default function DocumentActions({ doc, lead, entity }: Props) {
   // row menu links here). One-shot — clears the param after opening so a
   // page refresh doesn't re-open the modal forever.
   const [emailOpen, setEmailOpen] = useState(() => searchParams.get("send") === "1");
+  const [refusedOpen, setRefusedOpen] = useState(false);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -78,6 +80,8 @@ export default function DocumentActions({ doc, lead, entity }: Props) {
   const isDevisDraft = doc.type === "devis" && doc.status === "brouillon";
   const isInvoice = doc.type !== "devis";
   const isPaid = doc.status === "paye";
+  // Refusal is only meaningful on a devis that hasn't been signed/refused already.
+  const canRefuse = doc.type === "devis" && doc.status !== "signe" && doc.status !== "refuse";
 
   return (
     <>
@@ -132,6 +136,17 @@ export default function DocumentActions({ doc, lead, entity }: Props) {
           </button>
         )}
 
+        {canRefuse && (
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnDanger}`}
+            disabled={busy !== null}
+            onClick={() => setRefusedOpen(true)}
+          >
+            Marquer refusé
+          </button>
+        )}
+
       </nav>
 
       {error && (
@@ -149,6 +164,18 @@ export default function DocumentActions({ doc, lead, entity }: Props) {
           onClose={() => setEmailOpen(false)}
           onDone={() => {
             setEmailOpen(false);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {refusedOpen && (
+        <MarkRefusedModal
+          docId={doc.id}
+          docNum={doc.num}
+          onClose={() => setRefusedOpen(false)}
+          onDone={() => {
+            setRefusedOpen(false);
             router.refresh();
           }}
         />

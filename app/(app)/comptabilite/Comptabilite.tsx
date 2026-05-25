@@ -7,27 +7,39 @@ import Icon from "@/components/Icon/Icon";
 import {
   DOC_STATUS_LABEL,
   DOC_TYPE_LABEL,
+  SECTOR_LABEL,
+  SECTOR_VAR,
+  SOURCE_LABEL,
   formatEUR,
   type DevisStatus,
   type DocumentStatus,
   type DocumentType,
   type FactureStatus,
   type LegalEntity,
+  type Sector,
+  type Source,
+  type Technician,
 } from "@/lib/leads";
 import { computeAccountingKpis, type DocumentWithContext } from "@/lib/documents-shared";
 import { duplicateDocument } from "../_shared/document-actions";
 import styles from "./Comptabilite.module.scss";
 
-type Tab = "devis" | "acompte" | "finale";
+type Tab = "devis" | "acompte" | "finale" | "fournisseurs";
 
-const TABS: { value: Tab; label: string; type: DocumentType }[] = [
-  { value: "devis",   label: "Devis",              type: "devis" },
-  { value: "acompte", label: "Factures d'acompte", type: "acompte" },
-  { value: "finale",  label: "Factures finales",   type: "finale" },
+const TABS: { value: Tab; label: string; type?: DocumentType }[] = [
+  { value: "devis",        label: "Devis",              type: "devis" },
+  { value: "acompte",      label: "Factures d'acompte", type: "acompte" },
+  { value: "finale",       label: "Factures finales",   type: "finale" },
+  { value: "fournisseurs", label: "Fournisseurs" },
 ];
 
 const DEVIS_STATUSES: DevisStatus[] = ["brouillon", "envoye", "ouvert", "signe", "refuse", "expire"];
 const FACTURE_STATUSES: FactureStatus[] = ["brouillon", "envoye", "paye", "retard"];
+
+// Filter dropdown enumerations — sectors + sources are hard-coded enums in
+// leads.ts so no DB fetch needed for those two.
+const SECTORS: Sector[] = ["urgence", "nettoyage", "enr", "renovation"];
+const SOURCES: Source[] = ["google-ads", "meta-ads", "site-web", "telephone", "recommandation"];
 
 const DATE = new Intl.DateTimeFormat("fr-FR", {
   day: "2-digit",
@@ -38,16 +50,21 @@ const DATE = new Intl.DateTimeFormat("fr-FR", {
 type Props = {
   rows: DocumentWithContext[];
   entities: LegalEntity[];
+  technicians: Technician[];
 };
 
-export default function Comptabilite({ rows: allRows, entities }: Props) {
+export default function Comptabilite({ rows: allRows, entities, technicians }: Props) {
   const searchParams = useSearchParams();
   const tab = (searchParams.get("tab") as Tab) ?? "devis";
   const tabType = TABS.find((t) => t.value === tab)?.type ?? "devis";
+  const isFournisseurs = tab === "fournisseurs";
 
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [entityFilter, setEntityFilter] = useState("");
+  const [activityFilter, setActivityFilter] = useState<"" | Sector>("");
+  const [technicianFilter, setTechnicianFilter] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<"" | Source>("");
   const [statusFilter, setStatusFilter] = useState<Set<DocumentStatus>>(new Set());
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [busyDoc, setBusyDoc] = useState<string | null>(null);
@@ -76,6 +93,15 @@ export default function Comptabilite({ rows: allRows, entities }: Props) {
     return tabRows
       .filter((r) => {
         if (entityFilter && r.entity.id !== entityFilter) return false;
+        if (activityFilter && r.lead.sector !== activityFilter) return false;
+        if (sourceFilter && r.lead.source !== sourceFilter) return false;
+        if (technicianFilter) {
+          if (technicianFilter === "__none__") {
+            if (r.dossier?.technicianId) return false;
+          } else if (r.dossier?.technicianId !== technicianFilter) {
+            return false;
+          }
+        }
         if (statusFilter.size > 0 && !statusFilter.has(r.doc.status)) return false;
         if (q) {
           const hay = `${r.doc.num} ${r.lead.client} ${r.lead.city}`.toLowerCase();
@@ -84,7 +110,7 @@ export default function Comptabilite({ rows: allRows, entities }: Props) {
         return true;
       })
       .sort((a, b) => +new Date(b.doc.issuedAt) - +new Date(a.doc.issuedAt));
-  }, [tabRows, entityFilter, statusFilter, search]);
+  }, [tabRows, entityFilter, activityFilter, sourceFilter, technicianFilter, statusFilter, search]);
 
   const statusOptions: DocumentStatus[] =
     tabType === "devis" ? DEVIS_STATUSES : FACTURE_STATUSES;
@@ -113,12 +139,20 @@ export default function Comptabilite({ rows: allRows, entities }: Props) {
         <div>
           <h1 className={styles.title}>Comptabilité</h1>
           <p className={styles.subtitle}>
-            Devis, factures d&apos;acompte et factures finales · multi-entités
+            Devis, factures d&apos;acompte, factures finales et fichier clients
           </p>
         </div>
-        <Link href="/clients" className={styles.clientsLink}>
-          Page clients →
-        </Link>
+        <div className={styles.headerActions}>
+          <Link href="/clients" className={styles.headerBtn}>
+            <Icon name="commerciaux" size={14} /> Voir clients
+          </Link>
+          <Link href="/clients/new" className={styles.headerBtn}>
+            <Icon name="check" size={14} /> Nouveau client
+          </Link>
+          <Link href="/devis/new" className={`${styles.headerBtn} ${styles.headerBtnPrimary}`}>
+            <Icon name="comptabilite" size={14} /> Nouveau devis
+          </Link>
+        </div>
       </header>
 
       <section className={styles.kpis}>
@@ -151,6 +185,9 @@ export default function Comptabilite({ rows: allRows, entities }: Props) {
       <nav className={styles.tabs} aria-label="Type de document">
         {TABS.map((t) => {
           const active = tab === t.value;
+          const count = t.type
+            ? allRows.filter((r) => r.doc.type === t.type).length
+            : 0; // Fournisseurs — coming-soon stub, no real count yet
           return (
             <Link
               key={t.value}
@@ -160,38 +197,81 @@ export default function Comptabilite({ rows: allRows, entities }: Props) {
               aria-current={active ? "page" : undefined}
             >
               {t.label}
-              <span className={styles.tabCount}>
-                {allRows.filter((r) => r.doc.type === t.type).length}
-              </span>
+              <span className={styles.tabCount}>{count}</span>
             </Link>
           );
         })}
       </nav>
 
-      <div className={styles.toolbar} role="toolbar" aria-label="Filtres comptabilité">
-        <div className={styles.searchBox}>
-          <Icon name="search" size={16} />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher un numéro, client ou ville…"
-            className={styles.searchInput}
-            aria-label="Rechercher"
-          />
-        </div>
-        <select
-          value={entityFilter}
-          onChange={(e) => setEntityFilter(e.target.value)}
-          className={styles.select}
-          aria-label="Filtrer par entité"
-        >
-          <option value="">Toutes les entités</option>
-          {entities.map((e) => (
-            <option key={e.id} value={e.id}>{e.legalName}</option>
-          ))}
-        </select>
-      </div>
+      {isFournisseurs ? (
+        <section className={styles.fournisseursEmpty}>
+          <Icon name="comptabilite" size={48} />
+          <h2 className={styles.fournisseursTitle}>Fichier fournisseurs</h2>
+          <p className={styles.fournisseursBody}>
+            Gestion des fournisseurs (factures entrantes, comptes IBAN, suivi des règlements)
+            en préparation pour la prochaine itération.
+          </p>
+        </section>
+      ) : (
+        <>
+          <div className={styles.toolbar} role="toolbar" aria-label="Filtres comptabilité">
+            <div className={styles.searchBox}>
+              <Icon name="search" size={16} />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher numéro, client…"
+                className={styles.searchInput}
+                aria-label="Rechercher"
+              />
+            </div>
+            <select
+              value={entityFilter}
+              onChange={(e) => setEntityFilter(e.target.value)}
+              className={styles.select}
+              aria-label="Filtrer par entité"
+            >
+              <option value="">Toutes entités</option>
+              {entities.map((e) => (
+                <option key={e.id} value={e.id}>{e.legalName}</option>
+              ))}
+            </select>
+            <select
+              value={activityFilter}
+              onChange={(e) => setActivityFilter(e.target.value as "" | Sector)}
+              className={styles.select}
+              aria-label="Filtrer par activité"
+            >
+              <option value="">Toutes activités</option>
+              {SECTORS.map((s) => (
+                <option key={s} value={s}>{SECTOR_LABEL[s]}</option>
+              ))}
+            </select>
+            <select
+              value={technicianFilter}
+              onChange={(e) => setTechnicianFilter(e.target.value)}
+              className={styles.select}
+              aria-label="Filtrer par intervenant"
+            >
+              <option value="">Tous intervenants</option>
+              <option value="__none__">Sans intervenant</option>
+              {technicians.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value as "" | Source)}
+              className={styles.select}
+              aria-label="Filtrer par apporteur"
+            >
+              <option value="">Tous apporteurs</option>
+              {SOURCES.map((s) => (
+                <option key={s} value={s}>{SOURCE_LABEL[s]}</option>
+              ))}
+            </select>
+          </div>
 
       <div className={styles.chipsRow}>
         <span className={styles.chipsLabel}>Statut</span>
@@ -226,10 +306,12 @@ export default function Comptabilite({ rows: allRows, entities }: Props) {
             <tr>
               <th>Numéro</th>
               <th>Client</th>
-              <th>Entité</th>
-              <th className={styles.colDate}>Émis le</th>
+              <th>Entité émettrice</th>
+              <th className={styles.colDate}>Date</th>
               <th className={styles.colDate}>{tabType === "devis" ? "Validité" : "Échéance"}</th>
               {tabType === "devis" && <th>Canal</th>}
+              <th>Activité</th>
+              <th>Intervenant</th>
               <th className={styles.tNum}>Total HT</th>
               <th className={styles.tNum}>Total TTC</th>
               <th>Statut</th>
@@ -250,7 +332,7 @@ export default function Comptabilite({ rows: allRows, entities }: Props) {
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={tabType === "devis" ? 10 : 9} className={styles.empty}>
+                <td colSpan={tabType === "devis" ? 12 : 11} className={styles.empty}>
                   Aucun document ne correspond aux filtres.
                 </td>
               </tr>
@@ -258,6 +340,8 @@ export default function Comptabilite({ rows: allRows, entities }: Props) {
           </tbody>
         </table>
       </div>
+        </>
+      )}
     </div>
   );
 }
@@ -349,6 +433,38 @@ function Row({
           )}
         </td>
       )}
+      <td>
+        <span
+          className={styles.activityPill}
+          style={{ ["--sc" as string]: `var(${SECTOR_VAR[lead.sector]})` }}
+        >
+          {SECTOR_LABEL[lead.sector]}
+        </span>
+      </td>
+      <td>
+        {row.dossier?.technicianId ? (
+          <div className={styles.intervenantCell}>
+            <span
+              className={styles.intervenantAvatar}
+              style={{ ["--av" as string]: row.dossier.technicianColor ?? "#5b4bcc" }}
+              aria-hidden="true"
+            >
+              {row.dossier.technicianInitials}
+            </span>
+            <div className={styles.intervenantBody}>
+              <div className={styles.intervenantName}>{row.dossier.technicianName}</div>
+              <div className={styles.intervenantStatus}>
+                {dossierStatusLabel(row.dossier.status)}
+                {row.dossier.plannedAt && (
+                  <> · {DATE.format(new Date(row.dossier.plannedAt))}</>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <span className={styles.muted}>—</span>
+        )}
+      </td>
       <td className={styles.tNum}>{formatEUR(totalHt)}</td>
       <td className={styles.tNum}>{formatEUR(doc.totalTtc)}</td>
       <td>
@@ -401,4 +517,15 @@ function Row({
       </td>
     </tr>
   );
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+
+function dossierStatusLabel(status: "a_planifier" | "planifie" | "finalise" | "solde"): string {
+  return {
+    a_planifier: "À planifier",
+    planifie:    "Planifié",
+    finalise:    "Réalisé",
+    solde:       "Soldé",
+  }[status];
 }

@@ -495,3 +495,647 @@
   .timelineTime { grid-column: 2; text-align: left; }
   .timelineRel { display: inline; margin-left: 6px; }
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// NEW LAYOUT (v2 — matches the reference design)
+// Big hero card with sector avatar + identity + actions + 6-stage progress.
+// 4 KPI cards. Tab navigation. Tab content cards (notes / followup / etc.)
+// ════════════════════════════════════════════════════════════════════════
+
+.heroCard {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.heroRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-4);
+}
+
+.heroAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: var(--r-lg);
+  background: color-mix(in oklab, var(--sc) 14%, var(--bg-surface-2));
+  color: var(--sc);
+  flex-shrink: 0;
+}
+
+.heroIdentity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.heroNameRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.heroName {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.heroId {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  background: var(--bg-surface-2);
+  color: var(--text-muted);
+}
+
+.heroChannelChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  border: 1px solid transparent;
+
+  &[data-channel="auto"] {
+    color: var(--color-brand-600);
+    background: color-mix(in oklab, var(--color-brand-500) 14%, transparent);
+    border-color: color-mix(in oklab, var(--color-brand-500) 30%, transparent);
+  }
+  &[data-channel="mano"] {
+    color: var(--text-secondary);
+    background: var(--bg-surface-2);
+    border-color: var(--border-subtle);
+  }
+}
+
+.heroMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  font-size: var(--fs-sm);
+}
+
+.heroLoc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+}
+
+// ── Pipeline progress (6 stages) ───────────────────────────────────────
+.progress {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0;
+  align-items: start;
+  position: relative;
+}
+
+.progressItem {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  text-align: center;
+  font-size: var(--fs-xs);
+
+  // The connecting bar lives inside each item so it scales with the column.
+  // We render it absolute-positioned starting at the dot's right edge.
+}
+
+.progressDot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--bg-surface-2);
+  border: 2px solid var(--border-subtle);
+  color: var(--text-muted);
+  z-index: 1;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.progressIndex {
+  display: inline-block;
+}
+
+.progressLabel {
+  color: var(--text-muted);
+  font-weight: 500;
+  max-width: 100%;
+  padding: 0 var(--sp-1);
+}
+
+.progressBar {
+  position: absolute;
+  top: 13px; // half of dot height
+  left: calc(50% + 16px); // right edge of dot + small gap
+  right: calc(-50% + 16px);
+  height: 2px;
+  background: var(--border-subtle);
+  z-index: 0;
+}
+
+// State styling
+.progressItem[data-state="done"] {
+  .progressDot {
+    background: var(--color-brand-500);
+    border-color: var(--color-brand-500);
+    color: white;
+  }
+  .progressBar {
+    background: var(--color-brand-500);
+  }
+  .progressLabel {
+    color: var(--text-secondary);
+  }
+}
+
+.progressItem[data-state="current"] {
+  .progressDot {
+    background: #10b981; // success green
+    border-color: #10b981;
+    color: white;
+    box-shadow: 0 0 0 4px color-mix(in oklab, #10b981 18%, transparent);
+  }
+  .progressLabel {
+    color: var(--text-primary);
+    font-weight: 700;
+  }
+}
+
+.progressItem[data-state="lost"] {
+  .progressDot {
+    background: var(--bg-surface-2);
+    border-color: var(--tone-danger);
+    color: var(--tone-danger);
+  }
+  .progressLabel {
+    color: var(--text-muted);
+    text-decoration: line-through;
+  }
+}
+
+// ── KPI row (4 cards under the hero) ───────────────────────────────────
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-3);
+
+  @media (max-width: 900px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.kpiCard {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+}
+
+.kpiIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  background: color-mix(in oklab, var(--color-brand-500) 10%, transparent);
+  color: var(--color-brand-600);
+  flex-shrink: 0;
+}
+
+.kpiAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--av);
+  color: white;
+  font-weight: 700;
+  font-size: var(--fs-xs);
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+
+.kpiBody {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.kpiLabel {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.kpiValue {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────
+.tabs {
+  display: flex;
+  gap: var(--sp-1);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 0 var(--sp-2);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  text-decoration: none;
+
+  &:hover {
+    color: var(--text-primary);
+  }
+}
+
+.tabOn {
+  color: var(--color-brand-600);
+  border-bottom-color: var(--color-brand-500);
+  font-weight: 600;
+}
+
+.tabCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  padding: 0 5px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+
+  .tabOn & {
+    background: color-mix(in oklab, var(--color-brand-500) 18%, transparent);
+    color: var(--color-brand-600);
+  }
+}
+
+// ── Card head (used by Notes / Followup / Immob) ───────────────────────
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+.cardHead .h2 {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.savedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+
+  &[data-state="saving"] {
+    background: var(--bg-surface-2);
+    color: var(--text-secondary);
+  }
+  &[data-state="saved"], &[data-state="idle"] {
+    background: color-mix(in oklab, #10b981 14%, transparent);
+    color: #047857;
+  }
+  &[data-state="error"] {
+    background: color-mix(in oklab, var(--tone-danger) 14%, transparent);
+    color: var(--tone-danger);
+  }
+}
+
+.autoBadge {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.linkBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--color-brand-600);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  &:hover { text-decoration: underline; }
+}
+
+// ── Notes textarea ─────────────────────────────────────────────────────
+.notesArea {
+  width: 100%;
+  min-height: 100px;
+  padding: var(--sp-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  resize: vertical;
+
+  &:focus {
+    outline: 0;
+    border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-brand-500) 14%, transparent);
+  }
+}
+
+.errorMessage {
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  background: color-mix(in oklab, var(--tone-danger) 10%, transparent);
+  color: var(--tone-danger);
+  font-size: var(--fs-xs);
+}
+
+.followupHint {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+// ── Followup quick-buttons ─────────────────────────────────────────────
+.followupIntro {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.followupGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-2);
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.followupBtn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-2);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  span:last-child {
+    font-size: var(--fs-xs);
+    line-height: 1.3;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-brand-500);
+    color: var(--color-brand-600);
+    background: color-mix(in oklab, var(--color-brand-500) 5%, transparent);
+  }
+
+  &[data-active="true"] {
+    border-color: var(--color-brand-500);
+    color: var(--color-brand-600);
+    background: color-mix(in oklab, var(--color-brand-500) 10%, transparent);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.followupActive {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  background: color-mix(in oklab, var(--color-brand-500) 8%, transparent);
+  font-size: var(--fs-xs);
+  color: var(--text-primary);
+}
+
+.followupClear {
+  background: none;
+  border: none;
+  color: var(--color-brand-600);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  &:hover { text-decoration: underline; }
+}
+
+// ── Card actions row (save/cancel for inline editors) ──────────────────
+.cardActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.btnGhost {
+  padding: 6px 14px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  &:hover:not(:disabled) { background: var(--bg-surface-2); }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+}
+
+// ── Intervention delay card ────────────────────────────────────────────
+.postSignatureTag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  background: color-mix(in oklab, var(--color-brand-500) 12%, transparent);
+  color: var(--color-brand-600);
+  margin-left: var(--sp-1);
+  letter-spacing: 0.02em;
+}
+
+.delayIntro {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.delayGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.delayOption {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: var(--fs-sm);
+
+  &:hover {
+    border-color: var(--color-brand-500);
+    background: color-mix(in oklab, var(--color-brand-500) 5%, transparent);
+  }
+
+  // Active style when the radio is checked (uses :has — supported in
+  // modern Chrome/Safari/Firefox 121+).
+  &:has(.delayInput:checked) {
+    border-color: var(--color-brand-500);
+    background: color-mix(in oklab, var(--color-brand-500) 10%, transparent);
+    .delayLabel { color: var(--color-brand-600); font-weight: 600; }
+    .delayMark {
+      border-color: var(--color-brand-500);
+      &::after { opacity: 1; transform: scale(1); }
+    }
+  }
+}
+
+.delayInput {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.delayMark {
+  position: relative;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-sm);
+  border: 1.5px solid var(--border-strong, var(--text-muted));
+  background: var(--bg-surface);
+  flex-shrink: 0;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 2px;
+    border-radius: 2px;
+    background: var(--color-brand-500);
+    opacity: 0;
+    transform: scale(0.6);
+    transition: all 0.15s ease;
+  }
+}
+
+.delayLabel {
+  color: var(--text-primary);
+}
+
+.delayClear {
+  display: inline-block;
+  margin-top: var(--sp-2);
+  background: none;
+  border: none;
+  color: var(--color-brand-600);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  &:hover { text-decoration: underline; }
+}
+
+.delayPrecisions {
+  margin-top: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.delayPrecisionsLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}

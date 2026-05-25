@@ -14,7 +14,7 @@ import {
   needsSignature,
   type Commercial,
   type Lead,
-  type LeadStatus,
+  type PipelineColumnKey,
   type SubEnvoi,
   type SubSignature,
 } from "@/lib/leads";
@@ -26,7 +26,7 @@ type Props = {
   isDragging: boolean;
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
-  onMove: (id: string, target: LeadStatus) => void;
+  onMove: (id: string, target: PipelineColumnKey) => void;
   onSetEnvoi: (id: string, value: SubEnvoi) => void;
   onSetSignature: (id: string, value: SubSignature) => void;
   onSetNrp: (id: string, nrp: boolean) => void;

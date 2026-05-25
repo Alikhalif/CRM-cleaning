@@ -147,6 +147,7 @@ export type Database = {
           deleted_by: string | null
           email: string | null
           id: string
+          is_premium: boolean
           name: string
           note: string | null
           phone: string | null
@@ -166,6 +167,7 @@ export type Database = {
           deleted_by?: string | null
           email?: string | null
           id?: string
+          is_premium?: boolean
           name: string
           note?: string | null
           phone?: string | null
@@ -185,6 +187,7 @@ export type Database = {
           deleted_by?: string | null
           email?: string | null
           id?: string
+          is_premium?: boolean
           name?: string
           note?: string | null
           phone?: string | null
@@ -358,6 +361,7 @@ export type Database = {
           num: string
           paid_at: string | null
           payment_reference: string | null
+          refusal_reason: string | null
           payment_term_id: string | null
           pdf_url: string | null
           related_devis_id: string | null
@@ -392,6 +396,7 @@ export type Database = {
           num: string
           paid_at?: string | null
           payment_reference?: string | null
+          refusal_reason?: string | null
           payment_term_id?: string | null
           pdf_url?: string | null
           related_devis_id?: string | null
@@ -426,6 +431,7 @@ export type Database = {
           num?: string
           paid_at?: string | null
           payment_reference?: string | null
+          refusal_reason?: string | null
           payment_term_id?: string | null
           pdf_url?: string | null
           related_devis_id?: string | null
@@ -643,6 +649,10 @@ export type Database = {
           last_action_label: string | null
           lost_reason: string | null
           next_followup_at: string | null
+          notes: string | null
+          intervention_delay: string | null
+          intervention_delay_notes: string | null
+          surface_m2: number | null
           owner_id: string | null
           received_at: string
           short_id: string
@@ -683,6 +693,10 @@ export type Database = {
           last_action_label?: string | null
           lost_reason?: string | null
           next_followup_at?: string | null
+          notes?: string | null
+          intervention_delay?: string | null
+          intervention_delay_notes?: string | null
+          surface_m2?: number | null
           owner_id?: string | null
           received_at?: string
           short_id: string
@@ -723,6 +737,10 @@ export type Database = {
           last_action_label?: string | null
           lost_reason?: string | null
           next_followup_at?: string | null
+          notes?: string | null
+          intervention_delay?: string | null
+          intervention_delay_notes?: string | null
+          surface_m2?: number | null
           owner_id?: string | null
           received_at?: string
           short_id?: string
@@ -1172,6 +1190,7 @@ export type Database = {
           first_name: string | null
           id: string
           is_active: boolean
+          is_premium: boolean
           last_login_at: string | null
           last_name: string | null
           phone: string | null
@@ -1185,6 +1204,7 @@ export type Database = {
           first_name?: string | null
           id: string
           is_active?: boolean
+          is_premium?: boolean
           last_login_at?: string | null
           last_name?: string | null
           phone?: string | null
@@ -1198,6 +1218,7 @@ export type Database = {
           first_name?: string | null
           id?: string
           is_active?: boolean
+          is_premium?: boolean
           last_login_at?: string | null
           last_name?: string | null
           phone?: string | null

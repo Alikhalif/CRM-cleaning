@@ -1,0 +1,244 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  padding: var(--sp-5) var(--sp-6);
+}
+
+// ── Header ─────────────────────────────────────────────────────────────
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: var(--sp-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.denied {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  background: color-mix(in oklab, var(--tone-danger) 10%, transparent);
+  color: var(--tone-danger);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+
+// ── KPIs ───────────────────────────────────────────────────────────────
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-3);
+}
+
+.kpiCard {
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: var(--accent);
+  }
+  &[data-tone="brand"]   { --accent: var(--color-brand-500); }
+  &[data-tone="info"]    { --accent: var(--tone-info, #3b82f6); }
+  &[data-tone="warning"] { --accent: var(--tone-warning, #f59e0b); }
+  &[data-tone="success"] { --accent: var(--tone-success, #10b981); }
+}
+
+.kpiLabel {
+  margin: 0;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.kpiValue {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.kpiHint {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+// ── Leaderboard table ──────────────────────────────────────────────────
+.tableWrap {
+  overflow-x: auto;
+  border-radius: var(--r-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+
+  th, td {
+    padding: var(--sp-3) var(--sp-3);
+    text-align: left;
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: var(--fs-sm);
+  }
+
+  th {
+    background: var(--bg-surface-2);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  tbody tr {
+    transition: background 0.12s ease;
+    &:hover { background: color-mix(in oklab, var(--color-brand-500) 4%, transparent); }
+    &:last-child td { border-bottom: none; }
+  }
+
+  // First three ranks get a podium accent on the rank number.
+  tbody tr[data-rank="1"] .rank { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: white; }
+  tbody tr[data-rank="2"] .rank { background: linear-gradient(135deg, #d1d5db, #9ca3af); color: white; }
+  tbody tr[data-rank="3"] .rank { background: linear-gradient(135deg, #d97706, #92400e); color: white; }
+}
+
+.thNum {
+  text-align: right !important;
+}
+
+.sortHeader {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  &:hover { color: var(--text-primary); }
+}
+
+.sortActive {
+  color: var(--color-brand-600);
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.bold {
+  font-weight: 700;
+}
+
+// ── Name cell ──────────────────────────────────────────────────────────
+.cellName {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 240px;
+}
+
+.rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--bg-surface-2);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--av);
+  color: white;
+  font-weight: 700;
+  font-size: var(--fs-xs);
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+
+.nameBlock {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nameMain {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.nameSub {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+// ── Conversion-rate pill ───────────────────────────────────────────────
+.rate {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: var(--fs-xs);
+
+  &[data-tone="good"] {
+    color: var(--tone-success, #047857);
+    background: color-mix(in oklab, var(--tone-success, #10b981) 14%, transparent);
+  }
+  &[data-tone="ok"] {
+    color: var(--tone-warning, #b45309);
+    background: color-mix(in oklab, var(--tone-warning, #f59e0b) 14%, transparent);
+  }
+  &[data-tone="bad"] {
+    color: var(--tone-danger, #b91c1c);
+    background: color-mix(in oklab, var(--tone-danger, #ef4444) 14%, transparent);
+  }
+}
+
+.empty {
+  padding: var(--sp-6);
+  text-align: center;
+  color: var(--text-muted);
+  font-style: italic;
+}
