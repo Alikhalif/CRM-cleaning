@@ -7,6 +7,7 @@ import { auditLog } from "@/lib/audit";
 import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import { notify } from "@/lib/notifications";
 import { initiateCall } from "@/lib/ringover";
+import { resolveOwner } from "@/lib/routing";
 import type { LeadStatus, SubEnvoi, SubSignature } from "@/lib/leads";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -322,7 +323,12 @@ export type NewLeadInput = {
     | "recommandation";
   ownerId: string;
   estimatedAmount: number | null;
+  surfaceM2: number | null;
   notes: string;
+  // When true, run the routing engine BEFORE saving and let it override
+  // ownerId. Off by default for the manual /pipeline modal (the commercial
+  // has already picked who); the WF1 inbound webhook will pass true.
+  autoRoute?: boolean;
 };
 
 export type CreateLeadResult =
@@ -385,6 +391,25 @@ export async function createLead(input: NewLeadInput): Promise<CreateLeadResult>
   const lastN = maxRow ? parseInt(maxRow.short_id.replace(/^L-/, ""), 10) || 1000 : 1000;
   const nextShortId = `L-${lastN + 1}`;
 
+  // ── Auto-routing (opt-in via input.autoRoute) ─────────────────────
+  // Runs the routing rules engine and overrides ownerId if a rule matches.
+  // The manual /pipeline modal leaves autoRoute=false (commercial picked).
+  let resolvedOwnerId = input.ownerId;
+  let routingTrace: string | null = null;
+  if (input.autoRoute) {
+    const decision = await resolveOwner({
+      surfaceM2: input.surfaceM2,
+      sectorSlug: input.activitySlug,
+      sourceSlug: input.sourceSlug,
+      clientIsPremium: false, // no client yet at lead creation — TODO when lead → client conversion happens
+      estimatedAmount: input.estimatedAmount,
+    });
+    if (decision) {
+      resolvedOwnerId = decision.ownerId;
+      routingTrace = `${decision.matchedRuleName} — ${decision.reason}`;
+    }
+  }
+
   // ── Insert the lead ───────────────────────────────────────────────
   const payload: LeadInsert = {
     short_id: nextShortId,
@@ -400,7 +425,8 @@ export async function createLead(input: NewLeadInput): Promise<CreateLeadResult>
       city: input.city.trim() || null,
     },
     estimated_amount: input.estimatedAmount,
-    owner_id: input.ownerId,
+    surface_m2: input.surfaceM2,
+    owner_id: resolvedOwnerId,
     activity_id: activity.id,
     source_id: source.id,
     status: "lead",
@@ -423,7 +449,12 @@ export async function createLead(input: NewLeadInput): Promise<CreateLeadResult>
     action: "lead.create",
     entityType: "lead",
     entityId: inserted.id,
-    after: { shortId: inserted.short_id, activity: input.activitySlug, source: input.sourceSlug },
+    after: {
+      shortId: inserted.short_id,
+      activity: input.activitySlug,
+      source: input.sourceSlug,
+      ownerOverride: routingTrace ? { ownerId: resolvedOwnerId, trace: routingTrace } : null,
+    },
   });
 
   revalidatePath("/pipeline");

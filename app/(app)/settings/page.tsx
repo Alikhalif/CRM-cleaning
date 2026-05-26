@@ -23,6 +23,52 @@ export default function SettingsPage() {
         }}
       >
         <Link
+          href="/settings/entities"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "var(--sp-2)",
+            padding: "var(--sp-3) var(--sp-4)",
+            border: "1px solid var(--border-subtle)",
+            borderRadius: "var(--r-md)",
+            textDecoration: "none",
+            color: "var(--text-primary)",
+            background: "var(--bg-elevated)",
+          }}
+        >
+          <Icon name="comptabilite" size={16} />
+          <span>
+            <strong>Sociétés émettrices</strong>
+            <br />
+            <span style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>
+              Créer / modifier les sociétés multi-entités (CDC §4.2 · admin uniquement)
+            </span>
+          </span>
+        </Link>
+        <Link
+          href="/settings/routing"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "var(--sp-2)",
+            padding: "var(--sp-3) var(--sp-4)",
+            border: "1px solid var(--border-subtle)",
+            borderRadius: "var(--r-md)",
+            textDecoration: "none",
+            color: "var(--text-primary)",
+            background: "var(--bg-elevated)",
+          }}
+        >
+          <Icon name="pipeline" size={16} />
+          <span>
+            <strong>Règles de routing des leads</strong>
+            <br />
+            <span style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>
+              Automatiser l&apos;attribution des leads (superficie, secteur, source, premium…)
+            </span>
+          </span>
+        </Link>
+        <Link
           href="/settings/integrations"
           style={{
             display: "inline-flex",

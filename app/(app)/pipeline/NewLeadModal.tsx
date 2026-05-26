@@ -46,6 +46,7 @@ export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose }: P
   const [sourceSlug, setSourceSlug] = useState<NewLeadInput["sourceSlug"]>("telephone");
   const [ownerId, setOwnerId] = useState<string>(defaultOwnerId || commerciaux[0]?.id || "");
   const [estimatedAmount, setEstimatedAmount] = useState<string>("");
+  const [surfaceM2, setSurfaceM2] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +82,7 @@ export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose }: P
       sourceSlug,
       ownerId,
       estimatedAmount: estimatedAmount ? Number(estimatedAmount) : null,
+      surfaceM2: surfaceM2 ? Number(surfaceM2) : null,
       notes,
     };
 
@@ -306,6 +308,20 @@ export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose }: P
                 min={0}
                 step={100}
                 placeholder="ex. 5000"
+                className={styles.input}
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.label}>
+                Superficie (m²) <span className={styles.optional}>(optionnel)</span>
+              </span>
+              <input
+                type="number"
+                value={surfaceM2}
+                onChange={(e) => setSurfaceM2(e.target.value)}
+                min={0}
+                step={1}
+                placeholder="ex. 120"
                 className={styles.input}
               />
             </label>

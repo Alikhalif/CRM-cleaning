@@ -1010,6 +1010,42 @@ export type Database = {
           },
         ]
       }
+      routing_rules: {
+        Row: {
+          id: string
+          name: string
+          priority: number
+          conditions: Json
+          action: Json
+          is_active: boolean
+          created_at: string
+          updated_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          priority?: number
+          conditions?: Json
+          action?: Json
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          priority?: number
+          conditions?: Json
+          action?: Json
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Relationships: []
+      }
       roles: {
         Row: {
           description: string | null
