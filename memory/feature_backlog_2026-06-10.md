@@ -15,7 +15,8 @@ Feature requests captured from the client on **2026-06-10** to "finir le CRM". C
 - **"Commercial extrême pour demande extrême"** — now framed as a tier for *extreme/urgent demands* (still needs exact definition: routing tier? a flag on the lead?).
 - **Telephony:** Ringover **or "withallo"/Wildix** as an alternative provider — API ↔ CRM.
 - **Menu déroulant des sociétés** (dropdown to pick issuing société — exists in QuoteEditor; may want it more prominent).
-- Still MISSING from before: **user management + pro access-invite emails by role**, superficie>80m² routing rule exposed, inbound-call→commercial-by-activity, premium/client-premium finalisation, premium UI polish.
+- **User management — PARTIAL DONE (2026-07-13).** `/settings/users` (admin-gated): list users, assign/remove roles, toggle is_premium / is_extreme pool flags (admin-guarded actions + audit user.role.assign/remove, user.premium/extreme.set). This unblocks the premium/extrême routing tiers (previously no UI flagged users into the pools). STILL TODO: **pro access-invite emails** (Supabase admin invite API + Brevo) to create/onboard a new user by role.
+- Still MISSING from before: superficie>80m² routing rule exposed as a preset, inbound-call→commercial-by-activity, premium/client-premium finalisation, Withallo/Wildix telephony, premium UI polish.
 
 **Routing & rôles commerciaux:**
 - Envoi des leads par filtre **superficie > 80 m²** (routing rule on surface — `lib/routing.ts` already supports a surface condition).

@@ -48,6 +48,71 @@ function deriveDisplayName(first: string | null, last: string | null, email: str
   return email.split("@")[0];
 }
 
+// ── Admin: Utilisateurs settings page ────────────────────────────────
+export type RoleOption = { id: string; slug: string; label: string };
+
+export type AdminUserRow = {
+  id: string;
+  email: string;
+  displayName: string;
+  isPremium: boolean;
+  isExtreme: boolean;
+  roleSlugs: string[];
+};
+
+type AdminUserRaw = {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  is_premium: boolean | null;
+  is_extreme: boolean | null;
+};
+
+// All users + their roles for the admin Utilisateurs page. RLS restricts the
+// underlying tables to admins, so a non-admin session simply gets nothing.
+export async function getAllUsersForAdmin(): Promise<AdminUserRow[]> {
+  const supabase = await supabaseServer();
+  const [usersRes, urRes] = await Promise.all([
+    supabase
+      .from("users")
+      .select("id, email, first_name, last_name, is_premium, is_extreme")
+      .order("first_name", { ascending: true })
+      .returns<AdminUserRaw[]>(),
+    supabase
+      .from("user_roles")
+      .select("user_id, roles(slug)")
+      .returns<{ user_id: string; roles: { slug: string } | null }[]>(),
+  ]);
+
+  const rolesByUser = new Map<string, string[]>();
+  for (const r of urRes.data ?? []) {
+    if (!r.roles) continue;
+    const arr = rolesByUser.get(r.user_id) ?? [];
+    arr.push(r.roles.slug);
+    rolesByUser.set(r.user_id, arr);
+  }
+
+  return (usersRes.data ?? []).map((u) => ({
+    id: u.id,
+    email: u.email,
+    displayName: deriveDisplayName(u.first_name, u.last_name, u.email),
+    isPremium: Boolean(u.is_premium),
+    isExtreme: Boolean(u.is_extreme),
+    roleSlugs: rolesByUser.get(u.id) ?? [],
+  }));
+}
+
+export async function getAllRoles(): Promise<RoleOption[]> {
+  const supabase = await supabaseServer();
+  const { data } = await supabase
+    .from("roles")
+    .select("id, slug, label")
+    .order("slug", { ascending: true })
+    .returns<RoleOption[]>();
+  return data ?? [];
+}
+
 export async function getCurrentUserProfile(): Promise<CurrentUserProfile | null> {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();

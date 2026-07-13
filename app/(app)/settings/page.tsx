@@ -23,6 +23,29 @@ export default function SettingsPage() {
         }}
       >
         <Link
+          href="/settings/users"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "var(--sp-2)",
+            padding: "var(--sp-3) var(--sp-4)",
+            border: "1px solid var(--border-subtle)",
+            borderRadius: "var(--r-md)",
+            textDecoration: "none",
+            color: "var(--text-primary)",
+            background: "var(--bg-elevated)",
+          }}
+        >
+          <Icon name="commerciaux" size={16} />
+          <span>
+            <strong>Utilisateurs</strong>
+            <br />
+            <span style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>
+              Rôles et pools de routing premium / extrême (admin uniquement)
+            </span>
+          </span>
+        </Link>
+        <Link
           href="/settings/entities"
           style={{
             display: "inline-flex",
