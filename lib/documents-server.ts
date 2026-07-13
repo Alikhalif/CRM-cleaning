@@ -99,6 +99,7 @@ function mapDocumentBase(row: DocumentRowJoined): CrmDocument {
 
 // Payment term defaults mirror CDC §4.12.3 sector profiles.
 const PAYMENT_TERM_BY_SECTOR: Record<Sector, PaymentTermSlug> = {
+  debarras: "comptant",
   urgence: "comptant",
   nettoyage: "30j",
   enr: "30j",
@@ -205,16 +206,17 @@ export async function getAllEntities(): Promise<LegalEntity[]> {
 // VAT per sector — the documents table only stores total_ttc, so total_ht is
 // derived by stripping the sector's default VAT rate.
 const VAT_BY_SECTOR: Record<Sector, number> = {
+  debarras: 20,
   urgence: 20,
   nettoyage: 20,
   enr: 10,
   renovation: 10,
 };
 
-// Placeholder prestation catalogue used by synthesiseLines() below.
-// Goes away when the devis editor (CDC §10 phase 2) starts inserting real
-// document_lines rows — at which point getDocumentById reads lines from the
-// DB instead of fabricating them.
+// Legacy prestation catalogue used by synthesiseLines() below. getDocumentById
+// now reads real `document_lines` first (see fetchDocumentLines) and only falls
+// back to fabricated lines for older documents that predate the devis editor
+// and carry no stored lines (e.g. the seeded demo data).
 const FALLBACK_PRESTATIONS: Prestation[] = [
   { id: "pr_pv400",  sector: "enr",        label: "Panneau photovoltaïque 400 Wc",  unit: "unité",   unitPriceHt: 280,  vatRate: 10 },
   { id: "pr_ond5",   sector: "enr",        label: "Onduleur hybride 5 kW",          unit: "unité",   unitPriceHt: 1450, vatRate: 10 },
@@ -226,6 +228,8 @@ const FALLBACK_PRESTATIONS: Prestation[] = [
   { id: "pr_h",      sector: "urgence",    label: "Heure technicien",               unit: "h",       unitPriceHt: 75,   vatRate: 20 },
   { id: "pr_bur",    sector: "nettoyage",  label: "Entretien bureaux (mensuel)",    unit: "mois",    unitPriceHt: 480,  vatRate: 20 },
   { id: "pr_vit",    sector: "nettoyage",  label: "Nettoyage vitrerie",             unit: "m²",      unitPriceHt: 8,    vatRate: 20 },
+  { id: "pr_deb",    sector: "debarras",   label: "Débarras appartement (forfait)", unit: "forfait", unitPriceHt: 450,  vatRate: 20 },
+  { id: "pr_enc",    sector: "debarras",   label: "Enlèvement encombrants",         unit: "m²",      unitPriceHt: 25,   vatRate: 20 },
 ];
 
 // Build plausible document lines from a stored doc + lead. For devis: pick
@@ -308,6 +312,50 @@ function synthesiseLines(
   });
 }
 
+// Real stored lines for a document, ordered as the editor saved them. Numeric
+// columns can come back as strings from PostgREST, so coerce with Number().
+type DocumentLineRow = {
+  id: string;
+  prestation_id: string | null;
+  label: string;
+  quantity: number | string;
+  unit: string;
+  unit_price_ht: number | string;
+  vat_rate: number | string;
+  discount_pct: number | string;
+  total_ht: number | string;
+};
+
+async function fetchDocumentLines(
+  supabase: Awaited<ReturnType<typeof supabaseServer>>,
+  documentId: string,
+): Promise<DocumentLine[]> {
+  const { data, error } = await supabase
+    .from("document_lines")
+    .select(
+      "id, prestation_id, label, quantity, unit, unit_price_ht, vat_rate, discount_pct, total_ht",
+    )
+    .eq("document_id", documentId)
+    .order("order_index", { ascending: true })
+    .returns<DocumentLineRow[]>();
+
+  if (error || !data) return [];
+  return data.map((r) => {
+    const discountPct = Number(r.discount_pct);
+    return {
+      id: r.id,
+      prestationId: r.prestation_id ?? undefined,
+      label: r.label,
+      quantity: Number(r.quantity),
+      unit: r.unit,
+      unitPriceHt: Number(r.unit_price_ht),
+      vatRate: Number(r.vat_rate),
+      discountPct: discountPct > 0 ? discountPct : undefined,
+      totalHt: Number(r.total_ht),
+    };
+  });
+}
+
 export async function getDocumentById(id: string) {
   const supabase = await supabaseServer();
 
@@ -359,7 +407,13 @@ export async function getDocumentById(id: string) {
     relatedDevisNum = srcDevis?.num ?? undefined;
   }
 
-  const lines = synthesiseLines(baseDoc, uiLead, relatedDevisNum);
+  // Prefer the real stored lines; fall back to fabricated ones only for
+  // legacy/seeded documents that never had document_lines rows written.
+  const storedLines = await fetchDocumentLines(supabase, baseDoc.id);
+  const lines =
+    storedLines.length > 0
+      ? storedLines
+      : synthesiseLines(baseDoc, uiLead, relatedDevisNum);
   const totalHt = lines.reduce((s, l) => s + l.totalHt, 0);
   const totalVat = lines.reduce((s, l) => s + (l.totalHt * l.vatRate) / 100, 0);
 

@@ -179,6 +179,25 @@
   &:hover { background: color-mix(in oklab, var(--tone-danger) 10%, transparent); }
 }
 
+// Two-button segmented toggle for the n8n WF2 sequence mode. The active
+// side gets .btnPrimary applied inline; this wrapper just glues them so
+// the pair reads as one control.
+.modeToggle {
+  display: inline-flex;
+  gap: 0;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  isolation: isolate;
+
+  > .btn {
+    border-radius: 0;
+    margin-right: -1px;
+    &:first-child { border-top-left-radius: var(--r-md); border-bottom-left-radius: var(--r-md); }
+    &:last-child  { border-top-right-radius: var(--r-md); border-bottom-right-radius: var(--r-md); margin-right: 0; }
+    &[aria-pressed="true"] { z-index: 1; }
+  }
+}
+
 // Active NRP toggle — the button shows the "currently NRP" state inverted
 // so the user understands clicking it again clears the flag.
 .btnNrpOn {

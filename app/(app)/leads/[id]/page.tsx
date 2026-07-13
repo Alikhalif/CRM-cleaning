@@ -14,6 +14,7 @@ import {
 import { getAllCommerciaux, getLeadDetail } from "@/lib/leads-server";
 import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import CallNotesCard from "./CallNotesCard";
+import DiscoveryCard from "./DiscoveryCard";
 import FollowupCard from "./FollowupCard";
 import ImmobAnnotationCard from "./ImmobAnnotationCard";
 import InterventionDelayCard from "./InterventionDelayCard";
@@ -277,6 +278,15 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
           </main>
 
           <aside className={styles.aside}>
+            <DiscoveryCard
+              leadId={lead.id}
+              initialAnnouncedPrice={lead.announcedPrice}
+              initialOutcome={lead.discoveryOutcome}
+              discoveryDoneAt={lead.discoveryDoneAt}
+              photosRequestedAt={lead.photosRequestedAt}
+              hasEmail={Boolean(lead.email)}
+              hasPhone={Boolean(lead.phone)}
+            />
             <CallNotesCard
               leadId={lead.id}
               initialNotes={lead.notes ?? ""}
@@ -357,6 +367,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
                     <tr>
                       <th>Numéro</th>
                       <th>Type</th>
+                      <th>Société</th>
                       <th className={styles.tNum}>Total TTC</th>
                       <th>Date</th>
                       <th>Statut</th>
@@ -374,12 +385,21 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
                           </Link>
                         </td>
                         <td>{DOC_TYPE_LABEL[d.type]}</td>
+                        <td>{d.entityName ?? "—"}</td>
                         <td className={styles.tNum}>{formatEUR(d.totalTtc)}</td>
                         <td>{dateFmt.format(new Date(d.issuedAt))}</td>
                         <td>
                           <span className={styles.docStatus} data-status={d.status}>
                             {DOC_STATUS_LABEL[d.status]}
                           </span>
+                          {d.type === "devis" && d.status === "refuse" && (
+                            <div style={{ marginTop: 4, fontSize: "0.8125rem", color: "var(--text-muted)" }}>
+                              {d.refusalReason && <>Motif : {d.refusalReason}. </>}
+                              <Link href={`/devis/new?from=${d.id}`} className={styles.link}>
+                                Renvoyer moins cher
+                              </Link>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}

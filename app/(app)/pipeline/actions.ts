@@ -8,7 +8,9 @@ import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import { notify } from "@/lib/notifications";
 import { initiateCall } from "@/lib/ringover";
 import { resolveOwner } from "@/lib/routing";
-import type { LeadStatus, SubEnvoi, SubSignature } from "@/lib/leads";
+import { sendBrevoEmail, sendBrevoSms } from "@/lib/brevo";
+import { buildPhotoRequestEmail, buildPhotoRequestSms } from "@/lib/templates";
+import type { DiscoveryOutcome, LeadStatus, SubEnvoi, SubSignature } from "@/lib/leads";
 import type { Database } from "@/lib/supabase/database.types";
 
 type LeadUpdate = Database["public"]["Tables"]["leads"]["Update"];
@@ -51,6 +53,28 @@ export async function updateLeadStatus(id: string, target: LeadStatus): Promise<
   // at construction; only the SDK boundary loses it.
   const { error } = await supabase.from("leads").update(updates as never).eq("id", id);
   if (error) return { ok: false, error: error.message };
+
+  // When the Kanban drag lands on `signe`, find the lead's most recent
+  // envoye/ouvert devis and sign it via the shared markDocumentSigned
+  // action — that's the single entry-point that also triggers the auto
+  // deposit invoice (CDC §2.3). If no devis exists yet, this is a no-op:
+  // the lead status change still stands, the commercial will issue the
+  // devis next and mark it signed from the document detail.
+  if (target === "signe") {
+    const { data: devis } = await supabase
+      .from("documents")
+      .select("id")
+      .eq("lead_id", id)
+      .eq("type", "devis")
+      .in("status", ["envoye", "ouvert"])
+      .order("issued_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+    if (devis?.id) {
+      const { markDocumentSigned } = await import("@/app/(app)/_shared/document-actions");
+      await markDocumentSigned(devis.id);
+    }
+  }
 
   revalidatePath("/pipeline");
   revalidatePath("/leads");
@@ -274,18 +298,178 @@ export async function setLeadNrp(id: string, nrp: boolean): Promise<Result> {
   return { ok: true };
 }
 
-// Stub for the n8n WF2 trigger — for now it just flips the lead to
-// envoye·auto + writes a timeline label, the same shape the mock used.
-// When the n8n integration lands, replace the body with the JWT-signed
-// POST to /webhook/relance-devis. Gated by the runtime app_settings
-// toggle so an admin can disable it without a redeploy + a stale browser
-// tab can't trigger the action when it's off (defense in depth — the UI
-// hides the button via the same setting).
+// ── Découverte (call 2026-07-11) ─────────────────────────────────────
+// Records the discovery outcome + announced price. Ok / Ok voir + just mark
+// the discovery as done (last_action reflects which); Refus additionally sends
+// the lead to `perdu` with the reason, mirroring markLeadLost. Columns were
+// added in migration 20260713000001 (not yet in generated types → cast).
+export async function recordDiscovery(
+  leadId: string,
+  input: { announcedPrice: number | null; outcome: DiscoveryOutcome; reason?: string },
+): Promise<Result> {
+  const { announcedPrice, outcome } = input;
+  const supabase = await supabaseServer();
+  const now = new Date().toISOString();
+
+  if (outcome === "refus") {
+    const reason = (input.reason ?? "").trim() || "Prix annoncé refusé (découverte)";
+    const updates = {
+      announced_price: announcedPrice,
+      discovery_outcome: "refus",
+      discovery_done_at: now,
+      status: "perdu",
+      lost_reason: reason,
+      last_action_label: `Découverte refusée — ${reason}`,
+      last_action_at: now,
+    };
+    const { error } = await supabase.from("leads").update(updates as never).eq("id", leadId);
+    if (error) return { ok: false, error: error.message };
+  } else {
+    const label =
+      outcome === "ok"
+        ? "Découverte OK — prêt pour devis"
+        : "Découverte OK voir + — photos à demander";
+    const updates = {
+      announced_price: announcedPrice,
+      discovery_outcome: outcome,
+      discovery_done_at: now,
+      last_action_label: label,
+      last_action_at: now,
+    };
+    const { error } = await supabase.from("leads").update(updates as never).eq("id", leadId);
+    if (error) return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/decouverte");
+  revalidatePath("/pipeline");
+  await auditLog({
+    action: "lead.discovery.record",
+    entityType: "lead",
+    entityId: leadId,
+    after: { outcome, announcedPrice },
+  });
+  return { ok: true };
+}
+
+type PhotoLeadRow = {
+  is_company: boolean;
+  client_first_name: string | null;
+  client_last_name: string | null;
+  client_company: string | null;
+  client_email: string | null;
+  client_phone: string | null;
+  owner: { first_name: string | null; last_name: string | null } | null;
+};
+
+// Sends the "demande de photos" template (Brevo email or SMS) so the client
+// can supply what's needed to build the devis, and stamps photos_requested_at.
+export async function requestPhotos(
+  leadId: string,
+  channel: "email" | "sms",
+): Promise<Result> {
+  const supabase = await supabaseServer();
+  const { data: lead } = await supabase
+    .from("leads")
+    .select(
+      "is_company, client_first_name, client_last_name, client_company, " +
+      "client_email, client_phone, owner:users!leads_owner_id_fkey(first_name, last_name)",
+    )
+    .eq("id", leadId)
+    .maybeSingle<PhotoLeadRow>();
+  if (!lead) return { ok: false, error: "Lead introuvable." };
+
+  const clientName = lead.is_company
+    ? (lead.client_company ?? "")
+    : `${lead.client_first_name ?? ""} ${lead.client_last_name ?? ""}`.trim();
+  const commercialName = lead.owner
+    ? `${lead.owner.first_name ?? ""} ${lead.owner.last_name ?? ""}`.trim() || "Votre conseiller"
+    : "Votre conseiller";
+
+  if (channel === "email") {
+    if (!lead.client_email) return { ok: false, error: "Aucun email pour ce client." };
+    const tpl = buildPhotoRequestEmail({
+      clientName: clientName || "Madame, Monsieur",
+      commercialName,
+    });
+    const res = await sendBrevoEmail({
+      to: lead.client_email,
+      toName: clientName || undefined,
+      subject: tpl.subject,
+      htmlContent: tpl.htmlContent,
+    });
+    if (!res.ok) return { ok: false, error: `Échec envoi email : ${res.error}` };
+  } else {
+    if (!lead.client_phone) return { ok: false, error: "Aucun téléphone pour ce client." };
+    const content = buildPhotoRequestSms({ clientName: clientName || "", commercialName });
+    const res = await sendBrevoSms({ to: lead.client_phone, content });
+    if (!res.ok) return { ok: false, error: `Échec envoi SMS : ${res.error}` };
+  }
+
+  const now = new Date().toISOString();
+  await supabase
+    .from("leads")
+    .update({
+      photos_requested_at: now,
+      last_action_label: `Demande de photos (${channel === "email" ? "email" : "SMS"})`,
+      last_action_at: now,
+    } as never)
+    .eq("id", leadId);
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/decouverte");
+  await auditLog({
+    action: "lead.photos.request",
+    entityType: "lead",
+    entityId: leadId,
+    after: { channel },
+  });
+  return { ok: true };
+}
+
+// "Automatique" button — flips the lead to envoye·auto and triggers the
+// n8n WF2 workflow. The workflow polls /api/leads/:id/status between
+// each email; flipping sub_envoi back to 'mano' (via stopAutoSequence) is
+// what interrupts it. Gated by the runtime app_settings toggle so an admin
+// can disable it without a redeploy.
+//
+// Required env to actually call n8n:
+//   N8N_WF2_TRIGGER_URL=https://n8n.example.com/webhook/relance-devis
+//   N8N_WF2_TRIGGER_SECRET=<same value as WF2_TRIGGER_SECRET on the n8n host>
+// If either is unset we still flip the DB state (so the UI works in dev) but
+// log a warning instead of POSTing.
 export async function launchSequence(id: string): Promise<Result> {
   if (!(await isN8nSequenceEnabled())) {
     return { ok: false, error: "Séquence n8n désactivée par l'administrateur." };
   }
   const supabase = await supabaseServer();
+
+  const { data: lead, error: fetchErr } = await supabase
+    .from("leads")
+    .select("id, status, sub_envoi, client_email, client_first_name, client_last_name, client_company, is_company, owner_id")
+    .eq("id", id)
+    .maybeSingle<{
+      id: string;
+      status: string;
+      sub_envoi: string | null;
+      client_email: string | null;
+      client_first_name: string | null;
+      client_last_name: string | null;
+      client_company: string | null;
+      is_company: boolean;
+      owner_id: string | null;
+    }>();
+  if (fetchErr || !lead) return { ok: false, error: "Lead introuvable." };
+  if (!lead.client_email) {
+    return { ok: false, error: "Email client manquant — séquence impossible." };
+  }
+  // Refuse if a sequence is already running for this lead — pressing Auto
+  // twice would spawn a parallel n8n execution and double the emails. The
+  // simple workflow has no idempotency table, so the guard lives here.
+  if (lead.status === "envoye" && lead.sub_envoi === "auto") {
+    return { ok: false, error: "Une séquence automatique est déjà en cours pour ce lead." };
+  }
+
   const updates: LeadUpdate = {
     status: "envoye",
     sub_envoi: "auto",
@@ -294,9 +478,79 @@ export async function launchSequence(id: string): Promise<Result> {
   };
   const { error } = await supabase.from("leads").update(updates as never).eq("id", id);
   if (error) return { ok: false, error: error.message };
+
+  // POST to n8n (best-effort: failures here don't roll back the DB flip —
+  // the commercial can re-trigger from the UI if needed, and the workflow
+  // is idempotent at the lead level via the `active` check).
+  const triggerUrl = process.env.N8N_WF2_TRIGGER_URL;
+  const triggerSecret = process.env.N8N_WF2_TRIGGER_SECRET;
+  if (triggerUrl && triggerSecret) {
+    let commercialName = "Notre équipe";
+    if (lead.owner_id) {
+      const { data: owner } = await supabase
+        .from("users")
+        .select("first_name, last_name")
+        .eq("id", lead.owner_id)
+        .maybeSingle<{ first_name: string | null; last_name: string | null }>();
+      const composed = [owner?.first_name, owner?.last_name].filter(Boolean).join(" ").trim();
+      if (composed) commercialName = composed;
+    }
+    const firstName =
+      (lead.is_company ? lead.client_company : lead.client_first_name) ?? "";
+    try {
+      const res = await fetch(triggerUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Trigger-Secret": triggerSecret,
+        },
+        body: JSON.stringify({
+          lead_id: lead.id,
+          client_email: lead.client_email,
+          client_first_name: firstName,
+          commercial_name: commercialName,
+        }),
+      });
+      if (!res.ok) {
+        console.warn(`[launchSequence] n8n returned ${res.status} for lead ${id}`);
+      }
+    } catch (err) {
+      console.warn(`[launchSequence] n8n trigger failed for lead ${id}:`, err);
+    }
+  } else {
+    console.warn("[launchSequence] N8N_WF2_TRIGGER_URL/SECRET unset — skipping n8n call.");
+  }
+
   revalidatePath("/pipeline");
   revalidatePath(`/leads/${id}`);
   await auditLog({ action: "lead.sequence.launch", entityType: "lead", entityId: id });
+  return { ok: true };
+}
+
+// "Manuel" button — interrupts the auto-sequence. The workflow polls the
+// status endpoint between each email; flipping sub_envoi to 'mano' makes
+// the next poll return active=false, and the workflow exits cleanly at the
+// next check (within 24h–120h depending on which step it's on).
+//
+// We don't kill the n8n execution itself — the workflow's own short-circuit
+// is enough and avoids needing an n8n API key in the CRM.
+export async function stopAutoSequence(id: string): Promise<Result> {
+  const supabase = await supabaseServer();
+  const updates: LeadUpdate = {
+    sub_envoi: "mano",
+    last_action_label: "Séquence interrompue — mode manuel",
+    last_action_at: new Date().toISOString(),
+  };
+  const { error } = await supabase.from("leads").update(updates as never).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/pipeline");
+  revalidatePath(`/leads/${id}`);
+  await auditLog({
+    action: "lead.sequence.stop",
+    entityType: "lead",
+    entityId: id,
+    after: { subEnvoi: "mano" },
+  });
   return { ok: true };
 }
 
@@ -314,7 +568,7 @@ export type NewLeadInput = {
   postalCode: string;
   city: string;
   // Routing — required
-  activitySlug: "urgence" | "nettoyage" | "enr" | "renovation";
+  activitySlug: "urgence" | "nettoyage" | "enr" | "renovation" | "debarras";
   sourceSlug:
     | "google_ads"
     | "meta_ads"

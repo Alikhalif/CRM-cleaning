@@ -24,7 +24,11 @@ export type IconName =
   | "check"
   | "phone"
   | "logout"
-  | "edit";
+  | "edit"
+  | "plus"
+  | "document"
+  | "trending-up"
+  | "trending-down";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   dashboard: (
@@ -134,6 +138,25 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <path d="M12 20h9" />
       <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </>
+  ),
+  plus: <path d="M12 5v14M5 12h14" />,
+  document: (
+    <>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5M9 13h6M9 17h4" />
+    </>
+  ),
+  "trending-up": (
+    <>
+      <path d="m3 17 6-6 4 4 8-8" />
+      <path d="M14 7h7v7" />
+    </>
+  ),
+  "trending-down": (
+    <>
+      <path d="m3 7 6 6 4-4 8 8" />
+      <path d="M14 17h7v-7" />
     </>
   ),
 };

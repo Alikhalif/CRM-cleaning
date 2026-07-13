@@ -141,6 +141,93 @@ export async function getPrestationsForPicker(): Promise<PrestationOption[]> {
     }));
 }
 
+// ── Re-quote prefill ────────────────────────────────────────────────
+// Powers "Renvoyer un devis moins cher" (call 2026-06-10): a refused devis
+// can seed a brand-new one — same client + same lines — so the commercial
+// just switches the issuing société and lowers the prices. Reuses the normal
+// QuoteEditor + createDevis path; nothing is mutated on the source document.
+
+export type DevisPrefillLine = {
+  prestationId?: string;
+  label: string;
+  quantity: number;
+  unit: string;
+  unitPriceHt: number;
+  vatRate: number;
+  discountPct: number;
+};
+
+export type DevisPrefill = {
+  sourceId: string;
+  sourceNum: string;
+  sourceTotalTtc: number; // the refused price — shown so the user undercuts it
+  sourceRefusalReason?: string;
+  clientId: string | null;
+  entityId: string | null; // source société — the editor lets the user switch it
+  notes: string;
+  acomptePct: number;
+  lines: DevisPrefillLine[];
+};
+
+type PrefillDocRow = {
+  id: string;
+  num: string;
+  type: string;
+  total_ttc: number | string;
+  client_id: string | null;
+  entity_id: string | null;
+  notes: string | null;
+  acompte_pct: number | null;
+  refusal_reason: string | null;
+};
+
+type PrefillLineRow = {
+  prestation_id: string | null;
+  label: string;
+  quantity: number | string;
+  unit: string;
+  unit_price_ht: number | string;
+  vat_rate: number | string;
+  discount_pct: number | string;
+};
+
+export async function getDevisPrefill(devisId: string): Promise<DevisPrefill | null> {
+  const supabase = await supabaseServer();
+  const { data: doc } = await supabase
+    .from("documents")
+    .select("id, num, type, total_ttc, client_id, entity_id, notes, acompte_pct, refusal_reason")
+    .eq("id", devisId)
+    .maybeSingle<PrefillDocRow>();
+  if (!doc || doc.type !== "devis") return null;
+
+  const { data: lines } = await supabase
+    .from("document_lines")
+    .select("prestation_id, label, quantity, unit, unit_price_ht, vat_rate, discount_pct")
+    .eq("document_id", devisId)
+    .order("order_index", { ascending: true })
+    .returns<PrefillLineRow[]>();
+
+  return {
+    sourceId: doc.id,
+    sourceNum: doc.num,
+    sourceTotalTtc: Number(doc.total_ttc),
+    sourceRefusalReason: doc.refusal_reason ?? undefined,
+    clientId: doc.client_id ?? null,
+    entityId: doc.entity_id ?? null,
+    notes: doc.notes ?? "",
+    acomptePct: Number(doc.acompte_pct ?? 0),
+    lines: (lines ?? []).map((l) => ({
+      prestationId: l.prestation_id ?? undefined,
+      label: l.label,
+      quantity: Number(l.quantity),
+      unit: l.unit,
+      unitPriceHt: Number(l.unit_price_ht),
+      vatRate: Number(l.vat_rate),
+      discountPct: Number(l.discount_pct),
+    })),
+  };
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Accepts either a UUID or a friendly short_id like "L-1051".

@@ -2,7 +2,7 @@
 // Status spelling follows the CDC §5.4 reference (not the n8n doc's longer form):
 // `lead | envoye | ouvert | signe | encaisse | perdu`.
 
-export type Sector = "urgence" | "nettoyage" | "enr" | "renovation";
+export type Sector = "urgence" | "nettoyage" | "enr" | "renovation" | "debarras";
 
 export type LeadStatus =
   | "lead"
@@ -80,6 +80,23 @@ export type Lead = {
   // Surfaces on the planificatrice's queue so urgent ones float.
   interventionDelay?: InterventionDelay;
   interventionDelayNotes?: string;
+  // ── Découverte (call 2026-07-11) — qualification before quoting.
+  announcedPrice?: number; // prix annoncé au client pendant la découverte
+  discoveryOutcome?: DiscoveryOutcome; // undefined = découverte pas encore faite
+  discoveryDoneAt?: string; // ISO — set when an outcome is recorded
+  photosRequestedAt?: string; // ISO — set when a photo request is sent
+  // "Demande extrême" — feeds the commercial-extrême routing tier.
+  isExtreme?: boolean;
+};
+
+// Découverte outcome (CDC add-on 2026-07-11): ok → prêt pour devis,
+// refus → lead perdu, ok_plus → intéressé mais photos/visite requises.
+export type DiscoveryOutcome = "ok" | "refus" | "ok_plus";
+
+export const DISCOVERY_OUTCOME_LABEL: Record<DiscoveryOutcome, string> = {
+  ok: "OK",
+  refus: "Refus",
+  ok_plus: "OK voir +",
 };
 
 // CDC §4.5 — the 5 standard delay buckets + free-text for everything else.
@@ -121,6 +138,7 @@ export type CrmDocument = {
   acomptePct?: number; // only on devis avec acompte
   acompteAmount?: number;
   refusalReason?: string; // only set when status=refuse on a devis
+  entityName?: string; // issuing société — surfaced where multi-société matters
 };
 
 export type TimelineEventKind =
@@ -201,6 +219,7 @@ export const DEFAULT_ACOMPTE_PCT: Record<Sector, number> = {
   nettoyage: 20,
   enr: 30,
   renovation: 40,
+  debarras: 30,
 };
 
 export const DEFAULT_PAYMENT_TERM: Record<Sector, PaymentTermSlug> = {
@@ -208,6 +227,7 @@ export const DEFAULT_PAYMENT_TERM: Record<Sector, PaymentTermSlug> = {
   nettoyage: "30j",
   enr: "30j",
   renovation: "45j",
+  debarras: "comptant",
 };
 
 // ── Planification (workflow planificatrice — overrides CDC §4.7) ──────
@@ -232,6 +252,8 @@ export type Technician = {
   initials: string;
   color: string;
   sectors: Sector[];
+  basePostalCode?: string;     // home/dépôt — drives km distance to the client
+  serviceDepartments: string[]; // declared coverage (département codes)
 };
 
 export type Dossier = {
@@ -384,6 +406,7 @@ export const SECTOR_LABEL: Record<Sector, string> = {
   nettoyage: "Nettoyage",
   enr: "ENR",
   renovation: "Rénovation",
+  debarras: "Débarras",
 };
 
 // Maps to the --sector-* CSS custom properties already defined in _tokens.scss.
@@ -392,6 +415,7 @@ export const SECTOR_VAR: Record<Sector, string> = {
   nettoyage: "--sector-nettoyage",
   enr: "--sector-enr",
   renovation: "--sector-renovation",
+  debarras: "--sector-debarras",
 };
 
 export const SOURCE_LABEL: Record<Source, string> = {
@@ -434,6 +458,17 @@ export function formatEUR(amount: number): string {
     currency: "EUR",
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+// Compact € display for the Dashboard cards: "12.6 k€", "1.4 M€", "650 €".
+// Drops to plain euros under 1k; promotes to M€ at 1M+. Negatives keep the
+// sign so deltas read as "-116.3 k€".
+export function formatKEUR(amount: number): string {
+  const sign = amount < 0 ? "-" : "";
+  const abs = Math.abs(amount);
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)} M€`;
+  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(1)} k€`;
+  return `${sign}${abs.toFixed(0)} €`;
 }
 
 // "il y a 2 j", "il y a 5 h" — short relative time, French.

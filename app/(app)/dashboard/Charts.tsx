@@ -137,6 +137,110 @@ export function LineChart({ data, series }: LineChartProps) {
   );
 }
 
+// ──────────────────────────────────────────────────────────────────────
+// EvolutionChart — grouped bars per day. Leads (blue) + Devis (purple)
+// + CA signé in k€ (green). The image's chart shape: thin bars side by
+// side, daily axis underneath. Y axis stays on the left.
+// ──────────────────────────────────────────────────────────────────────
+type EvolutionProps = { data: DailyTotals[] };
+
+export function EvolutionChart({ data }: EvolutionProps) {
+  const W = 720;
+  const H = 280;
+  const PAD_L = 36;
+  const PAD_R = 12;
+  const PAD_T = 12;
+  const PAD_B = 32;
+  const innerW = W - PAD_L - PAD_R;
+  const innerH = H - PAD_T - PAD_B;
+
+  if (data.length === 0) {
+    return <p className={styles.empty}>Aucune activité sur la période.</p>;
+  }
+
+  // Convert CA from € to k€ so the three series share the same y axis.
+  const series = data.map((d) => ({
+    date: d.date,
+    leads: d.leads,
+    devis: d.devisSent,
+    caK: d.caSigned / 1000,
+  }));
+
+  const maxY = Math.max(
+    ...series.map((d) => Math.max(d.leads, d.devis, d.caK)),
+    1,
+  );
+  const yTicks = niceTicks(0, maxY, 4);
+  const tickMax = yTicks[yTicks.length - 1];
+
+  const groupW = innerW / series.length;
+  const barW = Math.max(2, (groupW - 4) / 3);
+
+  const yPx = (v: number) => PAD_T + innerH - (v / tickMax) * innerH;
+
+  const labelStep = Math.max(1, Math.floor(series.length / 8));
+  const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit" });
+
+  return (
+    <div className={styles.lineWrap}>
+      <svg viewBox={`0 0 ${W} ${H}`} className={styles.line} role="img" aria-label="Évolution">
+        {yTicks.map((t) => (
+          <g key={t}>
+            <line x1={PAD_L} x2={W - PAD_R} y1={yPx(t)} y2={yPx(t)} className={styles.gridLine} />
+            <text x={PAD_L - 6} y={yPx(t)} className={styles.axisLabel} textAnchor="end" dominantBaseline="middle">
+              {t}
+            </text>
+          </g>
+        ))}
+        {series.map((d, i) => {
+          const x0 = PAD_L + i * groupW + (groupW - barW * 3) / 2;
+          return (
+            <g key={d.date}>
+              <rect
+                x={x0}
+                y={yPx(d.leads)}
+                width={barW}
+                height={Math.max(0, PAD_T + innerH - yPx(d.leads))}
+                fill="var(--tone-info)"
+                rx="1"
+              />
+              <rect
+                x={x0 + barW}
+                y={yPx(d.devis)}
+                width={barW}
+                height={Math.max(0, PAD_T + innerH - yPx(d.devis))}
+                fill="var(--color-brand-500)"
+                rx="1"
+              />
+              <rect
+                x={x0 + barW * 2}
+                y={yPx(d.caK)}
+                width={barW}
+                height={Math.max(0, PAD_T + innerH - yPx(d.caK))}
+                fill="var(--tone-success)"
+                rx="1"
+              />
+            </g>
+          );
+        })}
+        {series.map((d, i) =>
+          i % labelStep === 0 || i === series.length - 1 ? (
+            <text
+              key={`lab-${d.date}`}
+              x={PAD_L + i * groupW + groupW / 2}
+              y={H - 10}
+              className={styles.axisLabel}
+              textAnchor="middle"
+            >
+              {dateFmt.format(new Date(d.date))}
+            </text>
+          ) : null,
+        )}
+      </svg>
+    </div>
+  );
+}
+
 // "Nice" round tick values (1/2/5 × power-of-10).
 function niceTicks(min: number, max: number, target: number): number[] {
   const range = max - min || 1;

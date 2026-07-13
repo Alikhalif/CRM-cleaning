@@ -90,6 +90,12 @@ export type LeadRowJoined = {
   intervention_delay: string | null;
   intervention_delay_notes: string | null;
   notes: string | null;
+  // Découverte columns — optional so selects that don't fetch them still map.
+  announced_price?: number | null;
+  discovery_outcome?: string | null;
+  discovery_done_at?: string | null;
+  photos_requested_at?: string | null;
+  is_extreme?: boolean | null;
   activity: { slug: string } | null;
   source: { slug: string } | null;
   owner: OwnerRow | null;
@@ -132,6 +138,11 @@ export function mapLead(row: LeadRowJoined): Lead {
     interventionDelay: (row.intervention_delay ?? undefined) as Lead["interventionDelay"],
     interventionDelayNotes: row.intervention_delay_notes ?? undefined,
     notes: row.notes ?? undefined,
+    announcedPrice: row.announced_price ?? undefined,
+    discoveryOutcome: (row.discovery_outcome ?? undefined) as Lead["discoveryOutcome"],
+    discoveryDoneAt: row.discovery_done_at ?? undefined,
+    photosRequestedAt: row.photos_requested_at ?? undefined,
+    isExtreme: row.is_extreme ?? false,
   };
 }
 
@@ -147,6 +158,8 @@ type DocumentRow = {
   paid_at: string | null;
   acompte_pct: number | null;
   acompte_amount: number | null;
+  refusal_reason: string | null;
+  entity: { legal_name: string } | null;
 };
 
 function mapDocument(row: DocumentRow): CrmDocument {
@@ -162,6 +175,8 @@ function mapDocument(row: DocumentRow): CrmDocument {
     paidAt: row.paid_at ?? undefined,
     acomptePct: row.acompte_pct ?? undefined,
     acompteAmount: row.acompte_amount ?? undefined,
+    refusalReason: row.refusal_reason ?? undefined,
+    entityName: row.entity?.legal_name ?? undefined,
   };
 }
 
@@ -184,6 +199,8 @@ export async function getAllLeads(): Promise<Lead[]> {
         received_at, last_action_label, last_action_at, next_followup_at,
         is_urgent, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
         intervention_delay, intervention_delay_notes, notes,
+        announced_price, discovery_outcome, discovery_done_at,
+        photos_requested_at, is_extreme,
         activity:activities(slug),
         source:lead_sources(slug),
         owner:users!leads_owner_id_fkey(id, first_name, last_name, color)
@@ -251,6 +268,8 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
         received_at, last_action_label, last_action_at, next_followup_at,
         is_urgent, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
         intervention_delay, intervention_delay_notes, notes,
+        announced_price, discovery_outcome, discovery_done_at,
+        photos_requested_at, is_extreme,
         activity:activities(slug),
         source:lead_sources(slug),
         owner:users!leads_owner_id_fkey(id, first_name, last_name, color)
@@ -264,7 +283,8 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
   const { data: docs } = await supabase
     .from("documents")
     .select(
-      "id, num, type, status, lead_id, total_ttc, issued_at, signed_at, paid_at, acompte_pct, acompte_amount",
+      "id, num, type, status, lead_id, total_ttc, issued_at, signed_at, paid_at, " +
+      "acompte_pct, acompte_amount, refusal_reason, entity:legal_entities(legal_name)",
     )
     .eq("lead_id", lead.id)
     .order("issued_at", { ascending: false });

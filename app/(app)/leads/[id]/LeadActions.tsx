@@ -5,15 +5,13 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
 import { canLaunchSequence, type Commercial, type Lead } from "@/lib/leads";
-import { callLead, setLeadNrp } from "@/app/(app)/pipeline/actions";
+import { callLead, launchSequence, setLeadNrp, stopAutoSequence } from "@/app/(app)/pipeline/actions";
 import EditContactModal from "./EditContactModal";
 import MarkLostModal from "./MarkLostModal";
 import ReassignLeadModal from "./ReassignLeadModal";
 import styles from "./LeadDetail.module.scss";
 
-// Action buttons for the lead detail header. All handlers are stubs — they
-// confirm intent and surface what they *would* do once Supabase + n8n are
-// wired. None of them mutate persisted state today.
+// Action buttons for the lead detail header.
 
 type Props = { lead: Lead; commerciaux: Commercial[]; n8nEnabled: boolean };
 
@@ -56,24 +54,46 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled }: Props) {
     });
   };
 
-  const stub = (action: string, message: string) => {
-    setBusy(action);
-    // Yield to the browser so the button transition is visible before the alert blocks.
-    setTimeout(() => {
-      alert(message);
-      setBusy(null);
-    }, 0);
-  };
-
-  const onLaunch = () => {
+  const onLaunchAuto = () => {
     if (
       !confirm(
-        `Lancer la séquence de relance n8n pour « ${lead.client} » ?\n\n` +
-          "4 emails Brevo seront programmés. La séquence s'arrête dès que le client signe ou répond.",
+        `Activer le mode automatique pour « ${lead.client} » ?\n\n` +
+          "4 emails Brevo seront enchaînés via n8n (J+0, J+1, J+4, J+9). " +
+          "La séquence s'arrête dès que le client signe, refuse, ou que vous repassez en mode manuel.",
       )
     )
       return;
-    stub("sequence", "Stub : POST /webhook/relance-devis vers n8n.");
+    setBusy("auto");
+    startTransition(async () => {
+      const result = await launchSequence(lead.id);
+      setBusy(null);
+      if (!result.ok) {
+        alert(`Échec du démarrage : ${result.error}`);
+        return;
+      }
+      router.refresh();
+    });
+  };
+
+  const onSwitchManual = () => {
+    if (
+      !confirm(
+        `Passer « ${lead.client} » en mode manuel ?\n\n` +
+          "La séquence automatique sera interrompue avant le prochain email. " +
+          "Vous gérerez les relances vous-même.",
+      )
+    )
+      return;
+    setBusy("manual");
+    startTransition(async () => {
+      const result = await stopAutoSequence(lead.id);
+      setBusy(null);
+      if (!result.ok) {
+        alert(`Échec : ${result.error}`);
+        return;
+      }
+      router.refresh();
+    });
   };
 
   const onLostDone = () => {
@@ -93,6 +113,11 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled }: Props) {
 
   const eligible = canLaunchSequence(lead, n8nEnabled);
   const closed = lead.status === "encaisse" || lead.status === "perdu";
+  // The Auto/Manuel toggle is shown whenever a sequence could be running or
+  // started. Manuel is the interrupt; Auto is the launcher.
+  const inSequenceZone =
+    n8nEnabled && (lead.status === "envoye" || lead.status === "ouvert");
+  const isAutoActive = inSequenceZone && lead.subEnvoi === "auto";
 
   return (
     <div className={styles.actions}>
@@ -117,15 +142,39 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled }: Props) {
           <Icon name="check" size={14} /> Générer devis
         </Link>
       )}
-      {eligible && (
-        <button
-          type="button"
-          className={styles.btn}
-          disabled={busy !== null}
-          onClick={onLaunch}
+      {(eligible || inSequenceZone) && (
+        <div
+          className={styles.modeToggle}
+          role="group"
+          aria-label="Mode de relance"
         >
-          <Icon name="zap" size={14} /> Lancer séquence
-        </button>
+          <button
+            type="button"
+            className={`${styles.btn} ${isAutoActive ? styles.btnPrimary : ""}`}
+            disabled={busy !== null || isAutoActive}
+            onClick={onLaunchAuto}
+            title="Lance la séquence n8n (4 emails Brevo)"
+            aria-pressed={isAutoActive}
+          >
+            <Icon name="zap" size={14} />
+            {busy === "auto" ? "Démarrage…" : "Automatique"}
+          </button>
+          <button
+            type="button"
+            className={`${styles.btn} ${!isAutoActive && inSequenceZone ? styles.btnPrimary : ""}`}
+            disabled={busy !== null || (!isAutoActive && !inSequenceZone)}
+            onClick={onSwitchManual}
+            title={
+              isAutoActive
+                ? "Interrompt la séquence automatique au prochain check"
+                : "Mode manuel actif — vous gérez les relances"
+            }
+            aria-pressed={!isAutoActive && inSequenceZone}
+          >
+            <Icon name="phone" size={14} />
+            {busy === "manual" ? "Arrêt…" : "Manuel"}
+          </button>
+        </div>
       )}
       <button
         type="button"

@@ -9,9 +9,9 @@ import {
 import type { Sector } from "./leads";
 
 // Fetches raw leads + documents from Supabase and buckets them into the
-// DailyMetric[] shape the Dashboard's existing aggregators already consume.
-// owner_id flows all the way through so topCommerciaux can rank by actual
-// commercial instead of fake-distributing team totals.
+// DailyMetric[] shape the Dashboard's existing aggregators consume.
+// owner_id and source slug flow all the way through so per-commercial
+// rankings and the phone/form acquisition split read from real data.
 
 type LeadRow = {
   received_at: string;
@@ -20,6 +20,7 @@ type LeadRow = {
   estimated_amount: number | null;
   owner_id: string | null;
   activity: { slug: string } | null;
+  source: { slug: string } | null;
 };
 
 type DocRow = {
@@ -44,7 +45,8 @@ export async function getDashboardSeries(): Promise<DailyMetric[]> {
       .from("leads")
       .select(
         `received_at, status, sub_envoi, estimated_amount, owner_id,
-         activity:activities(slug)`,
+         activity:activities(slug),
+         source:lead_sources(slug)`,
       )
       .returns<LeadRow[]>(),
     supabase
@@ -65,6 +67,7 @@ export async function getDashboardSeries(): Promise<DailyMetric[]> {
       ownerId: l.owner_id,
       status: l.status,
       amount: Number(l.estimated_amount ?? 0),
+      sourceKind: l.source?.slug === "telephone" ? "phone" : "form",
     }));
 
   const docs: RawDoc[] = (docsRes.data ?? [])
@@ -85,4 +88,80 @@ export async function getDashboardSeries(): Promise<DailyMetric[]> {
     }));
 
   return buildDailySeriesFromRows(leads, docs);
+}
+
+// ── Immobilier / Travaux annotations (CDC §3.5 — admin-only) ──────────
+export type ImmobAnnotation = {
+  leadId: string;
+  shortId: string;
+  client: string;
+  segment: "immobilier" | "travaux" | "les_deux" | null;
+  annotation: string;
+  ownerName: string | null;
+  ownerInitials: string | null;
+  ownerColor: string | null;
+  sectorSlug: Sector | null;
+  amount: number;
+  createdAt: string;
+};
+
+type AnnotRow = {
+  id: string;
+  short_id: string;
+  client_first_name: string | null;
+  client_last_name: string | null;
+  client_company: string | null;
+  is_company: boolean;
+  immob_travaux_annotation: string | null;
+  annotation_segment: string | null;
+  estimated_amount: number | null;
+  received_at: string;
+  activity: { slug: string } | null;
+  owner: { first_name: string | null; last_name: string | null; color: string | null } | null;
+};
+
+export async function getImmobAnnotations(): Promise<ImmobAnnotation[]> {
+  const supabase = await supabaseServer();
+  const { data } = await supabase
+    .from("leads")
+    .select(
+      `id, short_id, client_first_name, client_last_name, client_company, is_company,
+       immob_travaux_annotation, annotation_segment, estimated_amount, received_at,
+       activity:activities(slug),
+       owner:users(first_name, last_name, color)`,
+    )
+    .not("immob_travaux_annotation", "is", null)
+    .order("received_at", { ascending: false })
+    .limit(50);
+
+  // The .not() filter narrows postgrest's generic to `never`; cast at the
+  // SDK boundary (same pattern used by leads-server.ts elsewhere). The
+  // typed shape is captured by AnnotRow above.
+  const rows = (data as AnnotRow[] | null) ?? [];
+
+  return rows.map((r) => {
+    const composed = r.is_company
+      ? (r.client_company ?? "")
+      : `${r.client_first_name ?? ""} ${r.client_last_name ?? ""}`.trim();
+    const ownerFirst = r.owner?.first_name ?? "";
+    const ownerLast = r.owner?.last_name ?? "";
+    const ownerName = `${ownerFirst} ${ownerLast}`.trim() || null;
+    const initials = ownerName ? ((ownerFirst[0] ?? "") + (ownerLast[0] ?? "")).toUpperCase() : null;
+    const seg = r.annotation_segment;
+    const normalisedSeg: ImmobAnnotation["segment"] =
+      seg === "immobilier" || seg === "travaux" || seg === "les_deux" ? seg : null;
+    return {
+      leadId: r.id,
+      shortId: r.short_id,
+      client: composed || "Sans nom",
+      segment: normalisedSeg,
+      annotation: r.immob_travaux_annotation ?? "",
+      ownerName,
+      ownerInitials: initials,
+      ownerColor: r.owner?.color ?? null,
+      sectorSlug: (r.activity?.slug as Sector) ?? null,
+      amount: Number(r.estimated_amount ?? 0),
+      createdAt: r.received_at,
+    };
+  });
 }

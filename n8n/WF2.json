@@ -1,0 +1,401 @@
+{
+  "name": "WF2 - Relance Devis (Simple)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "relance-devis",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "01-trigger",
+      "name": "Trigger (CRM → n8n)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [180, 360],
+      "webhookId": "wf2-relance-devis"
+    },
+    {
+      "parameters": {
+        "jsCode": "const expected = $env.WF2_TRIGGER_SECRET;\nconst got = $input.first().json.headers['x-trigger-secret'] ?? '';\nif (!expected || got !== expected) {\n  throw new Error('UNAUTHORIZED');\n}\nconst body = $input.first().json.body ?? {};\nif (!body.lead_id || !body.client_email) {\n  throw new Error('MISSING_FIELDS: lead_id and client_email are required');\n}\nreturn [{ json: {\n  lead_id: body.lead_id,\n  client_email: body.client_email,\n  client_first_name: body.client_first_name ?? '',\n  commercial_name: body.commercial_name ?? 'Notre équipe',\n  quote_url: body.quote_url ?? '',\n  quote_ref: body.quote_ref ?? ''\n}}];"
+      },
+      "id": "02-auth",
+      "name": "Check Trigger Secret",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 360]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.CRM_BASE_URL }}/api/leads/{{ $json.lead_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ status: 'envoye', source: 'n8n-wf2-simple' }) }}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "03-mark-envoye",
+      "name": "CRM: status=envoye",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [620, 360],
+      "credentials": {
+        "httpHeaderAuth": { "id": "crm-bearer", "name": "CRM Bearer" }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "accept", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: [{ email: $('Check Trigger Secret').first().json.client_email }], templateId: parseInt($env.BREVO_TPL_E1, 10), params: { FIRST_NAME: $('Check Trigger Secret').first().json.client_first_name, COMMERCIAL_NAME: $('Check Trigger Secret').first().json.commercial_name, QUOTE_URL: $('Check Trigger Secret').first().json.quote_url, QUOTE_REF: $('Check Trigger Secret').first().json.quote_ref } }) }}",
+        "options": { "timeout": 12000 }
+      },
+      "id": "04-send-e1",
+      "name": "Send Email 1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [840, 360],
+      "credentials": {
+        "httpHeaderAuth": { "id": "brevo-api-key", "name": "Brevo API key" }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 24,
+        "unit": "hours"
+      },
+      "id": "05-wait-1",
+      "name": "Wait 24h",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1060, 360]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.CRM_BASE_URL }}/api/leads/{{ $('Check Trigger Secret').first().json.lead_id }}/status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "timeout": 10000 }
+      },
+      "id": "06-check-1",
+      "name": "Check Status (before E2)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1280, 360],
+      "credentials": {
+        "httpHeaderAuth": { "id": "crm-bearer", "name": "CRM Bearer" }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.active === false }}",
+              "rightValue": "true",
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "07-stop-1",
+      "name": "Stop if signé/perdu?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1500, 360]
+    },
+    {
+      "parameters": {},
+      "id": "08-stop-final-1",
+      "name": "Done (stopped at E1)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1720, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "accept", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: [{ email: $('Check Trigger Secret').first().json.client_email }], templateId: parseInt($env.BREVO_TPL_E2, 10), params: { FIRST_NAME: $('Check Trigger Secret').first().json.client_first_name, COMMERCIAL_NAME: $('Check Trigger Secret').first().json.commercial_name, QUOTE_URL: $('Check Trigger Secret').first().json.quote_url, QUOTE_REF: $('Check Trigger Secret').first().json.quote_ref } }) }}",
+        "options": { "timeout": 12000 }
+      },
+      "id": "09-send-e2",
+      "name": "Send Email 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1720, 520],
+      "credentials": {
+        "httpHeaderAuth": { "id": "brevo-api-key", "name": "Brevo API key" }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 72,
+        "unit": "hours"
+      },
+      "id": "10-wait-2",
+      "name": "Wait 72h",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1940, 520]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.CRM_BASE_URL }}/api/leads/{{ $('Check Trigger Secret').first().json.lead_id }}/status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "timeout": 10000 }
+      },
+      "id": "11-check-2",
+      "name": "Check Status (before E3)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2160, 520],
+      "credentials": {
+        "httpHeaderAuth": { "id": "crm-bearer", "name": "CRM Bearer" }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.active === false }}",
+              "rightValue": "true",
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "12-stop-2",
+      "name": "Stop if signé/perdu? (2)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [2380, 520]
+    },
+    {
+      "parameters": {},
+      "id": "13-stop-final-2",
+      "name": "Done (stopped at E2)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2600, 380]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "accept", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: [{ email: $('Check Trigger Secret').first().json.client_email }], templateId: parseInt($env.BREVO_TPL_E3, 10), params: { FIRST_NAME: $('Check Trigger Secret').first().json.client_first_name, COMMERCIAL_NAME: $('Check Trigger Secret').first().json.commercial_name, QUOTE_URL: $('Check Trigger Secret').first().json.quote_url, QUOTE_REF: $('Check Trigger Secret').first().json.quote_ref } }) }}",
+        "options": { "timeout": 12000 }
+      },
+      "id": "14-send-e3",
+      "name": "Send Email 3",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2600, 660],
+      "credentials": {
+        "httpHeaderAuth": { "id": "brevo-api-key", "name": "Brevo API key" }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 120,
+        "unit": "hours"
+      },
+      "id": "15-wait-3",
+      "name": "Wait 120h",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2820, 660]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.CRM_BASE_URL }}/api/leads/{{ $('Check Trigger Secret').first().json.lead_id }}/status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": { "timeout": 10000 }
+      },
+      "id": "16-check-3",
+      "name": "Check Status (before E4)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3040, 660],
+      "credentials": {
+        "httpHeaderAuth": { "id": "crm-bearer", "name": "CRM Bearer" }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.active === false }}",
+              "rightValue": "true",
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "17-stop-3",
+      "name": "Stop if signé/perdu? (3)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [3260, 660]
+    },
+    {
+      "parameters": {},
+      "id": "18-stop-final-3",
+      "name": "Done (stopped at E3)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [3480, 520]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "accept", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: [{ email: $('Check Trigger Secret').first().json.client_email }], templateId: parseInt($env.BREVO_TPL_E4, 10), params: { FIRST_NAME: $('Check Trigger Secret').first().json.client_first_name, COMMERCIAL_NAME: $('Check Trigger Secret').first().json.commercial_name, QUOTE_URL: $('Check Trigger Secret').first().json.quote_url, QUOTE_REF: $('Check Trigger Secret').first().json.quote_ref } }) }}",
+        "options": { "timeout": 12000 }
+      },
+      "id": "19-send-e4",
+      "name": "Send Email 4",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3480, 800],
+      "credentials": {
+        "httpHeaderAuth": { "id": "brevo-api-key", "name": "Brevo API key" }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "20-done",
+      "name": "Done (E4 sent)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [3700, 800]
+    }
+  ],
+  "connections": {
+    "Trigger (CRM → n8n)": {
+      "main": [[{ "node": "Check Trigger Secret", "type": "main", "index": 0 }]]
+    },
+    "Check Trigger Secret": {
+      "main": [[{ "node": "CRM: status=envoye", "type": "main", "index": 0 }]]
+    },
+    "CRM: status=envoye": {
+      "main": [[{ "node": "Send Email 1", "type": "main", "index": 0 }]]
+    },
+    "Send Email 1": {
+      "main": [[{ "node": "Wait 24h", "type": "main", "index": 0 }]]
+    },
+    "Wait 24h": {
+      "main": [[{ "node": "Check Status (before E2)", "type": "main", "index": 0 }]]
+    },
+    "Check Status (before E2)": {
+      "main": [[{ "node": "Stop if signé/perdu?", "type": "main", "index": 0 }]]
+    },
+    "Stop if signé/perdu?": {
+      "main": [
+        [{ "node": "Done (stopped at E1)", "type": "main", "index": 0 }],
+        [{ "node": "Send Email 2", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Email 2": {
+      "main": [[{ "node": "Wait 72h", "type": "main", "index": 0 }]]
+    },
+    "Wait 72h": {
+      "main": [[{ "node": "Check Status (before E3)", "type": "main", "index": 0 }]]
+    },
+    "Check Status (before E3)": {
+      "main": [[{ "node": "Stop if signé/perdu? (2)", "type": "main", "index": 0 }]]
+    },
+    "Stop if signé/perdu? (2)": {
+      "main": [
+        [{ "node": "Done (stopped at E2)", "type": "main", "index": 0 }],
+        [{ "node": "Send Email 3", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Email 3": {
+      "main": [[{ "node": "Wait 120h", "type": "main", "index": 0 }]]
+    },
+    "Wait 120h": {
+      "main": [[{ "node": "Check Status (before E4)", "type": "main", "index": 0 }]]
+    },
+    "Check Status (before E4)": {
+      "main": [[{ "node": "Stop if signé/perdu? (3)", "type": "main", "index": 0 }]]
+    },
+    "Stop if signé/perdu? (3)": {
+      "main": [
+        [{ "node": "Done (stopped at E3)", "type": "main", "index": 0 }],
+        [{ "node": "Send Email 4", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Email 4": {
+      "main": [[{ "node": "Done (E4 sent)", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": ["wf2", "simple"],
+  "active": false
+}

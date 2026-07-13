@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
@@ -8,6 +9,7 @@ import {
   duplicateDocument,
   markDocumentPaid,
   markDocumentSent,
+  markDocumentSigned,
 } from "./document-actions";
 import MarkRefusedModal from "./MarkRefusedModal";
 import SendEmailModal from "./SendEmailModal";
@@ -61,6 +63,30 @@ export default function DocumentActions({ doc, lead, entity }: Props) {
     if (!confirm(`Marquer la facture ${doc.num} comme payée ?`)) return;
     run("paid", () => markDocumentPaid(doc.id));
   };
+  const onMarkSigned = () => {
+    const msg =
+      doc.acomptePct && doc.acomptePct > 0
+        ? `Marquer le devis ${doc.num} comme signé ?\n\nUne facture d'acompte (${doc.acomptePct}%) sera générée automatiquement.`
+        : `Marquer le devis ${doc.num} comme signé ?`;
+    if (!confirm(msg)) return;
+    setError(null);
+    setBusy("signed");
+    startTransition(async () => {
+      const result = await markDocumentSigned(doc.id);
+      setBusy(null);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      // If an acompte was created, deep-link to it so the planificatrice can
+      // see it immediately. Otherwise just refresh.
+      if (result.acompteId) {
+        router.push(`/factures/${result.acompteId}`);
+        return;
+      }
+      router.refresh();
+    });
+  };
   const onDuplicate = () => {
     setError(null);
     setBusy("dup");
@@ -80,8 +106,15 @@ export default function DocumentActions({ doc, lead, entity }: Props) {
   const isDevisDraft = doc.type === "devis" && doc.status === "brouillon";
   const isInvoice = doc.type !== "devis";
   const isPaid = doc.status === "paye";
+  // Sign is meaningful when the devis has been sent/opened but not yet
+  // signed/refused — the same window during which the client can still act.
+  const canSign =
+    doc.type === "devis" && (doc.status === "envoye" || doc.status === "ouvert");
   // Refusal is only meaningful on a devis that hasn't been signed/refused already.
   const canRefuse = doc.type === "devis" && doc.status !== "signe" && doc.status !== "refuse";
+  // Once refused, offer the cheaper re-quote flow (call 2026-06-10): seed a new
+  // devis from this one so the commercial switches société and lowers the price.
+  const isRefusedDevis = doc.type === "devis" && doc.status === "refuse";
 
   return (
     <>
@@ -125,6 +158,23 @@ export default function DocumentActions({ doc, lead, entity }: Props) {
           {busy === "dup" ? "Duplication…" : "Dupliquer"}
         </button>
 
+        {canSign && (
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnSuccess}`}
+            disabled={busy !== null}
+            onClick={onMarkSigned}
+            title={
+              doc.acomptePct && doc.acomptePct > 0
+                ? `Signature + génération auto de la facture d'acompte (${doc.acomptePct}%)`
+                : "Marquer le devis comme signé"
+            }
+          >
+            <Icon name="check" size={14} />
+            {busy === "signed" ? "Signature…" : "Marquer signé"}
+          </button>
+        )}
+
         {isInvoice && !isPaid && (
           <button
             type="button"
@@ -145,6 +195,16 @@ export default function DocumentActions({ doc, lead, entity }: Props) {
           >
             Marquer refusé
           </button>
+        )}
+
+        {isRefusedDevis && (
+          <Link
+            href={`/devis/new?from=${doc.id}`}
+            className={`${styles.btn} ${styles.btnPrimary}`}
+            title="Créer un nouveau devis moins cher (autre société), lignes reprises"
+          >
+            <Icon name="check" size={14} /> Renvoyer moins cher
+          </Link>
         )}
 
       </nav>

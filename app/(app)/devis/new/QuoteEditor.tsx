@@ -14,6 +14,7 @@ import {
 } from "@/lib/leads";
 import type {
   ClientOption,
+  DevisPrefill,
   EntityOption,
   LeadContext,
   PrestationOption,
@@ -49,6 +50,7 @@ type Props = {
   prestations: PrestationOption[];
   leadContext: LeadContext | null;
   preselectedClientId: string | null;
+  prefill: DevisPrefill | null;
 };
 
 function today(): string {
@@ -70,11 +72,13 @@ function buildInitialDraft(
   entities: EntityOption[],
   leadContext: LeadContext | null,
   preselectedClientId: string | null,
+  prefill: DevisPrefill | null,
 ): Draft {
-  // Resolve a client id from either the explicit ?client= param or by
-  // following the lead's source_lead_id → matching client (lead-origin
+  // Resolve a client id from the prefill source, the explicit ?client= param,
+  // or by following the lead's source_lead_id → matching client (lead-origin
   // clients have source_lead_id = lead.id).
   const resolvedClient =
+    (prefill?.clientId && clients.find((c) => c.id === prefill.clientId)) ||
     (preselectedClientId && clients.find((c) => c.id === preselectedClientId)) ||
     (leadContext && clients.find((c) => c.sourceLeadId === leadContext.id)) ||
     null;
@@ -84,13 +88,24 @@ function buildInitialDraft(
 
   return {
     clientId: resolvedClient?.id ?? "",
-    entityId: entities[0]?.id ?? "",
+    // Keep the source société pre-selected so the commercial consciously
+    // switches to another one for the cheaper re-quote.
+    entityId: prefill?.entityId ?? entities[0]?.id ?? "",
     issuedAt,
     validUntil: plusDays(issuedAt, 30),
     paymentTermSlug: sector ? DEFAULT_PAYMENT_TERM[sector] : "30j",
-    acomptePct: sector ? DEFAULT_ACOMPTE_PCT[sector] : 0,
-    notes: "",
-    lines: [],
+    acomptePct: prefill ? prefill.acomptePct : sector ? DEFAULT_ACOMPTE_PCT[sector] : 0,
+    notes: prefill?.notes ?? "",
+    lines: (prefill?.lines ?? []).map((l) => ({
+      id: makeLineId(),
+      prestationId: l.prestationId,
+      label: l.label,
+      quantity: l.quantity,
+      unit: l.unit,
+      unitPriceHt: l.unitPriceHt,
+      vatRate: l.vatRate,
+      discountPct: l.discountPct,
+    })),
   };
 }
 
@@ -100,11 +115,12 @@ export default function QuoteEditor({
   prestations,
   leadContext,
   preselectedClientId,
+  prefill,
 }: Props) {
   const router = useRouter();
 
   const [draft, setDraft] = useState<Draft>(() =>
-    buildInitialDraft(clients, entities, leadContext, preselectedClientId),
+    buildInitialDraft(clients, entities, leadContext, preselectedClientId, prefill),
   );
   const [picker, setPicker] = useState("");
   const [submitting, setSubmitting] = useState<CreateDevisIntent | "preview" | null>(null);
@@ -312,7 +328,7 @@ export default function QuoteEditor({
         <span>Nouveau devis</span>
       </nav>
       <header>
-        <h1 className={styles.title}>Nouveau devis</h1>
+        <h1 className={styles.title}>{prefill ? "Nouveau devis (moins cher)" : "Nouveau devis"}</h1>
         <p className={styles.subtitle}>
           Éditeur ligne par ligne · pré-rempli depuis le lead/client de contexte
           {leadContext && (
@@ -320,6 +336,28 @@ export default function QuoteEditor({
           )}
         </p>
       </header>
+
+      {prefill && (
+        <div
+          role="status"
+          style={{
+            marginTop: "var(--sp-3)",
+            padding: "var(--sp-3) var(--sp-4)",
+            borderRadius: "var(--r-md)",
+            background: "color-mix(in srgb, var(--tone-warning) 12%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--tone-warning) 45%, transparent)",
+            fontSize: "0.875rem",
+            lineHeight: 1.5,
+          }}
+        >
+          <strong>Re-devis à prix inférieur</strong> — basé sur{" "}
+          <strong>{prefill.sourceNum}</strong>, refusé à{" "}
+          <strong>{formatEUR(prefill.sourceTotalTtc)}</strong> TTC
+          {prefill.sourceRefusalReason ? <> (motif : {prefill.sourceRefusalReason})</> : null}.
+          {" "}Les lignes sont reprises ; choisissez une autre <strong>société émettrice</strong>{" "}
+          et proposez un montant <strong>inférieur</strong> avant d&apos;envoyer.
+        </div>
+      )}
 
       <div className={styles.layout}>
         <div className={styles.main}>

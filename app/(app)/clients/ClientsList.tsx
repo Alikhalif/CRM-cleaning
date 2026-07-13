@@ -25,10 +25,13 @@ type Row = {
 
 type Props = { rows: Row[] };
 
+const SECTORS: Sector[] = ["urgence", "nettoyage", "enr", "renovation", "debarras"];
+
 export default function ClientsList({ rows }: Props) {
   const [search, setSearch] = useState("");
   const [type, setType] = useState<ClientType | "all">("all");
   const [origin, setOrigin] = useState<ClientOrigin | "all">("all");
+  const [sector, setSector] = useState<Sector | "all">("all");
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -36,6 +39,7 @@ export default function ClientsList({ rows }: Props) {
       .filter(({ client: c }) => {
         if (type !== "all" && c.type !== type) return false;
         if (origin !== "all" && c.origin !== origin) return false;
+        if (sector !== "all" && !c.sectors.includes(sector)) return false;
         if (q) {
           const hay = `${c.name} ${c.contactName ?? ""} ${c.email} ${c.phone} ${c.city}`.toLowerCase();
           if (!hay.includes(q)) return false;
@@ -43,7 +47,7 @@ export default function ClientsList({ rows }: Props) {
         return true;
       })
       .sort((a, b) => +new Date(b.lastActivityAt) - +new Date(a.lastActivityAt));
-  }, [rows, search, type, origin]);
+  }, [rows, search, type, origin, sector]);
 
   return (
     <div className={styles.wrap}>
@@ -80,6 +84,18 @@ export default function ClientsList({ rows }: Props) {
           <option value="all">Toutes les origines</option>
           <option value="lead">Issus d&apos;un lead</option>
           <option value="direct">Clients directs</option>
+        </select>
+
+        <select
+          value={sector}
+          onChange={(e) => setSector(e.target.value as Sector | "all")}
+          className={styles.select}
+          aria-label="Filtrer par secteur"
+        >
+          <option value="all">Tous les secteurs</option>
+          {SECTORS.map((s) => (
+            <option key={s} value={s}>{SECTOR_LABEL[s]}</option>
+          ))}
         </select>
 
         <Link href="/clients/new" className={styles.newBtn}>

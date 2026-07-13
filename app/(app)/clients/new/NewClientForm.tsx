@@ -13,7 +13,7 @@ import {
 import { createDirectClient } from "./actions";
 import styles from "./NewClient.module.scss";
 
-const SECTORS: Sector[] = ["urgence", "nettoyage", "enr", "renovation"];
+const SECTORS: Sector[] = ["urgence", "nettoyage", "enr", "renovation", "debarras"];
 
 export default function NewClientForm() {
   const router = useRouter();

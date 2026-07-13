@@ -194,6 +194,7 @@ export default function RoutingRuleModal({ existing, commerciaux, onClose, onDon
                   <option value="nettoyage">Nettoyage</option>
                   <option value="enr">ENR</option>
                   <option value="renovation">Rénovation</option>
+                  <option value="debarras">Débarras</option>
                 </select>
               </label>
               <label className={styles.field}>

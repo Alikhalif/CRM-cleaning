@@ -47,6 +47,206 @@ export async function markDocumentSent(id: string): Promise<Result> {
   return { ok: true };
 }
 
+// ── Mark a devis as signed (CDC §2.3 / §6).
+//
+// Single entry-point for "the devis just got signed". Handles three things
+// in one atomic-ish flow:
+//   1. The devis row → status='signe', signed_at=now
+//   2. The linked lead → status='signe' if not already past it
+//   3. If acompte_amount > 0 AND no acompte invoice exists yet for this
+//      devis → auto-generates an FA-YYYY-XXXX (status='envoye') so the
+//      planificatrice's queue picks it up immediately.
+//
+// Idempotent: signing an already-signed devis returns ok=true with no-op.
+// The acompte guard checks `related_devis_id` so re-running this never
+// duplicates the deposit invoice.
+export type MarkSignedResult =
+  | { ok: true; acompteId?: string; acompteNum?: string }
+  | { ok: false; error: string };
+
+export async function markDocumentSigned(id: string): Promise<MarkSignedResult> {
+  const supabase = await supabaseServer();
+
+  const { data: doc, error: docErr } = await supabase
+    .from("documents")
+    .select(
+      "id, type, status, num, lead_id, client_id, entity_id, activity_id, " +
+      "payment_term_id, total_ht, total_vat, total_ttc, " +
+      "acompte_pct, acompte_amount, solde_du",
+    )
+    .eq("id", id)
+    .maybeSingle<{
+      id: string;
+      type: DocumentType;
+      status: string;
+      num: string;
+      lead_id: string | null;
+      client_id: string | null;
+      entity_id: string;
+      activity_id: string | null;
+      payment_term_id: string | null;
+      total_ht: number;
+      total_vat: number;
+      total_ttc: number;
+      acompte_pct: number | null;
+      acompte_amount: number | null;
+      solde_du: number | null;
+    }>();
+  if (docErr || !doc) return { ok: false, error: "Document introuvable." };
+  if (doc.type !== "devis") return { ok: false, error: "Seul un devis peut être signé." };
+  if (doc.status === "refuse") return { ok: false, error: "Un devis refusé ne peut pas être signé." };
+
+  const now = new Date().toISOString();
+
+  // ── 1. Devis status update (only if not already signed) ──────────────
+  if (doc.status !== "signe") {
+    const docUpdate: DocumentUpdate = { status: "signe", signed_at: now };
+    const { error: signErr } = await supabase
+      .from("documents")
+      .update(docUpdate as never)
+      .eq("id", id);
+    if (signErr) return { ok: false, error: `Signature : ${signErr.message}` };
+  }
+
+  // ── 2. Lead status sync ──────────────────────────────────────────────
+  if (doc.lead_id) {
+    await supabase
+      .from("leads")
+      .update({
+        status: "signe",
+        last_action_label: `Devis ${doc.num} signé`,
+        last_action_at: now,
+      } as never)
+      .eq("id", doc.lead_id)
+      .in("status", ["lead", "envoye", "ouvert"]);
+  }
+
+  // ── 3. Acompte auto-generation ───────────────────────────────────────
+  // Only when an acompte amount was actually set on the devis. The CDC §2.3
+  // expects this trigger on "Signé · Avec acompte" — we treat acompte_amount
+  // as the authoritative signal (a devis with 0% acompte simply never
+  // produced an FA), independent of the lead's sub_signature flag.
+  if (doc.acompte_amount && doc.acompte_amount > 0) {
+    // Idempotency guard: if an acompte already exists for this devis,
+    // skip generation. The (related_devis_id, type='acompte') pair is
+    // effectively unique by business rule.
+    const { data: existing } = await supabase
+      .from("documents")
+      .select("id, num")
+      .eq("related_devis_id", id)
+      .eq("type", "acompte")
+      .maybeSingle<{ id: string; num: string }>();
+    if (existing) {
+      revalidatePath("/comptabilite");
+      revalidatePath(`/devis/${id}`);
+      if (doc.lead_id) revalidatePath(`/leads/${doc.lead_id}`);
+      await auditLog({
+        action: "document.signed",
+        entityType: "document",
+        entityId: id,
+        after: { num: doc.num, acompte_existing: existing.num },
+      });
+      return { ok: true, acompteId: existing.id, acompteNum: existing.num };
+    }
+
+    // Allocate FA number via the gapless sequence.
+    const year = new Date(now).getFullYear();
+    const { data: numData, error: numErr } = await supabase.rpc(
+      "next_doc_num",
+      { p_type: "acompte", p_year: year } as never,
+    );
+    if (numErr || !numData) {
+      return { ok: false, error: `Allocation numéro acompte : ${numErr?.message ?? "inconnu"}.` };
+    }
+    const num = numData as string;
+
+    // The acompte VAT inherits the devis's effective VAT ratio so the FA
+    // matches the devis's tax profile. For a single-VAT-rate devis this
+    // produces the exact same rate; for a mixed-rate devis it produces the
+    // weighted average — the right answer for an acompte that doesn't
+    // detail individual lines.
+    const ttc = doc.acompte_amount;
+    const ratio = doc.total_ttc > 0 ? doc.total_ht / doc.total_ttc : 1;
+    const totalHt = Math.round(ttc * ratio * 100) / 100;
+    const totalVat = Math.round((ttc - totalHt) * 100) / 100;
+
+    const acomptePayload: DocumentInsert = {
+      type: "acompte",
+      num,
+      status: "envoye",
+      lead_id: doc.lead_id,
+      client_id: doc.client_id,
+      entity_id: doc.entity_id,
+      activity_id: doc.activity_id,
+      payment_term_id: doc.payment_term_id,
+      issued_at: now,
+      total_ht: totalHt,
+      total_vat: totalVat,
+      total_ttc: ttc,
+      acompte_pct: doc.acompte_pct,
+      acompte_amount: ttc,
+      related_devis_id: id,
+    };
+    const { data: ins, error: insErr } = await supabase
+      .from("documents")
+      .insert(acomptePayload as never)
+      .select("id, num")
+      .maybeSingle<{ id: string; num: string }>();
+    if (insErr || !ins) {
+      return { ok: false, error: `Création FA : ${insErr?.message ?? "inconnu"}.` };
+    }
+
+    // Single descriptive line on the acompte. Lets the PDF/preview render
+    // a sensible body without having to join back to the devis lines.
+    const lineLabel = `Acompte ${doc.acompte_pct ?? Math.round((ttc / doc.total_ttc) * 100)}% sur devis ${doc.num}`;
+    await supabase
+      .from("document_lines")
+      .insert([
+        {
+          document_id: ins.id,
+          label: lineLabel,
+          quantity: 1,
+          unit: "forfait",
+          unit_price_ht: totalHt,
+          vat_rate: doc.total_ht > 0 ? Math.round((totalVat / totalHt) * 10000) / 100 : 0,
+          discount_pct: 0,
+          total_ht: totalHt,
+          order_index: 0,
+        },
+      ] as never);
+
+    revalidatePath("/comptabilite");
+    revalidatePath(`/devis/${id}`);
+    if (doc.lead_id) revalidatePath(`/leads/${doc.lead_id}`);
+    revalidatePath("/planification");
+    await auditLog({
+      action: "document.signed",
+      entityType: "document",
+      entityId: id,
+      after: { num: doc.num, acompte_num: ins.num, acompte_id: ins.id },
+    });
+    await auditLog({
+      action: "document.acompte.auto_create",
+      entityType: "document",
+      entityId: ins.id,
+      after: { num: ins.num, source_devis: doc.num, amount_ttc: ttc },
+    });
+    return { ok: true, acompteId: ins.id, acompteNum: ins.num };
+  }
+
+  // No acompte path
+  revalidatePath("/comptabilite");
+  revalidatePath(`/devis/${id}`);
+  if (doc.lead_id) revalidatePath(`/leads/${doc.lead_id}`);
+  await auditLog({
+    action: "document.signed",
+    entityType: "document",
+    entityId: id,
+    after: { num: doc.num, acompte: null },
+  });
+  return { ok: true };
+}
+
 // ── Mark a devis as refused with a capture motif. CDC §2.3 / §4.4:
 // captures WHY the devis was rejected so the commercial can issue a
 // follow-up devis with adjusted pricing/scope. Only valid on devis (and
