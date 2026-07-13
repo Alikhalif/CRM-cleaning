@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Icon from "@/components/Icon/Icon";
 import { DOC_TYPE_LABEL, type CrmDocument } from "@/lib/leads";
+import { buildFinalInvoiceMessage } from "@/lib/templates";
 import {
   sendDocumentByEmail,
   type SendEmailInput,
@@ -30,12 +31,20 @@ export default function SendEmailModal({
   onClose,
   onDone,
 }: Props) {
+  // Facture finale gets a dedicated accompaniment template; other docs keep
+  // the generic default. Both stay editable before send.
+  const finaleTpl =
+    doc.type === "finale"
+      ? buildFinalInvoiceMessage({ clientName: defaultRecipientName, docNum: doc.num, entityName })
+      : null;
   const [recipient, setRecipient] = useState(defaultRecipient);
   const [subject, setSubject] = useState(
-    `${DOC_TYPE_LABEL[doc.type]} ${doc.num} — ${entityName}`,
+    finaleTpl ? finaleTpl.subject : `${DOC_TYPE_LABEL[doc.type]} ${doc.num} — ${entityName}`,
   );
   const [message, setMessage] = useState(
-    `Bonjour ${defaultRecipientName || ""},
+    finaleTpl
+      ? finaleTpl.message
+      : `Bonjour ${defaultRecipientName || ""},
 
 Veuillez trouver ci-joint ${doc.type === "devis" ? "notre devis" : "votre facture"} ${doc.num}.
 

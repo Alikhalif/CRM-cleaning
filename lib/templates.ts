@@ -51,6 +51,26 @@ export function buildPhotoRequestSms(input: {
 }
 
 // ── Accompagnement de la facture finale ──────────────────────────────
+// Plain-text variant for the SendEmailModal (which wraps the message into
+// HTML and attaches the PDF itself). Editable by the commercial before send.
+export function buildFinalInvoiceMessage(input: {
+  clientName: string;
+  docNum: string;
+  entityName: string;
+}): { subject: string; message: string } {
+  return {
+    subject: `Votre facture ${input.docNum} — ${input.entityName}`,
+    message: `Bonjour ${input.clientName || ""},
+
+Nous vous remercions de votre confiance. Veuillez trouver ci-joint votre facture ${input.docNum} correspondant à l'intervention réalisée.
+
+Pour toute question relative à cette facture, vous pouvez répondre directement à cet e-mail.
+
+En vous remerciant,
+L'équipe ${input.entityName}`,
+  };
+}
+
 export function buildFinalInvoiceEmail(input: {
   clientName: string;
   docNum: string;
