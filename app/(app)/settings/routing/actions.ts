@@ -18,9 +18,10 @@ export type RuleInput = {
   sector: "" | "urgence" | "nettoyage" | "enr" | "renovation" | "debarras";
   source: "" | "google_ads" | "meta_ads" | "site_web" | "telephone" | "recommandation";
   clientIsPremium: "any" | "true" | "false";
+  demandeIsExtreme: "any" | "true" | "false";
   amountGte: number | null;
   // Action
-  actionKind: "assign_to_user_id" | "assign_to_premium";
+  actionKind: "assign_to_user_id" | "assign_to_premium" | "assign_to_extreme";
   assignToUserId: string;
 };
 
@@ -33,12 +34,14 @@ function buildConditions(input: RuleInput): Record<string, unknown> {
   if (input.sector) c.sector = input.sector;
   if (input.source) c.source = input.source;
   if (input.clientIsPremium !== "any") c.client_is_premium = input.clientIsPremium === "true";
+  if (input.demandeIsExtreme !== "any") c.is_extreme = input.demandeIsExtreme === "true";
   if (input.amountGte !== null) c.amount_gte = input.amountGte;
   return c;
 }
 
 function buildAction(input: RuleInput): Record<string, unknown> {
   if (input.actionKind === "assign_to_premium") return { assign_to_premium: true };
+  if (input.actionKind === "assign_to_extreme") return { assign_to_extreme: true };
   return { assign_to_user_id: input.assignToUserId };
 }
 

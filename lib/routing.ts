@@ -17,6 +17,7 @@ export type RoutingInput = {
   sourceSlug: string;
   clientIsPremium: boolean;
   estimatedAmount: number | null;
+  isExtreme: boolean; // "demande extrême" flag captured at lead creation
 };
 
 export type RoutingDecision = {
@@ -52,6 +53,9 @@ function matchesConditions(input: RoutingInput, c: Record<string, unknown>): boo
   if (typeof c.client_is_premium === "boolean") {
     if (input.clientIsPremium !== c.client_is_premium) return false;
   }
+  if (typeof c.is_extreme === "boolean") {
+    if (input.isExtreme !== c.is_extreme) return false;
+  }
   if (typeof c.amount_gte === "number") {
     if (input.estimatedAmount === null || input.estimatedAmount < c.amount_gte) return false;
   }
@@ -77,17 +81,25 @@ async function resolveAction(
     return data?.id ?? null;
   }
 
-  if (action.assign_to_premium === true) {
-    // Premium pool — fewest open leads first. "Open" = not perdu/encaisse.
+  // Premium / extrême pools share the same round-robin logic — pick the
+  // matching pool column, then the member with the fewest open leads.
+  const poolColumn =
+    action.assign_to_premium === true
+      ? "is_premium"
+      : action.assign_to_extreme === true
+        ? "is_extreme"
+        : null;
+  if (poolColumn) {
     const { data: pool } = await supabase
       .from("users")
       .select("id")
-      .eq("is_premium", true)
+      // is_extreme isn't in the generated types yet — cast to a known column.
+      .eq(poolColumn as "is_premium", true)
       .eq("is_active", true)
       .returns<{ id: string }[]>();
     if (!pool || pool.length === 0) return null;
 
-    // Per-user open-lead count.
+    // Per-user open-lead count. "Open" = not perdu/encaisse.
     const counts = await Promise.all(
       pool.map(async (u) => {
         const { count } = await supabase
@@ -141,8 +153,10 @@ function formatReason(
   const actDesc =
     action.assign_to_premium === true
       ? `premium pool → ${ownerId}`
-      : typeof action.assign_to_user_id === "string"
-        ? `user ${ownerId}`
-        : `unknown action → ${ownerId}`;
+      : action.assign_to_extreme === true
+        ? `extrême pool → ${ownerId}`
+        : typeof action.assign_to_user_id === "string"
+          ? `user ${ownerId}`
+          : `unknown action → ${ownerId}`;
   return `Conditions [${condBits || "*"}] → ${actDesc}`;
 }

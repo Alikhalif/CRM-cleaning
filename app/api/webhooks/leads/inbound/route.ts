@@ -85,6 +85,7 @@ type LeadPayload = {
   source_slug?: string;
   estimated_amount?: number | null;
   surface_m2?: number | null;
+  is_extreme?: boolean | null;
   gclid?: string;
   utm_source?: string;
   utm_campaign?: string;
@@ -200,6 +201,7 @@ export async function POST(request: Request) {
     sourceSlug: payload.source_slug,
     clientIsPremium: false, // no client yet at lead-creation time
     estimatedAmount: payload.estimated_amount ?? null,
+    isExtreme: payload.is_extreme ?? false,
   });
 
   let ownerId: string | null = routingDecision?.ownerId ?? null;
@@ -278,6 +280,7 @@ export async function POST(request: Request) {
     owner_id: ownerId,
     estimated_amount: payload.estimated_amount ?? null,
     surface_m2: payload.surface_m2 ?? null,
+    is_extreme: payload.is_extreme ?? false,
     status: "lead" as const,
     received_at: new Date().toISOString(),
     last_action_label: "Lead reçu via WF1",

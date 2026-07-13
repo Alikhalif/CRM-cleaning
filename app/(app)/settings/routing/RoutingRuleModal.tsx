@@ -32,6 +32,7 @@ function emptyInput(): RuleInput {
     sector: "",
     source: "",
     clientIsPremium: "any",
+    demandeIsExtreme: "any",
     amountGte: null,
     actionKind: "assign_to_premium",
     assignToUserId: "",
@@ -53,8 +54,17 @@ function fromExisting(r: ExistingRule): RuleInput {
       typeof c.client_is_premium === "boolean"
         ? c.client_is_premium ? "true" : "false"
         : "any",
+    demandeIsExtreme:
+      typeof c.is_extreme === "boolean"
+        ? c.is_extreme ? "true" : "false"
+        : "any",
     amountGte: typeof c.amount_gte === "number" ? c.amount_gte : null,
-    actionKind: a.assign_to_premium === true ? "assign_to_premium" : "assign_to_user_id",
+    actionKind:
+      a.assign_to_premium === true
+        ? "assign_to_premium"
+        : a.assign_to_extreme === true
+          ? "assign_to_extreme"
+          : "assign_to_user_id",
     assignToUserId: typeof a.assign_to_user_id === "string" ? a.assign_to_user_id : "",
   };
 }
@@ -220,6 +230,18 @@ export default function RoutingRuleModal({ existing, commerciaux, onClose, onDon
                   <option value="false">Non</option>
                 </select>
               </label>
+              <label className={styles.field}>
+                <span className={styles.label}>Demande extrême</span>
+                <select
+                  value={v.demandeIsExtreme}
+                  onChange={(e) => set("demandeIsExtreme", e.target.value as RuleInput["demandeIsExtreme"])}
+                  className={styles.input}
+                >
+                  <option value="any">Indifférent</option>
+                  <option value="true">Oui</option>
+                  <option value="false">Non</option>
+                </select>
+              </label>
             </div>
           </fieldset>
 
@@ -238,6 +260,18 @@ export default function RoutingRuleModal({ existing, commerciaux, onClose, onDon
                   onChange={() => set("actionKind", "assign_to_premium")}
                 />
                 <span>Pool commerciaux <strong>premium</strong> (round-robin par charge)</span>
+              </label>
+            </div>
+            <div className={styles.row} style={{ marginBottom: "var(--sp-2)" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", flex: 1 }}>
+                <input
+                  type="radio"
+                  name="actionKind"
+                  value="assign_to_extreme"
+                  checked={v.actionKind === "assign_to_extreme"}
+                  onChange={() => set("actionKind", "assign_to_extreme")}
+                />
+                <span>Pool commerciaux <strong>extrême</strong> (demandes extrêmes)</span>
               </label>
             </div>
             <div className={styles.row}>

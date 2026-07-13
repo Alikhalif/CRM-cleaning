@@ -47,6 +47,7 @@ export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose }: P
   const [ownerId, setOwnerId] = useState<string>(defaultOwnerId || commerciaux[0]?.id || "");
   const [estimatedAmount, setEstimatedAmount] = useState<string>("");
   const [surfaceM2, setSurfaceM2] = useState<string>("");
+  const [isExtreme, setIsExtreme] = useState(false);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +84,7 @@ export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose }: P
       ownerId,
       estimatedAmount: estimatedAmount ? Number(estimatedAmount) : null,
       surfaceM2: surfaceM2 ? Number(surfaceM2) : null,
+      isExtreme,
       notes,
     };
 
@@ -326,6 +328,18 @@ export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose }: P
               />
             </label>
           </div>
+
+          <label style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-2)", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={isExtreme}
+              onChange={(e) => setIsExtreme(e.target.checked)}
+              style={{ width: 18, height: 18 }}
+            />
+            <span className={styles.label} style={{ margin: 0 }}>
+              Demande extrême <span className={styles.optional}>(routage vers le pool extrême si une règle l&apos;exige)</span>
+            </span>
+          </label>
 
           <label className={styles.field}>
             <span className={styles.label}>

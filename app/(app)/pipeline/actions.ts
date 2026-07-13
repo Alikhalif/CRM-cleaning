@@ -579,6 +579,8 @@ export type NewLeadInput = {
   estimatedAmount: number | null;
   surfaceM2: number | null;
   notes: string;
+  // "Demande extrême" — feeds the commercial-extrême routing tier.
+  isExtreme?: boolean;
   // When true, run the routing engine BEFORE saving and let it override
   // ownerId. Off by default for the manual /pipeline modal (the commercial
   // has already picked who); the WF1 inbound webhook will pass true.
@@ -657,6 +659,7 @@ export async function createLead(input: NewLeadInput): Promise<CreateLeadResult>
       sourceSlug: input.sourceSlug,
       clientIsPremium: false, // no client yet at lead creation — TODO when lead → client conversion happens
       estimatedAmount: input.estimatedAmount,
+      isExtreme: input.isExtreme ?? false,
     });
     if (decision) {
       resolvedOwnerId = decision.ownerId;
@@ -689,6 +692,8 @@ export async function createLead(input: NewLeadInput): Promise<CreateLeadResult>
     last_action_at: new Date().toISOString(),
     notes: input.notes.trim() || null,
   };
+  // is_extreme isn't in the generated types yet (migration 20260713000002).
+  (payload as Record<string, unknown>).is_extreme = input.isExtreme ?? false;
 
   const { data: inserted, error } = await supabase
     .from("leads")
