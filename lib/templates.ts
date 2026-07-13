@@ -50,6 +50,29 @@ export function buildPhotoRequestSms(input: {
   );
 }
 
+// ── Invitation d'accès au CRM ────────────────────────────────────────
+export function buildInviteEmail(input: {
+  inviteeName: string;
+  actionLink: string;
+  inviterName?: string;
+}): EmailTemplate {
+  const by = input.inviterName ? ` par ${esc(input.inviterName)}` : "";
+  const link = esc(input.actionLink);
+  return {
+    subject: "Votre accès au CRM CGK",
+    htmlContent: shell(
+      `<p>Bonjour ${esc(input.inviteeName) || ""},</p>
+       <p>Un accès au CRM CGK vient de vous être créé${by}. Pour activer votre
+       compte et définir votre mot de passe, cliquez sur le bouton ci-dessous :</p>
+       <p style="text-align:center;margin:24px 0;">
+         <a href="${link}" style="display:inline-block;background:#5b4bcc;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:600;">Activer mon accès</a>
+       </p>
+       <p style="font-size:13px;color:#666;">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br/>${link}</p>
+       <p>À bientôt,<br/>L'équipe CGK</p>`,
+    ),
+  };
+}
+
 // ── Accompagnement de la facture finale ──────────────────────────────
 // Plain-text variant for the SendEmailModal (which wraps the message into
 // HTML and attaches the PDF itself). Editable by the commercial before send.

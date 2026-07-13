@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon/Icon";
 import type { AdminUserRow, RoleOption } from "@/lib/users-server";
-import { assignRole, removeRole, setUserFlag, type Result } from "./actions";
+import { assignRole, inviteUser, removeRole, setUserFlag, type Result } from "./actions";
 
 type Props = { users: AdminUserRow[]; roles: RoleOption[] };
 
@@ -12,10 +12,18 @@ export default function UsersList({ users, roles }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  // Invite form state.
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteFirst, setInviteFirst] = useState("");
+  const [inviteLast, setInviteLast] = useState("");
+  const [inviting, setInviting] = useState(false);
 
   const run = (key: string, fn: () => Promise<Result>) => {
     setError(null);
+    setOkMsg(null);
     setBusy(key);
     startTransition(async () => {
       const r = await fn();
@@ -24,6 +32,28 @@ export default function UsersList({ users, roles }: Props) {
         setError(r.error);
         return;
       }
+      router.refresh();
+    });
+  };
+
+  const onInvite = (e: React.FormEvent) => {
+    e.preventDefault();
+    const em = inviteEmail.trim();
+    if (!em) return;
+    setError(null);
+    setOkMsg(null);
+    setInviting(true);
+    startTransition(async () => {
+      const r = await inviteUser(em, inviteFirst, inviteLast);
+      setInviting(false);
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      setOkMsg(`Invitation envoyée à ${em}.`);
+      setInviteEmail("");
+      setInviteFirst("");
+      setInviteLast("");
       router.refresh();
     });
   };
@@ -40,6 +70,56 @@ export default function UsersList({ users, roles }: Props) {
         padding: "8px 4px",
       }}
     >
+      <form
+        onSubmit={onInvite}
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          alignItems: "flex-end",
+          padding: "10px 12px 14px",
+          borderBottom: "1px solid var(--border-subtle)",
+        }}
+      >
+        <input
+          type="email"
+          value={inviteEmail}
+          onChange={(e) => setInviteEmail(e.target.value)}
+          placeholder="email@exemple.fr"
+          required
+          aria-label="Email à inviter"
+          style={{ flex: "1 1 220px", padding: "8px 10px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
+        />
+        <input
+          type="text"
+          value={inviteFirst}
+          onChange={(e) => setInviteFirst(e.target.value)}
+          placeholder="Prénom"
+          aria-label="Prénom"
+          style={{ flex: "0 1 130px", padding: "8px 10px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
+        />
+        <input
+          type="text"
+          value={inviteLast}
+          onChange={(e) => setInviteLast(e.target.value)}
+          placeholder="Nom"
+          aria-label="Nom"
+          style={{ flex: "0 1 130px", padding: "8px 10px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
+        />
+        <button
+          type="submit"
+          disabled={inviting || !inviteEmail.trim()}
+          style={{ padding: "8px 16px", borderRadius: "var(--r-sm)", border: "none", background: "var(--color-brand-500)", color: "#fff", fontWeight: 600, cursor: "pointer" }}
+        >
+          {inviting ? "Invitation…" : "Inviter"}
+        </button>
+      </form>
+
+      {okMsg && (
+        <p style={{ color: "var(--tone-success, #14c890)", padding: "8px 12px", fontSize: "0.875rem" }} role="status">
+          <Icon name="check" size={14} /> {okMsg}
+        </p>
+      )}
       {error && (
         <p style={{ color: "var(--tone-danger)", padding: "8px 12px", fontSize: "0.875rem" }} role="alert">
           <Icon name="alert" size={14} /> {error}
@@ -128,7 +208,7 @@ export default function UsersList({ users, roles }: Props) {
       </div>
       <p style={{ padding: "8px 12px", fontSize: "0.75rem", color: "var(--text-muted)" }}>
         Premium / Extrême = pools de routing (une règle « pool premium/extrême » y dispatche les leads).
-        L&apos;invitation d&apos;un nouvel utilisateur par email arrivera dans une prochaine itération.
+        L&apos;invité reçoit un email d&apos;activation ; il apparaît dans la liste dès son compte créé, puis attribuez-lui ses rôles.
       </p>
     </div>
   );

@@ -2,6 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseServiceRole } from "@/lib/supabase/service";
+import { sendBrevoEmail } from "@/lib/brevo";
+import { buildInviteEmail } from "@/lib/templates";
 import { auditLog } from "@/lib/audit";
 
 // Admin-only user management (roles + premium/extrême pool flags). RLS already
@@ -59,6 +62,58 @@ export async function assignRole(userId: string, roleId: string): Promise<Result
 
   revalidatePath("/settings/users");
   await auditLog({ action: "user.role.assign", entityType: "user", entityId: userId, after: { roleId } });
+  return { ok: true };
+}
+
+// Invite a new user by email: create the auth account via the admin API,
+// grab the activation link, and email it through Brevo. The auth trigger
+// provisions the public.users row (+ default role); the admin can then set
+// roles/pools from the table once the invitee appears. Service-role is needed
+// for auth.admin — guarded by the same admin check + audited.
+export async function inviteUser(
+  email: string,
+  firstName: string,
+  lastName: string,
+): Promise<Result> {
+  const supabase = await supabaseServer();
+  if (!(await callerIsAdmin(supabase))) return { ok: false, error: "Réservé aux administrateurs." };
+
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes("@")) return { ok: false, error: "Email invalide." };
+
+  const admin = await supabaseServiceRole();
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: "invite",
+    email: cleanEmail,
+    options: {
+      data: { first_name: firstName.trim() || null, last_name: lastName.trim() || null },
+    },
+  });
+  if (error || !data) {
+    return { ok: false, error: `Échec de l'invitation : ${error?.message ?? "inconnu"}.` };
+  }
+  const actionLink = data.properties?.action_link;
+  if (!actionLink) return { ok: false, error: "Lien d'activation introuvable." };
+
+  const inviteeName = `${firstName.trim()} ${lastName.trim()}`.trim();
+  const tpl = buildInviteEmail({ inviteeName, actionLink });
+  const res = await sendBrevoEmail({
+    to: cleanEmail,
+    toName: inviteeName || undefined,
+    subject: tpl.subject,
+    htmlContent: tpl.htmlContent,
+  });
+  if (!res.ok) {
+    return { ok: false, error: `Compte créé, mais l'email n'a pas pu être envoyé : ${res.error}` };
+  }
+
+  revalidatePath("/settings/users");
+  await auditLog({
+    action: "user.invite",
+    entityType: "user",
+    entityId: data.user?.id ?? cleanEmail,
+    after: { email: cleanEmail },
+  });
   return { ok: true };
 }
 
