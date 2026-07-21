@@ -41,14 +41,14 @@ LEAD_NOTIFY_EMAIL=<votre adresse de réception>
 
 n8n → *Workflows* → *Import from File* → `WF1.json` → **Activer**.
 
-L'URL du webhook devient `https://n8n.example.com/webhook/lead-capture`.
+L'URL du webhook devient `https://n8n.srv1688718.hstgr.cloud/webhook/lead-capture`.
 
 ### 3. Brancher les landing pages
 
 Toutes les LP postent sur cette même URL :
 
 ```html
-<form method="POST" action="https://n8n.example.com/webhook/lead-capture">
+<form method="POST" action="https://n8n.srv1688718.hstgr.cloud/webhook/lead-capture">
   <input name="prenom"   required>
   <input name="nom"      required>
   <input name="telephone" required>   <!-- obligatoire -->
@@ -85,7 +85,7 @@ Traitements automatiques : téléphone → E.164 (`06…` → `+336…`), email 
 ## Vérifier
 
 ```bash
-curl -X POST https://n8n.example.com/webhook/lead-capture \
+curl -X POST https://n8n.srv1688718.hstgr.cloud/webhook/lead-capture \
   -H "Content-Type: application/json" \
   -d '{"prenom":"Jean","nom":"Dupont","telephone":"0612345678",
        "email":"jean@example.com","ville":"Bordeaux","surface":"120",
@@ -144,7 +144,7 @@ On the **CRM** host:
 
 ```bash
 N8N_TO_CRM_BEARER=<openssl rand -hex 32>           # n8n sends this in Authorization: Bearer …
-N8N_WF2_TRIGGER_URL=https://n8n.example.com/webhook/relance-devis
+N8N_WF2_TRIGGER_URL=https://n8n.srv1688718.hstgr.cloud/webhook/relance-devis
 N8N_WF2_TRIGGER_SECRET=<same value as WF2_TRIGGER_SECRET above>
 ```
 
@@ -181,7 +181,7 @@ The interrupt is *eventually consistent* by design: between Manuel and the actua
 ## Trigger payload
 
 ```http
-POST https://n8n.example.com/webhook/relance-devis
+POST https://n8n.srv1688718.hstgr.cloud/webhook/relance-devis
 X-Trigger-Secret: <WF2_TRIGGER_SECRET>
 Content-Type: application/json
 
@@ -219,12 +219,12 @@ Suggested subject lines:
 
 ```bash
 # Should reject without the secret:
-curl -i -X POST "https://n8n.example.com/webhook/relance-devis" \
+curl -i -X POST "https://n8n.srv1688718.hstgr.cloud/webhook/relance-devis" \
   -H "Content-Type: application/json" -d '{}'
 # → 500 with "UNAUTHORIZED" in the response
 
 # Should accept with the secret (use a real test lead UUID):
-curl -i -X POST "https://n8n.example.com/webhook/relance-devis" \
+curl -i -X POST "https://n8n.srv1688718.hstgr.cloud/webhook/relance-devis" \
   -H "Content-Type: application/json" \
   -H "X-Trigger-Secret: $WF2_TRIGGER_SECRET" \
   -d '{
