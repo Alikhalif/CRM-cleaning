@@ -70,7 +70,7 @@
         "type": "SHA256",
         "value": "={{ $json.payload }}",
         "dataPropertyName": "signature",
-        "secret": "={{ $env.LEADS_INBOUND_SECRET }}",
+        "secret": "REMPLACER_PAR_LEADS_INBOUND_SECRET",
         "encoding": "hex"
       },
       "id": "wf1-sign",
@@ -85,7 +85,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.CRM_BASE_URL }}/api/webhooks/leads/inbound",
+        "url": "https://crm-cleaning-one.vercel.app/api/webhooks/leads/inbound",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -157,13 +157,11 @@
       "parameters": {
         "method": "POST",
         "url": "https://api.brevo.com/v3/smtp/email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "api-key",
-              "value": "={{ $env.BREVO_API_KEY }}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -172,7 +170,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\"sender\":{\"email\":\"{{ $env.BREVO_SENDER_EMAIL }}\",\"name\":\"CRM CGK\"},\"to\":[{\"email\":\"{{ $env.LEAD_NOTIFY_EMAIL }}\"}],\"subject\":\"Nouveau lead {{ $json.body.short_id }} — {{ $('Normaliser le formulaire').item.json.lead.activity_slug }}\",\"htmlContent\":\"<h2>Nouveau lead — {{ $('Normaliser le formulaire').item.json.lead.activity_slug }}</h2><p><b>Client :</b> {{ $('Normaliser le formulaire').item.json.lead.first_name }} {{ $('Normaliser le formulaire').item.json.lead.last_name }}{{ $('Normaliser le formulaire').item.json.lead.company_name }}</p><p><b>Téléphone :</b> {{ $('Normaliser le formulaire').item.json.lead.phone }}<br/><b>Email :</b> {{ $('Normaliser le formulaire').item.json.lead.email }}<br/><b>Ville :</b> {{ $('Normaliser le formulaire').item.json.lead.postal_code }} {{ $('Normaliser le formulaire').item.json.lead.city }}<br/><b>Surface :</b> {{ $('Normaliser le formulaire').item.json.lead.surface_m2 }} m²<br/><b>Source :</b> {{ $('Normaliser le formulaire').item.json.lead.source_slug }}</p><p><b>Message :</b><br/>{{ $('Normaliser le formulaire').item.json.lead.notes }}</p><hr/><p>Fiche CRM : {{ $env.CRM_BASE_URL }}/leads/{{ $json.body.id }} (réf. {{ $json.body.short_id }})</p>\"}",
+        "jsonBody": "={\"sender\":{\"email\":\"REMPLACER@ton-domaine.fr\",\"name\":\"CRM CGK\"},\"to\":[{\"email\":\"REMPLACER-destinataire@ton-domaine.fr\"}],\"subject\":\"Nouveau lead {{ $json.body.short_id }} — {{ $('Normaliser le formulaire').item.json.lead.activity_slug }}\",\"htmlContent\":\"<h2>Nouveau lead — {{ $('Normaliser le formulaire').item.json.lead.activity_slug }}</h2><p><b>Client :</b> {{ $('Normaliser le formulaire').item.json.lead.first_name }} {{ $('Normaliser le formulaire').item.json.lead.last_name }}{{ $('Normaliser le formulaire').item.json.lead.company_name }}</p><p><b>Téléphone :</b> {{ $('Normaliser le formulaire').item.json.lead.phone }}<br/><b>Email :</b> {{ $('Normaliser le formulaire').item.json.lead.email }}<br/><b>Ville :</b> {{ $('Normaliser le formulaire').item.json.lead.postal_code }} {{ $('Normaliser le formulaire').item.json.lead.city }}<br/><b>Surface :</b> {{ $('Normaliser le formulaire').item.json.lead.surface_m2 }} m²<br/><b>Source :</b> {{ $('Normaliser le formulaire').item.json.lead.source_slug }}</p><p><b>Message :</b><br/>{{ $('Normaliser le formulaire').item.json.lead.notes }}</p><hr/><p>Fiche CRM : https://crm-cleaning-one.vercel.app/leads/{{ $json.body.id }} (réf. {{ $json.body.short_id }})</p>\"}",
         "options": {
           "response": {
             "response": {
@@ -188,7 +186,13 @@
       "position": [
         1120,
         120
-      ]
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REMPLACER",
+          "name": "Brevo API key"
+        }
+      }
     },
     {
       "parameters": {

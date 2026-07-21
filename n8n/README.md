@@ -25,23 +25,25 @@ Le CRM applique ensuite ses **règles de routing** (superficie, secteur, source,
 
 ## Install (3 étapes)
 
-### 1. Variables d'environnement sur l'hôte n8n
+**Aucune variable d'environnement** — tout se règle dans l'interface n8n (pensé pour une install npm/pm2 sans Docker).
 
-```bash
-CRM_BASE_URL=https://crm.example.com
-LEADS_INBOUND_SECRET=<LA MÊME valeur que dans le .env.local du CRM>
-BREVO_API_KEY=<clé Brevo>
-BREVO_SENDER_EMAIL=<expéditeur vérifié dans Brevo>
-LEAD_NOTIFY_EMAIL=<votre adresse de réception>
-```
+### 1. Importer
 
-> `LEADS_INBOUND_SECRET` **doit être identique des deux côtés** : n8n signe le corps en HMAC-SHA256 (hex), le CRM recalcule et compare. Secret différent ⇒ `401 invalid_signature`.
+n8n → *Workflows* → *Import from File* → `WF1.json`.
 
-### 2. Importer
+### 2. Remplir 3 réglages dans l'UI
 
-n8n → *Workflows* → *Import from File* → `WF1.json` → **Activer**.
+| Nœud | Réglage |
+|---|---|
+| **Signer (HMAC SHA256)** → champ *Secret* | remplacer `REMPLACER_PAR_LEADS_INBOUND_SECRET` par la valeur exacte de `LEADS_INBOUND_SECRET` (celle du `.env.local` et de Vercel) |
+| **M'envoyer un email** → *Credential* | créer/choisir une credential **Header Auth** nommée `Brevo API key` — Name `api-key`, Value = clé Brevo v3 *(la même que WF2 : elle se réutilise)* |
+| **M'envoyer un email** → *JSON Body* | remplacer les deux `REMPLACER…@ton-domaine.fr` : expéditeur **vérifié dans Brevo** + adresse de réception |
 
-L'URL du webhook devient `https://n8n.srv1688718.hstgr.cloud/webhook/lead-capture`.
+> Le secret **doit être identique des deux côtés** : n8n signe le corps en HMAC-SHA256 (hex), le CRM recalcule et compare. Secret différent ⇒ `401 invalid_signature`.
+
+L'URL du CRM est déjà écrite en dur dans le nœud *POST vers le CRM* (`https://crm-cleaning-one.vercel.app`) — à modifier si tu déploies ailleurs.
+
+Puis **Activer** le workflow (toggle en haut à droite). L'URL du webhook devient `https://n8n.srv1688718.hstgr.cloud/webhook/lead-capture`.
 
 ### 3. Brancher les landing pages
 
