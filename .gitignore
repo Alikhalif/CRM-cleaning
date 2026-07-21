@@ -46,3 +46,6 @@ next-env.d.ts
 supabase/.temp/
 supabase/.branches/
 supabase/.env
+
+# n8n workflows remplis avec des secrets réels — jamais commités
+n8n/*.local.json
