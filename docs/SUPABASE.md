@@ -94,7 +94,36 @@ works for every command. Substitute `<ref>` with your project ref
    ```
 
 After step 7, `lib/supabase/{browser,server}.ts` are typed against your
-actual schema and you can start migrating pages off `lib/leads-mock.ts`.
+actual schema.
+
+### Moving to a new project / account (fresh start)
+
+When the business data is throwaway (demo/seed), don't dump-and-restore —
+re-run the migrations on the new project. Same as Option B, plus the
+account/link specifics:
+
+1. **Create the project** on the *new* account. Note the ref + DB password.
+2. **Update `.env.local`** with the new `NEXT_PUBLIC_SUPABASE_URL`,
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY`.
+3. **Re-login the CLI as the new account** — `npx supabase login` (a stale
+   session still points at the old org).
+4. **Re-link** — `npx supabase link --project-ref <new-ref>`. This overwrites
+   `supabase/.temp/`, which still holds the previous ref.
+5. **`npx supabase db push`** — applies *all* migrations in order.
+6. **Run `supabase/seed.sql`** in *Dashboard → SQL Editor*. `db push` never
+   runs the seed on a hosted project. Do not skip it: the legal entities,
+   roles, payment terms and the entity↔activity defaults all come from here.
+7. **Regenerate the types** (step 7 above). Worth doing: the newer columns
+   (`leads.discovery_*`, `leads.is_extreme`, `users.is_extreme`,
+   `technicians.base_postal_code`…) are not in the committed
+   `database.types.ts`, which is why a few writes still cast `as never`.
+   Regenerating lets those casts go away.
+8. **Bootstrap the first account**: sign up through the app. The auth trigger
+   (`20260517000001`) makes the *first ever* user an `admin`; everyone after
+   defaults to `commercial`. Then invite the rest from
+   *Paramètres → Utilisateurs*.
+
+The old project can then be left to auto-pause or deleted.
 
 ## What's in the migrations
 

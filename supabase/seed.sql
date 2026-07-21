@@ -54,13 +54,19 @@ insert into legal_entities (
     'SARL au capital de 80 000 €. RGE QualiPV n° E-2024-04421. Assurance décennale Allianz n° 9087625.',
     '#14c890');
 
--- Entity ↔ activity defaults: Services → nettoyage + urgence; Énergie → enr + rénovation.
+-- Entity ↔ activity defaults: Services → nettoyage + urgence + débarras;
+-- Énergie → enr + rénovation.
+-- NOTE: `debarras` is created by migration 20260708000001, which runs BEFORE
+-- this seed on a fresh database — at that point legal_entities is still empty,
+-- so the migration's own mapping insert finds nothing. Mapping it here is what
+-- gives Débarras a default issuing company on a clean install.
 insert into legal_entity_activities (legal_entity_id, activity_id, is_default)
 select e.id, a.id, true
 from legal_entities e
 cross join activities a
-where (e.legal_name = 'CGK Services' and a.slug in ('nettoyage', 'urgence'))
-   or (e.legal_name = 'CGK Énergie'  and a.slug in ('enr', 'renovation'));
+where (e.legal_name = 'CGK Services' and a.slug in ('nettoyage', 'urgence', 'debarras'))
+   or (e.legal_name = 'CGK Énergie'  and a.slug in ('enr', 'renovation'))
+on conflict (legal_entity_id, activity_id) do nothing;
 
 -- ── 6. Prestations catalogue (CDC §4.10 extract) ─────────────────────
 insert into prestations (activity_id, label, unit, unit_price_ht, vat_rate)
