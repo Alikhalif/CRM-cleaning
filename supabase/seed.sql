@@ -86,15 +86,20 @@ join (values
 ) as x(sector_slug, label, unit, price, vat) on a.slug = x.sector_slug;
 
 -- ── 7. Technicians (intervenants) ────────────────────────────────────
-insert into technicians (name, initials, color, sectors)
+-- base_postal_code + service_departments drive the distance ranking in the
+-- planify modal (lib/geo.ts). They MUST be set here: migration 20260708000002
+-- adds the columns and tries to backfill these same values, but it runs before
+-- this seed on a fresh database, when technicians is still empty.
+insert into technicians (name, initials, color, sectors, base_postal_code, service_departments)
 select t.name, t.initials, t.color,
-       array(select id from activities where slug = any(t.sector_slugs))
+       array(select id from activities where slug = any(t.sector_slugs)),
+       t.base_pc, t.departments
 from (values
-  ('Khaled Brahim',  'KB', '#ef4444', array['urgence', 'enr']),
-  ('Vincent Caron',  'VC', '#f59e0b', array['renovation', 'enr']),
-  ('Aïcha Lefort',   'AL', '#0ea5e9', array['nettoyage']),
-  ('Bastien Roy',    'BR', '#14c890', array['urgence', 'nettoyage'])
-) as t(name, initials, color, sector_slugs);
+  ('Khaled Brahim',  'KB', '#ef4444', array['urgence', 'enr'],        '75001', array['75','92','93','94','77','78','91','95']),
+  ('Vincent Caron',  'VC', '#f59e0b', array['renovation', 'enr'],     '69001', array['69','38','01','42']),
+  ('Aïcha Lefort',   'AL', '#0ea5e9', array['nettoyage'],             '13001', array['13','83','84','04']),
+  ('Bastien Roy',    'BR', '#14c890', array['urgence', 'nettoyage'],  '33000', array['33','40','47','24'])
+) as t(name, initials, color, sector_slugs, base_pc, departments);
 
 -- ── 8. Leads (16 rows from lib/leads-mock.ts) ────────────────────────
 -- short_id is the natural key; FKs resolve via subqueries.
