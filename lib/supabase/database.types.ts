@@ -12,37 +12,33 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
-      app_settings: {
-        Row: {
-          key: string
-          updated_at: string
-          updated_by: string | null
-          value: Json
-        }
-        Insert: {
-          key: string
-          updated_at?: string
-          updated_by?: string | null
-          value: Json
-        }
-        Update: {
-          key?: string
-          updated_at?: string
-          updated_by?: string | null
-          value?: Json
-        }
-        Relationships: [
-          {
-            foreignKeyName: "app_settings_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       activities: {
         Row: {
           acompte_pct: number
@@ -90,6 +86,35 @@ export type Database = {
           vat_rate?: number
         }
         Relationships: []
+      }
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       audit_logs: {
         Row: {
@@ -361,9 +386,9 @@ export type Database = {
           num: string
           paid_at: string | null
           payment_reference: string | null
-          refusal_reason: string | null
           payment_term_id: string | null
           pdf_url: string | null
+          refusal_reason: string | null
           related_devis_id: string | null
           sent_to_email: string | null
           signature_request_id: string | null
@@ -396,9 +421,9 @@ export type Database = {
           num: string
           paid_at?: string | null
           payment_reference?: string | null
-          refusal_reason?: string | null
           payment_term_id?: string | null
           pdf_url?: string | null
+          refusal_reason?: string | null
           related_devis_id?: string | null
           sent_to_email?: string | null
           signature_request_id?: string | null
@@ -431,9 +456,9 @@ export type Database = {
           num?: string
           paid_at?: string | null
           payment_reference?: string | null
-          refusal_reason?: string | null
           payment_term_id?: string | null
           pdf_url?: string | null
+          refusal_reason?: string | null
           related_devis_id?: string | null
           sent_to_email?: string | null
           signature_request_id?: string | null
@@ -626,6 +651,7 @@ export type Database = {
         Row: {
           activity_id: string | null
           annotation_segment: string | null
+          announced_price: number | null
           client_address: Json | null
           client_company: string | null
           client_email: string | null
@@ -635,31 +661,35 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           deleted_by: string | null
+          discovery_done_at: string | null
+          discovery_outcome: string | null
           entity_id: string | null
           estimated_amount: number | null
           external_id: string | null
           gclid: string | null
           id: string
           immob_travaux_annotation: string | null
+          intervention_delay: string | null
+          intervention_delay_notes: string | null
           is_company: boolean
+          is_extreme: boolean
           is_nrp: boolean
           is_urgent: boolean
           last_action_at: string | null
-          nrp_at: string | null
           last_action_label: string | null
           lost_reason: string | null
           next_followup_at: string | null
           notes: string | null
-          intervention_delay: string | null
-          intervention_delay_notes: string | null
-          surface_m2: number | null
+          nrp_at: string | null
           owner_id: string | null
+          photos_requested_at: string | null
           received_at: string
           short_id: string
           source_id: string | null
           status: Database["public"]["Enums"]["lead_status"]
           sub_envoi: Database["public"]["Enums"]["sub_envoi"] | null
           sub_signature: Database["public"]["Enums"]["sub_signature"] | null
+          surface_m2: number | null
           updated_at: string
           utm_campaign: string | null
           utm_content: string | null
@@ -670,6 +700,7 @@ export type Database = {
         Insert: {
           activity_id?: string | null
           annotation_segment?: string | null
+          announced_price?: number | null
           client_address?: Json | null
           client_company?: string | null
           client_email?: string | null
@@ -679,31 +710,35 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
+          discovery_done_at?: string | null
+          discovery_outcome?: string | null
           entity_id?: string | null
           estimated_amount?: number | null
           external_id?: string | null
           gclid?: string | null
           id?: string
           immob_travaux_annotation?: string | null
+          intervention_delay?: string | null
+          intervention_delay_notes?: string | null
           is_company?: boolean
+          is_extreme?: boolean
           is_nrp?: boolean
           is_urgent?: boolean
           last_action_at?: string | null
-          nrp_at?: string | null
           last_action_label?: string | null
           lost_reason?: string | null
           next_followup_at?: string | null
           notes?: string | null
-          intervention_delay?: string | null
-          intervention_delay_notes?: string | null
-          surface_m2?: number | null
+          nrp_at?: string | null
           owner_id?: string | null
+          photos_requested_at?: string | null
           received_at?: string
           short_id: string
           source_id?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           sub_envoi?: Database["public"]["Enums"]["sub_envoi"] | null
           sub_signature?: Database["public"]["Enums"]["sub_signature"] | null
+          surface_m2?: number | null
           updated_at?: string
           utm_campaign?: string | null
           utm_content?: string | null
@@ -714,6 +749,7 @@ export type Database = {
         Update: {
           activity_id?: string | null
           annotation_segment?: string | null
+          announced_price?: number | null
           client_address?: Json | null
           client_company?: string | null
           client_email?: string | null
@@ -723,31 +759,35 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
+          discovery_done_at?: string | null
+          discovery_outcome?: string | null
           entity_id?: string | null
           estimated_amount?: number | null
           external_id?: string | null
           gclid?: string | null
           id?: string
           immob_travaux_annotation?: string | null
+          intervention_delay?: string | null
+          intervention_delay_notes?: string | null
           is_company?: boolean
+          is_extreme?: boolean
           is_nrp?: boolean
           is_urgent?: boolean
           last_action_at?: string | null
-          nrp_at?: string | null
           last_action_label?: string | null
           lost_reason?: string | null
           next_followup_at?: string | null
           notes?: string | null
-          intervention_delay?: string | null
-          intervention_delay_notes?: string | null
-          surface_m2?: number | null
+          nrp_at?: string | null
           owner_id?: string | null
+          photos_requested_at?: string | null
           received_at?: string
           short_id?: string
           source_id?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           sub_envoi?: Database["public"]["Enums"]["sub_envoi"] | null
           sub_signature?: Database["public"]["Enums"]["sub_signature"] | null
+          surface_m2?: number | null
           updated_at?: string
           utm_campaign?: string | null
           utm_content?: string | null
@@ -1010,42 +1050,6 @@ export type Database = {
           },
         ]
       }
-      routing_rules: {
-        Row: {
-          id: string
-          name: string
-          priority: number
-          conditions: Json
-          action: Json
-          is_active: boolean
-          created_at: string
-          updated_at: string
-          created_by: string | null
-        }
-        Insert: {
-          id?: string
-          name: string
-          priority?: number
-          conditions?: Json
-          action?: Json
-          is_active?: boolean
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-        }
-        Update: {
-          id?: string
-          name?: string
-          priority?: number
-          conditions?: Json
-          action?: Json
-          is_active?: boolean
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-        }
-        Relationships: []
-      }
       roles: {
         Row: {
           description: string | null
@@ -1070,8 +1074,53 @@ export type Database = {
         }
         Relationships: []
       }
+      routing_rules: {
+        Row: {
+          action: Json
+          conditions: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          priority: number
+          updated_at: string
+        }
+        Insert: {
+          action?: Json
+          conditions?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          priority?: number
+          updated_at?: string
+        }
+        Update: {
+          action?: Json
+          conditions?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          priority?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "routing_rules_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       technicians: {
         Row: {
+          base_postal_code: string | null
           color: string | null
           created_at: string
           id: string
@@ -1079,10 +1128,12 @@ export type Database = {
           is_active: boolean
           name: string
           sectors: string[]
+          service_departments: string[]
           skills: string[]
           updated_at: string
         }
         Insert: {
+          base_postal_code?: string | null
           color?: string | null
           created_at?: string
           id?: string
@@ -1090,10 +1141,12 @@ export type Database = {
           is_active?: boolean
           name: string
           sectors?: string[]
+          service_departments?: string[]
           skills?: string[]
           updated_at?: string
         }
         Update: {
+          base_postal_code?: string | null
           color?: string | null
           created_at?: string
           id?: string
@@ -1101,6 +1154,7 @@ export type Database = {
           is_active?: boolean
           name?: string
           sectors?: string[]
+          service_departments?: string[]
           skills?: string[]
           updated_at?: string
         }
@@ -1226,6 +1280,7 @@ export type Database = {
           first_name: string | null
           id: string
           is_active: boolean
+          is_extreme: boolean
           is_premium: boolean
           last_login_at: string | null
           last_name: string | null
@@ -1240,6 +1295,7 @@ export type Database = {
           first_name?: string | null
           id: string
           is_active?: boolean
+          is_extreme?: boolean
           is_premium?: boolean
           last_login_at?: string | null
           last_name?: string | null
@@ -1254,6 +1310,7 @@ export type Database = {
           first_name?: string | null
           id?: string
           is_active?: boolean
+          is_extreme?: boolean
           is_premium?: boolean
           last_login_at?: string | null
           last_name?: string | null
@@ -1439,6 +1496,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       client_origin: ["lead", "direct"],
