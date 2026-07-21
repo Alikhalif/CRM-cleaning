@@ -1,3 +1,108 @@
+# n8n workflows
+
+| Workflow | Fichier | Rôle |
+|---|---|---|
+| **WF1** | `WF1.json` | Capture des leads : formulaires des landing pages → CRM + email de notification |
+| **WF2** | `WF2.json` | Relance devis : séquence de 4 emails |
+
+---
+
+# WF1 — Capture lead (landing pages → CRM + email)
+
+Un seul webhook pour **toutes** les landing pages. Il normalise le formulaire, le signe, l'envoie au CRM, puis vous notifie par email.
+
+```
+Formulaire LP ──► Webhook ──► Normaliser ──► champs OK ? ──non──► 400
+                                                 │oui
+                                                 ▼
+                                     Signer (HMAC) ──► POST CRM ──► 200 ? ──non──► 502
+                                                                      │oui
+                                                                      ▼
+                                                              Email de notif ──► 200
+```
+
+Le CRM applique ensuite ses **règles de routing** (superficie, secteur, source, premium, extrême) pour attribuer le lead au bon commercial. Rien à configurer côté n8n pour ça.
+
+## Install (3 étapes)
+
+### 1. Variables d'environnement sur l'hôte n8n
+
+```bash
+CRM_BASE_URL=https://crm.example.com
+LEADS_INBOUND_SECRET=<LA MÊME valeur que dans le .env.local du CRM>
+BREVO_API_KEY=<clé Brevo>
+BREVO_SENDER_EMAIL=<expéditeur vérifié dans Brevo>
+LEAD_NOTIFY_EMAIL=<votre adresse de réception>
+```
+
+> `LEADS_INBOUND_SECRET` **doit être identique des deux côtés** : n8n signe le corps en HMAC-SHA256 (hex), le CRM recalcule et compare. Secret différent ⇒ `401 invalid_signature`.
+
+### 2. Importer
+
+n8n → *Workflows* → *Import from File* → `WF1.json` → **Activer**.
+
+L'URL du webhook devient `https://n8n.example.com/webhook/lead-capture`.
+
+### 3. Brancher les landing pages
+
+Toutes les LP postent sur cette même URL :
+
+```html
+<form method="POST" action="https://n8n.example.com/webhook/lead-capture">
+  <input name="prenom"   required>
+  <input name="nom"      required>
+  <input name="telephone" required>   <!-- obligatoire -->
+  <input name="email"    type="email">
+  <input name="code_postal">
+  <input name="ville">
+  <input name="surface">              <!-- alimente la règle « superficie > 80 m² » -->
+  <textarea name="message"></textarea>
+  <input type="hidden" name="activity_slug" value="nettoyage">
+  <input type="hidden" name="source_slug"   value="site_web">
+  <button type="submit">Demander un devis</button>
+</form>
+```
+
+## Champs acceptés
+
+Le nœud *Normaliser* est **tolérant** : inutile de renommer les champs de vos LP existantes.
+
+| Champ CRM | Alias acceptés |
+|---|---|
+| `phone` **(obligatoire)** | `telephone`, `tel`, `mobile`, `numero` |
+| `first_name` / `last_name` | `prenom` / `nom`, `firstname` / `lastname` |
+| `email` | `mail`, `e-mail` |
+| `postal_code` / `city` | `code_postal`, `cp`, `zip` / `ville` |
+| `surface_m2` | `surface`, `m2`, `superficie` |
+| `notes` | `message`, `commentaire`, `demande` |
+| `activity_slug` | `activity`, `prestation`, `service` — défaut `nettoyage` |
+| `source_slug` | `source`, `utm_source` (+ alias `google`→`google_ads`, `facebook`→`meta_ads`…) — défaut `site_web` |
+
+Traitements automatiques : téléphone → E.164 (`06…` → `+336…`), email en minuscules, `gclid` + `utm_*` transmis (conversions Google Ads), `external_id` généré → **anti-doublon** côté CRM.
+
+`activity_slug` valides : `urgence`, `nettoyage`, `enr`, `renovation`, `debarras`, `demenagement`.
+
+## Vérifier
+
+```bash
+curl -X POST https://n8n.example.com/webhook/lead-capture \
+  -H "Content-Type: application/json" \
+  -d '{"prenom":"Jean","nom":"Dupont","telephone":"0612345678",
+       "email":"jean@example.com","ville":"Bordeaux","surface":"120",
+       "activity_slug":"demenagement","source_slug":"site_web",
+       "message":"Test WF1"}'
+```
+
+Attendu : `{"ok":true,"id":"…","short_id":"L-…"}`, le lead visible dans le CRM, et l'email reçu.
+
+| Réponse | Cause |
+|---|---|
+| `400 champs manquants` | téléphone ou nom absent |
+| `502` + `invalid_signature` | `LEADS_INBOUND_SECRET` différent entre n8n et le CRM |
+| `502` + `invalid_activity_slug` | secteur inconnu |
+
+---
+
 # WF2 — Relance Devis (n8n)
 
 4-email follow-up sequence triggered when a devis is sent. One importable workflow, two credentials, two status-driven endpoints on the CRM side.
