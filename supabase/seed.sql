@@ -64,7 +64,7 @@ insert into legal_entity_activities (legal_entity_id, activity_id, is_default)
 select e.id, a.id, true
 from legal_entities e
 cross join activities a
-where (e.legal_name = 'CGK Services' and a.slug in ('nettoyage', 'urgence', 'debarras'))
+where (e.legal_name = 'CGK Services' and a.slug in ('nettoyage', 'urgence', 'debarras', 'demenagement'))
    or (e.legal_name = 'CGK Énergie'  and a.slug in ('enr', 'renovation'))
 on conflict (legal_entity_id, activity_id) do nothing;
 

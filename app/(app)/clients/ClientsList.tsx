@@ -25,7 +25,7 @@ type Row = {
 
 type Props = { rows: Row[] };
 
-const SECTORS: Sector[] = ["urgence", "nettoyage", "enr", "renovation", "debarras"];
+const SECTORS: Sector[] = ["urgence", "nettoyage", "enr", "renovation", "debarras", "demenagement"];
 
 export default function ClientsList({ rows }: Props) {
   const [search, setSearch] = useState("");

@@ -65,7 +65,7 @@ function corsJson(body: unknown, status: number): NextResponse {
   return NextResponse.json(body, { status, headers: CORS_HEADERS });
 }
 
-const ALLOWED_ACTIVITIES = ["urgence", "nettoyage", "enr", "renovation", "debarras"] as const;
+const ALLOWED_ACTIVITIES = ["urgence", "nettoyage", "enr", "renovation", "debarras", "demenagement"] as const;
 const ALLOWED_SOURCES = ["google_ads", "meta_ads", "site_web", "telephone", "recommandation"] as const;
 type ActivitySlug = (typeof ALLOWED_ACTIVITIES)[number];
 type SourceSlug = (typeof ALLOWED_SOURCES)[number];

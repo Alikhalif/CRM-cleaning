@@ -13,7 +13,7 @@ import { supabaseServiceRole } from "./supabase/service";
 
 export type RoutingInput = {
   surfaceM2: number | null;
-  sectorSlug: "urgence" | "nettoyage" | "enr" | "renovation" | "debarras";
+  sectorSlug: "urgence" | "nettoyage" | "enr" | "renovation" | "debarras" | "demenagement";
   sourceSlug: string;
   clientIsPremium: boolean;
   estimatedAmount: number | null;

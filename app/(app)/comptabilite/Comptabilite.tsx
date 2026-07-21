@@ -38,7 +38,7 @@ const FACTURE_STATUSES: FactureStatus[] = ["brouillon", "envoye", "paye", "retar
 
 // Filter dropdown enumerations — sectors + sources are hard-coded enums in
 // leads.ts so no DB fetch needed for those two.
-const SECTORS: Sector[] = ["urgence", "nettoyage", "enr", "renovation", "debarras"];
+const SECTORS: Sector[] = ["urgence", "nettoyage", "enr", "renovation", "debarras", "demenagement"];
 const SOURCES: Source[] = ["google-ads", "meta-ads", "site-web", "telephone", "recommandation"];
 
 const DATE = new Intl.DateTimeFormat("fr-FR", {

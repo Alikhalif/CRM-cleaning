@@ -15,7 +15,7 @@ export type RuleInput = {
   // Conditions
   surfaceM2Gte: number | null;
   surfaceM2Lt: number | null;
-  sector: "" | "urgence" | "nettoyage" | "enr" | "renovation" | "debarras";
+  sector: "" | "urgence" | "nettoyage" | "enr" | "renovation" | "debarras" | "demenagement";
   source: "" | "google_ads" | "meta_ads" | "site_web" | "telephone" | "recommandation";
   clientIsPremium: "any" | "true" | "false";
   demandeIsExtreme: "any" | "true" | "false";

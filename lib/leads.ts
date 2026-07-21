@@ -2,7 +2,13 @@
 // Status spelling follows the CDC §5.4 reference (not the n8n doc's longer form):
 // `lead | envoye | ouvert | signe | encaisse | perdu`.
 
-export type Sector = "urgence" | "nettoyage" | "enr" | "renovation" | "debarras";
+export type Sector =
+  | "urgence"
+  | "nettoyage"
+  | "enr"
+  | "renovation"
+  | "debarras"
+  | "demenagement";
 
 export type LeadStatus =
   | "lead"
@@ -220,6 +226,7 @@ export const DEFAULT_ACOMPTE_PCT: Record<Sector, number> = {
   enr: 30,
   renovation: 40,
   debarras: 30,
+  demenagement: 30,
 };
 
 export const DEFAULT_PAYMENT_TERM: Record<Sector, PaymentTermSlug> = {
@@ -228,6 +235,7 @@ export const DEFAULT_PAYMENT_TERM: Record<Sector, PaymentTermSlug> = {
   enr: "30j",
   renovation: "45j",
   debarras: "comptant",
+  demenagement: "comptant",
 };
 
 // ── Planification (workflow planificatrice — overrides CDC §4.7) ──────
@@ -407,6 +415,7 @@ export const SECTOR_LABEL: Record<Sector, string> = {
   enr: "ENR",
   renovation: "Rénovation",
   debarras: "Débarras",
+  demenagement: "Déménagement",
 };
 
 // Maps to the --sector-* CSS custom properties already defined in _tokens.scss.
@@ -416,6 +425,7 @@ export const SECTOR_VAR: Record<Sector, string> = {
   enr: "--sector-enr",
   renovation: "--sector-renovation",
   debarras: "--sector-debarras",
+  demenagement: "--sector-demenagement",
 };
 
 export const SOURCE_LABEL: Record<Source, string> = {
