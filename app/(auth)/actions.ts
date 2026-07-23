@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
+import { passwordLengthError, isPasswordPwned } from "@/lib/password-policy";
 
 // Server actions powering the login + signup forms. Each redirects on success
 // (Next.js wraps redirect() in a throw, so it won't reach return statements
@@ -48,10 +49,16 @@ export async function signup(formData: FormData) {
   const lastName = String(formData.get("last_name") ?? "").trim();
   const next = safeNext(formData.get("next"));
 
-  if (password.length < 8) {
+  const lengthErr = passwordLengthError(password);
+  if (lengthErr) {
+    redirect(`/signup?next=${encodeURIComponent(next)}&error=${encodeURIComponent(lengthErr)}`);
+  }
+
+  // Reject passwords known from a public breach (HaveIBeenPwned, CDC §8).
+  if (await isPasswordPwned(password)) {
     redirect(
       `/signup?next=${encodeURIComponent(next)}&error=${encodeURIComponent(
-        "Le mot de passe doit contenir au moins 8 caractères.",
+        "Ce mot de passe figure dans une fuite de données connue. Choisissez-en un autre.",
       )}`,
     );
   }
