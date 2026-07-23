@@ -6,7 +6,9 @@
         "httpMethod": "POST",
         "path": "lead-capture",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {
+          "allowedOrigins": "*"
+        }
       },
       "id": "wf1-webhook",
       "name": "Webhook LP",
