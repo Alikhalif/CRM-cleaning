@@ -76,6 +76,7 @@ Le nœud *Normaliser* est **tolérant** : inutile de renommer les champs de vos 
 | `email` | `mail`, `e-mail` |
 | `postal_code` / `city` | `code_postal`, `cp`, `zip` / `ville` |
 | `surface_m2` | `surface`, `m2`, `superficie` |
+| `type_service` | `service_type`, `type_prestation`, `formule` — sous-type libre (ex. « longue distance ») |
 | `notes` | `message`, `commentaire`, `demande` |
 | `activity_slug` | `activity`, `prestation`, `service` — défaut `nettoyage` |
 | `source_slug` | `source`, `utm_source` (+ alias `google`→`google_ads`, `facebook`→`meta_ads`…) — défaut `site_web` |

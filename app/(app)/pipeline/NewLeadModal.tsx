@@ -47,6 +47,7 @@ export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose }: P
   const [ownerId, setOwnerId] = useState<string>(defaultOwnerId || commerciaux[0]?.id || "");
   const [estimatedAmount, setEstimatedAmount] = useState<string>("");
   const [surfaceM2, setSurfaceM2] = useState<string>("");
+  const [typeService, setTypeService] = useState<string>("");
   const [isExtreme, setIsExtreme] = useState(false);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -84,6 +85,7 @@ export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose }: P
       ownerId,
       estimatedAmount: estimatedAmount ? Number(estimatedAmount) : null,
       surfaceM2: surfaceM2 ? Number(surfaceM2) : null,
+      typeService,
       isExtreme,
       notes,
     };
@@ -328,6 +330,19 @@ export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose }: P
               />
             </label>
           </div>
+
+          <label className={styles.field}>
+            <span className={styles.label}>
+              Type de service <span className={styles.optional}>(optionnel)</span>
+            </span>
+            <input
+              type="text"
+              value={typeService}
+              onChange={(e) => setTypeService(e.target.value)}
+              placeholder="ex. longue distance, succession, fin de chantier…"
+              className={styles.input}
+            />
+          </label>
 
           <label style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)", marginBottom: "var(--sp-2)", cursor: "pointer" }}>
             <input

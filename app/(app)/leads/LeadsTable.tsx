@@ -90,6 +90,7 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
       "Téléphone",
       "Ville",
       "Secteur",
+      "Type de service",
       "Commercial",
       "Source",
       "Montant TTC",
@@ -109,6 +110,7 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
       l.phone,
       l.city,
       SECTOR_LABEL[l.sector],
+      l.typeService ?? "",
       ownersById.get(l.ownerId)?.name ?? "",
       SOURCE_LABEL[l.source],
       String(l.amount),
@@ -245,6 +247,7 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
               <SortableTh label="Client"    col="client"         sort={sort} setSort={setSortBy} />
               <th className={styles.colPhone}>Téléphone</th>
               <th>Secteur</th>
+              <th>Type service</th>
               <th>Commercial</th>
               <th className={styles.colSource}>Source</th>
               <SortableTh label="Montant"   col="amount"         sort={sort} setSort={setSortBy} align="right" />
@@ -290,6 +293,9 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
                     >
                       {SECTOR_LABEL[l.sector]}
                     </span>
+                  </td>
+                  <td>
+                    {l.typeService ? l.typeService : <span className={styles.muted}>—</span>}
                   </td>
                   <td>
                     {owner ? (
@@ -340,7 +346,7 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
             })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={11} className={styles.empty}>
+                <td colSpan={12} className={styles.empty}>
                   Aucun lead ne correspond aux filtres actuels.
                 </td>
               </tr>

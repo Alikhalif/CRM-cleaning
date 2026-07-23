@@ -85,6 +85,7 @@ type LeadPayload = {
   source_slug?: string;
   estimated_amount?: number | null;
   surface_m2?: number | null;
+  type_service?: string | null;
   is_extreme?: boolean | null;
   gclid?: string;
   utm_source?: string;
@@ -280,6 +281,7 @@ export async function POST(request: Request) {
     owner_id: ownerId,
     estimated_amount: payload.estimated_amount ?? null,
     surface_m2: payload.surface_m2 ?? null,
+    type_service: normalize(payload.type_service ?? "") || null,
     is_extreme: payload.is_extreme ?? false,
     status: "lead" as const,
     received_at: new Date().toISOString(),

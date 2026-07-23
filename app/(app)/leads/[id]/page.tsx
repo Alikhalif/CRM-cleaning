@@ -143,6 +143,9 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
               >
                 {SECTOR_LABEL[lead.sector]}
               </span>
+              {lead.typeService && (
+                <span className={styles.muted}>Type : {lead.typeService}</span>
+              )}
               <span className={styles.heroLoc}>
                 <Icon name="leads" size={11} /> {lead.city}
               </span>

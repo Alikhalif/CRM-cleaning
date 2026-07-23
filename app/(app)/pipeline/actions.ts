@@ -579,6 +579,8 @@ export type NewLeadInput = {
   estimatedAmount: number | null;
   surfaceM2: number | null;
   notes: string;
+  // Free-text sub-qualifier within the sector.
+  typeService?: string;
   // "Demande extrême" — feeds the commercial-extrême routing tier.
   isExtreme?: boolean;
   // When true, run the routing engine BEFORE saving and let it override
@@ -694,6 +696,7 @@ export async function createLead(input: NewLeadInput): Promise<CreateLeadResult>
   };
   // is_extreme isn't in the generated types yet (migration 20260713000002).
   (payload as Record<string, unknown>).is_extreme = input.isExtreme ?? false;
+  (payload as Record<string, unknown>).type_service = input.typeService?.trim() || null;
 
   const { data: inserted, error } = await supabase
     .from("leads")

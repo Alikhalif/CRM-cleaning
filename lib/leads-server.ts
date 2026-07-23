@@ -90,6 +90,7 @@ export type LeadRowJoined = {
   intervention_delay: string | null;
   intervention_delay_notes: string | null;
   notes: string | null;
+  type_service?: string | null;
   // Découverte columns — optional so selects that don't fetch them still map.
   announced_price?: number | null;
   discovery_outcome?: string | null;
@@ -120,6 +121,7 @@ export function mapLead(row: LeadRowJoined): Lead {
     postalCode,
     city,
     sector: (row.activity?.slug ?? "nettoyage") as Sector,
+    typeService: row.type_service ?? undefined,
     source: SOURCE_DB_TO_UI[row.source?.slug ?? ""] ?? "google-ads",
     amount: row.estimated_amount ?? 0,
     ownerId: row.owner_id ?? "",
@@ -198,7 +200,7 @@ export async function getAllLeads(): Promise<Lead[]> {
         estimated_amount, owner_id, status, sub_envoi, sub_signature,
         received_at, last_action_label, last_action_at, next_followup_at,
         is_urgent, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
-        intervention_delay, intervention_delay_notes, notes,
+        intervention_delay, intervention_delay_notes, notes, type_service,
         announced_price, discovery_outcome, discovery_done_at,
         photos_requested_at, is_extreme,
         activity:activities(slug),
@@ -267,7 +269,7 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
         estimated_amount, owner_id, status, sub_envoi, sub_signature,
         received_at, last_action_label, last_action_at, next_followup_at,
         is_urgent, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
-        intervention_delay, intervention_delay_notes, notes,
+        intervention_delay, intervention_delay_notes, notes, type_service,
         announced_price, discovery_outcome, discovery_done_at,
         photos_requested_at, is_extreme,
         activity:activities(slug),

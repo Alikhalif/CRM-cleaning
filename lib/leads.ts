@@ -53,6 +53,9 @@ export type Lead = {
   postalCode: string;
   city: string;
   sector: Sector;
+  // Free-text sub-qualifier within the sector (e.g. "longue distance",
+  // "succession"). Captured from the LP form or entered manually.
+  typeService?: string;
   source: Source;
   amount: number; // estimated TTC, EUR
   ownerId: string;
