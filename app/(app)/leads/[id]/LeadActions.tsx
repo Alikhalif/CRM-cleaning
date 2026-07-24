@@ -127,11 +127,20 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled }: Props) {
           className={styles.btn}
           disabled={busy !== null}
           onClick={onCall}
-          title="Click-to-call via Ringover"
+          title="Click-to-call via Ringover (fait sonner votre poste)"
         >
           <Icon name="phone" size={14} />
           {busy === "call" ? "Appel…" : "Appeler"}
         </button>
+      )}
+      {lead.phone && (
+        <a
+          href={`tel:${lead.phone.replace(/[^\d+]/g, "")}`}
+          className={styles.btn}
+          title="Composer sur cet appareil (mobile / tablette / softphone)"
+        >
+          <Icon name="phone" size={14} /> Composer
+        </a>
       )}
       {!closed && (
         <Link

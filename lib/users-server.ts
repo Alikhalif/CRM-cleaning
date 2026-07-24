@@ -57,6 +57,7 @@ export type AdminUserRow = {
   displayName: string;
   isPremium: boolean;
   isExtreme: boolean;
+  ringoverAgentId: string;
   roleSlugs: string[];
 };
 
@@ -67,6 +68,7 @@ type AdminUserRaw = {
   last_name: string | null;
   is_premium: boolean | null;
   is_extreme: boolean | null;
+  ringover_agent_id: string | null;
 };
 
 // All users + their roles for the admin Utilisateurs page. RLS restricts the
@@ -76,7 +78,7 @@ export async function getAllUsersForAdmin(): Promise<AdminUserRow[]> {
   const [usersRes, urRes] = await Promise.all([
     supabase
       .from("users")
-      .select("id, email, first_name, last_name, is_premium, is_extreme")
+      .select("id, email, first_name, last_name, is_premium, is_extreme, ringover_agent_id")
       .order("first_name", { ascending: true })
       .returns<AdminUserRaw[]>(),
     supabase
@@ -99,6 +101,7 @@ export async function getAllUsersForAdmin(): Promise<AdminUserRow[]> {
     displayName: deriveDisplayName(u.first_name, u.last_name, u.email),
     isPremium: Boolean(u.is_premium),
     isExtreme: Boolean(u.is_extreme),
+    ringoverAgentId: u.ringover_agent_id ?? "",
     roleSlugs: rolesByUser.get(u.id) ?? [],
   }));
 }

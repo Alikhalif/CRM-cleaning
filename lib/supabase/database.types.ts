@@ -1288,6 +1288,7 @@ export type Database = {
           last_login_at: string | null
           last_name: string | null
           phone: string | null
+          ringover_agent_id: string | null
           team: string | null
           updated_at: string
         }
@@ -1303,6 +1304,7 @@ export type Database = {
           last_login_at?: string | null
           last_name?: string | null
           phone?: string | null
+          ringover_agent_id?: string | null
           team?: string | null
           updated_at?: string
         }
@@ -1318,6 +1320,7 @@ export type Database = {
           last_login_at?: string | null
           last_name?: string | null
           phone?: string | null
+          ringover_agent_id?: string | null
           team?: string | null
           updated_at?: string
         }

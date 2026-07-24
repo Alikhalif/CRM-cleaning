@@ -285,7 +285,15 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
                     </div>
                     <div className={styles.cityMuted}>{l.city}</div>
                   </td>
-                  <td className={`${styles.colPhone} ${styles.mono}`}>{l.phone}</td>
+                  <td className={`${styles.colPhone} ${styles.mono}`}>
+                    {l.phone ? (
+                      <a href={`tel:${l.phone.replace(/[^\d+]/g, "")}`} title="Composer">
+                        {l.phone}
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td>
                     <span
                       className={styles.sector}

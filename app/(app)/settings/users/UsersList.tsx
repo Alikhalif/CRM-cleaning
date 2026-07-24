@@ -4,7 +4,14 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon/Icon";
 import type { AdminUserRow, RoleOption } from "@/lib/users-server";
-import { assignRole, inviteUser, removeRole, setUserFlag, type Result } from "./actions";
+import {
+  assignRole,
+  inviteUser,
+  removeRole,
+  setRingoverAgentId,
+  setUserFlag,
+  type Result,
+} from "./actions";
 
 type Props = { users: AdminUserRow[]; roles: RoleOption[] };
 
@@ -133,6 +140,7 @@ export default function UsersList({ users, roles }: Props) {
               <th style={th}>Rôles</th>
               <th style={th}>Premium</th>
               <th style={th}>Extrême</th>
+              <th style={th}>Ringover ID</th>
             </tr>
           </thead>
           <tbody>
@@ -194,11 +202,34 @@ export default function UsersList({ users, roles }: Props) {
                     aria-label={`Extrême pour ${u.displayName}`}
                   />
                 </td>
+                <td style={td}>
+                  <input
+                    type="text"
+                    defaultValue={u.ringoverAgentId}
+                    placeholder="—"
+                    disabled={busy !== null}
+                    onBlur={(e) => {
+                      if (e.target.value !== u.ringoverAgentId) {
+                        run(`ring-${u.id}`, () => setRingoverAgentId(u.id, e.target.value));
+                      }
+                    }}
+                    style={{
+                      width: 100,
+                      padding: "4px 8px",
+                      borderRadius: "var(--r-sm)",
+                      border: "1px solid var(--border-strong)",
+                      background: "var(--bg-surface)",
+                      color: "var(--text-primary)",
+                      fontSize: "0.8125rem",
+                    }}
+                    aria-label={`Identifiant Ringover de ${u.displayName}`}
+                  />
+                </td>
               </tr>
             ))}
             {users.length === 0 && (
               <tr>
-                <td colSpan={4} style={{ ...td, color: "var(--text-muted)" }}>
+                <td colSpan={5} style={{ ...td, color: "var(--text-muted)" }}>
                   Aucun utilisateur.
                 </td>
               </tr>

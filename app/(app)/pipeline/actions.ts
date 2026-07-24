@@ -741,8 +741,16 @@ export async function callLead(id: string): Promise<Result> {
   if (error || !lead) return { ok: false, error: "Lead introuvable." };
   if (!lead.client_phone) return { ok: false, error: "Ce lead n'a pas de téléphone." };
 
+  // Ring the calling commercial's own Ringover device. Their agent id is set
+  // in Paramètres → Utilisateurs; fall back to the Supabase user id (fake mode).
+  const { data: caller } = await supabase
+    .from("users")
+    .select("ringover_agent_id")
+    .eq("id", user.id)
+    .maybeSingle<{ ringover_agent_id: string | null }>();
+
   const result = await initiateCall({
-    fromAgentId: user.id, // Ringover maps Supabase user id → agent via env later
+    fromAgentId: caller?.ringover_agent_id || user.id,
     toNumber: lead.client_phone,
     leadId: id,
   });

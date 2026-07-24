@@ -51,6 +51,26 @@ export async function setUserFlag(
   return { ok: true };
 }
 
+export async function setRingoverAgentId(userId: string, value: string): Promise<Result> {
+  const supabase = await supabaseServer();
+  if (!(await callerIsAdmin(supabase))) return { ok: false, error: "Réservé aux administrateurs." };
+
+  const { error } = await supabase
+    .from("users")
+    .update({ ringover_agent_id: value.trim() || null } as never)
+    .eq("id", userId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/settings/users");
+  await auditLog({
+    action: "user.ringover.set",
+    entityType: "user",
+    entityId: userId,
+    after: { value: value.trim() || null },
+  });
+  return { ok: true };
+}
+
 export async function assignRole(userId: string, roleId: string): Promise<Result> {
   const supabase = await supabaseServer();
   if (!(await callerIsAdmin(supabase))) return { ok: false, error: "Réservé aux administrateurs." };
