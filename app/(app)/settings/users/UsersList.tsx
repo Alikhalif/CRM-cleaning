@@ -140,7 +140,7 @@ export default function UsersList({ users, roles }: Props) {
               <th style={th}>Rôles</th>
               <th style={th}>Premium</th>
               <th style={th}>Extrême</th>
-              <th style={th}>Ringover ID</th>
+              <th style={th}>N° Ringover</th>
             </tr>
           </thead>
           <tbody>
@@ -206,7 +206,8 @@ export default function UsersList({ users, roles }: Props) {
                   <input
                     type="text"
                     defaultValue={u.ringoverAgentId}
-                    placeholder="—"
+                    placeholder="+339…"
+                    title="Numéro Ringover du commercial en E.164 (fait sonner son poste)"
                     disabled={busy !== null}
                     onBlur={(e) => {
                       if (e.target.value !== u.ringoverAgentId) {
@@ -214,7 +215,7 @@ export default function UsersList({ users, roles }: Props) {
                       }
                     }}
                     style={{
-                      width: 100,
+                      width: 120,
                       padding: "4px 8px",
                       borderRadius: "var(--r-sm)",
                       border: "1px solid var(--border-strong)",
