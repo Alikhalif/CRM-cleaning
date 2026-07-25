@@ -80,6 +80,10 @@ export type Lead = {
   sector: Sector;
   // Pays du lead (CDC §6) — détecté auto ou corrigé manuellement.
   country?: Country;
+  // Société émettrice rattachée (CDC §4) + landing page d'origine (§12).
+  entityId?: string;
+  entityName?: string;
+  landingPage?: string;
   // Free-text sub-qualifier within the sector (e.g. "longue distance",
   // "succession"). Captured from the LP form or entered manually.
   typeService?: string;

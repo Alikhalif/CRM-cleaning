@@ -147,6 +147,12 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
               {lead.country && (
                 <span className={styles.muted}>Pays : {COUNTRY_LABEL[lead.country]}</span>
               )}
+              {lead.entityName && (
+                <span className={styles.muted}>Société : {lead.entityName}</span>
+              )}
+              {lead.landingPage && (
+                <span className={styles.muted}>LP : {lead.landingPage}</span>
+              )}
               {lead.typeService && (
                 <span className={styles.muted}>Type : {lead.typeService}</span>
               )}

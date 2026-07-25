@@ -617,6 +617,67 @@ export type Database = {
           },
         ]
       }
+      landing_pages: {
+        Row: {
+          activity_id: string | null
+          country: string | null
+          created_at: string
+          entity_id: string | null
+          id: string
+          is_active: boolean
+          name: string
+          source_id: string | null
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          activity_id?: string | null
+          country?: string | null
+          created_at?: string
+          entity_id?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          source_id?: string | null
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          activity_id?: string | null
+          country?: string | null
+          created_at?: string
+          entity_id?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          source_id?: string | null
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "landing_pages_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landing_pages_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "legal_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "landing_pages_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "lead_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_sources: {
         Row: {
           color: string | null
@@ -676,6 +737,7 @@ export type Database = {
           is_extreme: boolean
           is_nrp: boolean
           is_urgent: boolean
+          landing_page_id: string | null
           last_action_at: string | null
           last_action_label: string | null
           lost_reason: string | null
@@ -727,6 +789,7 @@ export type Database = {
           is_extreme?: boolean
           is_nrp?: boolean
           is_urgent?: boolean
+          landing_page_id?: string | null
           last_action_at?: string | null
           last_action_label?: string | null
           lost_reason?: string | null
@@ -778,6 +841,7 @@ export type Database = {
           is_extreme?: boolean
           is_nrp?: boolean
           is_urgent?: boolean
+          landing_page_id?: string | null
           last_action_at?: string | null
           last_action_label?: string | null
           lost_reason?: string | null
@@ -821,6 +885,13 @@ export type Database = {
             columns: ["entity_id"]
             isOneToOne: false
             referencedRelation: "legal_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_landing_page_id_fkey"
+            columns: ["landing_page_id"]
+            isOneToOne: false
+            referencedRelation: "landing_pages"
             referencedColumns: ["id"]
           },
           {

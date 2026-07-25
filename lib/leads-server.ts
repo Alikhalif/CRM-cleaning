@@ -92,6 +92,9 @@ export type LeadRowJoined = {
   notes: string | null;
   type_service?: string | null;
   country?: string | null;
+  entity_id?: string | null;
+  entity?: { legal_name: string } | null;
+  landing_page?: { name: string } | null;
   // Découverte columns — optional so selects that don't fetch them still map.
   announced_price?: number | null;
   discovery_outcome?: string | null;
@@ -124,6 +127,9 @@ export function mapLead(row: LeadRowJoined): Lead {
     sector: (row.activity?.slug ?? "nettoyage") as Sector,
     typeService: row.type_service ?? undefined,
     country: (row.country ?? undefined) as Lead["country"],
+    entityId: row.entity_id ?? undefined,
+    entityName: row.entity?.legal_name ?? undefined,
+    landingPage: row.landing_page?.name ?? undefined,
     source: SOURCE_DB_TO_UI[row.source?.slug ?? ""] ?? "google-ads",
     amount: row.estimated_amount ?? 0,
     ownerId: row.owner_id ?? "",
@@ -203,6 +209,7 @@ export async function getAllLeads(): Promise<Lead[]> {
         received_at, last_action_label, last_action_at, next_followup_at,
         is_urgent, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
         intervention_delay, intervention_delay_notes, notes, type_service, country,
+        entity_id, entity:legal_entities(legal_name), landing_page:landing_pages(name),
         announced_price, discovery_outcome, discovery_done_at,
         photos_requested_at, is_extreme,
         activity:activities(slug),
@@ -272,6 +279,7 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
         received_at, last_action_label, last_action_at, next_followup_at,
         is_urgent, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
         intervention_delay, intervention_delay_notes, notes, type_service, country,
+        entity_id, entity:legal_entities(legal_name), landing_page:landing_pages(name),
         announced_price, discovery_outcome, discovery_done_at,
         photos_requested_at, is_extreme,
         activity:activities(slug),

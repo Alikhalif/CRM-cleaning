@@ -88,6 +88,7 @@ type LeadPayload = {
   surface_m2?: number | null;
   type_service?: string | null;
   country?: string | null;
+  lp?: string; // token de landing page → pays/société/secteur/source depuis le CRM
   is_extreme?: boolean | null;
   gclid?: string;
   utm_source?: string;
@@ -162,13 +163,6 @@ export async function POST(request: Request) {
   if (!normalize(payload.phone)) {
     return corsJson({ error: "missing_phone" }, 400);
   }
-  if (!payload.activity_slug || !ALLOWED_ACTIVITIES.includes(payload.activity_slug as ActivitySlug)) {
-    return corsJson({ error: "invalid_activity_slug" }, 400);
-  }
-  if (!payload.source_slug || !ALLOWED_SOURCES.includes(payload.source_slug as SourceSlug)) {
-    return corsJson({ error: "invalid_source_slug" }, 400);
-  }
-
   const supabase = await supabaseServiceRole();
 
   // ── Idempotency on external_id ────────────────────────────────────
@@ -188,20 +182,74 @@ export async function POST(request: Request) {
     }
   }
 
-  // ── Resolve activity + source IDs ─────────────────────────────────
-  const [{ data: activity }, { data: source }] = await Promise.all([
-    supabase.from("activities").select("id").eq("slug", payload.activity_slug).maybeSingle<{ id: string }>(),
-    supabase.from("lead_sources").select("id").eq("slug", payload.source_slug as SourceSlug).maybeSingle<{ id: string }>(),
-  ]);
-  if (!activity || !source) {
+  // ── Landing-page config (CDC §6) — pays / société / secteur / source. ──
+  // Configured once in the CRM; wins over the payload's own fields.
+  type LpRow = {
+    id: string;
+    country: string | null;
+    entity_id: string | null;
+    activity_id: string | null;
+    source_id: string | null;
+  };
+  let lp: LpRow | null = null;
+  const lpToken = normalize(payload.lp ?? "");
+  if (lpToken) {
+    const { data } = await supabase
+      .from("landing_pages")
+      .select("id, country, entity_id, activity_id, source_id")
+      .eq("token", lpToken)
+      .eq("is_active", true)
+      .maybeSingle<LpRow>();
+    lp = data ?? null;
+  }
+
+  // ── Resolve secteur (activity) — LP wins, else the payload slug. ──
+  let activityId: string | null = null;
+  let activitySlug: string | null = null;
+  if (lp?.activity_id) {
+    const { data: a } = await supabase
+      .from("activities").select("id, slug").eq("id", lp.activity_id).maybeSingle<{ id: string; slug: string }>();
+    activityId = a?.id ?? null;
+    activitySlug = a?.slug ?? null;
+  }
+  if (!activityId) {
+    if (!payload.activity_slug || !ALLOWED_ACTIVITIES.includes(payload.activity_slug as ActivitySlug)) {
+      return corsJson({ error: "invalid_activity_slug" }, 400);
+    }
+    const { data: a } = await supabase
+      .from("activities").select("id, slug").eq("slug", payload.activity_slug).maybeSingle<{ id: string; slug: string }>();
+    activityId = a?.id ?? null;
+    activitySlug = a?.slug ?? null;
+  }
+
+  // ── Resolve source — LP wins, else the payload slug. ──
+  let sourceId: string | null = lp?.source_id ?? null;
+  if (!sourceId) {
+    if (!payload.source_slug || !ALLOWED_SOURCES.includes(payload.source_slug as SourceSlug)) {
+      return corsJson({ error: "invalid_source_slug" }, 400);
+    }
+    const { data: s } = await supabase
+      .from("lead_sources").select("id").eq("slug", payload.source_slug as SourceSlug).maybeSingle<{ id: string }>();
+    sourceId = s?.id ?? null;
+  }
+
+  if (!activityId || !activitySlug || !sourceId) {
     return corsJson({ error: "unknown_activity_or_source" }, 400);
   }
+
+  // ── Pays : LP > formulaire > indicatif téléphonique. ──
+  const explicitCountry = (payload.country ?? "").toUpperCase();
+  const country: Country | null =
+    (lp?.country as Country | null) ||
+    (["FR", "CH", "LU", "BE"].includes(explicitCountry) ? (explicitCountry as Country) : null) ||
+    countryFromPhone(payload.phone) ||
+    null;
 
   // ── Compute owner via routing rules, fallback to assigned_to, then admin ─
   const routingDecision = await resolveOwner({
     surfaceM2: payload.surface_m2 ?? null,
-    sectorSlug: payload.activity_slug as ActivitySlug,
-    sourceSlug: payload.source_slug,
+    sectorSlug: activitySlug as ActivitySlug,
+    sourceSlug: payload.source_slug ?? "",
     clientIsPremium: false, // no client yet at lead-creation time
     estimatedAmount: payload.estimated_amount ?? null,
     isExtreme: payload.is_extreme ?? false,
@@ -278,17 +326,15 @@ export async function POST(request: Request) {
       postal_code: normalize(payload.postal_code) || null,
       city: normalize(payload.city) || null,
     },
-    activity_id: activity.id,
-    source_id: source.id,
+    activity_id: activityId,
+    source_id: sourceId,
+    entity_id: lp?.entity_id ?? null,
+    landing_page_id: lp?.id ?? null,
     owner_id: ownerId,
     estimated_amount: payload.estimated_amount ?? null,
     surface_m2: payload.surface_m2 ?? null,
     type_service: normalize(payload.type_service ?? "") || null,
-    // Pays : valeur explicite du formulaire si valide, sinon déduit de l'indicatif.
-    country:
-      (["FR", "CH", "LU", "BE"].includes((payload.country ?? "").toUpperCase())
-        ? ((payload.country ?? "").toUpperCase() as Country)
-        : countryFromPhone(payload.phone)) ?? null,
+    country,
     is_extreme: payload.is_extreme ?? false,
     status: "lead" as const,
     received_at: new Date().toISOString(),

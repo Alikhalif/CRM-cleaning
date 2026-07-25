@@ -41,6 +41,11 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
   const [sourceFilter, setSourceFilter] = useState<Set<Source>>(new Set());
   const [ownerFilter, setOwnerFilter] = useState<string>("");
   const [countryFilter, setCountryFilter] = useState<string>("");
+  const [societeFilter, setSocieteFilter] = useState<string>("");
+  const societes = useMemo(
+    () => [...new Set(leads.map((l) => l.entityName).filter((s): s is string => Boolean(s)))].sort(),
+    [leads],
+  );
   const [showPerdu, setShowPerdu] = useState(false);
   const [nrpOnly, setNrpOnly] = useState(false);
   const [sort, setSort] = useState<SortState>({ by: "receivedAt", dir: "desc" });
@@ -60,6 +65,7 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
       if (sourceFilter.size > 0 && !sourceFilter.has(l.source)) return false;
       if (ownerFilter && l.ownerId !== ownerFilter) return false;
       if (countryFilter && l.country !== countryFilter) return false;
+      if (societeFilter && l.entityName !== societeFilter) return false;
       if (q) {
         const hay = `${l.shortId} ${l.client} ${l.city} ${l.email} ${l.phone}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -69,7 +75,7 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
 
     rows.sort((a, b) => compareLeads(a, b, sort));
     return rows;
-  }, [leads, search, statusFilter, sourceFilter, ownerFilter, countryFilter, showPerdu, nrpOnly, sort]);
+  }, [leads, search, statusFilter, sourceFilter, ownerFilter, countryFilter, societeFilter, showPerdu, nrpOnly, sort]);
 
   const toggleSet = <T,>(set: Set<T>, value: T): Set<T> => {
     const next = new Set(set);
@@ -94,6 +100,7 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
       "Téléphone",
       "Ville",
       "Pays",
+      "Société",
       "Secteur",
       "Type de service",
       "Commercial",
@@ -115,6 +122,7 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
       l.phone,
       l.city,
       l.country ? COUNTRY_LABEL[l.country] : "",
+      l.entityName ?? "",
       SECTOR_LABEL[l.sector],
       l.typeService ?? "",
       ownersById.get(l.ownerId)?.name ?? "",
@@ -186,6 +194,20 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
             <option key={c} value={c}>{COUNTRY_LABEL[c]}</option>
           ))}
         </select>
+
+        {societes.length > 0 && (
+          <select
+            value={societeFilter}
+            onChange={(e) => setSocieteFilter(e.target.value)}
+            className={styles.select}
+            aria-label="Filtrer par société"
+          >
+            <option value="">Toutes les sociétés</option>
+            {societes.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        )}
 
         <button
           type="button"
