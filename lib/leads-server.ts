@@ -83,6 +83,7 @@ export type LeadRowJoined = {
   last_action_at: string | null;
   next_followup_at: string | null;
   is_urgent: boolean;
+  surface_m2?: number | null;
   is_nrp: boolean;
   nrp_at: string | null;
   lost_reason: string | null;
@@ -141,6 +142,7 @@ export function mapLead(row: LeadRowJoined): Lead {
     lastActionAt: row.last_action_at ?? row.received_at,
     nextFollowupAt: row.next_followup_at ?? undefined,
     isUrgent: row.is_urgent || undefined,
+    surfaceM2: row.surface_m2 ?? undefined,
     isNrp: row.is_nrp,
     nrpAt: row.nrp_at ?? undefined,
     lostReason: row.lost_reason ?? undefined,
@@ -207,7 +209,7 @@ export async function getAllLeads(): Promise<Lead[]> {
         client_email, client_phone, client_address,
         estimated_amount, owner_id, status, sub_envoi, sub_signature,
         received_at, last_action_label, last_action_at, next_followup_at,
-        is_urgent, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
+        is_urgent, surface_m2, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
         intervention_delay, intervention_delay_notes, notes, type_service, country,
         entity_id, entity:legal_entities(legal_name), landing_page:landing_pages(name),
         announced_price, discovery_outcome, discovery_done_at,
@@ -277,7 +279,7 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
         client_email, client_phone, client_address,
         estimated_amount, owner_id, status, sub_envoi, sub_signature,
         received_at, last_action_label, last_action_at, next_followup_at,
-        is_urgent, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
+        is_urgent, surface_m2, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
         intervention_delay, intervention_delay_notes, notes, type_service, country,
         entity_id, entity:legal_entities(legal_name), landing_page:landing_pages(name),
         announced_price, discovery_outcome, discovery_done_at,

@@ -116,6 +116,7 @@ export type Lead = {
   typeService?: string;
   source: Source;
   amount: number; // estimated TTC, EUR
+  surfaceM2?: number;
   ownerId: string;
   status: LeadStatus;
   subEnvoi: SubEnvoi | null;

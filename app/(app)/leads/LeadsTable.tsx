@@ -42,6 +42,9 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
   const [ownerFilter, setOwnerFilter] = useState<string>("");
   const [countryFilter, setCountryFilter] = useState<string>("");
   const [societeFilter, setSocieteFilter] = useState<string>("");
+  const [sectorFilter, setSectorFilter] = useState<string>("");
+  const [urgentOnly, setUrgentOnly] = useState(false);
+  const [bigSurfaceOnly, setBigSurfaceOnly] = useState(false);
   const societes = useMemo(
     () => [...new Set(leads.map((l) => l.entityName).filter((s): s is string => Boolean(s)))].sort(),
     [leads],
@@ -66,6 +69,9 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
       if (ownerFilter && l.ownerId !== ownerFilter) return false;
       if (countryFilter && l.country !== countryFilter) return false;
       if (societeFilter && l.entityName !== societeFilter) return false;
+      if (sectorFilter && l.sector !== sectorFilter) return false;
+      if (urgentOnly && !l.isUrgent) return false;
+      if (bigSurfaceOnly && !(l.surfaceM2 != null && l.surfaceM2 > 100)) return false;
       if (q) {
         const hay = `${l.shortId} ${l.client} ${l.city} ${l.email} ${l.phone}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -75,7 +81,7 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
 
     rows.sort((a, b) => compareLeads(a, b, sort));
     return rows;
-  }, [leads, search, statusFilter, sourceFilter, ownerFilter, countryFilter, societeFilter, showPerdu, nrpOnly, sort]);
+  }, [leads, search, statusFilter, sourceFilter, ownerFilter, countryFilter, societeFilter, sectorFilter, urgentOnly, bigSurfaceOnly, showPerdu, nrpOnly, sort]);
 
   const toggleSet = <T,>(set: Set<T>, value: T): Set<T> => {
     const next = new Set(set);
@@ -209,6 +215,18 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
           </select>
         )}
 
+        <select
+          value={sectorFilter}
+          onChange={(e) => setSectorFilter(e.target.value)}
+          className={styles.select}
+          aria-label="Filtrer par secteur"
+        >
+          <option value="">Tous les secteurs</option>
+          {(Object.keys(SECTOR_LABEL) as (keyof typeof SECTOR_LABEL)[]).map((s) => (
+            <option key={s} value={s}>{SECTOR_LABEL[s]}</option>
+          ))}
+        </select>
+
         <button
           type="button"
           className={`${styles.toggle} ${showPerdu ? styles.toggleOn : ""}`}
@@ -269,6 +287,24 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
           title="N'afficher que les leads marqués NRP (ne répond pas)"
         >
           NRP uniquement
+        </button>
+        <button
+          type="button"
+          className={`${styles.chip} ${urgentOnly ? styles.chipOn : ""}`}
+          onClick={() => setUrgentOnly((v) => !v)}
+          aria-pressed={urgentOnly}
+          title="N'afficher que les leads urgents"
+        >
+          Urgent
+        </button>
+        <button
+          type="button"
+          className={`${styles.chip} ${bigSurfaceOnly ? styles.chipOn : ""}`}
+          onClick={() => setBigSurfaceOnly((v) => !v)}
+          aria-pressed={bigSurfaceOnly}
+          title="N'afficher que les leads dont la surface dépasse 100 m²"
+        >
+          Surface &gt; 100 m²
         </button>
       </div>
 

@@ -31,6 +31,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Pilotage",
     items: [
       { href: "/dashboard",      label: "Dashboard",     icon: "dashboard" },
+      { href: "/recherche",      label: "Recherche",     icon: "search" },
       { href: "/pipeline",       label: "Pipeline",      icon: "pipeline" },
       { href: "/leads",          label: "Leads & devis", icon: "leads", badge: "leadsUntreated" },
       { href: "/a-affecter",     label: "À affecter",    icon: "leads" },
