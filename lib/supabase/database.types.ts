@@ -1352,6 +1352,7 @@ export type Database = {
       users: {
         Row: {
           color: string | null
+          commercial_profiles: string[]
           countries: string[]
           created_at: string
           email: string
@@ -1369,6 +1370,7 @@ export type Database = {
         }
         Insert: {
           color?: string | null
+          commercial_profiles?: string[]
           countries?: string[]
           created_at?: string
           email: string
@@ -1386,6 +1388,7 @@ export type Database = {
         }
         Update: {
           color?: string | null
+          commercial_profiles?: string[]
           countries?: string[]
           created_at?: string
           email?: string

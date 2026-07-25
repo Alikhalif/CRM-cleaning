@@ -23,6 +23,33 @@ export const COUNTRY_LABEL: Record<Country, string> = {
 
 export const COUNTRIES: Country[] = ["FR", "CH", "LU", "BE"];
 
+// Profils commerciaux / pools de routage (CDC §7). Un commercial peut en cumuler.
+export type CommercialProfile =
+  | "appel_entrant"
+  | "nettoyage"
+  | "debarras_demenagement"
+  | "diogene"
+  | "performant"
+  | "en_attente";
+
+export const COMMERCIAL_PROFILES: CommercialProfile[] = [
+  "appel_entrant",
+  "nettoyage",
+  "debarras_demenagement",
+  "diogene",
+  "performant",
+  "en_attente",
+];
+
+export const COMMERCIAL_PROFILE_LABEL: Record<CommercialProfile, string> = {
+  appel_entrant: "Appel entrant",
+  nettoyage: "Nettoyage",
+  debarras_demenagement: "Débarras / Déménagement",
+  diogene: "Diogène",
+  performant: "Performant",
+  en_attente: "En attente",
+};
+
 // Déduit le pays depuis l'indicatif téléphonique. Sert de dernier recours
 // dans la détection (après la landing page et le champ pays du formulaire).
 // Ordre sans collision : +352 (LU) ne préfixe pas +32 (BE).

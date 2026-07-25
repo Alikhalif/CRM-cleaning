@@ -71,6 +71,35 @@ export async function setRingoverAgentId(userId: string, value: string): Promise
   return { ok: true };
 }
 
+// Replace a user's commercial profiles or country coverage (multi-value).
+async function setUserArray(
+  userId: string,
+  column: "commercial_profiles" | "countries",
+  values: string[],
+  auditAction: string,
+): Promise<Result> {
+  const supabase = await supabaseServer();
+  if (!(await callerIsAdmin(supabase))) return { ok: false, error: "Réservé aux administrateurs." };
+
+  const { error } = await supabase
+    .from("users")
+    .update({ [column]: values } as never)
+    .eq("id", userId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/settings/users");
+  await auditLog({ action: auditAction, entityType: "user", entityId: userId, after: { values } });
+  return { ok: true };
+}
+
+export function setUserProfiles(userId: string, profiles: string[]): Promise<Result> {
+  return setUserArray(userId, "commercial_profiles", profiles, "user.profiles.set");
+}
+
+export function setUserCountries(userId: string, countries: string[]): Promise<Result> {
+  return setUserArray(userId, "countries", countries, "user.countries.set");
+}
+
 export async function assignRole(userId: string, roleId: string): Promise<Result> {
   const supabase = await supabaseServer();
   if (!(await callerIsAdmin(supabase))) return { ok: false, error: "Réservé aux administrateurs." };

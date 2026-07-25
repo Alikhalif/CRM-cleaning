@@ -3,13 +3,21 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon/Icon";
+import {
+  COMMERCIAL_PROFILES,
+  COMMERCIAL_PROFILE_LABEL,
+  COUNTRIES,
+  COUNTRY_LABEL,
+} from "@/lib/leads";
 import type { AdminUserRow, RoleOption } from "@/lib/users-server";
 import {
   assignRole,
   inviteUser,
   removeRole,
   setRingoverAgentId,
+  setUserCountries,
   setUserFlag,
+  setUserProfiles,
   type Result,
 } from "./actions";
 
@@ -140,6 +148,8 @@ export default function UsersList({ users, roles }: Props) {
               <th style={th}>Rôles</th>
               <th style={th}>Premium</th>
               <th style={th}>Extrême</th>
+              <th style={th}>Profils commerciaux</th>
+              <th style={th}>Pays</th>
               <th style={th}>N° Ringover</th>
             </tr>
           </thead>
@@ -203,6 +213,67 @@ export default function UsersList({ users, roles }: Props) {
                   />
                 </td>
                 <td style={td}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", maxWidth: 260 }}>
+                    {COMMERCIAL_PROFILES.map((p) => {
+                      const active = u.commercialProfiles.includes(p);
+                      const key = `prof-${u.id}-${p}`;
+                      const next = active
+                        ? u.commercialProfiles.filter((x) => x !== p)
+                        : [...u.commercialProfiles, p];
+                      return (
+                        <button
+                          key={p}
+                          type="button"
+                          disabled={busy !== null}
+                          onClick={() => run(key, () => setUserProfiles(u.id, next))}
+                          style={{
+                            padding: "3px 8px",
+                            borderRadius: "999px",
+                            fontSize: "0.75rem",
+                            cursor: busy !== null ? "default" : "pointer",
+                            border: active ? "1px solid var(--color-brand-500)" : "1px solid var(--border-strong)",
+                            background: active ? "var(--color-brand-500)" : "transparent",
+                            color: active ? "#fff" : "var(--text-muted)",
+                          }}
+                        >
+                          {busy === key ? "…" : COMMERCIAL_PROFILE_LABEL[p]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </td>
+                <td style={td}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {COUNTRIES.map((c) => {
+                      const active = u.countries.includes(c);
+                      const key = `ctry-${u.id}-${c}`;
+                      const next = active
+                        ? u.countries.filter((x) => x !== c)
+                        : [...u.countries, c];
+                      return (
+                        <button
+                          key={c}
+                          type="button"
+                          disabled={busy !== null}
+                          onClick={() => run(key, () => setUserCountries(u.id, next))}
+                          title={COUNTRY_LABEL[c]}
+                          style={{
+                            padding: "3px 8px",
+                            borderRadius: "999px",
+                            fontSize: "0.75rem",
+                            cursor: busy !== null ? "default" : "pointer",
+                            border: active ? "1px solid var(--color-brand-500)" : "1px solid var(--border-strong)",
+                            background: active ? "var(--color-brand-500)" : "transparent",
+                            color: active ? "#fff" : "var(--text-muted)",
+                          }}
+                        >
+                          {busy === key ? "…" : c}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </td>
+                <td style={td}>
                   <input
                     type="text"
                     defaultValue={u.ringoverAgentId}
@@ -230,7 +301,7 @@ export default function UsersList({ users, roles }: Props) {
             ))}
             {users.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ ...td, color: "var(--text-muted)" }}>
+                <td colSpan={7} style={{ ...td, color: "var(--text-muted)" }}>
                   Aucun utilisateur.
                 </td>
               </tr>
