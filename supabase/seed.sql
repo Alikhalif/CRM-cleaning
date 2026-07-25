@@ -52,7 +52,21 @@ insert into legal_entities (
     'energie@cgk-services.fr', '+33 5 56 00 00 02',
     'FR76 9876 5432 1098 7654 3210 987', 'BDFEFRPP', 10,
     'SARL au capital de 80 000 €. RGE QualiPV n° E-2024-04421. Assurance décennale Allianz n° 9087625.',
-    '#14c890');
+    '#14c890'),
+  -- Sociétés émettrices du client (CDC évolutions §1) — données placeholder,
+  -- à compléter (SIRET / IBAN / adresse) dans Paramètres → Sociétés émettrices.
+  ('NP',        'SAS', 'À renseigner', '8121Z', null,
+    jsonb_build_object('line1', 'À renseigner', 'postal_code', '', 'city', ''),
+    null, null, null, null, 20, 'À compléter', '#6366f1'),
+  ('Extra.net', 'SAS', 'À renseigner', '8121Z', null,
+    jsonb_build_object('line1', 'À renseigner', 'postal_code', '', 'city', ''),
+    null, null, null, null, 20, 'À compléter', '#f97316'),
+  ('NPS',       'SAS', 'À renseigner', '8121Z', null,
+    jsonb_build_object('line1', 'À renseigner', 'postal_code', '', 'city', ''),
+    null, null, null, null, 20, 'À compléter', '#0ea5e9'),
+  ('Optimiv',   'SAS', 'À renseigner', '8121Z', null,
+    jsonb_build_object('line1', 'À renseigner', 'postal_code', '', 'city', ''),
+    null, null, null, null, 20, 'À compléter', '#10b981');
 
 -- Entity ↔ activity defaults: Services → nettoyage + urgence + débarras;
 -- Énergie → enr + rénovation.
