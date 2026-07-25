@@ -259,7 +259,7 @@ export async function POST(request: Request) {
   });
 
   let ownerId: string | null = routingDecision?.ownerId ?? null;
-  let ownerSource: "routing" | "payload" | "fallback_admin" | "fallback_first" = "routing";
+  let ownerSource: "routing" | "payload" | "unassigned" = "routing";
 
   if (!ownerId && payload.assigned_to) {
     const { data: u } = await supabase
@@ -273,34 +273,10 @@ export async function POST(request: Request) {
       ownerSource = "payload";
     }
   }
+  // No owner resolved → the lead stays "sans affectation" (CDC §8 étape 7).
+  // It's picked up from the "Leads à affecter" view; no admin fallback.
   if (!ownerId) {
-    // Fallback: first admin user
-    const { data: admin } = await supabase
-      .from("user_roles")
-      .select("user_id, roles!inner(slug)")
-      .eq("roles.slug", "admin")
-      .limit(1)
-      .maybeSingle<{ user_id: string }>();
-    if (admin) {
-      ownerId = admin.user_id;
-      ownerSource = "fallback_admin";
-    }
-  }
-  if (!ownerId) {
-    // Last resort: any active user
-    const { data: any } = await supabase
-      .from("users")
-      .select("id")
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle<{ id: string }>();
-    if (any) {
-      ownerId = any.id;
-      ownerSource = "fallback_first";
-    }
-  }
-  if (!ownerId) {
-    return corsJson({ error: "no_active_owner_available" }, 500);
+    ownerSource = "unassigned";
   }
 
   // ── Compute next short_id ─────────────────────────────────────────
@@ -382,15 +358,18 @@ export async function POST(request: Request) {
     },
   });
 
-  await notify({
-    userId: ownerId,
-    kind: "lead.assigned",
-    entityType: "lead",
-    entityId: inserted.id,
-    title: `Nouveau lead — ${inserted.short_id}`,
-    body: isCompany ? payload.company_name ?? "" : `${payload.first_name} ${payload.last_name}`,
-    href: `/leads/${inserted.id}`,
-  });
+  // Only notify when the lead was actually assigned to someone.
+  if (ownerId) {
+    await notify({
+      userId: ownerId,
+      kind: "lead.assigned",
+      entityType: "lead",
+      entityId: inserted.id,
+      title: `Nouveau lead — ${inserted.short_id}`,
+      body: isCompany ? payload.company_name ?? "" : `${payload.first_name} ${payload.last_name}`,
+      href: `/leads/${inserted.id}`,
+    });
+  }
 
   return corsJson({
     ok: true,

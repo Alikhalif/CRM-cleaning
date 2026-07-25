@@ -281,6 +281,39 @@ export async function markLeadLost(id: string, reason: string): Promise<Result> 
 // haven't answered a contact attempt, so the commercial can filter them
 // later and follow up. last_action_label updates so the activity log
 // shows the toggle.
+// Bulk-assign unassigned leads to a commercial (CDC §9 — file « Leads à
+// affecter »). Admin-only in practice: RLS lets only is_admin() update a lead
+// whose owner_id is null.
+export async function assignLeadsBulk(ids: string[], ownerId: string): Promise<Result> {
+  if (ids.length === 0) return { ok: false, error: "Aucun lead sélectionné." };
+  if (!ownerId) return { ok: false, error: "Sélectionnez un commercial." };
+  const supabase = await supabaseServer();
+  const { error } = await supabase
+    .from("leads")
+    .update({
+      owner_id: ownerId,
+      last_action_label: "Lead attribué",
+      last_action_at: new Date().toISOString(),
+    } as never)
+    .in("id", ids);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/a-affecter");
+  revalidatePath("/leads");
+  revalidatePath("/pipeline");
+  await auditLog({ action: "lead.bulk_assign", entityType: "lead", entityId: ownerId, after: { count: ids.length, ownerId } });
+  await notify({
+    userId: ownerId,
+    kind: "lead.assigned",
+    entityType: "lead",
+    entityId: ids[0],
+    title: `${ids.length} lead(s) attribué(s)`,
+    body: "",
+    href: "/leads",
+  });
+  return { ok: true };
+}
+
 export async function setLeadNrp(id: string, nrp: boolean): Promise<Result> {
   const supabase = await supabaseServer();
   const now = new Date().toISOString();

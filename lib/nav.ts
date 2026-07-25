@@ -33,6 +33,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard",      label: "Dashboard",     icon: "dashboard" },
       { href: "/pipeline",       label: "Pipeline",      icon: "pipeline" },
       { href: "/leads",          label: "Leads & devis", icon: "leads", badge: "leadsUntreated" },
+      { href: "/a-affecter",     label: "À affecter",    icon: "leads" },
       { href: "/decouverte",     label: "Découverte",    icon: "search" },
       { href: "/commerciaux",    label: "Commerciaux",   icon: "commerciaux" },
       { href: "/planification",  label: "Planification", icon: "planification" },
