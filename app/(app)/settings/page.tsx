@@ -92,6 +92,29 @@ export default function SettingsPage() {
           </span>
         </Link>
         <Link
+          href="/settings/landing-pages"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "var(--sp-2)",
+            padding: "var(--sp-3) var(--sp-4)",
+            border: "1px solid var(--border-subtle)",
+            borderRadius: "var(--r-md)",
+            textDecoration: "none",
+            color: "var(--text-primary)",
+            background: "var(--bg-elevated)",
+          }}
+        >
+          <Icon name="leads" size={16} />
+          <span>
+            <strong>Landing Pages</strong>
+            <br />
+            <span style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>
+              Configurer chaque LP : token → pays + société + secteur + source (admin uniquement)
+            </span>
+          </span>
+        </Link>
+        <Link
           href="/settings/integrations"
           style={{
             display: "inline-flex",
