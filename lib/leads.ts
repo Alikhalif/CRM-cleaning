@@ -11,6 +11,30 @@ export type Sector =
   | "demenagement"
   | "diogene";
 
+// Pays d'opération (CDC §6/§9). Le CRM couvre 4 pays.
+export type Country = "FR" | "CH" | "LU" | "BE";
+
+export const COUNTRY_LABEL: Record<Country, string> = {
+  FR: "France",
+  CH: "Suisse",
+  LU: "Luxembourg",
+  BE: "Belgique",
+};
+
+export const COUNTRIES: Country[] = ["FR", "CH", "LU", "BE"];
+
+// Déduit le pays depuis l'indicatif téléphonique. Sert de dernier recours
+// dans la détection (après la landing page et le champ pays du formulaire).
+// Ordre sans collision : +352 (LU) ne préfixe pas +32 (BE).
+export function countryFromPhone(phone: string | null | undefined): Country | undefined {
+  const d = (phone ?? "").replace(/[^\d+]/g, "");
+  if (d.startsWith("+41") || d.startsWith("0041")) return "CH";
+  if (d.startsWith("+352") || d.startsWith("00352")) return "LU";
+  if (d.startsWith("+32") || d.startsWith("0032")) return "BE";
+  if (d.startsWith("+33") || d.startsWith("0033")) return "FR";
+  return undefined;
+}
+
 export type LeadStatus =
   | "lead"
   | "envoye"
@@ -54,6 +78,8 @@ export type Lead = {
   postalCode: string;
   city: string;
   sector: Sector;
+  // Pays du lead (CDC §6) — détecté auto ou corrigé manuellement.
+  country?: Country;
   // Free-text sub-qualifier within the sector (e.g. "longue distance",
   // "succession"). Captured from the LP form or entered manually.
   typeService?: string;

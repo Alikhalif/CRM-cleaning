@@ -658,6 +658,7 @@ export type Database = {
           client_first_name: string | null
           client_last_name: string | null
           client_phone: string | null
+          country: string | null
           created_at: string
           deleted_at: string | null
           deleted_by: string | null
@@ -708,6 +709,7 @@ export type Database = {
           client_first_name?: string | null
           client_last_name?: string | null
           client_phone?: string | null
+          country?: string | null
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
@@ -758,6 +760,7 @@ export type Database = {
           client_first_name?: string | null
           client_last_name?: string | null
           client_phone?: string | null
+          country?: string | null
           created_at?: string
           deleted_at?: string | null
           deleted_by?: string | null
@@ -1278,6 +1281,7 @@ export type Database = {
       users: {
         Row: {
           color: string | null
+          countries: string[]
           created_at: string
           email: string
           first_name: string | null
@@ -1294,6 +1298,7 @@ export type Database = {
         }
         Insert: {
           color?: string | null
+          countries?: string[]
           created_at?: string
           email: string
           first_name?: string | null
@@ -1310,6 +1315,7 @@ export type Database = {
         }
         Update: {
           color?: string | null
+          countries?: string[]
           created_at?: string
           email?: string
           first_name?: string | null

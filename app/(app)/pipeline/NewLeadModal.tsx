@@ -5,7 +5,10 @@ import { useEffect, useRef, useState } from "react";
 import Icon from "@/components/Icon/Icon";
 import {
   SECTOR_LABEL,
+  COUNTRY_LABEL,
+  COUNTRIES,
   type Commercial,
+  type Country,
   type Sector,
 } from "@/lib/leads";
 import { createLead, type NewLeadInput } from "./actions";
@@ -43,6 +46,7 @@ export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose }: P
   const [postalCode, setPostalCode] = useState("");
   const [city, setCity] = useState("");
   const [activitySlug, setActivitySlug] = useState<Sector>("nettoyage");
+  const [country, setCountry] = useState<Country | "">("");
   const [sourceSlug, setSourceSlug] = useState<NewLeadInput["sourceSlug"]>("telephone");
   const [ownerId, setOwnerId] = useState<string>(defaultOwnerId || commerciaux[0]?.id || "");
   const [estimatedAmount, setEstimatedAmount] = useState<string>("");
@@ -81,6 +85,7 @@ export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose }: P
       postalCode,
       city,
       activitySlug,
+      country: country || undefined,
       sourceSlug,
       ownerId,
       estimatedAmount: estimatedAmount ? Number(estimatedAmount) : null,
@@ -282,6 +287,21 @@ export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose }: P
               >
                 {SOURCES.map((s) => (
                   <option key={s.slug} value={s.slug}>{s.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className={styles.field}>
+              <span className={styles.label}>
+                Pays <span className={styles.optional}>(auto si vide)</span>
+              </span>
+              <select
+                value={country}
+                onChange={(e) => setCountry(e.target.value as Country | "")}
+                className={styles.input}
+              >
+                <option value="">— auto (indicatif) —</option>
+                {COUNTRIES.map((c) => (
+                  <option key={c} value={c}>{COUNTRY_LABEL[c]}</option>
                 ))}
               </select>
             </label>

@@ -7,6 +7,7 @@ import {
   DOC_TYPE_LABEL,
   PIPELINE_COLUMNS,
   SECTOR_LABEL,
+  COUNTRY_LABEL,
   SECTOR_VAR,
   SOURCE_LABEL,
   formatEUR,
@@ -143,6 +144,9 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
               >
                 {SECTOR_LABEL[lead.sector]}
               </span>
+              {lead.country && (
+                <span className={styles.muted}>Pays : {COUNTRY_LABEL[lead.country]}</span>
+              )}
               {lead.typeService && (
                 <span className={styles.muted}>Type : {lead.typeService}</span>
               )}

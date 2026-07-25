@@ -4,6 +4,7 @@ import { supabaseServiceRole } from "@/lib/supabase/service";
 import { auditLog } from "@/lib/audit";
 import { notify } from "@/lib/notifications";
 import { resolveOwner } from "@/lib/routing";
+import { countryFromPhone, type Country } from "@/lib/leads";
 
 // WF1 — Lead capture webhook (CDC §2.3).
 //
@@ -86,6 +87,7 @@ type LeadPayload = {
   estimated_amount?: number | null;
   surface_m2?: number | null;
   type_service?: string | null;
+  country?: string | null;
   is_extreme?: boolean | null;
   gclid?: string;
   utm_source?: string;
@@ -282,6 +284,11 @@ export async function POST(request: Request) {
     estimated_amount: payload.estimated_amount ?? null,
     surface_m2: payload.surface_m2 ?? null,
     type_service: normalize(payload.type_service ?? "") || null,
+    // Pays : valeur explicite du formulaire si valide, sinon déduit de l'indicatif.
+    country:
+      (["FR", "CH", "LU", "BE"].includes((payload.country ?? "").toUpperCase())
+        ? ((payload.country ?? "").toUpperCase() as Country)
+        : countryFromPhone(payload.phone)) ?? null,
     is_extreme: payload.is_extreme ?? false,
     status: "lead" as const,
     received_at: new Date().toISOString(),

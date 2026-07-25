@@ -10,7 +10,8 @@ import { initiateCall } from "@/lib/ringover";
 import { resolveOwner } from "@/lib/routing";
 import { sendBrevoEmail, sendBrevoSms } from "@/lib/brevo";
 import { buildPhotoRequestEmail, buildPhotoRequestSms } from "@/lib/templates";
-import type { DiscoveryOutcome, LeadStatus, SubEnvoi, SubSignature } from "@/lib/leads";
+import { countryFromPhone } from "@/lib/leads";
+import type { Country, DiscoveryOutcome, LeadStatus, SubEnvoi, SubSignature } from "@/lib/leads";
 import type { Database } from "@/lib/supabase/database.types";
 
 type LeadUpdate = Database["public"]["Tables"]["leads"]["Update"];
@@ -581,6 +582,8 @@ export type NewLeadInput = {
   notes: string;
   // Free-text sub-qualifier within the sector.
   typeService?: string;
+  // Pays (CDC §6) — sinon déduit du téléphone.
+  country?: Country;
   // "Demande extrême" — feeds the commercial-extrême routing tier.
   isExtreme?: boolean;
   // When true, run the routing engine BEFORE saving and let it override
@@ -697,6 +700,7 @@ export async function createLead(input: NewLeadInput): Promise<CreateLeadResult>
   // is_extreme isn't in the generated types yet (migration 20260713000002).
   (payload as Record<string, unknown>).is_extreme = input.isExtreme ?? false;
   (payload as Record<string, unknown>).type_service = input.typeService?.trim() || null;
+  (payload as Record<string, unknown>).country = input.country ?? countryFromPhone(input.phone) ?? null;
 
   const { data: inserted, error } = await supabase
     .from("leads")
