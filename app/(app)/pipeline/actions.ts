@@ -568,7 +568,7 @@ export type NewLeadInput = {
   postalCode: string;
   city: string;
   // Routing — required
-  activitySlug: "urgence" | "nettoyage" | "enr" | "renovation" | "debarras" | "demenagement";
+  activitySlug: "urgence" | "nettoyage" | "enr" | "renovation" | "debarras" | "demenagement" | "diogene";
   sourceSlug:
     | "google_ads"
     | "meta_ads"

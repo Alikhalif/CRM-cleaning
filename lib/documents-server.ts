@@ -101,6 +101,7 @@ function mapDocumentBase(row: DocumentRowJoined): CrmDocument {
 const PAYMENT_TERM_BY_SECTOR: Record<Sector, PaymentTermSlug> = {
   debarras: "comptant",
   demenagement: "comptant",
+  diogene: "comptant",
   urgence: "comptant",
   nettoyage: "30j",
   enr: "30j",
@@ -209,6 +210,7 @@ export async function getAllEntities(): Promise<LegalEntity[]> {
 const VAT_BY_SECTOR: Record<Sector, number> = {
   debarras: 20,
   demenagement: 20,
+  diogene: 20,
   urgence: 20,
   nettoyage: 20,
   enr: 10,
@@ -234,6 +236,8 @@ const FALLBACK_PRESTATIONS: Prestation[] = [
   { id: "pr_enc",    sector: "debarras",   label: "Enlèvement encombrants",         unit: "m²",      unitPriceHt: 25,   vatRate: 20 },
   { id: "pr_demT2",  sector: "demenagement", label: "Déménagement studio / T2 (forfait)", unit: "forfait", unitPriceHt: 600, vatRate: 20 },
   { id: "pr_demMo",  sector: "demenagement", label: "Main d'œuvre déménageur",       unit: "h",       unitPriceHt: 45,   vatRate: 20 },
+  { id: "pr_diog",   sector: "diogene",      label: "Nettoyage extrême / Diogène (forfait)", unit: "forfait", unitPriceHt: 2500, vatRate: 20 },
+  { id: "pr_diogMo", sector: "diogene",      label: "Main d'œuvre spécialisée",     unit: "h",       unitPriceHt: 55,   vatRate: 20 },
 ];
 
 // Build plausible document lines from a stored doc + lead. For devis: pick

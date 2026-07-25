@@ -49,7 +49,7 @@ export type DailyMetric = {
   encaisseFinaleCount: number;
 };
 
-const SECTORS: Sector[] = ["urgence", "nettoyage", "enr", "renovation", "debarras", "demenagement"];
+const SECTORS: Sector[] = ["urgence", "nettoyage", "enr", "renovation", "debarras", "demenagement", "diogene"];
 
 // "Today" pinned at module load so filterSeries is deterministic within a
 // page render.

@@ -42,7 +42,7 @@ const PERIODS: { value: Period; label: string }[] = [
   { value: "12m", label: "12 derniers mois" },
 ];
 
-const SECTORS: Sector[] = ["urgence", "nettoyage", "enr", "renovation", "debarras", "demenagement"];
+const SECTORS: Sector[] = ["urgence", "nettoyage", "enr", "renovation", "debarras", "demenagement", "diogene"];
 const CHANNELS: Channel[] = ["mano", "auto"];
 
 type Props = {

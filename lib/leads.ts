@@ -8,7 +8,8 @@ export type Sector =
   | "enr"
   | "renovation"
   | "debarras"
-  | "demenagement";
+  | "demenagement"
+  | "diogene";
 
 export type LeadStatus =
   | "lead"
@@ -230,6 +231,7 @@ export const DEFAULT_ACOMPTE_PCT: Record<Sector, number> = {
   renovation: 40,
   debarras: 30,
   demenagement: 30,
+  diogene: 30,
 };
 
 export const DEFAULT_PAYMENT_TERM: Record<Sector, PaymentTermSlug> = {
@@ -239,6 +241,7 @@ export const DEFAULT_PAYMENT_TERM: Record<Sector, PaymentTermSlug> = {
   renovation: "45j",
   debarras: "comptant",
   demenagement: "comptant",
+  diogene: "comptant",
 };
 
 // ── Planification (workflow planificatrice — overrides CDC §4.7) ──────
@@ -419,6 +422,7 @@ export const SECTOR_LABEL: Record<Sector, string> = {
   renovation: "Rénovation",
   debarras: "Débarras",
   demenagement: "Déménagement",
+  diogene: "Diogène",
 };
 
 // Maps to the --sector-* CSS custom properties already defined in _tokens.scss.
@@ -429,6 +433,7 @@ export const SECTOR_VAR: Record<Sector, string> = {
   renovation: "--sector-renovation",
   debarras: "--sector-debarras",
   demenagement: "--sector-demenagement",
+  diogene: "--sector-diogene",
 };
 
 export const SOURCE_LABEL: Record<Source, string> = {

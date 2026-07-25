@@ -206,6 +206,7 @@ export default function RoutingRuleModal({ existing, commerciaux, onClose, onDon
                   <option value="renovation">Rénovation</option>
                   <option value="debarras">Débarras</option>
                   <option value="demenagement">Déménagement</option>
+                  <option value="diogene">Diogène</option>
                 </select>
               </label>
               <label className={styles.field}>
