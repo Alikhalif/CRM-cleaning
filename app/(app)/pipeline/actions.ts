@@ -665,6 +665,8 @@ export async function createLead(input: NewLeadInput): Promise<CreateLeadResult>
       clientIsPremium: false, // no client yet at lead creation — TODO when lead → client conversion happens
       estimatedAmount: input.estimatedAmount,
       isExtreme: input.isExtreme ?? false,
+      isUrgent: false,
+      country: input.country ?? countryFromPhone(input.phone) ?? null,
     });
     if (decision) {
       resolvedOwnerId = decision.ownerId;

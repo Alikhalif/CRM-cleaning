@@ -53,6 +53,31 @@ function validate(input: RuleInput): string | null {
   return null;
 }
 
+// Configurable "Performant" surface threshold (CDC §7). Stored in app_settings;
+// the routing engine reads it (default 100 m²).
+export async function setPerformantThreshold(value: number): Promise<Result> {
+  const supabase = await supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Non authentifié." };
+  const { data: roles } = await supabase
+    .from("user_roles").select("roles(slug)").eq("user_id", user.id)
+    .returns<{ roles: { slug: string } | null }[]>();
+  if (!(roles ?? []).some((r) => r.roles?.slug === "admin")) {
+    return { ok: false, error: "Réservé aux administrateurs." };
+  }
+  const n = Math.round(value);
+  if (!Number.isFinite(n) || n <= 0) return { ok: false, error: "Seuil invalide." };
+
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert({ key: "performant_surface_threshold", value: n } as never, { onConflict: "key" });
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/settings/routing");
+  await auditLog({ action: "settings.performant_threshold.set", entityType: "user", entityId: user.id, after: { value: n } });
+  return { ok: true };
+}
+
 export async function createRule(input: RuleInput): Promise<Result> {
   const err = validate(input);
   if (err) return { ok: false, error: err };

@@ -18,6 +18,8 @@ export type RoutingInput = {
   clientIsPremium: boolean;
   estimatedAmount: number | null;
   isExtreme: boolean; // "demande extrême" flag captured at lead creation
+  isUrgent: boolean;  // demande urgente (CDC §7 — Nettoyage urgent → Performant)
+  country: string | null; // pays du lead (CDC §8/§10 — le commercial doit le couvrir)
 };
 
 export type RoutingDecision = {
@@ -139,7 +141,8 @@ export async function resolveOwner(input: RoutingInput): Promise<RoutingDecision
       reason: formatReason(rule.conditions, rule.action, ownerId),
     };
   }
-  return null;
+  // No explicit rule matched → fall through to the CDC §8 profile-based routing.
+  return resolveByProfile(input);
 }
 
 function formatReason(
@@ -159,4 +162,93 @@ function formatReason(
           ? `user ${ownerId}`
           : `unknown action → ${ownerId}`;
   return `Conditions [${condBits || "*"}] → ${actDesc}`;
+}
+
+// ── Profile-based routing (CDC §7/§8) ─────────────────────────────────
+// The deterministic default when no explicit routing_rule matched: map the
+// lead's secteur (+ urgence/surface) to a commercial profile, then pick a
+// commercial in that pool who covers the lead's country, load-balanced.
+
+const DEFAULT_PERFORMANT_THRESHOLD = 100;
+
+async function getPerformantThreshold(
+  supabase: Awaited<ReturnType<typeof supabaseServiceRole>>,
+): Promise<number> {
+  const { data } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "performant_surface_threshold")
+    .maybeSingle<{ value: unknown }>();
+  const n = Number(data?.value);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_PERFORMANT_THRESHOLD;
+}
+
+// CDC §8 étape 3 : secteur (+ urgence / surface) → profil cible.
+function targetProfile(input: RoutingInput, threshold: number): string {
+  const s = input.sectorSlug;
+  if (s === "nettoyage") {
+    if (input.isUrgent || (input.surfaceM2 != null && input.surfaceM2 > threshold)) return "performant";
+    return "nettoyage";
+  }
+  if (s === "debarras" || s === "demenagement") return "debarras_demenagement";
+  if (s === "diogene") return "diogene";
+  return "nettoyage"; // secteurs hérités (urgence/enr/renovation) → pool nettoyage
+}
+
+// Pick from a profile pool: users holding the profile, active, covering the
+// lead's country (countries vide = couvre tout), least-loaded first.
+async function pickFromPool(
+  supabase: Awaited<ReturnType<typeof supabaseServiceRole>>,
+  profile: string,
+  country: string | null,
+): Promise<string | null> {
+  const { data: pool } = await supabase
+    .from("users")
+    .select("id, countries")
+    .eq("is_active", true)
+    .contains("commercial_profiles", [profile])
+    .returns<{ id: string; countries: string[] | null }[]>();
+  if (!pool || pool.length === 0) return null;
+
+  const eligible = pool.filter(
+    (u) => !country || !u.countries || u.countries.length === 0 || u.countries.includes(country),
+  );
+  if (eligible.length === 0) return null;
+
+  const counts = await Promise.all(
+    eligible.map(async (u) => {
+      const { count } = await supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .eq("owner_id", u.id)
+        .not("status", "in", "(perdu,encaisse)");
+      return { userId: u.id, openCount: count ?? 0 };
+    }),
+  );
+  counts.sort((a, b) => a.openCount - b.openCount);
+  return counts[0]?.userId ?? null;
+}
+
+export async function resolveByProfile(input: RoutingInput): Promise<RoutingDecision | null> {
+  const supabase = await supabaseServiceRole();
+  const threshold = await getPerformantThreshold(supabase);
+  const profile = targetProfile(input, threshold);
+
+  // Étapes 4-6 : pool du profil, couverture pays, round-robin par charge.
+  let ownerId = await pickFromPool(supabase, profile, input.country);
+  let usedProfile = profile;
+
+  // Étape 7 : sinon, le pool « en attente » (débordement).
+  if (!ownerId) {
+    ownerId = await pickFromPool(supabase, "en_attente", input.country);
+    usedProfile = "en_attente";
+  }
+  if (!ownerId) return null;
+
+  return {
+    ownerId,
+    matchedRuleId: "profile",
+    matchedRuleName: `profil:${usedProfile}`,
+    reason: `Secteur ${input.sectorSlug} → profil ${usedProfile}${input.country ? ` · pays ${input.country}` : ""}`,
+  };
 }

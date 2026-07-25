@@ -88,6 +88,7 @@ type LeadPayload = {
   surface_m2?: number | null;
   type_service?: string | null;
   country?: string | null;
+  is_urgent?: boolean | null;
   lp?: string; // token de landing page → pays/société/secteur/source depuis le CRM
   is_extreme?: boolean | null;
   gclid?: string;
@@ -253,6 +254,8 @@ export async function POST(request: Request) {
     clientIsPremium: false, // no client yet at lead-creation time
     estimatedAmount: payload.estimated_amount ?? null,
     isExtreme: payload.is_extreme ?? false,
+    isUrgent: payload.is_urgent ?? false,
+    country,
   });
 
   let ownerId: string | null = routingDecision?.ownerId ?? null;
@@ -336,6 +339,7 @@ export async function POST(request: Request) {
     type_service: normalize(payload.type_service ?? "") || null,
     country,
     is_extreme: payload.is_extreme ?? false,
+    is_urgent: payload.is_urgent ?? false,
     status: "lead" as const,
     received_at: new Date().toISOString(),
     last_action_label: "Lead reçu via WF1",
