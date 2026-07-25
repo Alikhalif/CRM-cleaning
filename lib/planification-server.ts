@@ -120,7 +120,7 @@ const LEAD_SELECT =
    estimated_amount, owner_id, status, sub_envoi, sub_signature,
    received_at, last_action_label, last_action_at, next_followup_at,
    is_urgent, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
-   intervention_delay, intervention_delay_notes, notes,
+   intervention_delay, intervention_delay_notes, notes, country,
    activity:activities(slug),
    source:lead_sources(slug),
    owner:users!leads_owner_id_fkey(id, first_name, last_name, color)`;

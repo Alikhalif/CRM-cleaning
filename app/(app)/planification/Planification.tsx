@@ -11,6 +11,8 @@ import {
   PAYMENT_STATUS_LABEL,
   SECTOR_LABEL,
   SECTOR_VAR,
+  COUNTRIES,
+  COUNTRY_LABEL,
   formatEUR,
   type DossierFlag,
   type DossierStatus,
@@ -68,6 +70,7 @@ export default function Planification({ initialRows, technicians }: Props) {
   const [paymentFilter, setPaymentFilter] = useState<Set<PaymentStatus>>(new Set());
   const [flagFilter, setFlagFilter] = useState<Set<DossierFlag>>(new Set());
   const [technicianFilter, setTechnicianFilter] = useState<string>("");
+  const [countryFilter, setCountryFilter] = useState<string>("");
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [planifyTarget, setPlanifyTarget] = useState<DossierWithContext | null>(null);
   const [editTarget, setEditTarget] = useState<DossierWithContext | null>(null);
@@ -89,6 +92,7 @@ export default function Planification({ initialRows, technicians }: Props) {
           if (technicianFilter !== "__none__" && r.dossier.technicianId !== technicianFilter) return false;
         }
         if (flagFilter.size > 0 && !r.dossier.flags.some((f) => flagFilter.has(f))) return false;
+        if (countryFilter && r.lead.country !== countryFilter) return false;
         if (q) {
           const hay = `${r.lead.client} ${r.lead.city} ${r.lead.shortId}`.toLowerCase();
           if (!hay.includes(q)) return false;
@@ -106,7 +110,7 @@ export default function Planification({ initialRows, technicians }: Props) {
         }
         return +new Date(b.dossier.updatedAt) - +new Date(a.dossier.updatedAt);
       });
-  }, [rows, search, statusFilter, paymentFilter, flagFilter, technicianFilter]);
+  }, [rows, search, statusFilter, paymentFilter, flagFilter, technicianFilter, countryFilter]);
 
   // Click-outside / Escape close any row menu.
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -392,6 +396,17 @@ export default function Planification({ initialRows, technicians }: Props) {
           <option value="__none__">Sans intervenant</option>
           {technicians.map((t) => (
             <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+        <select
+          value={countryFilter}
+          onChange={(e) => setCountryFilter(e.target.value)}
+          className={styles.select}
+          aria-label="Filtrer par pays"
+        >
+          <option value="">Tous les pays</option>
+          {COUNTRIES.map((c) => (
+            <option key={c} value={c}>{COUNTRY_LABEL[c]}</option>
           ))}
         </select>
       </div>
