@@ -92,11 +92,11 @@ async function setUserArray(
   return { ok: true };
 }
 
-export function setUserProfiles(userId: string, profiles: string[]): Promise<Result> {
+export async function setUserProfiles(userId: string, profiles: string[]): Promise<Result> {
   return setUserArray(userId, "commercial_profiles", profiles, "user.profiles.set");
 }
 
-export function setUserCountries(userId: string, countries: string[]): Promise<Result> {
+export async function setUserCountries(userId: string, countries: string[]): Promise<Result> {
   return setUserArray(userId, "countries", countries, "user.countries.set");
 }
 
