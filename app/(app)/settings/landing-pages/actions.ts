@@ -3,13 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
+import type { Country } from "@/lib/leads";
 
 export type Result = { ok: true; id?: string } | { ok: false; error: string };
 
 export type LpInput = {
   token: string;
   name: string;
-  country: "" | "FR" | "CH" | "LU" | "BE";
+  country: "" | Country;
   entityId: string;
   activityId: string;
   sourceId: string;

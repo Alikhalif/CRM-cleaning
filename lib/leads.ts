@@ -12,16 +12,17 @@ export type Sector =
   | "diogene";
 
 // Pays d'opération (CDC §6/§9). Le CRM couvre 4 pays.
-export type Country = "FR" | "CH" | "LU" | "BE";
+export type Country = "FR" | "CH" | "LU" | "BE" | "CA";
 
 export const COUNTRY_LABEL: Record<Country, string> = {
   FR: "France",
   CH: "Suisse",
   LU: "Luxembourg",
   BE: "Belgique",
+  CA: "Canada",
 };
 
-export const COUNTRIES: Country[] = ["FR", "CH", "LU", "BE"];
+export const COUNTRIES: Country[] = ["FR", "CH", "LU", "BE", "CA"];
 
 // Profils commerciaux / pools de routage (CDC §7). Un commercial peut en cumuler.
 export type CommercialProfile =
@@ -59,6 +60,7 @@ export function countryFromPhone(phone: string | null | undefined): Country | un
   if (d.startsWith("+352") || d.startsWith("00352")) return "LU";
   if (d.startsWith("+32") || d.startsWith("0032")) return "BE";
   if (d.startsWith("+33") || d.startsWith("0033")) return "FR";
+  if (d.startsWith("+1") || d.startsWith("001")) return "CA";
   return undefined;
 }
 

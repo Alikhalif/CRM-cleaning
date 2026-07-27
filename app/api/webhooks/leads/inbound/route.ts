@@ -4,7 +4,7 @@ import { supabaseServiceRole } from "@/lib/supabase/service";
 import { auditLog } from "@/lib/audit";
 import { notify } from "@/lib/notifications";
 import { resolveOwner } from "@/lib/routing";
-import { countryFromPhone, type Country } from "@/lib/leads";
+import { countryFromPhone, COUNTRIES, type Country } from "@/lib/leads";
 
 // WF1 — Lead capture webhook (CDC §2.3).
 //
@@ -242,7 +242,7 @@ export async function POST(request: Request) {
   const explicitCountry = (payload.country ?? "").toUpperCase();
   const country: Country | null =
     (lp?.country as Country | null) ||
-    (["FR", "CH", "LU", "BE"].includes(explicitCountry) ? (explicitCountry as Country) : null) ||
+    ((COUNTRIES as string[]).includes(explicitCountry) ? (explicitCountry as Country) : null) ||
     countryFromPhone(payload.phone) ||
     null;
 
