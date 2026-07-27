@@ -92,6 +92,9 @@ export default async function CommerciauxPage({ searchParams }: Props) {
             Classement de performance · {activeCount} actif{activeCount > 1 ? "s" : ""} sur {stats.length}
           </p>
         </div>
+        <Link href="/settings/users" className={styles.addBtn}>
+          <Icon name="plus" size={16} /> Ajouter un commercial
+        </Link>
       </header>
 
       <section className={styles.kpis}>

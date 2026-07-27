@@ -13,6 +13,27 @@
   gap: var(--sp-3);
 }
 
+.addBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+  padding: 9px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--color-brand-500);
+  background: var(--color-brand-500);
+  color: var(--text-inverted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.14s ease, transform 0.14s ease;
+}
+.addBtn:hover {
+  background: var(--color-brand-600);
+  border-color: var(--color-brand-600);
+  transform: translateY(-1px);
+}
+
 .title {
   margin: 0;
   font-size: var(--fs-2xl);
