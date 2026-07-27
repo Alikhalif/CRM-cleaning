@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
 import { canLaunchSequence, type Commercial, type Lead } from "@/lib/leads";
 import { callLead, launchSequence, setLeadNrp, stopAutoSequence } from "@/app/(app)/pipeline/actions";
@@ -21,7 +21,18 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled }: Props) {
   const [lostModalOpen, setLostModalOpen] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [reassignModalOpen, setReassignModalOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [, startTransition] = useTransition();
+
+  // Close the overflow menu on Escape for keyboard users.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
 
   const onToggleNrp = () => {
     setBusy("nrp");
@@ -194,32 +205,71 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled }: Props) {
       >
         {busy === "nrp" ? "…" : lead.isNrp ? "Retirer NRP" : "Marquer NRP"}
       </button>
-      <button
-        type="button"
-        className={styles.btn}
-        disabled={busy !== null}
-        onClick={() => setContactModalOpen(true)}
-      >
-        Modifier coordonnées
-      </button>
-      <button
-        type="button"
-        className={styles.btn}
-        disabled={busy !== null}
-        onClick={() => setReassignModalOpen(true)}
-      >
-        Réassigner
-      </button>
-      {!closed && (
+      <div className={styles.menuWrap}>
         <button
           type="button"
-          className={`${styles.btn} ${styles.btnDanger}`}
+          className={styles.btn}
           disabled={busy !== null}
-          onClick={() => setLostModalOpen(true)}
+          onClick={() => setMenuOpen((o) => !o)}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          title="Plus d'actions"
         >
-          <Icon name="x" size={14} /> Marquer perdu
+          <Icon name="more-vertical" size={14} /> Plus
         </button>
-      )}
+        {menuOpen && (
+          <>
+            <div
+              className={styles.menuBackdrop}
+              onClick={() => setMenuOpen(false)}
+              aria-hidden
+            />
+            <div className={styles.menu} role="menu">
+              <button
+                type="button"
+                role="menuitem"
+                className={styles.menuItem}
+                disabled={busy !== null}
+                onClick={() => {
+                  setMenuOpen(false);
+                  setContactModalOpen(true);
+                }}
+              >
+                <Icon name="edit" size={15} /> Modifier coordonnées
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={styles.menuItem}
+                disabled={busy !== null}
+                onClick={() => {
+                  setMenuOpen(false);
+                  setReassignModalOpen(true);
+                }}
+              >
+                <Icon name="commerciaux" size={15} /> Réassigner
+              </button>
+              {!closed && (
+                <>
+                  <div className={styles.menuDivider} aria-hidden />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={`${styles.menuItem} ${styles.menuItemDanger}`}
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setLostModalOpen(true);
+                    }}
+                  >
+                    <Icon name="x" size={15} /> Marquer perdu
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
 
       {lostModalOpen && (
         <MarkLostModal
