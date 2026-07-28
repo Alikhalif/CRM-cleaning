@@ -38,6 +38,19 @@ export async function initiateCall(input: InitiateCallInput): Promise<InitiateCa
     return { ok: true, callId: fakeId, fake: true };
   }
 
+  // Ringover's /v2/callback expects from_number / to_number as INTEGERS in
+  // international format without the leading "+" (e.g. +33690337102 → 33690337102).
+  // The agent's Ringover line ("N° Ringover") must therefore be stored in
+  // international format too — a national number (06…) will be rejected.
+  const fromNumber = Number(String(input.fromAgentId).replace(/\D/g, ""));
+  const toNumber = Number(input.toNumber.replace(/\D/g, ""));
+  if (!Number.isSafeInteger(fromNumber) || fromNumber === 0) {
+    return { ok: false, error: "N° Ringover de l'agent invalide (attendu : format international, ex. 33690337102)." };
+  }
+  if (!Number.isSafeInteger(toNumber) || toNumber === 0) {
+    return { ok: false, error: "Numéro du lead invalide." };
+  }
+
   try {
     const response = await fetch(`${apiBase}${RINGOVER_ENDPOINT}`, {
       method: "POST",
@@ -46,16 +59,18 @@ export async function initiateCall(input: InitiateCallInput): Promise<InitiateCa
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from_number: input.fromAgentId,
-        to_number: input.toNumber,
+        from_number: fromNumber,
+        to_number: toNumber,
         device: "ALL", // ring every device the agent has registered
       }),
     });
     if (!response.ok) {
       let detail = `HTTP ${response.status}`;
       try {
-        const errBody = (await response.json()) as { message?: string };
+        // Ringover errors carry either { message } or { detail } (+ errors[]).
+        const errBody = (await response.json()) as { message?: string; detail?: string };
         if (errBody.message) detail = errBody.message;
+        else if (errBody.detail) detail = errBody.detail;
       } catch { /* not json */ }
       return { ok: false, error: detail };
     }
