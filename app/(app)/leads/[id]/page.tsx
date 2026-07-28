@@ -11,8 +11,10 @@ import {
   SECTOR_VAR,
   SOURCE_LABEL,
   formatEUR,
+  profileCapabilities,
 } from "@/lib/leads";
 import { getAllCommerciaux, getLeadDetail } from "@/lib/leads-server";
+import { getCurrentUserProfile } from "@/lib/users-server";
 import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import CallNotesCard from "./CallNotesCard";
 import DiscoveryCard from "./DiscoveryCard";
@@ -56,12 +58,18 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   const tab: TabKey =
     TABS.find((t) => t.key === tabParam)?.key ?? "informations";
 
-  const [detail, commerciaux, n8nEnabled] = await Promise.all([
+  const [detail, commerciaux, n8nEnabled, me] = await Promise.all([
     getLeadDetail(id),
     getAllCommerciaux(),
     isN8nSequenceEnabled(),
+    getCurrentUserProfile(),
   ]);
   if (!detail) notFound();
+
+  // Capacités dérivées du profil (décision « auto selon le profil ») : un
+  // commercial « Divers » (profil nettoyage) n'a pas accès au click-to-call.
+  const isAdmin = (me?.roles ?? []).some((r) => r.slug === "admin");
+  const { canUseRingover } = profileCapabilities(me?.commercialProfiles ?? [], isAdmin);
 
   const { lead, owner, documents, timeline } = detail;
   const statusLabel =
@@ -171,7 +179,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
             </div>
           </div>
 
-          <LeadActions lead={lead} commerciaux={commerciaux} n8nEnabled={n8nEnabled} />
+          <LeadActions lead={lead} commerciaux={commerciaux} n8nEnabled={n8nEnabled} canUseRingover={canUseRingover} />
         </div>
 
         <PipelineProgress lead={lead} docs={documents.map((d) => ({ type: d.type, status: d.status }))} />

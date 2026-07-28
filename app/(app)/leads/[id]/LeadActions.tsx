@@ -13,9 +13,16 @@ import styles from "./LeadDetail.module.scss";
 
 // Action buttons for the lead detail header.
 
-type Props = { lead: Lead; commerciaux: Commercial[]; n8nEnabled: boolean };
+type Props = {
+  lead: Lead;
+  commerciaux: Commercial[];
+  n8nEnabled: boolean;
+  // Capacité dérivée du profil du commercial connecté (auto selon le profil).
+  // false → le click-to-call et la composition sont masqués (profil « Divers »).
+  canUseRingover: boolean;
+};
 
-export default function LeadActions({ lead, commerciaux, n8nEnabled }: Props) {
+export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingover }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [lostModalOpen, setLostModalOpen] = useState(false);
@@ -132,7 +139,7 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled }: Props) {
 
   return (
     <div className={styles.actions}>
-      {lead.phone && (
+      {canUseRingover && lead.phone && (
         <button
           type="button"
           className={styles.btn}
@@ -144,7 +151,7 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled }: Props) {
           {busy === "call" ? "Appel…" : "Appeler"}
         </button>
       )}
-      {lead.phone && (
+      {canUseRingover && lead.phone && (
         <a
           href={`tel:${lead.phone.replace(/[^\d+]/g, "")}`}
           className={styles.btn}

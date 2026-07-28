@@ -4,6 +4,7 @@ import {
   getAllRoles,
   getCurrentUserProfile,
 } from "@/lib/users-server";
+import { getEntitiesForPicker } from "@/lib/devis-server";
 import UsersList from "./UsersList";
 
 export const metadata = { title: "Utilisateurs" };
@@ -13,12 +14,14 @@ export const metadata = { title: "Utilisateurs" };
 // flagged into the premium / extrême routing pools and given roles.
 
 export default async function UsersPage() {
-  const [users, roles, me] = await Promise.all([
+  const [users, roles, me, entities] = await Promise.all([
     getAllUsersForAdmin(),
     getAllRoles(),
     getCurrentUserProfile(),
+    getEntitiesForPicker(),
   ]);
   const isAdmin = (me?.roles ?? []).some((r) => r.slug === "admin");
+  const entityOptions = entities.map((e) => ({ id: e.id, name: e.legalName }));
 
   return (
     <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -51,7 +54,7 @@ export default async function UsersPage() {
           <strong>Admin</strong>. Vos rôles : {(me?.roles ?? []).map((r) => r.slug).join(", ") || "(aucun)"}.
         </div>
       ) : (
-        <UsersList users={users} roles={roles} />
+        <UsersList users={users} roles={roles} entities={entityOptions} />
       )}
     </div>
   );

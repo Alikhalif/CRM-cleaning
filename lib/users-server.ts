@@ -19,6 +19,9 @@ export type CurrentUserProfile = {
   // Per-user accent colour for the avatar — falls back to brand if not set.
   color: string;
   roles: UserRole[];
+  // Profils commerciaux du user — sert à dériver ses capacités (Ringover,
+  // création de lead) via profileCapabilities().
+  commercialProfiles: string[];
 };
 
 type UserRow = {
@@ -27,6 +30,7 @@ type UserRow = {
   first_name: string | null;
   last_name: string | null;
   color: string | null;
+  commercial_profiles: string[] | null;
 };
 
 type RoleJoinRow = { roles: { slug: string; label: string } | null };
@@ -61,6 +65,7 @@ export type AdminUserRow = {
   roleSlugs: string[];
   commercialProfiles: string[];
   countries: string[];
+  entityId: string | null;
 };
 
 type AdminUserRaw = {
@@ -73,6 +78,7 @@ type AdminUserRaw = {
   ringover_agent_id: string | null;
   commercial_profiles: string[] | null;
   countries: string[] | null;
+  entity_id: string | null;
 };
 
 // All users + their roles for the admin Utilisateurs page. RLS restricts the
@@ -82,7 +88,7 @@ export async function getAllUsersForAdmin(): Promise<AdminUserRow[]> {
   const [usersRes, urRes] = await Promise.all([
     supabase
       .from("users")
-      .select("id, email, first_name, last_name, is_premium, is_extreme, ringover_agent_id, commercial_profiles, countries")
+      .select("id, email, first_name, last_name, is_premium, is_extreme, ringover_agent_id, commercial_profiles, countries, entity_id")
       .order("first_name", { ascending: true })
       .returns<AdminUserRaw[]>(),
     supabase
@@ -109,6 +115,7 @@ export async function getAllUsersForAdmin(): Promise<AdminUserRow[]> {
     roleSlugs: rolesByUser.get(u.id) ?? [],
     commercialProfiles: u.commercial_profiles ?? [],
     countries: u.countries ?? [],
+    entityId: u.entity_id ?? null,
   }));
 }
 
@@ -131,7 +138,7 @@ export async function getCurrentUserProfile(): Promise<CurrentUserProfile | null
   const [profileRes, rolesRes] = await Promise.all([
     supabase
       .from("users")
-      .select("id, email, first_name, last_name, color")
+      .select("id, email, first_name, last_name, color, commercial_profiles")
       .eq("id", user.id)
       .maybeSingle<UserRow>(),
     supabase
@@ -161,5 +168,6 @@ export async function getCurrentUserProfile(): Promise<CurrentUserProfile | null
     roles: (rolesRes.data ?? [])
       .map((r) => r.roles)
       .filter((r): r is { slug: string; label: string } => r !== null),
+    commercialProfiles: profile?.commercial_profiles ?? [],
   };
 }

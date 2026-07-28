@@ -16,14 +16,16 @@ import {
   removeRole,
   setRingoverAgentId,
   setUserCountries,
+  setUserEntity,
   setUserFlag,
   setUserProfiles,
   type Result,
 } from "./actions";
 
-type Props = { users: AdminUserRow[]; roles: RoleOption[] };
+type EntityOption = { id: string; name: string };
+type Props = { users: AdminUserRow[]; roles: RoleOption[]; entities: EntityOption[] };
 
-export default function UsersList({ users, roles }: Props) {
+export default function UsersList({ users, roles, entities }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -150,6 +152,7 @@ export default function UsersList({ users, roles }: Props) {
               <th style={th}>Extrême</th>
               <th style={th}>Profils commerciaux</th>
               <th style={th}>Pays</th>
+              <th style={th}>Société</th>
               <th style={th}>N° Ringover</th>
             </tr>
           </thead>
@@ -274,6 +277,29 @@ export default function UsersList({ users, roles }: Props) {
                   </div>
                 </td>
                 <td style={td}>
+                  <select
+                    value={u.entityId ?? ""}
+                    disabled={busy !== null}
+                    onChange={(e) => run(`ent-${u.id}`, () => setUserEntity(u.id, e.target.value))}
+                    title="Société de rattachement du commercial"
+                    aria-label={`Société de ${u.displayName}`}
+                    style={{
+                      maxWidth: 150,
+                      padding: "4px 8px",
+                      borderRadius: "var(--r-sm)",
+                      border: "1px solid var(--border-strong)",
+                      background: "var(--bg-surface)",
+                      color: "var(--text-primary)",
+                      fontSize: "0.8125rem",
+                    }}
+                  >
+                    <option value="">—</option>
+                    {entities.map((ent) => (
+                      <option key={ent.id} value={ent.id}>{ent.name}</option>
+                    ))}
+                  </select>
+                </td>
+                <td style={td}>
                   <input
                     type="text"
                     defaultValue={u.ringoverAgentId}
@@ -301,7 +327,7 @@ export default function UsersList({ users, roles }: Props) {
             ))}
             {users.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ ...td, color: "var(--text-muted)" }}>
+                <td colSpan={8} style={{ ...td, color: "var(--text-muted)" }}>
                   Aucun utilisateur.
                 </td>
               </tr>
@@ -311,6 +337,8 @@ export default function UsersList({ users, roles }: Props) {
       </div>
       <p style={{ padding: "8px 12px", fontSize: "0.75rem", color: "var(--text-muted)" }}>
         Premium / Extrême = pools de routing (une règle « pool premium/extrême » y dispatche les leads).
+        Les <strong>capacités</strong> (accès Ringover, création de lead) sont <strong>dérivées automatiquement des profils</strong> :
+        Appel entrant, Diogène, Débarras/Déménagement, Performant et En attente y ont droit ; Nettoyage (Divers) ne reçoit que des devis.
         L&apos;invité reçoit un email d&apos;activation ; il apparaît dans la liste dès son compte créé, puis attribuez-lui ses rôles.
       </p>
     </div>

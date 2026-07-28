@@ -4,6 +4,7 @@ import styles from "./Pipeline.module.scss";
 import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import { getAllCommerciaux, getAllLeads } from "@/lib/leads-server";
 import { getCurrentUserProfile } from "@/lib/users-server";
+import { profileCapabilities } from "@/lib/leads";
 
 export const metadata = { title: "Pipeline" };
 
@@ -15,6 +16,11 @@ export default async function PipelinePage() {
     getCurrentUserProfile(),
   ]);
 
+  // Droit de créer un lead — dérivé du profil (auto). Le profil « Divers »
+  // (nettoyage) ne peut pas créer de lead ; l'admin le peut toujours.
+  const isAdmin = (user?.roles ?? []).some((r) => r.slug === "admin");
+  const { canAddLead } = profileCapabilities(user?.commercialProfiles ?? [], isAdmin);
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -24,7 +30,9 @@ export default async function PipelinePage() {
             7 colonnes · glisser-déposer entre étapes · sous-statuts Mano/Auto et Sans/Avec acompte
           </p>
         </div>
-        <NewLeadButton commerciaux={commerciaux} currentUserId={user?.id ?? ""} />
+        {canAddLead && (
+          <NewLeadButton commerciaux={commerciaux} currentUserId={user?.id ?? ""} />
+        )}
       </header>
       <PipelineBoard initialLeads={leads} commerciaux={commerciaux} n8nEnabled={n8nEnabled} />
     </div>

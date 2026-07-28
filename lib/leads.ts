@@ -51,6 +51,27 @@ export const COMMERCIAL_PROFILE_LABEL: Record<CommercialProfile, string> = {
   en_attente: "En attente",
 };
 
+// Capacités dérivées du profil commercial (décision : « auto selon le profil »,
+// pas de réglage par utilisateur). Les profils « chasseurs » (appel entrant,
+// diogène, débarras/déménagement, performant, en attente) peuvent utiliser le
+// click-to-call Ringover et créer des leads. Le profil « nettoyage » (Divers)
+// ne reçoit que des devis : ni Ringover ni création. Un admin a tout.
+const RINGOVER_PROFILES: CommercialProfile[] = [
+  "appel_entrant",
+  "diogene",
+  "debarras_demenagement",
+  "performant",
+  "en_attente",
+];
+
+export type Capabilities = { canUseRingover: boolean; canAddLead: boolean };
+
+export function profileCapabilities(profiles: string[], isAdmin = false): Capabilities {
+  if (isAdmin) return { canUseRingover: true, canAddLead: true };
+  const granted = RINGOVER_PROFILES.some((p) => profiles.includes(p));
+  return { canUseRingover: granted, canAddLead: granted };
+}
+
 // Déduit le pays depuis l'indicatif téléphonique. Sert de dernier recours
 // dans la détection (après la landing page et le champ pays du formulaire).
 // Ordre sans collision : +352 (LU) ne préfixe pas +32 (BE).

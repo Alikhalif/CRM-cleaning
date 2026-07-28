@@ -92,6 +92,26 @@ async function setUserArray(
   return { ok: true };
 }
 
+export async function setUserEntity(userId: string, entityId: string): Promise<Result> {
+  const supabase = await supabaseServer();
+  if (!(await callerIsAdmin(supabase))) return { ok: false, error: "Réservé aux administrateurs." };
+
+  const { error } = await supabase
+    .from("users")
+    .update({ entity_id: entityId || null } as never)
+    .eq("id", userId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/settings/users");
+  await auditLog({
+    action: "user.entity.set",
+    entityType: "user",
+    entityId: userId,
+    after: { entity_id: entityId || null },
+  });
+  return { ok: true };
+}
+
 export async function setUserProfiles(userId: string, profiles: string[]): Promise<Result> {
   return setUserArray(userId, "commercial_profiles", profiles, "user.profiles.set");
 }
