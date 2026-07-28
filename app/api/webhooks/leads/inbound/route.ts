@@ -66,7 +66,7 @@ function corsJson(body: unknown, status: number): NextResponse {
   return NextResponse.json(body, { status, headers: CORS_HEADERS });
 }
 
-const ALLOWED_ACTIVITIES = ["urgence", "nettoyage", "enr", "renovation", "debarras", "demenagement", "diogene"] as const;
+const ALLOWED_ACTIVITIES = ["urgence", "nettoyage", "nettoyage_difficile", "enr", "renovation", "debarras", "demenagement", "diogene"] as const;
 const ALLOWED_SOURCES = ["google_ads", "meta_ads", "site_web", "telephone", "recommandation"] as const;
 type ActivitySlug = (typeof ALLOWED_ACTIVITIES)[number];
 type SourceSlug = (typeof ALLOWED_SOURCES)[number];
@@ -188,6 +188,7 @@ export async function POST(request: Request) {
   type LpRow = {
     id: string;
     country: string | null;
+    lp_type: string | null;
     entity_id: string | null;
     activity_id: string | null;
     source_id: string | null;
@@ -197,7 +198,7 @@ export async function POST(request: Request) {
   if (lpToken) {
     const { data } = await supabase
       .from("landing_pages")
-      .select("id, country, entity_id, activity_id, source_id")
+      .select("id, country, lp_type, entity_id, activity_id, source_id")
       .eq("token", lpToken)
       .eq("is_active", true)
       .maybeSingle<LpRow>();
@@ -256,6 +257,7 @@ export async function POST(request: Request) {
     isExtreme: payload.is_extreme ?? false,
     isUrgent: payload.is_urgent ?? false,
     country,
+    lpType: (lp?.lp_type === "generale" || lp?.lp_type === "famille") ? lp.lp_type : null,
   });
 
   let ownerId: string | null = routingDecision?.ownerId ?? null;

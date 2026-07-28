@@ -202,6 +202,7 @@ export default function RoutingRuleModal({ existing, commerciaux, onClose, onDon
                   <option value="">Indifférent</option>
                   <option value="urgence">Urgence</option>
                   <option value="nettoyage">Nettoyage</option>
+                  <option value="nettoyage_difficile">Nettoyage difficile</option>
                   <option value="enr">ENR</option>
                   <option value="renovation">Rénovation</option>
                   <option value="debarras">Débarras</option>

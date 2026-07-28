@@ -15,10 +15,18 @@ import {
 
 type Props = { pages: LandingPageRow[]; options: LpOptions };
 
+// Labels dupliqués ici (le composant est "use client" et ne peut pas importer
+// le module server-only landing-pages-server où vit LP_TYPE_LABEL).
+const LP_TYPE_LABEL: Record<"generale" | "famille", string> = {
+  generale: "Générale",
+  famille: "Famille",
+};
+
 const empty: LpInput = {
   token: "",
   name: "",
   country: "",
+  lpType: "",
   entityId: "",
   activityId: "",
   sourceId: "",
@@ -53,6 +61,7 @@ export default function LandingPagesList({ pages, options }: Props) {
         token: p.token,
         name: p.name,
         country: (p.country ?? "") as LpInput["country"],
+        lpType: (p.lpType ?? "") as LpInput["lpType"],
         entityId: p.entityId ?? "",
         activityId: p.activityId ?? "",
         sourceId: p.sourceId ?? "",
@@ -112,6 +121,7 @@ export default function LandingPagesList({ pages, options }: Props) {
               <th style={th}>Token</th>
               <th style={th}>Nom</th>
               <th style={th}>Pays</th>
+              <th style={th}>Type</th>
               <th style={th}>Société</th>
               <th style={th}>Secteur</th>
               <th style={th}>Source</th>
@@ -125,6 +135,7 @@ export default function LandingPagesList({ pages, options }: Props) {
                 <td style={{ ...td, fontFamily: "monospace" }}>{p.token}</td>
                 <td style={{ ...td, fontWeight: 600, color: "var(--text-primary)" }}>{p.name}</td>
                 <td style={td}>{p.country ? COUNTRY_LABEL[p.country] : "—"}</td>
+                <td style={td}>{p.lpType ? LP_TYPE_LABEL[p.lpType] : "—"}</td>
                 <td style={td}>{p.entityName ?? "—"}</td>
                 <td style={td}>{p.activityLabel ?? "—"}</td>
                 <td style={td}>{p.sourceLabel ?? "—"}</td>
@@ -140,7 +151,7 @@ export default function LandingPagesList({ pages, options }: Props) {
               </tr>
             ))}
             {pages.length === 0 && (
-              <tr><td colSpan={8} style={{ ...td, color: "var(--text-muted)" }}>Aucune landing page configurée.</td></tr>
+              <tr><td colSpan={9} style={{ ...td, color: "var(--text-muted)" }}>Aucune landing page configurée.</td></tr>
             )}
           </tbody>
         </table>
@@ -175,6 +186,17 @@ export default function LandingPagesList({ pages, options }: Props) {
                   {COUNTRIES.map((c) => <option key={c} value={c}>{COUNTRY_LABEL[c]}</option>)}
                 </select>
               </label>
+              <label style={{ flex: 1, fontSize: "0.8125rem", color: "var(--text-muted)" }}>
+                Type
+                <select style={inp} value={editing.input.lpType} onChange={(e) => set("lpType", e.target.value as LpInput["lpType"])}>
+                  <option value="">—</option>
+                  <option value="generale">Générale</option>
+                  <option value="famille">Famille</option>
+                </select>
+              </label>
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
               <label style={{ flex: 1, fontSize: "0.8125rem", color: "var(--text-muted)" }}>
                 Société
                 <select style={inp} value={editing.input.entityId} onChange={(e) => set("entityId", e.target.value)}>

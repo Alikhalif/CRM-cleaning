@@ -5,6 +5,7 @@
 export type Sector =
   | "urgence"
   | "nettoyage"
+  | "nettoyage_difficile"
   | "enr"
   | "renovation"
   | "debarras"
@@ -308,6 +309,7 @@ export const PAYMENT_TERMS: Record<PaymentTermSlug, PaymentTerm> = {
 export const DEFAULT_ACOMPTE_PCT: Record<Sector, number> = {
   urgence: 0,
   nettoyage: 20,
+  nettoyage_difficile: 20,
   enr: 30,
   renovation: 40,
   debarras: 30,
@@ -318,6 +320,7 @@ export const DEFAULT_ACOMPTE_PCT: Record<Sector, number> = {
 export const DEFAULT_PAYMENT_TERM: Record<Sector, PaymentTermSlug> = {
   urgence: "comptant",
   nettoyage: "30j",
+  nettoyage_difficile: "30j",
   enr: "30j",
   renovation: "45j",
   debarras: "comptant",
@@ -499,6 +502,7 @@ export function unpaidInvoiceId(
 export const SECTOR_LABEL: Record<Sector, string> = {
   urgence: "Urgence",
   nettoyage: "Nettoyage",
+  nettoyage_difficile: "Nettoyage difficile",
   enr: "ENR",
   renovation: "Rénovation",
   debarras: "Débarras",
@@ -510,6 +514,7 @@ export const SECTOR_LABEL: Record<Sector, string> = {
 export const SECTOR_VAR: Record<Sector, string> = {
   urgence: "--sector-urgence",
   nettoyage: "--sector-nettoyage",
+  nettoyage_difficile: "--sector-nettoyage-difficile",
   enr: "--sector-enr",
   renovation: "--sector-renovation",
   debarras: "--sector-debarras",

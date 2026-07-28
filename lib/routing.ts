@@ -13,13 +13,16 @@ import { supabaseServiceRole } from "./supabase/service";
 
 export type RoutingInput = {
   surfaceM2: number | null;
-  sectorSlug: "urgence" | "nettoyage" | "enr" | "renovation" | "debarras" | "demenagement" | "diogene";
+  sectorSlug: "urgence" | "nettoyage" | "nettoyage_difficile" | "enr" | "renovation" | "debarras" | "demenagement" | "diogene";
   sourceSlug: string;
   clientIsPremium: boolean;
   estimatedAmount: number | null;
   isExtreme: boolean; // "demande extrême" flag captured at lead creation
   isUrgent: boolean;  // demande urgente (CDC §7 — Nettoyage urgent → Performant)
   country: string | null; // pays du lead (CDC §8/§10 — le commercial doit le couvrir)
+  // Type de la landing page d'origine (Lot B). "generale" | "famille" | null
+  // (null = pas de LP, ou LP sans type → traité comme "famille").
+  lpType: "generale" | "famille" | null;
 };
 
 export type RoutingDecision = {
@@ -183,30 +186,42 @@ async function getPerformantThreshold(
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_PERFORMANT_THRESHOLD;
 }
 
-// CDC §8 étape 3 : secteur (+ urgence / surface) → profil cible.
-function targetProfile(input: RoutingInput, threshold: number): string {
+// Lot B — secteur (catégorie) + type de LP (+ urgence / surface) → profil(s) cible.
+// Renvoie une LISTE de profils éligibles (le pool est l'union) car certaines
+// combinaisons sont partagées (ex. Famille-nettoyage → Appel entrant OU Divers).
+// Règles :
+//   • Diogène                        → diogene
+//   • Débarras / Déménagement        → debarras_demenagement
+//   • Nettoyage difficile            → performant
+//   • Nettoyage (+ hérités) urgent   → performant
+//   • Nettoyage (+ hérités) surf>seuil → performant
+//   • Nettoyage Générale             → appel_entrant
+//   • Nettoyage Famille / sans type  → appel_entrant OU nettoyage (Divers)
+function targetProfiles(input: RoutingInput, threshold: number): string[] {
   const s = input.sectorSlug;
-  if (s === "nettoyage") {
-    if (input.isUrgent || (input.surfaceM2 != null && input.surfaceM2 > threshold)) return "performant";
-    return "nettoyage";
-  }
-  if (s === "debarras" || s === "demenagement") return "debarras_demenagement";
-  if (s === "diogene") return "diogene";
-  return "nettoyage"; // secteurs hérités (urgence/enr/renovation) → pool nettoyage
+  if (s === "diogene") return ["diogene"];
+  if (s === "debarras" || s === "demenagement") return ["debarras_demenagement"];
+  if (s === "nettoyage_difficile") return ["performant"];
+
+  // Famille "nettoyage" (nettoyage + secteurs hérités urgence/enr/renovation).
+  if (input.isUrgent || (input.surfaceM2 != null && input.surfaceM2 > threshold)) return ["performant"];
+  if (input.lpType === "generale") return ["appel_entrant"];
+  return ["appel_entrant", "nettoyage"]; // Famille (ou sans type) → union des deux pools
 }
 
-// Pick from a profile pool: users holding the profile, active, covering the
-// lead's country (countries vide = couvre tout), least-loaded first.
+// Pick from one or more profile pools: users holding ANY of the profiles,
+// active, covering the lead's country (countries vide = couvre tout),
+// least-loaded first.
 async function pickFromPool(
   supabase: Awaited<ReturnType<typeof supabaseServiceRole>>,
-  profile: string,
+  profiles: string[],
   country: string | null,
 ): Promise<string | null> {
   const { data: pool } = await supabase
     .from("users")
     .select("id, countries")
     .eq("is_active", true)
-    .contains("commercial_profiles", [profile])
+    .overlaps("commercial_profiles", profiles)
     .returns<{ id: string; countries: string[] | null }[]>();
   if (!pool || pool.length === 0) return null;
 
@@ -232,15 +247,15 @@ async function pickFromPool(
 export async function resolveByProfile(input: RoutingInput): Promise<RoutingDecision | null> {
   const supabase = await supabaseServiceRole();
   const threshold = await getPerformantThreshold(supabase);
-  const profile = targetProfile(input, threshold);
+  const profiles = targetProfiles(input, threshold);
 
-  // Étapes 4-6 : pool du profil, couverture pays, round-robin par charge.
-  let ownerId = await pickFromPool(supabase, profile, input.country);
-  let usedProfile = profile;
+  // Étapes 4-6 : pool des profils, couverture pays, round-robin par charge.
+  let ownerId = await pickFromPool(supabase, profiles, input.country);
+  let usedProfile = profiles.join("/");
 
   // Étape 7 : sinon, le pool « en attente » (débordement).
   if (!ownerId) {
-    ownerId = await pickFromPool(supabase, "en_attente", input.country);
+    ownerId = await pickFromPool(supabase, ["en_attente"], input.country);
     usedProfile = "en_attente";
   }
   if (!ownerId) return null;
@@ -249,6 +264,6 @@ export async function resolveByProfile(input: RoutingInput): Promise<RoutingDeci
     ownerId,
     matchedRuleId: "profile",
     matchedRuleName: `profil:${usedProfile}`,
-    reason: `Secteur ${input.sectorSlug} → profil ${usedProfile}${input.country ? ` · pays ${input.country}` : ""}`,
+    reason: `Secteur ${input.sectorSlug}${input.lpType ? ` · LP ${input.lpType}` : ""} → profil ${usedProfile}${input.country ? ` · pays ${input.country}` : ""}`,
   };
 }

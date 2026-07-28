@@ -31,7 +31,7 @@ const SOURCES: { slug: NewLeadInput["sourceSlug"]; label: string }[] = [
   { slug: "recommandation", label: "Recommandation" },
 ];
 
-const SECTORS: Sector[] = ["urgence", "nettoyage", "enr", "renovation", "debarras", "demenagement", "diogene"];
+const SECTORS: Sector[] = ["urgence", "nettoyage", "nettoyage_difficile", "enr", "renovation", "debarras", "demenagement", "diogene"];
 
 export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose }: Props) {
   const router = useRouter();

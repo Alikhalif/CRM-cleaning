@@ -11,7 +11,7 @@ import { resolveOwner } from "@/lib/routing";
 import { sendBrevoEmail, sendBrevoSms } from "@/lib/brevo";
 import { buildPhotoRequestEmail, buildPhotoRequestSms } from "@/lib/templates";
 import { countryFromPhone } from "@/lib/leads";
-import type { Country, DiscoveryOutcome, LeadStatus, SubEnvoi, SubSignature } from "@/lib/leads";
+import type { Country, DiscoveryOutcome, LeadStatus, Sector, SubEnvoi, SubSignature } from "@/lib/leads";
 import type { Database } from "@/lib/supabase/database.types";
 
 type LeadUpdate = Database["public"]["Tables"]["leads"]["Update"];
@@ -602,7 +602,7 @@ export type NewLeadInput = {
   postalCode: string;
   city: string;
   // Routing — required
-  activitySlug: "urgence" | "nettoyage" | "enr" | "renovation" | "debarras" | "demenagement" | "diogene";
+  activitySlug: Sector;
   sourceSlug:
     | "google_ads"
     | "meta_ads"
@@ -700,6 +700,7 @@ export async function createLead(input: NewLeadInput): Promise<CreateLeadResult>
       isExtreme: input.isExtreme ?? false,
       isUrgent: false,
       country: input.country ?? countryFromPhone(input.phone) ?? null,
+      lpType: null, // lead créé manuellement — pas de landing page d'origine
     });
     if (decision) {
       resolvedOwnerId = decision.ownerId;

@@ -494,6 +494,7 @@ function sectorIcon(sector: string): Parameters<typeof Icon>[0]["name"] {
   return {
     urgence: "zap",
     nettoyage: "check",
+    nettoyage_difficile: "check",
     enr: "sun",
     renovation: "edit",
   }[sector] as Parameters<typeof Icon>[0]["name"] ?? "leads";

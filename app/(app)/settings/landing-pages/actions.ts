@@ -11,6 +11,7 @@ export type LpInput = {
   token: string;
   name: string;
   country: "" | Country;
+  lpType: "" | "generale" | "famille";
   entityId: string;
   activityId: string;
   sourceId: string;
@@ -41,6 +42,7 @@ function toRow(input: LpInput) {
     token: input.token.trim(),
     name: input.name.trim(),
     country: input.country || null,
+    lp_type: input.lpType || null,
     entity_id: input.entityId || null,
     activity_id: input.activityId || null,
     source_id: input.sourceId || null,

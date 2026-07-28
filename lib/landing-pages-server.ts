@@ -5,11 +5,19 @@ import type { Country } from "./leads";
 // Data layer for the admin "Landing Pages" settings page. RLS restricts writes
 // to admins; reads are open to authenticated users.
 
+export type LpType = "generale" | "famille";
+
+export const LP_TYPE_LABEL: Record<LpType, string> = {
+  generale: "Générale",
+  famille: "Famille",
+};
+
 export type LandingPageRow = {
   id: string;
   token: string;
   name: string;
   country: Country | null;
+  lpType: LpType | null;
   entityId: string | null;
   entityName: string | null;
   activityId: string | null;
@@ -30,6 +38,7 @@ type LpJoined = {
   token: string;
   name: string;
   country: string | null;
+  lp_type: string | null;
   entity_id: string | null;
   activity_id: string | null;
   source_id: string | null;
@@ -44,7 +53,7 @@ export async function getLandingPages(): Promise<LandingPageRow[]> {
   const { data, error } = await supabase
     .from("landing_pages")
     .select(
-      "id, token, name, country, entity_id, activity_id, source_id, is_active, " +
+      "id, token, name, country, lp_type, entity_id, activity_id, source_id, is_active, " +
       "entity:legal_entities(legal_name), activity:activities(label), source:lead_sources(label)",
     )
     .order("name", { ascending: true })
@@ -55,6 +64,7 @@ export async function getLandingPages(): Promise<LandingPageRow[]> {
     token: r.token,
     name: r.name,
     country: (r.country ?? null) as Country | null,
+    lpType: (r.lp_type ?? null) as LpType | null,
     entityId: r.entity_id,
     entityName: r.entity?.legal_name ?? null,
     activityId: r.activity_id,

@@ -104,6 +104,7 @@ const PAYMENT_TERM_BY_SECTOR: Record<Sector, PaymentTermSlug> = {
   diogene: "comptant",
   urgence: "comptant",
   nettoyage: "30j",
+  nettoyage_difficile: "30j",
   enr: "30j",
   renovation: "45j",
 };
@@ -213,6 +214,7 @@ const VAT_BY_SECTOR: Record<Sector, number> = {
   diogene: 20,
   urgence: 20,
   nettoyage: 20,
+  nettoyage_difficile: 20,
   enr: 10,
   renovation: 10,
 };
