@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseServiceRole } from "./supabase/service";
+import { DEFAULT_PERFORMANT_THRESHOLD, targetProfiles } from "./routing-shared";
 
 // Lead routing engine. Evaluates routing_rules (ordered by priority asc,
 // active only) against a lead's attributes and returns the chosen
@@ -172,8 +173,6 @@ function formatReason(
 // lead's secteur (+ urgence/surface) to a commercial profile, then pick a
 // commercial in that pool who covers the lead's country, load-balanced.
 
-const DEFAULT_PERFORMANT_THRESHOLD = 100;
-
 async function getPerformantThreshold(
   supabase: Awaited<ReturnType<typeof supabaseServiceRole>>,
 ): Promise<number> {
@@ -186,28 +185,7 @@ async function getPerformantThreshold(
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_PERFORMANT_THRESHOLD;
 }
 
-// Lot B — secteur (catégorie) + type de LP (+ urgence / surface) → profil(s) cible.
-// Renvoie une LISTE de profils éligibles (le pool est l'union) car certaines
-// combinaisons sont partagées (ex. Famille-nettoyage → Appel entrant OU Divers).
-// Règles :
-//   • Diogène                        → diogene
-//   • Débarras / Déménagement        → debarras_demenagement
-//   • Nettoyage difficile            → performant
-//   • Nettoyage (+ hérités) urgent   → performant
-//   • Nettoyage (+ hérités) surf>seuil → performant
-//   • Nettoyage Générale             → appel_entrant
-//   • Nettoyage Famille / sans type  → appel_entrant OU nettoyage (Divers)
-function targetProfiles(input: RoutingInput, threshold: number): string[] {
-  const s = input.sectorSlug;
-  if (s === "diogene") return ["diogene"];
-  if (s === "debarras" || s === "demenagement") return ["debarras_demenagement"];
-  if (s === "nettoyage_difficile") return ["performant"];
-
-  // Famille "nettoyage" (nettoyage + secteurs hérités urgence/enr/renovation).
-  if (input.isUrgent || (input.surfaceM2 != null && input.surfaceM2 > threshold)) return ["performant"];
-  if (input.lpType === "generale") return ["appel_entrant"];
-  return ["appel_entrant", "nettoyage"]; // Famille (ou sans type) → union des deux pools
-}
+// targetProfiles() lives in ./routing-shared (pure, testable in isolation).
 
 // Pick from one or more profile pools: users holding ANY of the profiles,
 // active, covering the lead's country (countries vide = couvre tout),
