@@ -1,9 +1,11 @@
 import CommandPalette from "@/components/CommandPalette/CommandPalette";
 import RealtimeNotifications from "@/components/RealtimeNotifications/RealtimeNotifications";
+import RingoverPhone from "@/components/RingoverPhone/RingoverPhone";
 import Sidebar from "@/components/Sidebar/Sidebar";
 import Topbar from "@/components/Topbar/Topbar";
 import { getUnreadCount } from "@/lib/notifications";
 import { getCurrentUserProfile } from "@/lib/users-server";
+import { profileCapabilities } from "@/lib/leads";
 import styles from "./layout.module.scss";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -15,6 +17,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     getUnreadCount(),
   ]);
 
+  // Le webphone Ringover n'est monté que pour les profils qui téléphonent
+  // (mêmes capacités que le bouton « Appeler »).
+  const isAdmin = (user?.roles ?? []).some((r) => r.slug === "admin");
+  const { canUseRingover } = profileCapabilities(user?.commercialProfiles ?? [], isAdmin);
+
   return (
     <div className={styles.shell}>
       <Sidebar />
@@ -24,6 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
       <CommandPalette />
       {user && <RealtimeNotifications userId={user.id} />}
+      {canUseRingover && <RingoverPhone />}
     </div>
   );
 }

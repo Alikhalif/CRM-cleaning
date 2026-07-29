@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
 import { canLaunchSequence, type Commercial, type Lead } from "@/lib/leads";
-import { callLead, launchSequence, setLeadNrp, stopAutoSequence } from "@/app/(app)/pipeline/actions";
+import { dialViaWebphone } from "@/lib/ringover-webphone";
+import { launchSequence, setLeadNrp, stopAutoSequence } from "@/app/(app)/pipeline/actions";
 import EditContactModal from "./EditContactModal";
 import MarkLostModal from "./MarkLostModal";
 import ReassignLeadModal from "./ReassignLeadModal";
@@ -59,17 +60,10 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
       alert("Ce lead n'a pas de numéro de téléphone.");
       return;
     }
-    if (!confirm(`Lancer un appel vers ${lead.phone} via Ringover ?`)) return;
-    setBusy("call");
-    startTransition(async () => {
-      const result = await callLead(lead.id);
-      setBusy(null);
-      if (!result.ok) {
-        alert(`Échec de l'appel : ${result.error}`);
-        return;
-      }
-      router.refresh();
-    });
+    // Compose l'appel dans le webphone Ringover intégré (audio dans le CRM).
+    // Le widget s'ouvre et lance l'appel ; si l'agent n'est pas encore connecté
+    // à Ringover, le widget affiche l'écran de connexion.
+    dialViaWebphone(lead.phone);
   };
 
   const onLaunchAuto = () => {
@@ -143,12 +137,11 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
         <button
           type="button"
           className={styles.btn}
-          disabled={busy !== null}
           onClick={onCall}
-          title="Click-to-call via Ringover (fait sonner votre poste)"
+          title="Appeler dans le webphone Ringover intégré (audio dans le CRM)"
         >
           <Icon name="phone" size={14} />
-          {busy === "call" ? "Appel…" : "Appeler"}
+          Appeler
         </button>
       )}
       {canUseRingover && lead.phone && (
