@@ -200,8 +200,11 @@ export async function ensureClientFromLead(leadId: string): Promise<EnsureClient
     return { ok: false, error: `Échec de la conversion : ${insErr?.message ?? "inconnu"}.` };
   }
 
-  revalidatePath("/clients");
-  revalidatePath(`/leads/${leadId}`);
+  // NOTE: no revalidatePath() here. This function is invoked during the render
+  // of /devis/new (to lazily materialise the client before the quote editor
+  // reads it), and Next 16 forbids revalidation during render. /clients and the
+  // lead page are dynamically rendered, so they pick up the new row on their
+  // next request anyway.
   await auditLog({
     action: "client.create_from_lead",
     entityType: "client",

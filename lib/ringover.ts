@@ -72,7 +72,9 @@ export async function initiateCall(input: InitiateCallInput): Promise<InitiateCa
         if (errBody.message) detail = errBody.message;
         else if (errBody.detail) detail = errBody.detail;
       } catch { /* not json */ }
-      return { ok: false, error: detail };
+      // Surface the numbers actually sent — invaluable while numbers change
+      // during a portability window.
+      return { ok: false, error: `${detail} (de ${fromNumber} vers ${toNumber})` };
     }
     const data = (await response.json()) as { call_id?: string; id?: string };
     return { ok: true, callId: data.call_id ?? data.id ?? "(unknown)", fake: false };
