@@ -1,3 +1,4 @@
+import CallScreenPop from "@/components/CallScreenPop/CallScreenPop";
 import CommandPalette from "@/components/CommandPalette/CommandPalette";
 import RealtimeNotifications from "@/components/RealtimeNotifications/RealtimeNotifications";
 import RingoverPhone from "@/components/RingoverPhone/RingoverPhone";
@@ -32,6 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <CommandPalette />
       {user && <RealtimeNotifications userId={user.id} />}
       {canUseRingover && <RingoverPhone />}
+      {canUseRingover && <CallScreenPop />}
     </div>
   );
 }

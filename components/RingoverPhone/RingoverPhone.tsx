@@ -2,12 +2,17 @@
 
 import { useEffect, useRef } from "react";
 import type RingoverSDK from "ringover-sdk";
-import { RINGOVER_DIAL_EVENT, type RingoverDialDetail } from "@/lib/ringover-webphone";
+import {
+  RINGOVER_CALL_EVENT,
+  emitCallStatus,
+  type RingoverCallInfo,
+} from "@/lib/ringover-webphone";
 
 // Embeds the Ringover webphone as a floating iframe widget (bottom-right).
 // The audio (ringing, answering, talking) happens INSIDE this iframe, so both
 // outbound and inbound calls are handled in the CRM. The lead "Appeler" button
-// dispatches a RINGOVER_DIAL_EVENT that we forward to the SDK's dial().
+// dispatches RINGOVER_CALL_EVENT which we forward to sdk.dial(); the SDK's call
+// lifecycle events are re-emitted as status updates for the screen-pop card.
 //
 // Auth: each commercial logs into Ringover once inside the widget (their own
 // seat). The SDK is loaded lazily in the browser only — it touches window/DOM
@@ -22,8 +27,7 @@ export default function RingoverPhone() {
 
     (async () => {
       const mod = await import("ringover-sdk");
-      // UMD default export is the class itself.
-      const SDKClass = (mod.default ?? (mod as unknown as typeof RingoverSDK));
+      const SDKClass = mod.default ?? (mod as unknown as typeof RingoverSDK);
       if (disposed) return;
       sdk = new SDKClass({
         size: "medium",
@@ -33,22 +37,24 @@ export default function RingoverPhone() {
       sdk.generate();
       sdkRef.current = sdk;
 
-      // Call events are logged inside the widget; screen-pop + per-lead
-      // history writing are a follow-up (listen to ringingCall/answeredCall).
+      // Re-emit the SDK call lifecycle so the screen-pop can reflect it.
+      sdk.on("ringingCall", () => emitCallStatus({ state: "ringing" }));
+      sdk.on("answeredCall", () => emitCallStatus({ state: "answered" }));
+      sdk.on("hangupCall", () => emitCallStatus({ state: "ended" }));
     })();
 
-    const onDial = (e: Event) => {
-      const detail = (e as CustomEvent<RingoverDialDetail>).detail;
+    const onCall = (e: Event) => {
+      const detail = (e as CustomEvent<RingoverCallInfo>).detail;
       const phone = detail?.phone;
       if (!phone || !sdkRef.current) return;
       sdkRef.current.show();
       sdkRef.current.dial(phone);
     };
-    window.addEventListener(RINGOVER_DIAL_EVENT, onDial);
+    window.addEventListener(RINGOVER_CALL_EVENT, onCall);
 
     return () => {
       disposed = true;
-      window.removeEventListener(RINGOVER_DIAL_EVENT, onDial);
+      window.removeEventListener(RINGOVER_CALL_EVENT, onCall);
       try {
         sdk?.destroy();
       } catch {

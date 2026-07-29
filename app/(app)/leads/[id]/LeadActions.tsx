@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
-import { canLaunchSequence, type Commercial, type Lead } from "@/lib/leads";
-import { dialViaWebphone } from "@/lib/ringover-webphone";
+import { canLaunchSequence, SECTOR_LABEL, SECTOR_VAR, type Commercial, type Lead } from "@/lib/leads";
+import { startCall } from "@/lib/ringover-webphone";
 import { launchSequence, setLeadNrp, stopAutoSequence } from "@/app/(app)/pipeline/actions";
 import EditContactModal from "./EditContactModal";
 import MarkLostModal from "./MarkLostModal";
@@ -60,10 +60,26 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
       alert("Ce lead n'a pas de numéro de téléphone.");
       return;
     }
-    // Compose l'appel dans le webphone Ringover intégré (audio dans le CRM).
-    // Le widget s'ouvre et lance l'appel ; si l'agent n'est pas encore connecté
-    // à Ringover, le widget affiche l'écran de connexion.
-    dialViaWebphone(lead.phone);
+    // Compose l'appel dans le webphone Ringover intégré (audio dans le CRM) et
+    // affiche le screen-pop designé. Si l'agent n'est pas encore connecté à
+    // Ringover, le widget affiche l'écran de connexion.
+    const name = lead.client;
+    const initials =
+      name
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((w) => w[0])
+        .join("")
+        .toUpperCase() || name.slice(0, 2).toUpperCase();
+    startCall({
+      phone: lead.phone,
+      name,
+      initials,
+      sectorVar: SECTOR_VAR[lead.sector],
+      sublabel: `${SECTOR_LABEL[lead.sector]}${lead.typeService ? ` · ${lead.typeService}` : ""}`,
+      leadId: lead.id,
+    });
   };
 
   const onLaunchAuto = () => {

@@ -1,0 +1,248 @@
+// Floating call screen-pop. Centered at the bottom of the viewport so it never
+// collides with the bottom-right Ringover webphone widget. Accent colour is
+// driven by --sc (the lead's sector hue). Theme-aware via tokens.
+
+.wrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 24px;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  pointer-events: none; // let clicks pass through around the card
+}
+
+.card {
+  pointer-events: auto;
+  position: relative;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  padding: 20px 18px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-xl);
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.24),
+    0 2px 8px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  animation: popIn 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  &[data-state="ended"] {
+    opacity: 0.9;
+    animation: popIn 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+
+// Sector-coloured top strip.
+.accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--sc), color-mix(in srgb, var(--sc) 45%, transparent));
+}
+
+.close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease;
+
+  &:hover {
+    background: var(--bg-surface-2);
+    color: var(--text-primary);
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-right: 24px; // clear the close button
+}
+
+.avatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: var(--sc);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sc) 18%, transparent);
+
+  // Pulsing ring while dialing / ringing.
+  &[data-pulse="true"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--sc) 55%, transparent);
+    animation: ring 1.6s cubic-bezier(0.2, 0.7, 0.3, 1) infinite;
+  }
+}
+
+.who {
+  min-width: 0;
+}
+
+.name {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sub {
+  margin-top: 2px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.phone {
+  margin-top: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8125rem;
+  color: var(--text-secondary, var(--text-muted));
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 16px;
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--sc) 8%, var(--bg-surface-2));
+  font-size: 0.875rem;
+
+  &[data-state="answered"] {
+    background: color-mix(in srgb, var(--tone-success, #14c890) 12%, var(--bg-surface-2));
+  }
+  &[data-state="ended"] {
+    background: var(--bg-surface-2);
+  }
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--sc);
+  animation: blink 1.2s ease-in-out infinite;
+
+  .statusRow[data-state="answered"] & {
+    background: var(--tone-success, #14c890);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone-success, #14c890) 22%, transparent);
+    animation: none;
+  }
+  .statusRow[data-state="ended"] & {
+    background: var(--text-muted);
+    animation: none;
+  }
+}
+
+.statusText {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.timer {
+  margin-left: auto;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--tone-success, #14c890);
+
+  .statusRow[data-state="ended"] & {
+    color: var(--text-muted);
+  }
+}
+
+.openBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.14s ease, transform 0.14s ease;
+
+  &:hover {
+    background: var(--bg-surface-2);
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--sc) 55%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 14px color-mix(in srgb, var(--sc) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--sc) 0%, transparent);
+  }
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card { animation: none; }
+  .avatar[data-pulse="true"]::after { animation: none; }
+  .dot { animation: none; }
+}
