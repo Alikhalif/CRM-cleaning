@@ -2,7 +2,9 @@ import Link from "next/link";
 import Icon from "@/components/Icon/Icon";
 import { getCommerciauxStats, type CommercialStats } from "@/lib/commerciaux-server";
 import { getCurrentUserProfile } from "@/lib/users-server";
+import { getEntitiesForPicker } from "@/lib/devis-server";
 import { formatEUR } from "@/lib/leads";
+import AddCommercialButton from "./AddCommercialButton";
 import Sparkline from "./Sparkline";
 import styles from "./Commerciaux.module.scss";
 
@@ -32,10 +34,12 @@ export default async function CommerciauxPage({ searchParams }: Props) {
   const sort = (ALLOWED_SORTS.includes(sp.sort as SortKey) ? sp.sort : "ca") as SortKey;
   const dir = sp.dir === "asc" ? "asc" : "desc";
 
-  const [profile, allStats] = await Promise.all([
+  const [profile, allStats, entities] = await Promise.all([
     getCurrentUserProfile(),
     getCommerciauxStats(),
+    getEntitiesForPicker(),
   ]);
+  const entityOptions = entities.map((e) => ({ id: e.id, name: e.legalName }));
 
   // Admin-only — CDC §3 sets Commerciaux visibility to Super Admin.
   const isAdmin = profile?.roles.some((r) => r.slug === "admin") ?? false;
@@ -92,9 +96,7 @@ export default async function CommerciauxPage({ searchParams }: Props) {
             Classement de performance · {activeCount} actif{activeCount > 1 ? "s" : ""} sur {stats.length}
           </p>
         </div>
-        <Link href="/settings/users" className={styles.addBtn}>
-          <Icon name="plus" size={16} /> Ajouter un commercial
-        </Link>
+        <AddCommercialButton entities={entityOptions} />
       </header>
 
       <section className={styles.kpis}>

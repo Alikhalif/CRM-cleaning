@@ -142,11 +142,18 @@ export async function assignRole(userId: string, roleId: string): Promise<Result
 // Crée un compte commercial AVEC un mot de passe et email déjà confirmé —
 // accès immédiat, sans dépendre de l'email d'invitation. Le trigger
 // on_auth_user_created crée la ligne public.users + attribue le rôle Commercial.
+export type NewCommercialConfig = {
+  profiles?: string[];
+  countries?: string[];
+  entityId?: string;
+};
+
 export async function createUserWithPassword(
   email: string,
   firstName: string,
   lastName: string,
   password: string,
+  config?: NewCommercialConfig,
 ): Promise<Result> {
   const supabase = await supabaseServer();
   if (!(await callerIsAdmin(supabase))) return { ok: false, error: "Réservé aux administrateurs." };
@@ -166,12 +173,23 @@ export async function createUserWithPassword(
     return { ok: false, error: `Échec de la création : ${error?.message ?? "inconnu"}.` };
   }
 
+  // Appliquer profils / pays / société (le trigger a déjà créé public.users).
+  if (config) {
+    const patch: Record<string, unknown> = {};
+    if (config.profiles) patch.commercial_profiles = config.profiles;
+    if (config.countries) patch.countries = config.countries;
+    if (config.entityId !== undefined) patch.entity_id = config.entityId || null;
+    if (Object.keys(patch).length > 0) {
+      await admin.from("users").update(patch as never).eq("id", data.user.id);
+    }
+  }
+
   revalidatePath("/settings/users");
   await auditLog({
     action: "user.create",
     entityType: "user",
     entityId: data.user.id,
-    after: { email: cleanEmail, method: "password" },
+    after: { email: cleanEmail, method: "password", profiles: config?.profiles ?? [] },
   });
   return { ok: true };
 }
