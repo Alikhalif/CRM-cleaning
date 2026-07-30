@@ -6,6 +6,13 @@
 export const RINGOVER_CALL_EVENT = "cgk:ringover-call";
 export const RINGOVER_STATUS_EVENT = "cgk:ringover-status";
 export const RINGOVER_SMS_EVENT = "cgk:ringover-sms";
+export const RINGOVER_TOGGLE_EVENT = "cgk:ringover-toggle";
+
+// Show/hide the embedded Ringover webphone widget.
+export function toggleWebphone(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(RINGOVER_TOGGLE_EVENT));
+}
 
 export type RingoverSmsDetail = { phone: string; content: string };
 

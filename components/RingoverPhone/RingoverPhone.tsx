@@ -5,6 +5,7 @@ import type RingoverSDK from "ringover-sdk";
 import {
   RINGOVER_CALL_EVENT,
   RINGOVER_SMS_EVENT,
+  RINGOVER_TOGGLE_EVENT,
   emitCallStatus,
   type RingoverCallInfo,
   type RingoverSmsDetail,
@@ -83,13 +84,22 @@ export default function RingoverPhone() {
       const ok = sdkRef.current.sendSMS(detail.phone, detail.content);
       if (ok === false) notReady();
     };
+    const onToggle = () => {
+      if (!sdkRef.current) {
+        notReady();
+        return;
+      }
+      sdkRef.current.toggle();
+    };
     window.addEventListener(RINGOVER_CALL_EVENT, onCall);
     window.addEventListener(RINGOVER_SMS_EVENT, onSms);
+    window.addEventListener(RINGOVER_TOGGLE_EVENT, onToggle);
 
     return () => {
       disposed = true;
       window.removeEventListener(RINGOVER_CALL_EVENT, onCall);
       window.removeEventListener(RINGOVER_SMS_EVENT, onSms);
+      window.removeEventListener(RINGOVER_TOGGLE_EVENT, onToggle);
       try {
         sdk?.destroy();
       } catch {

@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import Icon from "../Icon/Icon";
 import { OPEN_PALETTE_EVENT } from "../CommandPalette/CommandPalette";
 import { useClientValue } from "@/lib/client-store";
+import { profileCapabilities } from "@/lib/leads";
+import { toggleWebphone } from "@/lib/ringover-webphone";
 import { logout } from "@/app/(auth)/actions";
 import type { CurrentUserProfile } from "@/lib/users-server";
 import styles from "./Topbar.module.scss";
@@ -58,6 +60,10 @@ export default function Topbar({ user, unreadCount }: Props) {
   const primaryRoleLabel =
     user?.roles[0]?.label ?? (user ? "Utilisateur" : "Invité");
 
+  // Le bouton webphone n'apparaît que pour les profils qui téléphonent.
+  const isAdmin = (user?.roles ?? []).some((r) => r.slug === "admin");
+  const { canUseRingover } = profileCapabilities(user?.commercialProfiles ?? [], isAdmin);
+
   return (
     <header className={styles.topbar} role="banner" data-no-print="true">
       <button
@@ -99,6 +105,17 @@ export default function Topbar({ user, unreadCount }: Props) {
       </div>
 
       <div className={styles.right}>
+        {canUseRingover && (
+          <button
+            type="button"
+            className={styles.iconBtn}
+            onClick={toggleWebphone}
+            aria-label="Afficher / masquer le téléphone Ringover"
+            title="Afficher / masquer le téléphone Ringover"
+          >
+            <Icon name="phone" size={18} />
+          </button>
+        )}
         <Link
           href="/notifications"
           className={styles.iconBtn}
