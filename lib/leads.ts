@@ -186,6 +186,8 @@ export type Lead = {
   etatSalete?: EtatSalete;
   contexteIntervention?: string;
   acompteNegocie?: number; // % de prépaiement négocié (0–100) — qualité du closing
+  // Champs techniques propres au métier (débarras/déménagement) — JSONB souple.
+  discoveryDetails?: Record<string, unknown>;
   // "Demande extrême" — feeds the commercial-extrême routing tier.
   isExtreme?: boolean;
 };

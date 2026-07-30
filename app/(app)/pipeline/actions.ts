@@ -399,6 +399,8 @@ export type DiscoveryInput = {
   etatSalete: string | null;
   contexteIntervention: string | null;
   acompteNegocie: number | null;
+  // Champs techniques propres au métier (débarras / déménagement).
+  details?: Record<string, unknown> | null;
 };
 
 export async function saveDiscovery(leadId: string, input: DiscoveryInput): Promise<Result> {
@@ -415,6 +417,7 @@ export async function saveDiscovery(leadId: string, input: DiscoveryInput): Prom
     etat_salete: input.etatSalete || null,
     contexte_intervention: input.contexteIntervention?.trim() || null,
     acompte_negocie: input.acompteNegocie,
+    discovery_details: input.details ?? {},
     discovery_done_at: now,
     last_action_label: "Fiche découverte enregistrée",
     last_action_at: now,

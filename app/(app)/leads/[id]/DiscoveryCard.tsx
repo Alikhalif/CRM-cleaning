@@ -19,28 +19,31 @@ import {
   type DiscoveryOutcome,
   type Lead,
 } from "@/lib/leads";
+import DebarrasFields from "./DebarrasFields";
+import DemenagementFields from "./DemenagementFields";
 import styles from "./LeadDetail.module.scss";
 
-// Fiche Découverte enrichie (Lot 1) — remplie par TOUS les commerciaux. Sauf
-// le contexte (texte libre), tout est en menus déroulants standardisés pour
-// alimenter le devis et la planification. + les actions issue/photos existantes.
+// Fiche Découverte guidée qui S'ADAPTE au secteur : champs communs (surface,
+// délai, fourchette, prix, réaction, contexte, acompte) + un bloc métier propre
+// à l'activité (nettoyage → statut/saleté ; débarras / déménagement → champs
+// techniques dédiés, stockés en JSONB). Jamais mélangés.
 
 type Props = { lead: Lead; hasEmail: boolean; hasPhone: boolean };
 
 const field: React.CSSProperties = {
-  width: "100%",
-  padding: "8px 10px",
-  borderRadius: "var(--r-sm)",
-  border: "1px solid var(--border-strong)",
-  background: "var(--bg-surface)",
-  color: "var(--text-primary)",
-  fontSize: "0.9375rem",
+  width: "100%", padding: "8px 10px", borderRadius: "var(--r-sm)",
+  border: "1px solid var(--border-strong)", background: "var(--bg-surface)",
+  color: "var(--text-primary)", fontSize: "0.9375rem",
 };
 const lbl: React.CSSProperties = { display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: 4 };
 
 export default function DiscoveryCard({ lead, hasEmail, hasPhone }: Props) {
   const router = useRouter();
   const leadId = lead.id;
+
+  const isDebarras = lead.sector === "debarras";
+  const isDemenagement = lead.sector === "demenagement";
+  const isNettoyage = !isDebarras && !isDemenagement;
 
   const [surface, setSurface] = useState(lead.surfaceM2 != null ? String(lead.surfaceM2) : "");
   const [price, setPrice] = useState(lead.announcedPrice != null ? String(lead.announcedPrice) : "");
@@ -51,6 +54,9 @@ export default function DiscoveryCard({ lead, hasEmail, hasPhone }: Props) {
   const [salete, setSalete] = useState<string>(lead.etatSalete ?? "");
   const [acompte, setAcompte] = useState<string>(lead.acompteNegocie != null ? String(lead.acompteNegocie) : "");
   const [contexte, setContexte] = useState(lead.contexteIntervention ?? "");
+  // Champs techniques métier (débarras / déménagement).
+  const [details, setDetails] = useState<Record<string, unknown>>(lead.discoveryDetails ?? {});
+  const setDetail = (k: string, v: unknown) => setDetails((d) => ({ ...d, [k]: v }));
 
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,10 +85,12 @@ export default function DiscoveryCard({ lead, hasEmail, hasPhone }: Props) {
         priceRange: priceRange || null,
         delaiSouhaite: delai || null,
         reactionPrix: reaction || null,
-        statutClient: statut || null,
-        etatSalete: salete || null,
+        // Champs nettoyage uniquement — null pour les autres métiers.
+        statutClient: isNettoyage ? (statut || null) : null,
+        etatSalete: isNettoyage ? (salete || null) : null,
         contexteIntervention: contexte,
         acompteNegocie: acompte !== "" ? Number(acompte) : null,
+        details: isNettoyage ? {} : details,
       }),
     );
   };
@@ -100,10 +108,12 @@ export default function DiscoveryCard({ lead, hasEmail, hasPhone }: Props) {
 
   const onPhotos = (channel: "email" | "sms") => run(`photos-${channel}`, () => requestPhotos(leadId, channel));
 
+  const sectorLabel = isDebarras ? "Débarras" : isDemenagement ? "Déménagement" : "Nettoyage";
+
   return (
     <section className={styles.card}>
       <header className={styles.cardHead}>
-        <h2 className={styles.h2}><Icon name="search" size={14} /> Découverte</h2>
+        <h2 className={styles.h2}><Icon name="search" size={14} /> Découverte · {sectorLabel}</h2>
         {lead.discoveryDoneAt && (
           <span className={styles.savedBadge} data-state="saved">
             <Icon name="check" size={11} /> Faite <RelativeTime iso={lead.discoveryDoneAt} />
@@ -111,11 +121,18 @@ export default function DiscoveryCard({ lead, hasEmail, hasPhone }: Props) {
         )}
       </header>
 
+      {/* ── Bloc métier (adapté au secteur) ─────────────────────────── */}
+      {isDebarras && <DebarrasFields details={details} set={setDetail} />}
+      {isDemenagement && <DemenagementFields details={details} set={setDetail} />}
+
+      {/* ── Champs communs à toutes les activités ───────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 10 }}>
-        <label>
-          <span style={lbl}>Surface (m²)</span>
-          <input type="number" min={0} step="0.01" inputMode="decimal" value={surface} onChange={(e) => setSurface(e.target.value)} placeholder="—" style={field} />
-        </label>
+        {!isDemenagement && (
+          <label>
+            <span style={lbl}>{isDebarras ? "Surface approximative (m²)" : "Surface (m²)"}</span>
+            <input type="number" min={0} step="0.01" inputMode="decimal" value={surface} onChange={(e) => setSurface(e.target.value)} placeholder="—" style={field} />
+          </label>
+        )}
         <label>
           <span style={lbl}>Délai souhaité</span>
           <select value={delai} onChange={(e) => setDelai(e.target.value)} style={field}>
@@ -141,20 +158,24 @@ export default function DiscoveryCard({ lead, hasEmail, hasPhone }: Props) {
             {REACTIONS_PRIX.map((r) => <option key={r} value={r}>{REACTION_PRIX_LABEL[r]}</option>)}
           </select>
         </label>
-        <label>
-          <span style={lbl}>Statut du client</span>
-          <select value={statut} onChange={(e) => setStatut(e.target.value)} style={field}>
-            <option value="">—</option>
-            {STATUTS_CLIENT.map((s) => <option key={s} value={s}>{STATUT_CLIENT_LABEL[s]}</option>)}
-          </select>
-        </label>
-        <label>
-          <span style={lbl}>État de saleté</span>
-          <select value={salete} onChange={(e) => setSalete(e.target.value)} style={field}>
-            <option value="">—</option>
-            {ETATS_SALETE.map((s) => <option key={s} value={s}>{ETAT_SALETE_LABEL[s]}</option>)}
-          </select>
-        </label>
+        {isNettoyage && (
+          <>
+            <label>
+              <span style={lbl}>Statut du client</span>
+              <select value={statut} onChange={(e) => setStatut(e.target.value)} style={field}>
+                <option value="">—</option>
+                {STATUTS_CLIENT.map((s) => <option key={s} value={s}>{STATUT_CLIENT_LABEL[s]}</option>)}
+              </select>
+            </label>
+            <label>
+              <span style={lbl}>État de saleté</span>
+              <select value={salete} onChange={(e) => setSalete(e.target.value)} style={field}>
+                <option value="">—</option>
+                {ETATS_SALETE.map((s) => <option key={s} value={s}>{ETAT_SALETE_LABEL[s]}</option>)}
+              </select>
+            </label>
+          </>
+        )}
         <label>
           <span style={lbl}>Acompte négocié (closing)</span>
           <select value={acompte} onChange={(e) => setAcompte(e.target.value)} style={field}>
@@ -169,7 +190,7 @@ export default function DiscoveryCard({ lead, hasEmail, hasPhone }: Props) {
         <textarea
           value={contexte}
           onChange={(e) => setContexte(e.target.value)}
-          placeholder="Succession, décès, Diogène, fin de bail, vente, dégât des eaux, squat…"
+          placeholder={isDemenagement ? "Mutation, achat, vente, fin de bail, succession, transfert entreprise…" : "Succession, décès, Diogène, fin de bail, vente, expulsion, EHPAD, liquidation…"}
           style={{ ...field, minHeight: 70, resize: "vertical", fontFamily: "inherit", lineHeight: 1.5 }}
         />
       </label>

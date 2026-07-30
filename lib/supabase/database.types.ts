@@ -729,6 +729,7 @@ export type Database = {
           delai_souhaite: string | null
           deleted_at: string | null
           deleted_by: string | null
+          discovery_details: Json
           discovery_done_at: string | null
           discovery_outcome: string | null
           entity_id: string | null
@@ -788,6 +789,7 @@ export type Database = {
           delai_souhaite?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          discovery_details?: Json
           discovery_done_at?: string | null
           discovery_outcome?: string | null
           entity_id?: string | null
@@ -847,6 +849,7 @@ export type Database = {
           delai_souhaite?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
+          discovery_details?: Json
           discovery_done_at?: string | null
           discovery_outcome?: string | null
           entity_id?: string | null
