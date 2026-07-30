@@ -95,11 +95,14 @@ export default function RingoverPhone() {
       if (ok === false) notReady();
     };
     const onToggle = () => {
-      if (!sdkRef.current) {
+      const sdk = sdkRef.current;
+      if (!sdk) {
         notReady();
         return;
       }
-      sdkRef.current.toggle();
+      // Déterministe plutôt que toggle() : on masque si affiché, sinon on montre.
+      if (sdk.isDisplay()) sdk.hide();
+      else sdk.show();
     };
     window.addEventListener(RINGOVER_CALL_EVENT, onCall);
     window.addEventListener(RINGOVER_SMS_EVENT, onSms);
