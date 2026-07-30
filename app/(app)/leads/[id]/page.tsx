@@ -309,11 +309,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
 
           <aside className={styles.aside}>
             <DiscoveryCard
-              leadId={lead.id}
-              initialAnnouncedPrice={lead.announcedPrice}
-              initialOutcome={lead.discoveryOutcome}
-              discoveryDoneAt={lead.discoveryDoneAt}
-              photosRequestedAt={lead.photosRequestedAt}
+              lead={lead}
               hasEmail={Boolean(lead.email)}
               hasPhone={Boolean(lead.phone)}
             />

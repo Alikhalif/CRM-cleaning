@@ -177,6 +177,15 @@ export type Lead = {
   discoveryOutcome?: DiscoveryOutcome; // undefined = découverte pas encore faite
   discoveryDoneAt?: string; // ISO — set when an outcome is recorded
   photosRequestedAt?: string; // ISO — set when a photo request is sent
+  // Fiche Découverte enrichie (Lot 1, 2026-07-30) — remplie par TOUS les
+  // commerciaux ; suit le dossier jusqu'à la planification.
+  delaiSouhaite?: DelaiSouhaite;
+  priceRange?: string; // ex. "500-700"
+  reactionPrix?: ReactionPrix;
+  statutClient?: StatutClient;
+  etatSalete?: EtatSalete;
+  contexteIntervention?: string;
+  acompteNegocie?: number; // % de prépaiement négocié (0–100) — qualité du closing
   // "Demande extrême" — feeds the commercial-extrême routing tier.
   isExtreme?: boolean;
 };
@@ -190,6 +199,69 @@ export const DISCOVERY_OUTCOME_LABEL: Record<DiscoveryOutcome, string> = {
   refus: "Refus",
   ok_plus: "OK voir +",
 };
+
+// ── Fiche Découverte enrichie (Lot 1) — menus déroulants standardisés ──
+
+export type DelaiSouhaite =
+  | "aujourdhui" | "24h" | "48h" | "semaine" | "15j" | "ce_mois" | "plus_tard";
+export const DELAI_SOUHAITE: DelaiSouhaite[] = [
+  "aujourdhui", "24h", "48h", "semaine", "15j", "ce_mois", "plus_tard",
+];
+export const DELAI_SOUHAITE_LABEL: Record<DelaiSouhaite, string> = {
+  aujourdhui: "Aujourd'hui",
+  "24h": "Sous 24 heures",
+  "48h": "Sous 48 heures",
+  semaine: "Cette semaine",
+  "15j": "Sous 15 jours",
+  ce_mois: "Ce mois-ci",
+  plus_tard: "Plus tard",
+};
+
+export type ReactionPrix = "ok" | "hesitant" | "pas_ok";
+export const REACTIONS_PRIX: ReactionPrix[] = ["ok", "hesitant", "pas_ok"];
+export const REACTION_PRIX_LABEL: Record<ReactionPrix, string> = {
+  ok: "OK",
+  hesitant: "Hésitant",
+  pas_ok: "Pas OK",
+};
+
+export type StatutClient = "proprietaire" | "locataire" | "agence" | "syndic" | "professionnel";
+export const STATUTS_CLIENT: StatutClient[] = ["proprietaire", "locataire", "agence", "syndic", "professionnel"];
+export const STATUT_CLIENT_LABEL: Record<StatutClient, string> = {
+  proprietaire: "Propriétaire",
+  locataire: "Locataire",
+  agence: "Agence",
+  syndic: "Syndic",
+  professionnel: "Professionnel",
+};
+
+export type EtatSalete = "leger" | "moyen" | "important" | "tres_important" | "extreme";
+export const ETATS_SALETE: EtatSalete[] = ["leger", "moyen", "important", "tres_important", "extreme"];
+export const ETAT_SALETE_LABEL: Record<EtatSalete, string> = {
+  leger: "Léger",
+  moyen: "Moyen",
+  important: "Important",
+  tres_important: "Très important",
+  extreme: "Extrême",
+};
+
+// Fourchettes de prix annoncées. value stockée en base, label affiché.
+export const PRICE_RANGES: { value: string; label: string }[] = [
+  ["100", "300"], ["300", "500"], ["500", "700"], ["700", "900"], ["900", "1100"],
+  ["1100", "1300"], ["1300", "1500"], ["1500", "2000"], ["2000", "2500"], ["2500", "3000"],
+  ["3000", "4000"], ["4000", "5000"], ["5000", "6000"], ["6000", "7000"], ["7000", "8000"],
+  ["8000", "9000"], ["9000", "10000"], ["10000", "12500"], ["12500", "15000"],
+].map(([a, b]) => ({
+  value: `${a}-${b}`,
+  label: `${Number(a).toLocaleString("fr-FR")} – ${Number(b).toLocaleString("fr-FR")} €`,
+}));
+export const PRICE_RANGE_LABEL: Record<string, string> = Object.fromEntries(
+  PRICE_RANGES.map((r) => [r.value, r.label]),
+);
+
+// Acompte négocié : paliers de 10 % (100 → 0). Qualité du closing, pas une
+// probabilité de signature.
+export const ACOMPTE_STEPS: number[] = [100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0];
 
 // CDC §4.5 — the 5 standard delay buckets + free-text for everything else.
 export type InterventionDelay =

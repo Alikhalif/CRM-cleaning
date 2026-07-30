@@ -101,6 +101,13 @@ export type LeadRowJoined = {
   discovery_outcome?: string | null;
   discovery_done_at?: string | null;
   photos_requested_at?: string | null;
+  delai_souhaite?: string | null;
+  price_range?: string | null;
+  reaction_prix?: string | null;
+  statut_client?: string | null;
+  etat_salete?: string | null;
+  contexte_intervention?: string | null;
+  acompte_negocie?: number | null;
   is_extreme?: boolean | null;
   activity: { slug: string } | null;
   source: { slug: string } | null;
@@ -154,6 +161,13 @@ export function mapLead(row: LeadRowJoined): Lead {
     discoveryOutcome: (row.discovery_outcome ?? undefined) as Lead["discoveryOutcome"],
     discoveryDoneAt: row.discovery_done_at ?? undefined,
     photosRequestedAt: row.photos_requested_at ?? undefined,
+    delaiSouhaite: (row.delai_souhaite ?? undefined) as Lead["delaiSouhaite"],
+    priceRange: row.price_range ?? undefined,
+    reactionPrix: (row.reaction_prix ?? undefined) as Lead["reactionPrix"],
+    statutClient: (row.statut_client ?? undefined) as Lead["statutClient"],
+    etatSalete: (row.etat_salete ?? undefined) as Lead["etatSalete"],
+    contexteIntervention: row.contexte_intervention ?? undefined,
+    acompteNegocie: row.acompte_negocie ?? undefined,
     isExtreme: row.is_extreme ?? false,
   };
 }
@@ -213,7 +227,8 @@ export async function getAllLeads(): Promise<Lead[]> {
         intervention_delay, intervention_delay_notes, notes, type_service, country,
         entity_id, entity:legal_entities(legal_name), landing_page:landing_pages(name),
         announced_price, discovery_outcome, discovery_done_at,
-        photos_requested_at, is_extreme,
+        photos_requested_at, delai_souhaite, price_range, reaction_prix,
+        statut_client, etat_salete, contexte_intervention, acompte_negocie, is_extreme,
         activity:activities(slug),
         source:lead_sources(slug),
         owner:users!leads_owner_id_fkey(id, first_name, last_name, color)
@@ -283,7 +298,8 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
         intervention_delay, intervention_delay_notes, notes, type_service, country,
         entity_id, entity:legal_entities(legal_name), landing_page:landing_pages(name),
         announced_price, discovery_outcome, discovery_done_at,
-        photos_requested_at, is_extreme,
+        photos_requested_at, delai_souhaite, price_range, reaction_prix,
+        statut_client, etat_salete, contexte_intervention, acompte_negocie, is_extreme,
         activity:activities(slug),
         source:lead_sources(slug),
         owner:users!leads_owner_id_fkey(id, first_name, last_name, color)

@@ -387,6 +387,55 @@ export async function recordDiscovery(
   return { ok: true };
 }
 
+// Enregistre la fiche Découverte enrichie (Lot 1) — champs standardisés
+// remplis par tous les commerciaux. Additif : ne touche pas à discovery_outcome.
+export type DiscoveryInput = {
+  surfaceM2: number | null;
+  announcedPrice: number | null;
+  priceRange: string | null;
+  delaiSouhaite: string | null;
+  reactionPrix: string | null;
+  statutClient: string | null;
+  etatSalete: string | null;
+  contexteIntervention: string | null;
+  acompteNegocie: number | null;
+};
+
+export async function saveDiscovery(leadId: string, input: DiscoveryInput): Promise<Result> {
+  const supabase = await supabaseServer();
+  const now = new Date().toISOString();
+
+  const updates = {
+    surface_m2: input.surfaceM2,
+    announced_price: input.announcedPrice,
+    price_range: input.priceRange || null,
+    delai_souhaite: input.delaiSouhaite || null,
+    reaction_prix: input.reactionPrix || null,
+    statut_client: input.statutClient || null,
+    etat_salete: input.etatSalete || null,
+    contexte_intervention: input.contexteIntervention?.trim() || null,
+    acompte_negocie: input.acompteNegocie,
+    discovery_done_at: now,
+    last_action_label: "Fiche découverte enregistrée",
+    last_action_at: now,
+  };
+  const { error } = await supabase.from("leads").update(updates as never).eq("id", leadId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/decouverte");
+  revalidatePath("/planification");
+  revalidatePath("/pipeline");
+  await auditLog({
+    action: "lead.discovery.save",
+    entityType: "lead",
+    entityId: leadId,
+    after: { acompteNegocie: input.acompteNegocie, priceRange: input.priceRange },
+  });
+  return { ok: true };
+}
+
 type PhotoLeadRow = {
   is_company: boolean;
   client_first_name: string | null;

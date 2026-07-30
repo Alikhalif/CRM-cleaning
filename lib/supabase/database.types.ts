@@ -713,6 +713,7 @@ export type Database = {
       }
       leads: {
         Row: {
+          acompte_negocie: number | null
           activity_id: string | null
           annotation_segment: string | null
           announced_price: number | null
@@ -722,14 +723,17 @@ export type Database = {
           client_first_name: string | null
           client_last_name: string | null
           client_phone: string | null
+          contexte_intervention: string | null
           country: string | null
           created_at: string
+          delai_souhaite: string | null
           deleted_at: string | null
           deleted_by: string | null
           discovery_done_at: string | null
           discovery_outcome: string | null
           entity_id: string | null
           estimated_amount: number | null
+          etat_salete: string | null
           external_id: string | null
           gclid: string | null
           id: string
@@ -749,10 +753,13 @@ export type Database = {
           nrp_at: string | null
           owner_id: string | null
           photos_requested_at: string | null
+          price_range: string | null
+          reaction_prix: string | null
           received_at: string
           short_id: string
           source_id: string | null
           status: Database["public"]["Enums"]["lead_status"]
+          statut_client: string | null
           sub_envoi: Database["public"]["Enums"]["sub_envoi"] | null
           sub_signature: Database["public"]["Enums"]["sub_signature"] | null
           surface_m2: number | null
@@ -765,6 +772,7 @@ export type Database = {
           utm_term: string | null
         }
         Insert: {
+          acompte_negocie?: number | null
           activity_id?: string | null
           annotation_segment?: string | null
           announced_price?: number | null
@@ -774,14 +782,17 @@ export type Database = {
           client_first_name?: string | null
           client_last_name?: string | null
           client_phone?: string | null
+          contexte_intervention?: string | null
           country?: string | null
           created_at?: string
+          delai_souhaite?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
           discovery_done_at?: string | null
           discovery_outcome?: string | null
           entity_id?: string | null
           estimated_amount?: number | null
+          etat_salete?: string | null
           external_id?: string | null
           gclid?: string | null
           id?: string
@@ -801,10 +812,13 @@ export type Database = {
           nrp_at?: string | null
           owner_id?: string | null
           photos_requested_at?: string | null
+          price_range?: string | null
+          reaction_prix?: string | null
           received_at?: string
           short_id: string
           source_id?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
+          statut_client?: string | null
           sub_envoi?: Database["public"]["Enums"]["sub_envoi"] | null
           sub_signature?: Database["public"]["Enums"]["sub_signature"] | null
           surface_m2?: number | null
@@ -817,6 +831,7 @@ export type Database = {
           utm_term?: string | null
         }
         Update: {
+          acompte_negocie?: number | null
           activity_id?: string | null
           annotation_segment?: string | null
           announced_price?: number | null
@@ -826,14 +841,17 @@ export type Database = {
           client_first_name?: string | null
           client_last_name?: string | null
           client_phone?: string | null
+          contexte_intervention?: string | null
           country?: string | null
           created_at?: string
+          delai_souhaite?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
           discovery_done_at?: string | null
           discovery_outcome?: string | null
           entity_id?: string | null
           estimated_amount?: number | null
+          etat_salete?: string | null
           external_id?: string | null
           gclid?: string | null
           id?: string
@@ -853,10 +871,13 @@ export type Database = {
           nrp_at?: string | null
           owner_id?: string | null
           photos_requested_at?: string | null
+          price_range?: string | null
+          reaction_prix?: string | null
           received_at?: string
           short_id?: string
           source_id?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
+          statut_client?: string | null
           sub_envoi?: Database["public"]["Enums"]["sub_envoi"] | null
           sub_signature?: Database["public"]["Enums"]["sub_signature"] | null
           surface_m2?: number | null
