@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon/Icon";
 import RelativeTime from "@/components/RelativeTime/RelativeTime";
-import { recordDiscovery, requestPhotos, saveDiscovery } from "@/app/(app)/pipeline/actions";
+import { recordDiscovery, requestPhotos, saveDiscovery, setLeadActivity } from "@/app/(app)/pipeline/actions";
 import {
   ACOMPTE_STEPS,
   DELAI_SOUHAITE,
@@ -120,6 +120,35 @@ export default function DiscoveryCard({ lead, hasEmail, hasPhone }: Props) {
           </span>
         )}
       </header>
+
+      {/* ── Sélecteur du type de prestation (métier débarras/déménagement) ── */}
+      {(isDebarras || isDemenagement) && (
+        <div style={{ marginBottom: 12 }}>
+          <span style={lbl}>Type de prestation</span>
+          <div style={{ display: "flex", gap: 6 }}>
+            {([["debarras", "Débarras"], ["demenagement", "Déménagement"]] as const).map(([slug, label]) => {
+              const active = lead.sector === slug;
+              return (
+                <button
+                  key={slug}
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={() => { if (!active) run(`act-${slug}`, () => setLeadActivity(leadId, slug)); }}
+                  style={{
+                    flex: 1, padding: "8px 10px", borderRadius: "var(--r-sm)", cursor: active ? "default" : "pointer",
+                    fontWeight: 600, fontSize: "0.875rem",
+                    border: active ? "1px solid var(--color-brand-500)" : "1px solid var(--border-strong)",
+                    background: active ? "var(--color-brand-500)" : "transparent",
+                    color: active ? "#fff" : "var(--text-primary)",
+                  }}
+                >
+                  {busy === `act-${slug}` ? "…" : label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Bloc métier (adapté au secteur) ─────────────────────────── */}
       {isDebarras && <DebarrasFields details={details} set={setDetail} />}

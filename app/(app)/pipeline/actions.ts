@@ -403,6 +403,30 @@ export type DiscoveryInput = {
   details?: Record<string, unknown> | null;
 };
 
+// Change le type de prestation d'un lead (ex. Débarras ↔ Déménagement) — le
+// commercial sélectionne l'activité, la fiche découverte s'adapte.
+export async function setLeadActivity(leadId: string, slug: string): Promise<Result> {
+  const supabase = await supabaseServer();
+  const { data: act } = await supabase
+    .from("activities")
+    .select("id")
+    .eq("slug", slug)
+    .maybeSingle<{ id: string }>();
+  if (!act) return { ok: false, error: "Activité inconnue." };
+
+  const { error } = await supabase
+    .from("leads")
+    .update({ activity_id: act.id } as never)
+    .eq("id", leadId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/pipeline");
+  revalidatePath("/leads");
+  await auditLog({ action: "lead.activity.set", entityType: "lead", entityId: leadId, after: { slug } });
+  return { ok: true };
+}
+
 export async function saveDiscovery(leadId: string, input: DiscoveryInput): Promise<Result> {
   const supabase = await supabaseServer();
   const now = new Date().toISOString();
