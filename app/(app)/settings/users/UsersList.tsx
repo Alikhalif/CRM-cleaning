@@ -12,6 +12,7 @@ import {
 import type { AdminUserRow, RoleOption } from "@/lib/users-server";
 import {
   assignRole,
+  createUserWithPassword,
   inviteUser,
   removeRole,
   setRingoverAgentId,
@@ -32,10 +33,11 @@ export default function UsersList({ users, roles, entities }: Props) {
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
-  // Invite form state.
+  // Invite / create form state.
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteFirst, setInviteFirst] = useState("");
   const [inviteLast, setInviteLast] = useState("");
+  const [invitePassword, setInvitePassword] = useState("");
   const [inviting, setInviting] = useState(false);
 
   const run = (key: string, fn: () => Promise<Result>) => {
@@ -71,6 +73,30 @@ export default function UsersList({ users, roles, entities }: Props) {
       setInviteEmail("");
       setInviteFirst("");
       setInviteLast("");
+      router.refresh();
+    });
+  };
+
+  // Accès direct : crée le compte avec mot de passe (email confirmé) — le
+  // commercial se connecte tout de suite, sans email d'invitation.
+  const onCreate = () => {
+    const em = inviteEmail.trim();
+    if (!em || invitePassword.length < 12) return;
+    setError(null);
+    setOkMsg(null);
+    setInviting(true);
+    startTransition(async () => {
+      const r = await createUserWithPassword(em, inviteFirst, inviteLast, invitePassword);
+      setInviting(false);
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      setOkMsg(`Compte créé pour ${em}. Il peut se connecter avec ce mot de passe.`);
+      setInviteEmail("");
+      setInviteFirst("");
+      setInviteLast("");
+      setInvitePassword("");
       router.refresh();
     });
   };
@@ -123,14 +149,37 @@ export default function UsersList({ users, roles, entities }: Props) {
           aria-label="Nom"
           style={{ flex: "0 1 130px", padding: "8px 10px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
         />
+        <input
+          type="text"
+          value={invitePassword}
+          onChange={(e) => setInvitePassword(e.target.value)}
+          placeholder="Mot de passe (12+ car.)"
+          aria-label="Mot de passe (accès direct)"
+          autoComplete="new-password"
+          style={{ flex: "1 1 180px", padding: "8px 10px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
+        />
+        <button
+          type="button"
+          onClick={onCreate}
+          disabled={inviting || !inviteEmail.trim() || invitePassword.length < 12}
+          title="Crée le compte avec ce mot de passe (accès immédiat, sans email)"
+          style={{ padding: "8px 16px", borderRadius: "var(--r-sm)", border: "none", background: "var(--color-brand-500)", color: "#fff", fontWeight: 600, cursor: "pointer", opacity: !inviteEmail.trim() || invitePassword.length < 12 ? 0.6 : 1 }}
+        >
+          {inviting ? "…" : "Créer (accès direct)"}
+        </button>
         <button
           type="submit"
           disabled={inviting || !inviteEmail.trim()}
-          style={{ padding: "8px 16px", borderRadius: "var(--r-sm)", border: "none", background: "var(--color-brand-500)", color: "#fff", fontWeight: 600, cursor: "pointer" }}
+          title="Envoie un email d'invitation (le commercial choisit son mot de passe)"
+          style={{ padding: "8px 16px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "transparent", color: "var(--text-primary)", fontWeight: 600, cursor: "pointer" }}
         >
-          {inviting ? "Invitation…" : "Inviter"}
+          {inviting ? "…" : "Inviter par email"}
         </button>
       </form>
+      <p style={{ padding: "0 12px 6px", fontSize: "0.75rem", color: "var(--text-muted)", marginTop: -6 }}>
+        <strong>Créer (accès direct)</strong> = compte activé tout de suite avec le mot de passe saisi (recommandé si l&apos;email d&apos;invitation ne passe pas).
+        <strong> Inviter par email</strong> = le commercial reçoit un lien pour définir son propre mot de passe.
+      </p>
 
       {okMsg && (
         <p style={{ color: "var(--tone-success, #14c890)", padding: "8px 12px", fontSize: "0.875rem" }} role="status">

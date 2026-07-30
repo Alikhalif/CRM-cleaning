@@ -139,6 +139,43 @@ export async function assignRole(userId: string, roleId: string): Promise<Result
 // provisions the public.users row (+ default role); the admin can then set
 // roles/pools from the table once the invitee appears. Service-role is needed
 // for auth.admin — guarded by the same admin check + audited.
+// Crée un compte commercial AVEC un mot de passe et email déjà confirmé —
+// accès immédiat, sans dépendre de l'email d'invitation. Le trigger
+// on_auth_user_created crée la ligne public.users + attribue le rôle Commercial.
+export async function createUserWithPassword(
+  email: string,
+  firstName: string,
+  lastName: string,
+  password: string,
+): Promise<Result> {
+  const supabase = await supabaseServer();
+  if (!(await callerIsAdmin(supabase))) return { ok: false, error: "Réservé aux administrateurs." };
+
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes("@")) return { ok: false, error: "Email invalide." };
+  if (password.length < 12) return { ok: false, error: "Mot de passe : 12 caractères minimum." };
+
+  const admin = await supabaseServiceRole();
+  const { data, error } = await admin.auth.admin.createUser({
+    email: cleanEmail,
+    password,
+    email_confirm: true,
+    user_metadata: { first_name: firstName.trim() || null, last_name: lastName.trim() || null },
+  });
+  if (error || !data?.user) {
+    return { ok: false, error: `Échec de la création : ${error?.message ?? "inconnu"}.` };
+  }
+
+  revalidatePath("/settings/users");
+  await auditLog({
+    action: "user.create",
+    entityType: "user",
+    entityId: data.user.id,
+    after: { email: cleanEmail, method: "password" },
+  });
+  return { ok: true };
+}
+
 export async function inviteUser(
   email: string,
   firstName: string,
