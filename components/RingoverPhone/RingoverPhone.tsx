@@ -23,7 +23,6 @@ import {
 
 export default function RingoverPhone() {
   const sdkRef = useRef<RingoverSDK | null>(null);
-  const iframeRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -50,10 +49,7 @@ export default function RingoverPhone() {
           iframe instanceof HTMLIFrameElement
             ? iframe
             : document.querySelector<HTMLIFrameElement>("iframe[src*='ringover']");
-        if (el) {
-          el.setAttribute("allow", "microphone; autoplay; camera; speaker-selection");
-          iframeRef.current = el;
-        }
+        if (el) el.setAttribute("allow", "microphone; autoplay; camera; speaker-selection");
 
         // Re-emit the SDK call lifecycle so the screen-pop can reflect it.
         sdk.on("ringingCall", () => emitCallStatus({ state: "ringing" }));
@@ -99,26 +95,13 @@ export default function RingoverPhone() {
       if (ok === false) notReady();
     };
     const onToggle = () => {
-      const el = iframeRef.current;
       const sdk = sdkRef.current;
-      if (!el && !sdk) {
+      if (!sdk) {
         notReady();
         return;
       }
-      // Masquage infaillible : on bascule directement l'affichage de l'iframe
-      // (indépendant des méthodes du SDK), et on garde le SDK synchronisé.
-      if (el) {
-        const isHidden = el.style.display === "none";
-        el.style.display = isHidden ? "" : "none";
-        try {
-          if (isHidden) sdk?.show();
-          else sdk?.hide();
-        } catch {
-          /* SDK indispo, l'iframe est déjà (dé)masquée */
-        }
-      } else {
-        sdk?.show();
-      }
+      // Bascule native du SDK Ringover.
+      sdk.toggle();
     };
     window.addEventListener(RINGOVER_CALL_EVENT, onCall);
     window.addEventListener(RINGOVER_SMS_EVENT, onSms);
