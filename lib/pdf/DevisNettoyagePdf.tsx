@@ -1,7 +1,11 @@
 /* eslint-disable react/no-unescaped-entities */
-import { Document, Page, View, Text, Svg, Path, Circle, StyleSheet } from "@react-pdf/renderer";
+import path from "node:path";
+import { Document, Page, View, Text, Svg, Path, Circle, Font, StyleSheet } from "@react-pdf/renderer";
 import type { DocumentDetail } from "@/lib/documents-shared";
 import { formatEUR } from "@/lib/leads";
+
+// Police cursive (slogan + « Bon pour accord »). Fichier embarqué dans public/.
+Font.register({ family: "GreatVibes", src: path.join(process.cwd(), "public/fonts/GreatVibes-Regular.ttf") });
 
 // Devis Nettoyage — design "OPTIMIVV" (vert forêt + or), multi-pages, rempli
 // avec les vraies données du dossier. Emblème dessiné en SVG (pas d'asset).
@@ -23,7 +27,7 @@ const S = StyleSheet.create({
   wordmark: { fontSize: 21, fontWeight: 700, color: GREEN, letterSpacing: 3 },
   wordmarkSub: { fontSize: 10.5, fontWeight: 700, color: GOLD, letterSpacing: 5.5, marginTop: 1 },
   tagline: { fontSize: 7.5, color: MUT, marginTop: 4 },
-  slogan: { fontSize: 8, color: GOLD, fontStyle: "italic", marginTop: 2 },
+  slogan: { fontSize: 16, color: GOLD, fontFamily: "GreatVibes", marginTop: 1 },
   docTitle: { fontSize: 30, fontWeight: 700, color: GREEN, letterSpacing: 1 },
   docNum: { fontSize: 13, color: GOLD, fontWeight: 700, marginTop: 2 },
   metaLine: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 5, justifyContent: "flex-end" },
@@ -85,7 +89,7 @@ const S = StyleSheet.create({
   noteLabel: { fontSize: 8, fontWeight: 700, color: GOLD, letterSpacing: 0.6, marginBottom: 3 },
   acceptBox: { marginTop: 12, border: `1pt solid ${LINE}`, borderRadius: 8, padding: 14, backgroundColor: "#faf8f2" },
   signLine: { fontSize: 9, color: INK, marginTop: 8 },
-  bonPourAccord: { fontSize: 20, color: GOLD, fontStyle: "italic" },
+  bonPourAccord: { fontSize: 26, color: GOLD, fontFamily: "GreatVibes" },
 });
 
 function Emblem({ size = 40 }: { size?: number }) {

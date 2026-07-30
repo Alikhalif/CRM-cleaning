@@ -7,6 +7,11 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
+  // Ship the embedded PDF font with the server bundle (read via process.cwd()
+  // in the @react-pdf devis renderer) so it survives on Vercel.
+  outputFileTracingIncludes: {
+    "/api/documents/**": ["./public/fonts/**"],
+  },
 };
 
 export default nextConfig;
