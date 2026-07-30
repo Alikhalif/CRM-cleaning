@@ -217,10 +217,15 @@
 
 @media (min-width: 1024px) {
   .layout {
-    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-columns: minmax(0, 1fr) 340px;
     align-items: start;
   }
-  .aside .card { position: sticky; top: var(--sp-4); }
+  // The quick-tool column stays in view while the main content scrolls.
+  // Sticking the whole column (not each card) avoids the multi-sticky glitch.
+  .aside {
+    position: sticky;
+    top: var(--sp-4);
+  }
 }
 
 .main {

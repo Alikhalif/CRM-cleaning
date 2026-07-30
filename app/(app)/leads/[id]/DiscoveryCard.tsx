@@ -111,7 +111,7 @@ export default function DiscoveryCard({ lead, hasEmail, hasPhone }: Props) {
         )}
       </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 10 }}>
         <label>
           <span style={lbl}>Surface (m²)</span>
           <input type="number" min={0} step="0.01" inputMode="decimal" value={surface} onChange={(e) => setSurface(e.target.value)} placeholder="—" style={field} />

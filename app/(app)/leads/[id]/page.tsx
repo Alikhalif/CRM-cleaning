@@ -248,6 +248,11 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
       {tab === "informations" && (
         <div className={styles.layout}>
           <main className={styles.main}>
+            <DiscoveryCard
+              lead={lead}
+              hasEmail={Boolean(lead.email)}
+              hasPhone={Boolean(lead.phone)}
+            />
             <section className={styles.card}>
               <h2 className={styles.h2}>Coordonnées</h2>
               <dl className={styles.dl}>
@@ -308,11 +313,6 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
           </main>
 
           <aside className={styles.aside}>
-            <DiscoveryCard
-              lead={lead}
-              hasEmail={Boolean(lead.email)}
-              hasPhone={Boolean(lead.phone)}
-            />
             <CallNotesCard
               leadId={lead.id}
               initialNotes={lead.notes ?? ""}
