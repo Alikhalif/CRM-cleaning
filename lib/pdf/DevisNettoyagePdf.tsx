@@ -20,8 +20,9 @@ const S = StyleSheet.create({
   // Header
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  wordmark: { fontSize: 22, fontWeight: 700, color: GREEN, letterSpacing: 3 },
-  tagline: { fontSize: 7.5, color: MUT, marginTop: 3 },
+  wordmark: { fontSize: 21, fontWeight: 700, color: GREEN, letterSpacing: 3 },
+  wordmarkSub: { fontSize: 10.5, fontWeight: 700, color: GOLD, letterSpacing: 5.5, marginTop: 1 },
+  tagline: { fontSize: 7.5, color: MUT, marginTop: 4 },
   slogan: { fontSize: 8, color: GOLD, fontStyle: "italic", marginTop: 2 },
   docTitle: { fontSize: 30, fontWeight: 700, color: GREEN, letterSpacing: 1 },
   docNum: { fontSize: 13, color: GOLD, fontWeight: 700, marginTop: 2 },
@@ -103,6 +104,7 @@ type Props = { detail: DocumentDetail };
 
 export default function DevisNettoyagePdf({ detail }: Props) {
   const { doc, entity, lead } = detail;
+  const brand = entity.legalName.replace(/\s+(SAS|SARL|EURL|SASU|EI|SCI)$/i, "").toUpperCase();
   const validUntil = new Date(doc.issuedAt);
   validUntil.setDate(validUntil.getDate() + 30);
 
@@ -125,7 +127,8 @@ export default function DevisNettoyagePdf({ detail }: Props) {
             <View style={S.brandRow}>
               <Emblem size={44} />
               <View>
-                <Text style={S.wordmark}>{entity.legalName.replace(/\s+(SAS|SARL|EURL|SASU|EI|SCI)$/i, "").toUpperCase()}</Text>
+                <Text style={S.wordmark}>{brand}</Text>
+                <Text style={S.wordmarkSub}>NETTOYAGE</Text>
                 <Text style={S.tagline}>Nettoyage professionnel • Désinfection • Décontamination</Text>
                 <Text style={S.slogan}>La propreté sans compromis</Text>
               </View>
@@ -296,10 +299,9 @@ export default function DevisNettoyagePdf({ detail }: Props) {
       <Page size="A4" style={S.page}>
         <View style={{ alignItems: "center", marginTop: 160 }}>
           <Emblem size={70} />
-          <Text style={{ ...S.wordmark, marginTop: 12 }}>
-            {entity.legalName.replace(/\s+(SAS|SARL|EURL|SASU|EI|SCI)$/i, "").toUpperCase()}
-          </Text>
-          <Text style={S.slogan}>La propreté sans compromis</Text>
+          <Text style={{ ...S.wordmark, marginTop: 12 }}>{brand}</Text>
+          <Text style={S.wordmarkSub}>NETTOYAGE</Text>
+          <Text style={{ ...S.slogan, marginTop: 4 }}>La propreté sans compromis</Text>
           <Text style={{ fontSize: 12, color: GREEN, fontWeight: 700, marginTop: 24 }}>Merci pour votre confiance.</Text>
           <Text style={{ fontSize: 9.5, color: INK, marginTop: 6 }}>Nous restons à votre disposition pour toute question.</Text>
           <Text style={{ fontSize: 8.5, color: MUT, marginTop: 4 }}>{entity.contactPhone} · {entity.contactEmail}</Text>
