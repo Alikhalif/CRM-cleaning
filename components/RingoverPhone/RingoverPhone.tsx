@@ -4,8 +4,10 @@ import { useEffect, useRef } from "react";
 import type RingoverSDK from "ringover-sdk";
 import {
   RINGOVER_CALL_EVENT,
+  RINGOVER_SMS_EVENT,
   emitCallStatus,
   type RingoverCallInfo,
+  type RingoverSmsDetail,
 } from "@/lib/ringover-webphone";
 
 // Embeds the Ringover webphone as a floating iframe widget (bottom-right).
@@ -50,11 +52,19 @@ export default function RingoverPhone() {
       sdkRef.current.show();
       sdkRef.current.dial(phone);
     };
+    const onSms = (e: Event) => {
+      const detail = (e as CustomEvent<RingoverSmsDetail>).detail;
+      if (!detail?.phone || !detail.content || !sdkRef.current) return;
+      sdkRef.current.show();
+      sdkRef.current.sendSMS(detail.phone, detail.content);
+    };
     window.addEventListener(RINGOVER_CALL_EVENT, onCall);
+    window.addEventListener(RINGOVER_SMS_EVENT, onSms);
 
     return () => {
       disposed = true;
       window.removeEventListener(RINGOVER_CALL_EVENT, onCall);
+      window.removeEventListener(RINGOVER_SMS_EVENT, onSms);
       try {
         sdk?.destroy();
       } catch {

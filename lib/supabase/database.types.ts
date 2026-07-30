@@ -625,6 +625,7 @@ export type Database = {
           entity_id: string | null
           id: string
           is_active: boolean
+          lp_type: string | null
           name: string
           source_id: string | null
           token: string
@@ -637,6 +638,7 @@ export type Database = {
           entity_id?: string | null
           id?: string
           is_active?: boolean
+          lp_type?: string | null
           name: string
           source_id?: string | null
           token: string
@@ -649,6 +651,7 @@ export type Database = {
           entity_id?: string | null
           id?: string
           is_active?: boolean
+          lp_type?: string | null
           name?: string
           source_id?: string | null
           token?: string
@@ -1015,6 +1018,53 @@ export type Database = {
           },
         ]
       }
+      message_templates: {
+        Row: {
+          activity_id: string | null
+          body: string
+          category: string
+          channel: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          activity_id?: string | null
+          body: string
+          category: string
+          channel: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activity_id?: string | null
+          body?: string
+          category?: string
+          channel?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_templates_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -1356,6 +1406,7 @@ export type Database = {
           countries: string[]
           created_at: string
           email: string
+          entity_id: string | null
           first_name: string | null
           id: string
           is_active: boolean
@@ -1374,6 +1425,7 @@ export type Database = {
           countries?: string[]
           created_at?: string
           email: string
+          entity_id?: string | null
           first_name?: string | null
           id: string
           is_active?: boolean
@@ -1392,6 +1444,7 @@ export type Database = {
           countries?: string[]
           created_at?: string
           email?: string
+          entity_id?: string | null
           first_name?: string | null
           id?: string
           is_active?: boolean
@@ -1404,7 +1457,15 @@ export type Database = {
           team?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "users_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "legal_entities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

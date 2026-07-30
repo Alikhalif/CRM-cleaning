@@ -115,6 +115,29 @@ export default function SettingsPage() {
           </span>
         </Link>
         <Link
+          href="/settings/templates"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "var(--sp-2)",
+            padding: "var(--sp-3) var(--sp-4)",
+            border: "1px solid var(--border-subtle)",
+            borderRadius: "var(--r-md)",
+            textDecoration: "none",
+            color: "var(--text-primary)",
+            background: "var(--bg-elevated)",
+          }}
+        >
+          <Icon name="edit" size={16} />
+          <span>
+            <strong>Templates mail &amp; SMS</strong>
+            <br />
+            <span style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>
+              Messages réutilisables (relance, photos, RDV…) avec variables dynamiques (admin uniquement)
+            </span>
+          </span>
+        </Link>
+        <Link
           href="/settings/integrations"
           style={{
             display: "inline-flex",

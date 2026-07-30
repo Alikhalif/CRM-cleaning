@@ -6,10 +6,12 @@ import { useEffect, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
 import { canLaunchSequence, SECTOR_LABEL, SECTOR_VAR, type Commercial, type Lead } from "@/lib/leads";
 import { startCall } from "@/lib/ringover-webphone";
+import type { MessageTemplate } from "@/lib/message-templates-server";
 import { launchSequence, setLeadNrp, stopAutoSequence } from "@/app/(app)/pipeline/actions";
 import EditContactModal from "./EditContactModal";
 import MarkLostModal from "./MarkLostModal";
 import ReassignLeadModal from "./ReassignLeadModal";
+import SmsModal from "./SmsModal";
 import styles from "./LeadDetail.module.scss";
 
 // Action buttons for the lead detail header.
@@ -21,14 +23,17 @@ type Props = {
   // Capacité dérivée du profil du commercial connecté (auto selon le profil).
   // false → le click-to-call et la composition sont masqués (profil « Divers »).
   canUseRingover: boolean;
+  smsTemplates: MessageTemplate[];
+  currentUserName: string;
 };
 
-export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingover }: Props) {
+export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingover, smsTemplates, currentUserName }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [lostModalOpen, setLostModalOpen] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [reassignModalOpen, setReassignModalOpen] = useState(false);
+  const [smsModalOpen, setSmsModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [, startTransition] = useTransition();
 
@@ -168,6 +173,16 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
         >
           <Icon name="phone" size={14} /> Composer
         </a>
+      )}
+      {canUseRingover && lead.phone && (
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={() => setSmsModalOpen(true)}
+          title="Envoyer un SMS via Ringover (templates disponibles)"
+        >
+          <Icon name="edit" size={14} /> SMS
+        </button>
       )}
       {!closed && (
         <Link
@@ -309,6 +324,15 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
           commerciaux={commerciaux}
           onClose={() => setReassignModalOpen(false)}
           onDone={onReassignDone}
+        />
+      )}
+
+      {smsModalOpen && (
+        <SmsModal
+          lead={lead}
+          templates={smsTemplates}
+          commercialName={currentUserName}
+          onClose={() => setSmsModalOpen(false)}
         />
       )}
     </div>
