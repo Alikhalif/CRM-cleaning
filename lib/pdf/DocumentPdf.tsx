@@ -1,6 +1,7 @@
 import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer";
 import type { DocumentDetail } from "@/lib/documents-shared";
 import { DOC_TYPE_LABEL, PAYMENT_TERMS, formatEUR, type Sector } from "@/lib/leads";
+import DevisNettoyagePdf from "./DevisNettoyagePdf";
 
 // Server-side PDF for devis + factures. Two professional themes driven by the
 // lead's secteur:
@@ -156,8 +157,16 @@ const DATE_FMT = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long
 
 type Props = { detail: DocumentDetail };
 
+const LOGISTIQUE = new Set<Sector>(["demenagement", "diogene", "debarras"]);
+
 export default function DocumentPdf({ detail }: Props) {
   const { doc, entity, lead } = detail;
+
+  // Devis "propreté" (nettoyage & apparentés) → design dédié OPTIMIVV.
+  if (doc.type === "devis" && !LOGISTIQUE.has(lead.sector)) {
+    return <DevisNettoyagePdf detail={detail} />;
+  }
+
   const isInvoice = doc.type !== "devis";
   const isPaid = doc.status === "paye";
   const validUntil = new Date(doc.issuedAt);
