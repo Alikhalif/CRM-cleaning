@@ -38,8 +38,18 @@ export default function RingoverPhone() {
           position: { bottom: "16px", right: "16px" },
           animation: true,
         });
-        sdk.generate();
+        const iframe = sdk.generate();
         sdkRef.current = sdk;
+
+        // WebRTC calling needs the iframe to be granted microphone (and
+        // autoplay for the ring/audio). Without this Permissions-Policy the
+        // widget shows "Vous n'avez pas autorisé l'accès à votre microphone"
+        // even when the browser permission is granted.
+        const el =
+          iframe instanceof HTMLIFrameElement
+            ? iframe
+            : document.querySelector<HTMLIFrameElement>("iframe[src*='ringover']");
+        if (el) el.setAttribute("allow", "microphone; autoplay; camera; speaker-selection");
 
         // Re-emit the SDK call lifecycle so the screen-pop can reflect it.
         sdk.on("ringingCall", () => emitCallStatus({ state: "ringing" }));
