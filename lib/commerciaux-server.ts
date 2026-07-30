@@ -59,6 +59,82 @@ function displayNameOf(first: string | null, last: string | null, email: string)
   return composed || email.split("@")[0];
 }
 
+// Full profile of a single commercial, for the admin detail page.
+export type CommercialDetail = {
+  id: string;
+  email: string;
+  displayName: string;
+  initials: string;
+  color: string;
+  isActive: boolean;
+  isPremium: boolean;
+  isExtreme: boolean;
+  ringoverAgentId: string | null;
+  commercialProfiles: string[];
+  countries: string[];
+  entityName: string | null;
+  createdAt: string | null;
+  lastLoginAt: string | null;
+  roles: string[];
+};
+
+type DetailRow = {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  color: string | null;
+  is_active: boolean | null;
+  is_premium: boolean | null;
+  is_extreme: boolean | null;
+  ringover_agent_id: string | null;
+  commercial_profiles: string[] | null;
+  countries: string[] | null;
+  created_at: string | null;
+  last_login_at: string | null;
+  entity: { legal_name: string } | null;
+};
+
+export async function getCommercialDetail(id: string): Promise<CommercialDetail | null> {
+  const supabase = await supabaseServer();
+  const [uRes, rRes] = await Promise.all([
+    supabase
+      .from("users")
+      .select(
+        "id, email, first_name, last_name, color, is_active, is_premium, is_extreme, " +
+        "ringover_agent_id, commercial_profiles, countries, created_at, last_login_at, " +
+        "entity:legal_entities(legal_name)",
+      )
+      .eq("id", id)
+      .maybeSingle<DetailRow>(),
+    supabase
+      .from("user_roles")
+      .select("roles(slug)")
+      .eq("user_id", id)
+      .returns<{ roles: { slug: string } | null }[]>(),
+  ]);
+  const u = uRes.data;
+  if (!u) return null;
+
+  return {
+    id: u.id,
+    email: u.email,
+    displayName: displayNameOf(u.first_name, u.last_name, u.email),
+    initials: initialsOf(u.first_name, u.last_name, u.email),
+    color: u.color ?? "#5b4bcc",
+    isActive: Boolean(u.is_active),
+    isPremium: Boolean(u.is_premium),
+    isExtreme: Boolean(u.is_extreme),
+    ringoverAgentId: u.ringover_agent_id,
+    commercialProfiles: u.commercial_profiles ?? [],
+    countries: u.countries ?? [],
+    entityName: u.entity?.legal_name ?? null,
+    createdAt: u.created_at,
+    lastLoginAt: u.last_login_at,
+    roles: (rRes.data ?? []).map((r) => r.roles?.slug).filter((s): s is string => Boolean(s)),
+  };
+}
+
 export async function getCommerciauxStats(): Promise<CommercialStats[]> {
   const supabase = await supabaseServer();
 

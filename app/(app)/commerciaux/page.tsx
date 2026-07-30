@@ -165,7 +165,9 @@ export default async function CommerciauxPage({ searchParams }: Props) {
                     {s.commercial.initials}
                   </span>
                   <div className={styles.nameBlock}>
-                    <div className={styles.nameMain}>{s.commercial.name}</div>
+                    <Link href={`/commerciaux/${s.commercial.id}`} className={styles.nameMain} style={{ color: "inherit", textDecoration: "none" }}>
+                      {s.commercial.name}
+                    </Link>
                     <div className={styles.nameSub}>{s.commercial.email}</div>
                   </div>
                 </td>
