@@ -166,15 +166,6 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
         </button>
       )}
       {canUseRingover && lead.phone && (
-        <a
-          href={`tel:${lead.phone.replace(/[^\d+]/g, "")}`}
-          className={styles.btn}
-          title="Composer sur cet appareil (mobile / tablette / softphone)"
-        >
-          <Icon name="phone" size={14} /> Composer
-        </a>
-      )}
-      {canUseRingover && lead.phone && (
         <button
           type="button"
           className={styles.btn}
