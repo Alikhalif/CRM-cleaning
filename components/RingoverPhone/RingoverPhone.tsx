@@ -28,35 +28,60 @@ export default function RingoverPhone() {
     let sdk: RingoverSDK | null = null;
 
     (async () => {
-      const mod = await import("ringover-sdk");
-      const SDKClass = mod.default ?? (mod as unknown as typeof RingoverSDK);
-      if (disposed) return;
-      sdk = new SDKClass({
-        size: "medium",
-        position: { bottom: "16px", right: "16px" },
-        animation: true,
-      });
-      sdk.generate();
-      sdkRef.current = sdk;
+      try {
+        const mod = await import("ringover-sdk");
+        const SDKClass = mod.default ?? (mod as unknown as typeof RingoverSDK);
+        if (disposed) return;
+        sdk = new SDKClass({
+          size: "medium",
+          position: { bottom: "16px", right: "16px" },
+          animation: true,
+        });
+        sdk.generate();
+        sdkRef.current = sdk;
 
-      // Re-emit the SDK call lifecycle so the screen-pop can reflect it.
-      sdk.on("ringingCall", () => emitCallStatus({ state: "ringing" }));
-      sdk.on("answeredCall", () => emitCallStatus({ state: "answered" }));
-      sdk.on("hangupCall", () => emitCallStatus({ state: "ended" }));
+        // Re-emit the SDK call lifecycle so the screen-pop can reflect it.
+        sdk.on("ringingCall", () => emitCallStatus({ state: "ringing" }));
+        sdk.on("answeredCall", () => emitCallStatus({ state: "answered" }));
+        sdk.on("hangupCall", () => emitCallStatus({ state: "ended" }));
+      } catch (err) {
+        console.error("[ringover] échec du chargement du webphone SDK", err);
+      }
     })();
+
+    // Feedback explicite quand le webphone n'est pas prêt (widget non monté ou
+    // agent non connecté à Ringover), sinon les échecs sont silencieux.
+    const notReady = () =>
+      window.alert(
+        "Le webphone Ringover n'est pas prêt.\n\n" +
+          "1. Vérifie que le widget téléphone est visible en bas à droite.\n" +
+          "2. Ouvre-le et connecte-toi à ton compte Ringover.\n" +
+          "3. Réessaie.\n\n" +
+          "(Si le widget n'apparaît pas du tout : redémarre le serveur — Ctrl+C puis npm run dev.)",
+      );
 
     const onCall = (e: Event) => {
       const detail = (e as CustomEvent<RingoverCallInfo>).detail;
       const phone = detail?.phone;
-      if (!phone || !sdkRef.current) return;
+      if (!phone) return;
+      if (!sdkRef.current) {
+        notReady();
+        return;
+      }
       sdkRef.current.show();
-      sdkRef.current.dial(phone);
+      const ok = sdkRef.current.dial(phone);
+      if (ok === false) notReady();
     };
     const onSms = (e: Event) => {
       const detail = (e as CustomEvent<RingoverSmsDetail>).detail;
-      if (!detail?.phone || !detail.content || !sdkRef.current) return;
+      if (!detail?.phone || !detail.content) return;
+      if (!sdkRef.current) {
+        notReady();
+        return;
+      }
       sdkRef.current.show();
-      sdkRef.current.sendSMS(detail.phone, detail.content);
+      const ok = sdkRef.current.sendSMS(detail.phone, detail.content);
+      if (ok === false) notReady();
     };
     window.addEventListener(RINGOVER_CALL_EVENT, onCall);
     window.addEventListener(RINGOVER_SMS_EVENT, onSms);
