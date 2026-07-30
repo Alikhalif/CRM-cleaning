@@ -20,6 +20,7 @@ import type {
   PrestationOption,
 } from "@/lib/devis-server";
 import { createDevis, type CreateDevisIntent, type DraftInput } from "./actions";
+import LeadRecapPanel from "./LeadRecapPanel";
 import styles from "./QuoteEditor.module.scss";
 
 type DraftLine = {
@@ -361,6 +362,8 @@ export default function QuoteEditor({
 
       <div className={styles.layout}>
         <div className={styles.main}>
+          {/* Récap lead + découverte — tout sous les yeux pour créer le devis. */}
+          {leadContext && <LeadRecapPanel lead={leadContext} />}
           {/* ── Document card ────────────────────────────────────────── */}
           <section className={styles.card}>
             <h2 className={styles.h2}>Document</h2>

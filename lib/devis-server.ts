@@ -39,6 +39,23 @@ export type LeadContext = {
   shortId: string;
   sector: Sector;
   clientName: string;
+  // Récap affiché sur l'écran de génération du devis (coordonnées + découverte).
+  phone: string | null;
+  email: string | null;
+  city: string | null;
+  address: string | null;
+  typeService: string | null;
+  surfaceM2: number | null;
+  announcedPrice: number | null;
+  priceRange: string | null;
+  delaiSouhaite: string | null;
+  reactionPrix: string | null;
+  statutClient: string | null;
+  etatSalete: string | null;
+  acompteNegocie: number | null;
+  contexteIntervention: string | null;
+  notes: string | null;
+  discoveryDoneAt: string | null;
 };
 
 type ClientPickerRow = {
@@ -71,6 +88,21 @@ type LeadContextRow = {
   client_first_name: string;
   client_last_name: string;
   client_company: string | null;
+  client_phone: string | null;
+  client_email: string | null;
+  client_address: { city?: string; line1?: string } | null;
+  type_service: string | null;
+  surface_m2: number | null;
+  announced_price: number | null;
+  price_range: string | null;
+  delai_souhaite: string | null;
+  reaction_prix: string | null;
+  statut_client: string | null;
+  etat_salete: string | null;
+  acompte_negocie: number | null;
+  contexte_intervention: string | null;
+  notes: string | null;
+  discovery_done_at: string | null;
   activity: { slug: Sector } | null;
 };
 
@@ -239,7 +271,10 @@ export async function getLeadContext(idOrShortId: string): Promise<LeadContext |
   const { data, error } = await supabase
     .from("leads")
     .select(
-      "id, short_id, is_company, client_first_name, client_last_name, client_company, activity:activities(slug)",
+      "id, short_id, is_company, client_first_name, client_last_name, client_company, " +
+      "client_phone, client_email, client_address, type_service, surface_m2, announced_price, " +
+      "price_range, delai_souhaite, reaction_prix, statut_client, etat_salete, acompte_negocie, " +
+      "contexte_intervention, notes, discovery_done_at, activity:activities(slug)",
     )
     .match(filter)
     .maybeSingle<LeadContextRow>();
@@ -247,10 +282,27 @@ export async function getLeadContext(idOrShortId: string): Promise<LeadContext |
   const clientName = data.is_company
     ? (data.client_company ?? `${data.client_first_name} ${data.client_last_name}`)
     : `${data.client_first_name} ${data.client_last_name}`;
+  const addr = data.client_address ?? {};
   return {
     id: data.id,
     shortId: data.short_id,
     sector: data.activity.slug,
     clientName,
+    phone: data.client_phone,
+    email: data.client_email,
+    city: addr.city ?? null,
+    address: addr.line1 ?? null,
+    typeService: data.type_service,
+    surfaceM2: data.surface_m2,
+    announcedPrice: data.announced_price,
+    priceRange: data.price_range,
+    delaiSouhaite: data.delai_souhaite,
+    reactionPrix: data.reaction_prix,
+    statutClient: data.statut_client,
+    etatSalete: data.etat_salete,
+    acompteNegocie: data.acompte_negocie,
+    contexteIntervention: data.contexte_intervention,
+    notes: data.notes,
+    discoveryDoneAt: data.discovery_done_at,
   };
 }
