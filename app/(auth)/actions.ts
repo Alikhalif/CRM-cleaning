@@ -24,14 +24,6 @@ export async function login(formData: FormData) {
   const supabase = await supabaseServer();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
-    // Diagnostic temporaire : révèle ce que le serveur reçoit réellement
-    // (email + longueur du mot de passe) et le projet visé, sans logguer le
-    // mot de passe. À retirer une fois le login débloqué.
-    console.warn(
-      `[login:debug] échec — email="${email}" | longueur mdp=${password.length} | ` +
-        `projet=${(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "?").replace(/https:\/\/([a-z0-9]+).*/, "$1")} | ` +
-        `erreur="${error.message}"`,
-    );
     // Failed-login audit row — no user id since auth didn't succeed, but the
     // email + reason are useful for forensics (brute-force detection later).
     await auditLog({

@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+.env
+.env.*
+*.md
+docs
+supabase
+n8n
+Dockerfile
+.dockerignore
+npm-debug.log*
+.DS_Store
