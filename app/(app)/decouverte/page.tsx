@@ -107,6 +107,9 @@ export default async function DecouvertePage() {
   const active = leads.filter((l) => l.status !== "perdu");
   const pending = active.filter((l) => !l.discoveryDoneAt);
   const done = active.filter((l) => l.discoveryDoneAt);
+  // Découverte faite mais pas encore convertie (ni signé, ni encaissé) → à
+  // relancer pour transformer.
+  const doneToRelance = done.filter((l) => l.status !== "signe" && l.status !== "encaisse");
   const awaitingPhotos = active.filter((l) => l.discoveryOutcome === "ok_plus");
   const coverage = active.length ? Math.round((done.length / active.length) * 100) : 100;
 
@@ -145,6 +148,24 @@ export default async function DecouvertePage() {
           <span style={{ color: "var(--text-muted)", fontWeight: 500 }}> · {pending.length}</span>
         </h2>
         <LeadRows rows={pending} />
+      </section>
+
+      <section
+        style={{
+          background: "var(--bg-surface)",
+          border: "1px solid var(--border-subtle)",
+          borderRadius: "var(--r-lg)",
+          padding: "16px 18px",
+        }}
+      >
+        <h2 style={{ fontSize: "1.0625rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: 12 }}>
+          À relancer — découverte faite
+          <span style={{ color: "var(--text-muted)", fontWeight: 500 }}> · {doneToRelance.length}</span>
+        </h2>
+        <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", marginTop: -6, marginBottom: 12 }}>
+          Découverte terminée, pas encore signé — à relancer pour convertir.
+        </p>
+        <LeadRows rows={doneToRelance} />
       </section>
 
       {awaitingPhotos.length > 0 && (

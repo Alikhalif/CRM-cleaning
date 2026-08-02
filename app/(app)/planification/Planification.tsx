@@ -71,6 +71,9 @@ export default function Planification({ initialRows, technicians }: Props) {
   const [flagFilter, setFlagFilter] = useState<Set<DossierFlag>>(new Set());
   const [technicianFilter, setTechnicianFilter] = useState<string>("");
   const [countryFilter, setCountryFilter] = useState<string>("");
+  // Filtre par date d'intervention (dossier.plannedAt), format "YYYY-MM-DD".
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [planifyTarget, setPlanifyTarget] = useState<DossierWithContext | null>(null);
   const [editTarget, setEditTarget] = useState<DossierWithContext | null>(null);
@@ -93,6 +96,14 @@ export default function Planification({ initialRows, technicians }: Props) {
         }
         if (flagFilter.size > 0 && !r.dossier.flags.some((f) => flagFilter.has(f))) return false;
         if (countryFilter && r.lead.country !== countryFilter) return false;
+        // Filtre par date d'intervention planifiée. Un dossier sans date est
+        // exclu dès qu'une borne est posée.
+        if (dateFrom || dateTo) {
+          const day = r.dossier.plannedAt ? r.dossier.plannedAt.slice(0, 10) : null;
+          if (!day) return false;
+          if (dateFrom && day < dateFrom) return false;
+          if (dateTo && day > dateTo) return false;
+        }
         if (q) {
           const hay = `${r.lead.client} ${r.lead.city} ${r.lead.shortId}`.toLowerCase();
           if (!hay.includes(q)) return false;
@@ -110,7 +121,7 @@ export default function Planification({ initialRows, technicians }: Props) {
         }
         return +new Date(b.dossier.updatedAt) - +new Date(a.dossier.updatedAt);
       });
-  }, [rows, search, statusFilter, paymentFilter, flagFilter, technicianFilter, countryFilter]);
+  }, [rows, search, statusFilter, paymentFilter, flagFilter, technicianFilter, countryFilter, dateFrom, dateTo]);
 
   // Click-outside / Escape close any row menu.
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -409,6 +420,38 @@ export default function Planification({ initialRows, technicians }: Props) {
             <option key={c} value={c}>{COUNTRY_LABEL[c]}</option>
           ))}
         </select>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "0.8125rem", color: "var(--text-muted)" }}>
+          Intervention du
+          <input
+            type="date"
+            value={dateFrom}
+            max={dateTo || undefined}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className={styles.select}
+            aria-label="Date d'intervention — du"
+          />
+        </label>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "0.8125rem", color: "var(--text-muted)" }}>
+          au
+          <input
+            type="date"
+            value={dateTo}
+            min={dateFrom || undefined}
+            onChange={(e) => setDateTo(e.target.value)}
+            className={styles.select}
+            aria-label="Date d'intervention — au"
+          />
+        </label>
+        {(dateFrom || dateTo) && (
+          <button
+            type="button"
+            className={styles.select}
+            style={{ cursor: "pointer" }}
+            onClick={() => { setDateFrom(""); setDateTo(""); }}
+          >
+            Effacer dates
+          </button>
+        )}
       </div>
 
       <div className={styles.chipsRow}>
