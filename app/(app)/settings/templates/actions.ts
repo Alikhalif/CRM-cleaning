@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
-import type { TemplateCategory, TemplateChannel } from "@/lib/message-templates-shared";
+import type {
+  Recipient,
+  TemplateAudience,
+  TemplateCategory,
+  TemplateChannel,
+} from "@/lib/message-templates-shared";
 
 export type Result = { ok: true; id?: string } | { ok: false; error: string };
 
@@ -14,6 +19,9 @@ export type TemplateInput = {
   subject: string; // email only ("" allowed)
   body: string;
   activityId: string; // "" = global (tous secteurs)
+  audiences: TemplateAudience[]; // [] = visible par tous
+  recipient: Recipient;
+  sortOrder: number;
   isActive: boolean;
 };
 
@@ -45,6 +53,9 @@ function toRow(input: TemplateInput) {
     subject: input.channel === "email" ? input.subject.trim() || null : null,
     body: input.body,
     activity_id: input.activityId || null,
+    audiences: input.audiences,
+    recipient: input.recipient,
+    sort_order: input.sortOrder,
     is_active: input.isActive,
   };
 }

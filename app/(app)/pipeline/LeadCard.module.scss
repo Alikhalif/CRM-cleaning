@@ -107,6 +107,19 @@
   font-variant-numeric: tabular-nums;
 }
 
+// Badge « acompte X% » sur les cartes de leads signés.
+.acomptePct {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  vertical-align: middle;
+  color: var(--tone-success);
+  background: color-mix(in oklab, var(--tone-success) 14%, transparent);
+}
+
 .foot {
   display: flex;
   align-items: center;

@@ -98,6 +98,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+// Taux de signature affiché à côté du total dans la colonne « Signé ».
+.colPct {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-weight: 700;
+  color: var(--tone-success);
+  background: color-mix(in oklab, var(--tone-success) 14%, transparent);
+}
+
 .colBody {
   flex: 1;
   display: flex;

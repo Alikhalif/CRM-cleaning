@@ -19,9 +19,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ]);
 
   // Le webphone Ringover n'est monté que pour les profils qui téléphonent
-  // (mêmes capacités que le bouton « Appeler »).
+  // (mêmes capacités que le bouton « Appeler »). Exception : le profil « Divers »
+  // a aussi accès au bouton « SMS NRP » (envoi via webphone) → on le monte pour
+  // lui également (décision client 2026-08-02).
   const isAdmin = (user?.roles ?? []).some((r) => r.slug === "admin");
   const { canUseRingover } = profileCapabilities(user?.commercialProfiles ?? [], isAdmin);
+  const isDivers = (user?.commercialProfiles ?? []).includes("divers");
+  const showWebphone = canUseRingover || isDivers;
 
   return (
     <div className={styles.shell}>
@@ -32,8 +36,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </div>
       <CommandPalette />
       {user && <RealtimeNotifications userId={user.id} />}
-      {canUseRingover && <RingoverPhone />}
-      {canUseRingover && <CallScreenPop />}
+      {showWebphone && <RingoverPhone />}
+      {showWebphone && <CallScreenPop />}
     </div>
   );
 }

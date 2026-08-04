@@ -16,8 +16,19 @@ export type SendEmailInput = {
   toName?: string;
   subject: string;
   htmlContent: string;
+  // Expéditeur personnalisé (sinon défaut BREVO_SENDER_EMAIL). Doit être un
+  // expéditeur vérifié dans Brevo.
+  senderEmail?: string;
+  senderName?: string;
   // Attachment as raw bytes — wrapper handles base64 encoding.
   attachment?: { name: string; bytes: Buffer | Uint8Array };
+};
+
+// Expéditeur des emails de PLANIFICATION (confirmations client) et des mails
+// aux INTERVENANTS. Configurable via PLANIF_SENDER_EMAIL, défaut ci-dessous.
+export const PLANIF_SENDER = {
+  email: process.env.PLANIF_SENDER_EMAIL ?? "devis@planningproservices.com",
+  name: process.env.PLANIF_SENDER_NAME ?? "Planning Pro Services",
 };
 
 export type BrevoSendResult =
@@ -30,11 +41,11 @@ export async function sendBrevoEmail(input: SendEmailInput): Promise<BrevoSendRe
   const apiKey = process.env.BREVO_API_KEY;
   if (!apiKey) return { ok: false, error: "BREVO_API_KEY non configurée." };
 
-  const senderEmail = process.env.BREVO_SENDER_EMAIL;
+  const senderEmail = input.senderEmail ?? process.env.BREVO_SENDER_EMAIL;
   if (!senderEmail) {
-    return { ok: false, error: "BREVO_SENDER_EMAIL non configurée." };
+    return { ok: false, error: "Expéditeur email non configuré (BREVO_SENDER_EMAIL)." };
   }
-  const senderName = process.env.BREVO_SENDER_NAME ?? "CGK CRM";
+  const senderName = input.senderName ?? process.env.BREVO_SENDER_NAME ?? "CGK CRM";
 
   const body: Record<string, unknown> = {
     sender: { email: senderEmail, name: senderName },

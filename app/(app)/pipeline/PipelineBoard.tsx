@@ -310,7 +310,17 @@ export default function PipelineBoard({ initialLeads, commerciaux, n8nEnabled }:
                     <h2 className={styles.colTitle}>{col.label}</h2>
                     <span className={styles.colCount}>{cards.length}</span>
                   </div>
-                  <p className={styles.colTotal}>{formatEUR(total)}</p>
+                  <p className={styles.colTotal}>
+                    {formatEUR(total)}
+                    {col.status === "signe" && leads.length > 0 && (
+                      <span
+                        className={styles.colPct}
+                        title="Taux de signature : signés / total des leads"
+                      >
+                        {Math.round((cards.length / leads.length) * 100)}%
+                      </span>
+                    )}
+                  </p>
                 </header>
 
                 <div className={styles.colBody}>

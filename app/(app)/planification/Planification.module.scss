@@ -312,6 +312,29 @@
 
   tbody tr:last-child td { border-bottom: 0; }
   tbody tr:hover { background: var(--bg-surface-2); }
+
+  // Couleur de ligne selon le statut du dossier (demande client) :
+  //   À planifier = rouge · Planifié = vert · autres = neutre (blanc/surface).
+  // Teinte appliquée aux cellules (border-collapse) pour rester lisible.
+  tbody tr[data-status="a_planifier"] td {
+    background: color-mix(in srgb, var(--tone-danger) 12%, transparent);
+  }
+  tbody tr[data-status="a_planifier"]:hover td {
+    background: color-mix(in srgb, var(--tone-danger) 20%, transparent);
+  }
+  tbody tr[data-status="planifie"] td {
+    background: color-mix(in srgb, var(--tone-success) 12%, transparent);
+  }
+  tbody tr[data-status="planifie"]:hover td {
+    background: color-mix(in srgb, var(--tone-success) 20%, transparent);
+  }
+  // En cours de réalisation = ambre (intervention en cours le jour J).
+  tbody tr[data-status="en_cours"] td {
+    background: color-mix(in srgb, #f59e0b 14%, transparent);
+  }
+  tbody tr[data-status="en_cours"]:hover td {
+    background: color-mix(in srgb, #f59e0b 22%, transparent);
+  }
 }
 
 .mono { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-muted); }
@@ -382,6 +405,12 @@
     background: var(--color-brand-50);
     border-color: color-mix(in oklab, var(--color-brand-500) 32%, transparent);
   }
+  &[data-status="en_cours"] {
+    color: #b45309;
+    background: color-mix(in oklab, #f59e0b 16%, transparent);
+    border-color: color-mix(in oklab, #f59e0b 40%, transparent);
+    font-weight: 700;
+  }
   &[data-status="finalise"] {
     color: var(--tone-warning);
     background: color-mix(in oklab, var(--tone-warning) 14%, transparent);
@@ -427,6 +456,108 @@
   font-size: 11px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+}
+
+.paidPct {
+  color: var(--text-secondary, var(--text-primary));
+  font-weight: 700;
+
+  &[data-full="1"] { color: var(--tone-success); }
+}
+
+// ── Notification planificatrice (orange, animée, moderne) ──────────────
+.notifBanner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  color: #fff;
+  background: linear-gradient(100deg, #f59e0b 0%, #f97316 55%, #fb923c 100%);
+  box-shadow: 0 10px 26px -10px color-mix(in srgb, #f97316 70%, transparent);
+  animation: notifIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  // Reflet lumineux qui balaie la bannière (effet « moderne »).
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 20%,
+      rgba(255, 255, 255, 0.28) 45%,
+      transparent 70%
+    );
+    transform: translateX(-120%);
+    animation: notifSheen 3.4s ease-in-out infinite;
+    pointer-events: none;
+  }
+}
+
+.notifPulse {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7);
+  animation: notifPulse 1.8s infinite;
+}
+
+.notifIcon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  animation: notifRing 2.6s ease-in-out infinite;
+}
+
+.notifBody { min-width: 0; }
+
+.notifTitle {
+  font-weight: 700;
+  font-size: var(--fs-md);
+  line-height: 1.2;
+}
+
+.notifSub {
+  margin-top: 2px;
+  font-size: var(--fs-sm);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+@keyframes notifIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes notifSheen {
+  0%   { transform: translateX(-120%); }
+  55%  { transform: translateX(120%); }
+  100% { transform: translateX(120%); }
+}
+@keyframes notifPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.6); }
+  70%  { box-shadow: 0 0 0 12px rgba(255, 255, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+@keyframes notifRing {
+  0%, 90%, 100% { transform: rotate(0); }
+  93% { transform: rotate(-12deg); }
+  96% { transform: rotate(10deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notifBanner,
+  .notifBanner::after,
+  .notifPulse,
+  .notifIcon {
+    animation: none;
+  }
 }
 
 // ── Intervenant ────────────────────────────────────────────────────────
@@ -489,8 +620,55 @@
 }
 
 // ── Row actions ────────────────────────────────────────────────────────
-.actionsCell { width: 40px; }
+// Garder le <td> en cellule de tableau (surtout PAS display:flex, sinon la
+// grille du tableau casse) — le flex vit dans un div interne.
+.actionsCell {
+  white-space: nowrap;
+  text-align: right;
+}
+.actionsWrap {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
 .actionsAnchor { position: relative; }
+
+// Bouton visible « Générer facture » (raccourci de l'action du menu ⋯).
+.genFactureBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  color: #fff;
+  background: var(--color-brand-500);
+  border: 1px solid transparent;
+
+  &:hover:not(:disabled) { background: var(--color-brand-600); }
+
+  // Désactivé : dossier pas encore finalisé — bouton présent mais grisé.
+  &:disabled {
+    cursor: not-allowed;
+    color: var(--text-muted);
+    background: var(--bg-surface-2);
+    border-color: var(--border-subtle);
+    opacity: 0.7;
+  }
+
+  // Variante « Voir la facture » (facture déjà émise) : contour discret.
+  &[data-variant="view"] {
+    color: var(--text-secondary, var(--text-primary));
+    background: transparent;
+    border-color: var(--border-strong);
+
+    &:hover { background: var(--bg-surface-2); color: var(--text-primary); }
+  }
+}
 
 .kebab {
   display: inline-flex;

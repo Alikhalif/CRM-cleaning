@@ -1,5 +1,6 @@
 import Planification from "./Planification";
 import { getAllDossiers, getAllTechnicians } from "@/lib/planification-server";
+import { getIntervenantTemplates } from "@/lib/message-templates-server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { getCurrentUserProfile } from "@/lib/users-server";
 
@@ -10,10 +11,11 @@ export const metadata = { title: "Planification" };
 // gardent la vision globale. Le scoping se fait ici, en amont du client.
 
 export default async function PlanificationPage() {
-  const [rows, technicians, me] = await Promise.all([
+  const [rows, technicians, me, intervenantTemplates] = await Promise.all([
     getAllDossiers(),
     getAllTechnicians(),
     getCurrentUserProfile(),
+    getIntervenantTemplates(),
   ]);
 
   const isAdmin = (me?.roles ?? []).some((r) => r.slug === "admin");
@@ -33,5 +35,5 @@ export default async function PlanificationPage() {
       ? rows.filter((r) => r.lead.country && myCountries.includes(r.lead.country))
       : rows;
 
-  return <Planification initialRows={scoped} technicians={technicians} />;
+  return <Planification initialRows={scoped} technicians={technicians} intervenantTemplates={intervenantTemplates} />;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import Icon from "@/components/Icon/Icon";
 import NewLeadModal from "@/app/(app)/pipeline/NewLeadModal";
@@ -23,24 +24,18 @@ import {
   performanceScore,
   periodWindow,
   topCommerciaux,
+  DASHBOARD_PERIODS,
+  parsePeriod,
   type Channel,
   type DailyMetric,
   type DashboardFilter,
-  type Period,
 } from "@/lib/dashboard";
 import type { ImmobAnnotation } from "@/lib/dashboard-server";
 import { Donut, EvolutionChart } from "./Charts";
 import styles from "./Dashboard.module.scss";
 
-const PERIODS: { value: Period; label: string }[] = [
-  { value: "7d",  label: "7 derniers jours"  },
-  { value: "30d", label: "30 derniers jours" },
-  { value: "90d", label: "90 derniers jours" },
-  { value: "mtd", label: "Ce mois-ci" },
-  { value: "qtd", label: "Ce trimestre" },
-  { value: "ytd", label: "Cette année" },
-  { value: "12m", label: "12 derniers mois" },
-];
+// Périodes partagées avec le filtre global de la Topbar (source unique).
+const PERIODS = DASHBOARD_PERIODS;
 
 const SECTORS: Sector[] = ["urgence", "nettoyage", "nettoyage_difficile", "enr", "renovation", "debarras", "demenagement", "diogene"];
 const CHANNELS: Channel[] = ["mano", "auto"];
@@ -62,11 +57,31 @@ export default function Dashboard({
   currentUserId,
   isAdmin,
 }: Props) {
-  const [filter, setFilter] = useState<DashboardFilter>({
-    period: "30d",
-    sector: "all",
-    channel: "all",
-  });
+  // Période + activité viennent de l'URL (source unique, partagée avec le
+  // filtre global de la Topbar). Le canal reste local (pas dans la Topbar).
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const period = parsePeriod(searchParams.get("period"));
+  const sectorRaw = searchParams.get("sector") ?? "all";
+  const sector: Sector | "all" =
+    sectorRaw === "all" || sectorRaw in SECTOR_LABEL ? (sectorRaw as Sector | "all") : "all";
+  const [channel, setChannel] = useState<Channel | "all">("all");
+  const filter = useMemo<DashboardFilter>(
+    () => ({ period, sector, channel }),
+    [period, sector, channel],
+  );
+  // Le FilterBar appelle setFilter avec un filtre complet : on route les
+  // changements période/activité vers l'URL, le canal vers l'état local.
+  const setFilter = (f: DashboardFilter) => {
+    if (f.channel !== channel) setChannel(f.channel);
+    if (f.period !== period || f.sector !== sector) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("period", f.period);
+      params.set("sector", f.sector);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }
+  };
   const [newLeadOpen, setNewLeadOpen] = useState(false);
 
   const filtered = useMemo(() => filterSeries(dailySeries, filter), [dailySeries, filter]);

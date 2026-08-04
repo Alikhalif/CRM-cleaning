@@ -9,6 +9,7 @@ import { startCall } from "@/lib/ringover-webphone";
 import type { MessageTemplate } from "@/lib/message-templates-server";
 import { launchSequence, setLeadNrp, stopAutoSequence } from "@/app/(app)/pipeline/actions";
 import EditContactModal from "./EditContactModal";
+import EmailModal from "./EmailModal";
 import MarkLostModal from "./MarkLostModal";
 import ReassignLeadModal from "./ReassignLeadModal";
 import SmsModal from "./SmsModal";
@@ -24,16 +25,28 @@ type Props = {
   // false → le click-to-call et la composition sont masqués (profil « Divers »).
   canUseRingover: boolean;
   smsTemplates: MessageTemplate[];
-  currentUserName: string;
+  emailTemplates: MessageTemplate[];
+  // Variables réelles (BDD) déjà résolues côté serveur pour l'interpolation
+  // des templates SMS / email (acompte, société, commercial, montants…).
+  templateVars: Record<string, string>;
+  // Boutons NRP (profil « Divers ») : SMS + email pré-remplis avec le modèle NRP.
+  showNrp: boolean;
+  nrpSmsBody: string;
+  nrpEmailSubject: string;
+  nrpEmailBody: string;
 };
 
-export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingover, smsTemplates, currentUserName }: Props) {
+export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingover, smsTemplates, emailTemplates, templateVars, showNrp, nrpSmsBody, nrpEmailSubject, nrpEmailBody }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [lostModalOpen, setLostModalOpen] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [reassignModalOpen, setReassignModalOpen] = useState(false);
   const [smsModalOpen, setSmsModalOpen] = useState(false);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  // Contenu de pré-remplissage quand on ouvre via un bouton NRP (sinon vide).
+  const [smsInit, setSmsInit] = useState<string | undefined>(undefined);
+  const [emailInit, setEmailInit] = useState<{ subject: string; body: string } | undefined>(undefined);
   const [menuOpen, setMenuOpen] = useState(false);
   const [, startTransition] = useTransition();
 
@@ -169,10 +182,40 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
         <button
           type="button"
           className={styles.btn}
-          onClick={() => setSmsModalOpen(true)}
+          onClick={() => { setSmsInit(undefined); setSmsModalOpen(true); }}
           title="Envoyer un SMS via Ringover (templates disponibles)"
         >
           <Icon name="edit" size={14} /> SMS
+        </button>
+      )}
+      {lead.email && (
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={() => { setEmailInit(undefined); setEmailModalOpen(true); }}
+          title="Relance par email via Brevo (modèles disponibles)"
+        >
+          <Icon name="mail" size={14} /> Relance email
+        </button>
+      )}
+      {showNrp && lead.phone && (
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={() => { setSmsInit(nrpSmsBody); setSmsModalOpen(true); }}
+          title="SMS de relance NRP (pré-rempli), envoi via le webphone"
+        >
+          <Icon name="edit" size={14} /> SMS NRP
+        </button>
+      )}
+      {showNrp && lead.email && (
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={() => { setEmailInit({ subject: nrpEmailSubject, body: nrpEmailBody }); setEmailModalOpen(true); }}
+          title="Email de relance NRP (pré-rempli), envoi via Brevo"
+        >
+          <Icon name="mail" size={14} /> Email NRP
         </button>
       )}
       {!closed && (
@@ -322,8 +365,20 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
         <SmsModal
           lead={lead}
           templates={smsTemplates}
-          commercialName={currentUserName}
+          vars={templateVars}
+          initialBody={smsInit}
           onClose={() => setSmsModalOpen(false)}
+        />
+      )}
+
+      {emailModalOpen && (
+        <EmailModal
+          lead={lead}
+          templates={emailTemplates}
+          vars={templateVars}
+          initialSubject={emailInit?.subject}
+          initialBody={emailInit?.body}
+          onClose={() => setEmailModalOpen(false)}
         />
       )}
     </div>

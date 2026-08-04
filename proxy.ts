@@ -4,7 +4,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 // Next.js 16 renamed `middleware.ts` → `proxy.ts` and the function name
 // from `middleware` to `proxy`. The runtime is always nodejs.
 
-const PUBLIC_PATH = /^\/(login|signup|auth\/callback|api\/|_next\/|favicon\.ico)/;
+const PUBLIC_PATH = /^\/(login|signup|forgot-password|reset-password|auth\/callback|api\/|_next\/|favicon\.ico)/;
 
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request });

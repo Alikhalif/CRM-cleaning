@@ -13,6 +13,7 @@ import type {
   Source,
   SubEnvoi,
   SubSignature,
+  SubSignatureMode,
   TimelineEvent,
 } from "./leads";
 import type { Json } from "./supabase/database.types";
@@ -78,6 +79,7 @@ export type LeadRowJoined = {
   status: LeadStatus;
   sub_envoi: SubEnvoi | null;
   sub_signature: SubSignature | null;
+  sub_signature_mode: SubSignatureMode | null;
   received_at: string;
   last_action_label: string | null;
   last_action_at: string | null;
@@ -145,6 +147,7 @@ export function mapLead(row: LeadRowJoined): Lead {
     status: row.status,
     subEnvoi: row.sub_envoi,
     subSignature: row.sub_signature,
+    subSignatureMode: row.sub_signature_mode,
     receivedAt: row.received_at,
     lastActionLabel: row.last_action_label ?? "",
     lastActionAt: row.last_action_at ?? row.received_at,
@@ -223,7 +226,7 @@ export async function getAllLeads(): Promise<Lead[]> {
         id, short_id, is_company,
         client_first_name, client_last_name, client_company,
         client_email, client_phone, client_address,
-        estimated_amount, owner_id, status, sub_envoi, sub_signature,
+        estimated_amount, owner_id, status, sub_envoi, sub_signature, sub_signature_mode,
         received_at, last_action_label, last_action_at, next_followup_at,
         is_urgent, surface_m2, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
         intervention_delay, intervention_delay_notes, notes, type_service, country,
@@ -294,7 +297,7 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
         id, short_id, is_company,
         client_first_name, client_last_name, client_company,
         client_email, client_phone, client_address,
-        estimated_amount, owner_id, status, sub_envoi, sub_signature,
+        estimated_amount, owner_id, status, sub_envoi, sub_signature, sub_signature_mode,
         received_at, last_action_label, last_action_at, next_followup_at,
         is_urgent, surface_m2, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
         intervention_delay, intervention_delay_notes, notes, type_service, country,
@@ -334,6 +337,18 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
   const timeline = buildTimeline(uiLead, uiDocs, auditEvents);
 
   return { lead: uiLead, owner, documents: uiDocs, timeline };
+}
+
+// Contact phone of a legal entity — used to fill {societe.telephone} in the
+// relance templates (callback number). Empty string when unknown.
+export async function getLegalEntityPhone(entityId: string): Promise<string> {
+  const supabase = await supabaseServer();
+  const { data } = await supabase
+    .from("legal_entities")
+    .select("contact_phone")
+    .eq("id", entityId)
+    .maybeSingle<{ contact_phone: string | null }>();
+  return data?.contact_phone ?? "";
 }
 
 // ── Audit-event → timeline mapper ────────────────────────────────────
@@ -416,6 +431,34 @@ function mapAuditRowToTimeline(row: AuditRow): AuditTimelineEvent | null {
       kind: "call",
       label: labelByPhase[phase] ?? `Appel entrant — ${phase}`,
       sublabel: from ? `de ${from}` : undefined,
+    };
+  }
+
+  // Outbound relance email sent from the lead page (Brevo).
+  if (row.action === "lead.relance.email") {
+    const recipient = typeof after.recipient === "string" ? after.recipient : undefined;
+    const subject = typeof after.subject === "string" ? after.subject : undefined;
+    return {
+      id: row.id,
+      action: row.action,
+      createdAt: row.created_at,
+      kind: "email",
+      label: "Email de relance envoyé",
+      sublabel: [subject, recipient].filter(Boolean).join(" · ") || undefined,
+    };
+  }
+
+  // Outbound SMS sent from the lead page (Ringover webphone).
+  if (row.action === "lead.sms.sent") {
+    const recipient = typeof after.recipient === "string" ? after.recipient : undefined;
+    const preview = typeof after.preview === "string" ? after.preview : undefined;
+    return {
+      id: row.id,
+      action: row.action,
+      createdAt: row.created_at,
+      kind: "sms",
+      label: recipient ? `SMS envoyé — ${recipient}` : "SMS envoyé",
+      sublabel: preview,
     };
   }
 

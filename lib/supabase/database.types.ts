@@ -681,6 +681,51 @@ export type Database = {
           },
         ]
       }
+      lead_media: {
+        Row: {
+          comment: string | null
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          file_name: string
+          id: string
+          kind: string
+          lead_id: string
+          mime_type: string
+          size_bytes: number | null
+          storage_path: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          file_name: string
+          id?: string
+          kind: string
+          lead_id: string
+          mime_type: string
+          size_bytes?: number | null
+          storage_path: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          file_name?: string
+          id?: string
+          kind?: string
+          lead_id?: string
+          mime_type?: string
+          size_bytes?: number | null
+          storage_path?: string
+          uploaded_by?: string | null
+        }
+        Relationships: []
+      }
       lead_sources: {
         Row: {
           color: string | null
@@ -763,6 +808,7 @@ export type Database = {
           statut_client: string | null
           sub_envoi: Database["public"]["Enums"]["sub_envoi"] | null
           sub_signature: Database["public"]["Enums"]["sub_signature"] | null
+          sub_signature_mode: Database["public"]["Enums"]["sub_signature_mode"] | null
           surface_m2: number | null
           type_service: string | null
           updated_at: string
@@ -823,6 +869,7 @@ export type Database = {
           statut_client?: string | null
           sub_envoi?: Database["public"]["Enums"]["sub_envoi"] | null
           sub_signature?: Database["public"]["Enums"]["sub_signature"] | null
+          sub_signature_mode?: Database["public"]["Enums"]["sub_signature_mode"] | null
           surface_m2?: number | null
           type_service?: string | null
           updated_at?: string
@@ -883,6 +930,7 @@ export type Database = {
           statut_client?: string | null
           sub_envoi?: Database["public"]["Enums"]["sub_envoi"] | null
           sub_signature?: Database["public"]["Enums"]["sub_signature"] | null
+          sub_signature_mode?: Database["public"]["Enums"]["sub_signature_mode"] | null
           surface_m2?: number | null
           type_service?: string | null
           updated_at?: string
@@ -1045,6 +1093,7 @@ export type Database = {
       message_templates: {
         Row: {
           activity_id: string | null
+          audiences: string[]
           body: string
           category: string
           channel: string
@@ -1052,11 +1101,14 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          recipient: string
+          sort_order: number
           subject: string | null
           updated_at: string
         }
         Insert: {
           activity_id?: string | null
+          audiences?: string[]
           body: string
           category: string
           channel: string
@@ -1064,11 +1116,14 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          recipient?: string
+          sort_order?: number
           subject?: string | null
           updated_at?: string
         }
         Update: {
           activity_id?: string | null
+          audiences?: string[]
           body?: string
           category?: string
           channel?: string
@@ -1076,6 +1131,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          recipient?: string
+          sort_order?: number
           subject?: string | null
           updated_at?: string
         }
@@ -1274,6 +1331,7 @@ export type Database = {
           base_postal_code: string | null
           color: string | null
           created_at: string
+          email: string | null
           id: string
           initials: string
           is_active: boolean
@@ -1287,6 +1345,7 @@ export type Database = {
           base_postal_code?: string | null
           color?: string | null
           created_at?: string
+          email?: string | null
           id?: string
           initials: string
           is_active?: boolean
@@ -1300,6 +1359,7 @@ export type Database = {
           base_postal_code?: string | null
           color?: string | null
           created_at?: string
+          email?: string | null
           id?: string
           initials?: string
           is_active?: boolean
@@ -1521,7 +1581,7 @@ export type Database = {
         | "retard"
       document_type: "devis" | "acompte" | "finale"
       dossier_flag: "a_rappeler" | "attente_retour" | "litige" | "bloque"
-      dossier_status: "a_planifier" | "planifie" | "finalise" | "solde"
+      dossier_status: "a_planifier" | "planifie" | "en_cours" | "finalise" | "solde"
       lead_source_slug:
         | "google_ads"
         | "meta_ads"
@@ -1542,6 +1602,7 @@ export type Database = {
       role_slug: "admin" | "commercial" | "planification" | "assistant"
       sub_envoi: "mano" | "auto"
       sub_signature: "sans" | "avec"
+      sub_signature_mode: "logiciel" | "planificateur"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1686,7 +1747,7 @@ export const Constants = {
       ],
       document_type: ["devis", "acompte", "finale"],
       dossier_flag: ["a_rappeler", "attente_retour", "litige", "bloque"],
-      dossier_status: ["a_planifier", "planifie", "finalise", "solde"],
+      dossier_status: ["a_planifier", "planifie", "en_cours", "finalise", "solde"],
       lead_source_slug: [
         "google_ads",
         "meta_ads",
@@ -1709,6 +1770,7 @@ export const Constants = {
       role_slug: ["admin", "commercial", "planification", "assistant"],
       sub_envoi: ["mano", "auto"],
       sub_signature: ["sans", "avec"],
+      sub_signature_mode: ["logiciel", "planificateur"],
     },
   },
 } as const

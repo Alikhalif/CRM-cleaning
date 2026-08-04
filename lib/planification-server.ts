@@ -40,6 +40,7 @@ type TechnicianRow = {
   initials: string;
   color: string | null;
   sectors: string[] | null;
+  email: string | null;
   base_postal_code: string | null;
   service_departments: string[] | null;
 };
@@ -67,6 +68,7 @@ function mapTechnician(row: TechnicianRow, sectorMap: Map<string, Sector>): Tech
     sectors: (row.sectors ?? [])
       .map((id) => sectorMap.get(id))
       .filter((s): s is Sector => s !== undefined),
+    email: row.email ?? undefined,
     basePostalCode: row.base_postal_code ?? undefined,
     serviceDepartments: row.service_departments ?? [],
   };
@@ -143,7 +145,7 @@ export async function getAllDossiers(): Promise<DossierWithContext[]> {
           id, lead_id, status, payment_status, technician_id, planned_at,
           duration_hours, notes, flags, created_at, updated_at,
           lead:leads(${LEAD_SELECT}),
-          technician:technicians(id, name, initials, color, sectors, base_postal_code, service_departments)
+          technician:technicians(id, name, initials, color, sectors, email, base_postal_code, service_departments)
         `,
       )
       .order("updated_at", { ascending: false })
@@ -194,7 +196,7 @@ export async function getAllTechnicians(): Promise<Technician[]> {
   const [techRes, sectorMap] = await Promise.all([
     supabase
       .from("technicians")
-      .select("id, name, initials, color, sectors, base_postal_code, service_departments")
+      .select("id, name, initials, color, sectors, email, base_postal_code, service_departments")
       .eq("is_active", true)
       .order("name", { ascending: true })
       .returns<TechnicianRow[]>(),

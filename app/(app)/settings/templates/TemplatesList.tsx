@@ -4,12 +4,19 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon/Icon";
 import {
+  RECIPIENT_LABEL,
+  TEMPLATE_AUDIENCES,
+  TEMPLATE_AUDIENCE_LABEL,
   TEMPLATE_CATEGORIES,
   TEMPLATE_CATEGORY_LABEL,
   TEMPLATE_CHANNELS,
   TEMPLATE_CHANNEL_LABEL,
   TEMPLATE_VARIABLES,
+  type Recipient,
+  type TemplateAudience,
 } from "@/lib/message-templates-shared";
+
+const RECIPIENTS: Recipient[] = ["client", "intervenant", "interne"];
 import type { MessageTemplate } from "@/lib/message-templates-server";
 import { createTemplate, updateTemplate, deleteTemplate, type TemplateInput, type Result } from "./actions";
 
@@ -22,6 +29,9 @@ const empty: TemplateInput = {
   subject: "",
   body: "",
   activityId: "",
+  audiences: [],
+  recipient: "client",
+  sortOrder: 0,
   isActive: true,
 };
 
@@ -58,10 +68,28 @@ export default function TemplatesList({ templates, sectors }: Props) {
         subject: t.subject ?? "",
         body: t.body,
         activityId: t.activityId ?? "",
+        audiences: t.audiences,
+        recipient: t.recipient,
+        sortOrder: t.sortOrder,
         isActive: t.isActive,
       },
     });
   };
+
+  const toggleAudience = (a: TemplateAudience) =>
+    setEditing((e) =>
+      e
+        ? {
+            ...e,
+            input: {
+              ...e.input,
+              audiences: e.input.audiences.includes(a)
+                ? e.input.audiences.filter((x) => x !== a)
+                : [...e.input.audiences, a],
+            },
+          }
+        : e,
+    );
 
   const run = (fn: () => Promise<Result>, onOk?: () => void) => {
     setError(null);
@@ -129,7 +157,9 @@ export default function TemplatesList({ templates, sectors }: Props) {
               <th style={th}>Canal</th>
               <th style={th}>Catégorie</th>
               <th style={th}>Nom</th>
+              <th style={th}>Destinataire</th>
               <th style={th}>Secteur</th>
+              <th style={th}>Audiences</th>
               <th style={th}>Active</th>
               <th style={th} />
             </tr>
@@ -144,7 +174,17 @@ export default function TemplatesList({ templates, sectors }: Props) {
                 </td>
                 <td style={td}>{TEMPLATE_CATEGORY_LABEL[t.category]}</td>
                 <td style={{ ...td, fontWeight: 600, color: "var(--text-primary)" }}>{t.name}</td>
+                <td style={td}>{RECIPIENT_LABEL[t.recipient]}</td>
                 <td style={td}>{t.activityLabel ?? "Tous"}</td>
+                <td style={td}>
+                  {t.audiences.length === 0 ? (
+                    <span style={{ color: "var(--text-muted)" }}>Tous</span>
+                  ) : (
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-secondary, var(--text-muted))" }}>
+                      {t.audiences.map((a) => TEMPLATE_AUDIENCE_LABEL[a] ?? a).join(", ")}
+                    </span>
+                  )}
+                </td>
                 <td style={td}>{t.isActive ? "✅" : "—"}</td>
                 <td style={{ ...td, textAlign: "right", whiteSpace: "nowrap" }}>
                   <button type="button" onClick={() => openEdit(t)} style={{ background: "none", border: "none", color: "var(--color-brand-500)", cursor: "pointer", marginRight: 10 }}>
@@ -157,7 +197,7 @@ export default function TemplatesList({ templates, sectors }: Props) {
               </tr>
             ))}
             {templates.length === 0 && (
-              <tr><td colSpan={6} style={{ ...td, color: "var(--text-muted)" }}>Aucun template.</td></tr>
+              <tr><td colSpan={8} style={{ ...td, color: "var(--text-muted)" }}>Aucun template.</td></tr>
             )}
           </tbody>
         </table>
@@ -202,6 +242,49 @@ export default function TemplatesList({ templates, sectors }: Props) {
                   {sectors.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
                 </select>
               </label>
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <label style={{ flex: 1 }}>
+                <span style={lbl}>Destinataire</span>
+                <select style={inp} value={editing.input.recipient} onChange={(e) => set("recipient", e.target.value as TemplateInput["recipient"])}>
+                  {RECIPIENTS.map((r) => <option key={r} value={r}>{RECIPIENT_LABEL[r]}</option>)}
+                </select>
+              </label>
+              <label style={{ flex: 1 }}>
+                <span style={lbl}>Ordre (dans la rubrique)</span>
+                <input type="number" min={0} style={inp} value={editing.input.sortOrder} onChange={(e) => set("sortOrder", Number(e.target.value) || 0)} />
+              </label>
+            </div>
+
+            <div>
+              <span style={{ ...lbl, marginBottom: 4 }}>
+                Audiences (qui voit ce template) — aucune sélection = visible par tous
+              </span>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {TEMPLATE_AUDIENCES.map((a) => {
+                  const on = editing.input.audiences.includes(a);
+                  return (
+                    <button
+                      key={a}
+                      type="button"
+                      onClick={() => toggleAudience(a)}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: 999,
+                        border: `1px solid ${on ? "var(--color-brand-500)" : "var(--border-strong)"}`,
+                        background: on ? "color-mix(in srgb, var(--color-brand-500) 16%, transparent)" : "transparent",
+                        color: on ? "var(--color-brand-500)" : "var(--text-secondary, var(--text-muted))",
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {on ? "✓ " : ""}{TEMPLATE_AUDIENCE_LABEL[a]}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {!isSms && (

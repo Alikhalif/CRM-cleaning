@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Icon from "../Icon/Icon";
 import { OPEN_PALETTE_EVENT } from "../CommandPalette/CommandPalette";
 import { useClientValue } from "@/lib/client-store";
-import { profileCapabilities } from "@/lib/leads";
+import { profileCapabilities, SECTOR_LABEL, type Sector } from "@/lib/leads";
+import { DASHBOARD_PERIODS, parsePeriod } from "@/lib/dashboard";
 import { toggleWebphone } from "@/lib/ringover-webphone";
 import { logout } from "@/app/(auth)/actions";
 import type { CurrentUserProfile } from "@/lib/users-server";
@@ -13,16 +15,29 @@ import styles from "./Topbar.module.scss";
 
 type Props = { user: CurrentUserProfile | null; unreadCount: number };
 
-// ── Period + activity chips are display-only for now — global filters
-// would need a context provider threading them into every page's data
-// fetch, which isn't built. Bell is a placeholder until we have a
-// notifications system. Search + Vue + user menu are real.
+// ── Filtres globaux Période + Activité : pilotent le Dashboard via l'URL
+// (?period=… & sector=…). La source de vérité est l'URL — le Dashboard lit
+// ces mêmes paramètres. Search + Vue + user menu sont réels.
 
 export default function Topbar({ user, unreadCount }: Props) {
   const shortcutLabel = useClientValue(
     () => (/Mac|iPhone|iPad|iPod/.test(navigator.platform) ? "⌘K" : "Ctrl K"),
     "⌘K",
   );
+
+  // Filtres globaux ← / → URL.
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const period = parsePeriod(searchParams.get("period"));
+  const sectorRaw = searchParams.get("sector") ?? "all";
+  const sector = sectorRaw === "all" || sectorRaw in SECTOR_LABEL ? sectorRaw : "all";
+  const sectorList = Object.keys(SECTOR_LABEL) as Sector[];
+  const setParam = (key: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set(key, value);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   const [openMenu, setOpenMenu] = useState<"user" | "vue" | null>(null);
   const userRef = useRef<HTMLDivElement>(null);
@@ -80,28 +95,41 @@ export default function Topbar({ user, unreadCount }: Props) {
       </button>
 
       <div className={styles.filters}>
-        <button
-          type="button"
-          className={styles.filterChip}
-          aria-haspopup="listbox"
-          title="Filtre global (à venir)"
-          disabled
-        >
+        <label className={styles.filterChip} title="Période analysée (Dashboard)">
           <span className={styles.filterLabel}>Période</span>
-          <span className={styles.filterValue}>30 derniers jours</span>
+          <span className={styles.filterValue}>
+            {DASHBOARD_PERIODS.find((p) => p.value === period)?.label ?? "30 derniers jours"}
+          </span>
           <Icon name="chevron-down" size={14} />
-        </button>
-        <button
-          type="button"
-          className={styles.filterChip}
-          aria-haspopup="listbox"
-          title="Filtre global (à venir)"
-          disabled
-        >
+          <select
+            className={styles.filterSelectOverlay}
+            value={period}
+            onChange={(e) => setParam("period", e.target.value)}
+            aria-label="Filtre global — période"
+          >
+            {DASHBOARD_PERIODS.map((p) => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className={styles.filterChip} title="Activité analysée (Dashboard)">
           <span className={styles.filterLabel}>Activité</span>
-          <span className={styles.filterValue}>Toutes</span>
+          <span className={styles.filterValue}>
+            {sector === "all" ? "Toutes" : SECTOR_LABEL[sector as Sector]}
+          </span>
           <Icon name="chevron-down" size={14} />
-        </button>
+          <select
+            className={styles.filterSelectOverlay}
+            value={sector}
+            onChange={(e) => setParam("sector", e.target.value)}
+            aria-label="Filtre global — activité"
+          >
+            <option value="all">Toutes</option>
+            {sectorList.map((s) => (
+              <option key={s} value={s}>{SECTOR_LABEL[s]}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div className={styles.right}>

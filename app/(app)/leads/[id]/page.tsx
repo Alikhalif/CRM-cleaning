@@ -10,12 +10,16 @@ import {
   COUNTRY_LABEL,
   SECTOR_VAR,
   SOURCE_LABEL,
+  DEFAULT_ACOMPTE_PCT,
   formatEUR,
   profileCapabilities,
 } from "@/lib/leads";
-import { getAllCommerciaux, getLeadDetail } from "@/lib/leads-server";
+import { getAllCommerciaux, getLeadDetail, getLegalEntityPhone } from "@/lib/leads-server";
 import { getCurrentUserProfile } from "@/lib/users-server";
-import { getActiveSmsTemplates } from "@/lib/message-templates-server";
+import { getActiveSmsTemplates, getTemplatesForUser, getTemplateByName } from "@/lib/message-templates-server";
+import { getLeadMedia } from "@/lib/media-server";
+import { leadTemplateVars, renderTemplate } from "@/lib/message-templates-shared";
+import MediaTab from "./MediaTab";
 import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import CallNotesCard from "./CallNotesCard";
 import DiscoveryCard from "./DiscoveryCard";
@@ -35,6 +39,7 @@ const CURRENT_USER_HAS_IMMOB_TRAVAUX = true;
 // sections of the page are visible. Default = informations.
 const TABS = [
   { key: "informations", label: "Informations" },
+  { key: "media",        label: "Photos & Vidéos" },
   { key: "historique",   label: "Historique" },
   { key: "devis",        label: "Devis" },
   { key: "documents",    label: "Documents" },
@@ -59,18 +64,24 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   const tab: TabKey =
     TABS.find((t) => t.key === tabParam)?.key ?? "informations";
 
-  const [detail, commerciaux, n8nEnabled, me, smsTemplates] = await Promise.all([
-    getLeadDetail(id),
-    getAllCommerciaux(),
-    isN8nSequenceEnabled(),
-    getCurrentUserProfile(),
-    getActiveSmsTemplates(),
-  ]);
+  const [detail, commerciaux, n8nEnabled, me, smsTemplates, emailTemplates, nrpSmsTpl, nrpEmailTpl] =
+    await Promise.all([
+      getLeadDetail(id),
+      getAllCommerciaux(),
+      isN8nSequenceEnabled(),
+      getCurrentUserProfile(),
+      getActiveSmsTemplates(),
+      getTemplatesForUser("email"),
+      getTemplateByName("SMS relance — NRP (non joignable)"),
+      getTemplateByName("Mail relance 1 — non joignable"),
+    ]);
+  const media = await getLeadMedia(id);
   if (!detail) notFound();
 
   // Capacités dérivées du profil (décision « auto selon le profil ») : un
   // commercial « Divers » (profil nettoyage) n'a pas accès au click-to-call.
   const isAdmin = (me?.roles ?? []).some((r) => r.slug === "admin");
+  const isPlanner = (me?.roles ?? []).some((r) => r.slug === "planification");
   const { canUseRingover } = profileCapabilities(me?.commercialProfiles ?? [], isAdmin);
 
   const { lead, owner, documents, timeline } = detail;
@@ -99,6 +110,39 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
 
   const devisCount = documents.filter((d) => d.type === "devis").length;
   const docsCount = documents.length;
+
+  // ── Variables réelles (BDD) pour les templates SMS / email de relance ──
+  // Acompte, montants et n° de devis viennent du dernier devis du lead ; à
+  // défaut, l'acompte tombe sur l'acompte négocié puis le défaut du secteur.
+  // Le commercial = l'utilisateur connecté (expéditeur de la relance).
+  const devisForVars =
+    documents.find((d) => d.type === "devis" && d.status !== "brouillon") ??
+    documents.find((d) => d.type === "devis");
+  const acomptePctNum =
+    devisForVars?.acomptePct ?? lead.acompteNegocie ?? DEFAULT_ACOMPTE_PCT[lead.sector];
+  const totalTtc = devisForVars?.totalTtc ?? lead.amount ?? 0;
+  const acompteAmt =
+    devisForVars?.acompteAmount ??
+    (totalTtc && acomptePctNum ? Math.round(totalTtc * acomptePctNum) / 100 : 0);
+  const societePhone = lead.entityId ? await getLegalEntityPhone(lead.entityId) : "";
+  const templateVars = leadTemplateVars(lead, {
+    commercialName: me?.displayName ?? "",
+    commercialEmail: me?.email ?? "",
+    societeName: lead.entityName ?? undefined,
+    societePhone,
+    devisNum: devisForVars?.num ?? "",
+    acomptePct: acomptePctNum != null ? `${acomptePctNum} %` : "",
+    montantTotal: totalTtc ? formatEUR(totalTtc) : "",
+    montantAcompte: acompteAmt ? formatEUR(acompteAmt) : "",
+    montantSolde: totalTtc && acompteAmt ? formatEUR(totalTtc - acompteAmt) : "",
+  });
+
+  // Boutons NRP réservés au profil « Divers » (+ admin) : SMS + email de
+  // relance pré-remplis avec le modèle NRP (décision client 2026-08-02).
+  const isDivers = isAdmin || (me?.commercialProfiles ?? []).includes("divers");
+  const nrpSmsBody = nrpSmsTpl ? renderTemplate(nrpSmsTpl.body, templateVars) : "";
+  const nrpEmailSubject = nrpEmailTpl ? renderTemplate(nrpEmailTpl.subject ?? "", templateVars) : "";
+  const nrpEmailBody = nrpEmailTpl ? renderTemplate(nrpEmailTpl.body, templateVars) : "";
 
   return (
     <div className={styles.page}>
@@ -187,7 +231,12 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
             n8nEnabled={n8nEnabled}
             canUseRingover={canUseRingover}
             smsTemplates={smsTemplates}
-            currentUserName={me?.displayName ?? ""}
+            emailTemplates={emailTemplates}
+            templateVars={templateVars}
+            showNrp={isDivers}
+            nrpSmsBody={nrpSmsBody}
+            nrpEmailSubject={nrpEmailSubject}
+            nrpEmailBody={nrpEmailBody}
           />
         </div>
 
@@ -225,6 +274,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
         {TABS.map((t) => {
           const count =
             t.key === "historique" ? timeline.length :
+            t.key === "media"      ? media.length :
             t.key === "devis"      ? devisCount :
             t.key === "documents"  ? docsCount :
             null;
@@ -337,6 +387,14 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
             )}
           </aside>
         </div>
+      )}
+
+      {tab === "media" && (
+        <MediaTab
+          leadId={lead.id}
+          media={media}
+          canComment={isAdmin || isPlanner || lead.ownerId === me?.id}
+        />
       )}
 
       {tab === "historique" && (

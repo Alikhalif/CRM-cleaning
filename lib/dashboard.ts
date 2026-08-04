@@ -20,6 +20,23 @@ export type DashboardFilter = {
   channel: Channel | "all";
 };
 
+// Options de période — partagées entre le Dashboard et le filtre global de la
+// Topbar (source unique). L'ordre est celui affiché.
+export const DASHBOARD_PERIODS: { value: Period; label: string }[] = [
+  { value: "7d",  label: "7 derniers jours"  },
+  { value: "30d", label: "30 derniers jours" },
+  { value: "90d", label: "90 derniers jours" },
+  { value: "mtd", label: "Ce mois-ci" },
+  { value: "qtd", label: "Ce trimestre" },
+  { value: "ytd", label: "Cette année" },
+  { value: "12m", label: "12 derniers mois" },
+];
+
+// Valide une valeur brute (URL) contre les périodes connues → défaut 30j.
+export function parsePeriod(raw: string | null | undefined): Period {
+  return DASHBOARD_PERIODS.some((p) => p.value === raw) ? (raw as Period) : "30d";
+}
+
 // A single bucket of activity. Roll-ups sum across whichever dimensions a
 // given aggregator cares about. ownerId is nullable because some legacy
 // rows (or unattributed leads) have no owner; per-commercial rankings

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { login } from "../actions";
 import GoogleSignInButton from "../GoogleSignInButton";
+import PasswordInput from "../PasswordInput";
 import styles from "../auth.module.scss";
 
 export const metadata = { title: "Connexion" };
@@ -47,15 +48,14 @@ export default async function LoginPage({ searchParams }: PageProps) {
 
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Mot de passe</span>
-          <input
-            type="password"
-            name="password"
-            required
-            autoComplete="current-password"
-            className={styles.input}
-            placeholder="••••••••"
-          />
+          <PasswordInput name="password" autoComplete="current-password" />
         </label>
+
+        <div style={{ textAlign: "right", marginTop: "-4px" }}>
+          <Link href="/forgot-password" className={styles.link} style={{ fontSize: "0.8125rem" }}>
+            Mot de passe oublié&nbsp;?
+          </Link>
+        </div>
 
         <button type="submit" className={styles.btnPrimary}>Se connecter</button>
       </form>

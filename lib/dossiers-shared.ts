@@ -30,6 +30,7 @@ export function computePlanificationKpis(rows: DossierWithContext[]): Planificat
   const byStatus: Record<Dossier["status"], number> = {
     a_planifier: 0,
     planifie: 0,
+    en_cours: 0,
     finalise: 0,
     solde: 0,
   };

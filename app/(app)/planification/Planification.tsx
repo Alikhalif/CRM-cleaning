@@ -31,15 +31,18 @@ import {
   markAcomptePaid,
   planifyDossier,
   soldDossier,
+  startDossierRealisation,
   type EditDossierInput,
   type PlanifyInput,
 } from "./actions";
 import ConfirmInterventionModal from "./ConfirmInterventionModal";
 import EditDossierModal from "./EditDossierModal";
 import PlanifyDossierModal from "./PlanifyDossierModal";
+import SendIntervenantModal from "./SendIntervenantModal";
+import type { MessageTemplate } from "@/lib/message-templates-server";
 import styles from "./Planification.module.scss";
 
-const STATUSES: DossierStatus[] = ["a_planifier", "planifie", "finalise", "solde"];
+const STATUSES: DossierStatus[] = ["a_planifier", "planifie", "en_cours", "finalise", "solde"];
 const PAYMENT_STATUSES: PaymentStatus[] = [
   "acompte_non_paye",
   "acompte_paye",
@@ -57,12 +60,21 @@ const DATE = new Intl.DateTimeFormat("fr-FR", {
   minute: "2-digit",
 });
 
+// Date du jour au format "YYYY-MM-DD" (heure locale). Composant client → new
+// Date() autorisé.
+function todayStr(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 type Props = {
   initialRows: DossierWithContext[];
   technicians: Technician[];
+  intervenantTemplates: MessageTemplate[];
 };
 
-export default function Planification({ initialRows, technicians }: Props) {
+export default function Planification({ initialRows, technicians, intervenantTemplates }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [search, setSearch] = useState("");
@@ -78,6 +90,7 @@ export default function Planification({ initialRows, technicians }: Props) {
   const [planifyTarget, setPlanifyTarget] = useState<DossierWithContext | null>(null);
   const [editTarget, setEditTarget] = useState<DossierWithContext | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<DossierWithContext | null>(null);
+  const [intervenantTarget, setIntervenantTarget] = useState<DossierWithContext | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
@@ -112,7 +125,7 @@ export default function Planification({ initialRows, technicians }: Props) {
       })
       .sort((a, b) => {
         const order: Record<DossierStatus, number> = {
-          a_planifier: 0, planifie: 1, finalise: 2, solde: 3,
+          a_planifier: 0, planifie: 1, en_cours: 2, finalise: 3, solde: 4,
         };
         const so = order[a.dossier.status] - order[b.dossier.status];
         if (so !== 0) return so;
@@ -166,6 +179,16 @@ export default function Planification({ initialRows, technicians }: Props) {
       }
     });
   };
+
+  const onStartRealisation = (r: DossierWithContext) =>
+    optimistic(
+      r.dossier.id,
+      (row) => ({
+        ...row,
+        dossier: { ...row.dossier, status: "en_cours", updatedAt: new Date().toISOString() },
+      }),
+      () => startDossierRealisation(r.dossier.id),
+    );
 
   const onFinalize = (r: DossierWithContext) =>
     optimistic(
@@ -335,6 +358,36 @@ export default function Planification({ initialRows, technicians }: Props) {
         />
       </section>
 
+      {(kpis.byStatus.a_planifier > 0 || outstanding.length > 0) && (
+        <section
+          className={styles.notifBanner}
+          role="status"
+          aria-live="polite"
+        >
+          <span className={styles.notifPulse} aria-hidden="true" />
+          <span className={styles.notifIcon} aria-hidden="true">
+            <Icon name="bell" size={22} />
+          </span>
+          <div className={styles.notifBody}>
+            <p className={styles.notifTitle}>
+              {kpis.byStatus.a_planifier > 0
+                ? `${kpis.byStatus.a_planifier} dossier${kpis.byStatus.a_planifier > 1 ? "s" : ""} à planifier`
+                : "Acomptes en attente d'encaissement"}
+            </p>
+            <p className={styles.notifSub}>
+              {[
+                kpis.byStatus.a_planifier > 0 &&
+                  `${kpis.byStatus.a_planifier} à organiser, toutes activités confondues`,
+                outstanding.length > 0 &&
+                  `${outstanding.length} acompte${outstanding.length > 1 ? "s" : ""} à encaisser (${formatEUR(kpis.acompteOutstanding.amountTtc)} TTC)`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          </div>
+        </section>
+      )}
+
       {outstanding.length > 0 && (
         <section className={styles.acomptesEncart} aria-label="Acomptes à encaisser">
           <header className={styles.acomptesHeader}>
@@ -420,6 +473,19 @@ export default function Planification({ initialRows, technicians }: Props) {
             <option key={c} value={c}>{COUNTRY_LABEL[c]}</option>
           ))}
         </select>
+        <button
+          type="button"
+          className={`${styles.chip} ${dateFrom === todayStr() && dateTo === todayStr() ? styles.chipOn : ""}`}
+          onClick={() => {
+            const t = todayStr();
+            if (dateFrom === t && dateTo === t) { setDateFrom(""); setDateTo(""); }
+            else { setDateFrom(t); setDateTo(t); }
+          }}
+          aria-pressed={dateFrom === todayStr() && dateTo === todayStr()}
+          title="Interventions planifiées aujourd'hui"
+        >
+          Aujourd&apos;hui
+        </button>
         <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "0.8125rem", color: "var(--text-muted)" }}>
           Intervention du
           <input
@@ -527,6 +593,8 @@ export default function Planification({ initialRows, technicians }: Props) {
                 onPlanify={() => setPlanifyTarget(r)}
                 onEdit={() => setEditTarget(r)}
                 onConfirmEmail={() => setConfirmTarget(r)}
+                onSendIntervenant={() => setIntervenantTarget(r)}
+                onStartRealisation={() => onStartRealisation(r)}
                 onFinalize={() => onFinalize(r)}
                 onGenerateFinale={() => onGenerateFinale(r)}
                 onSold={() => onSold(r)}
@@ -566,6 +634,13 @@ export default function Planification({ initialRows, technicians }: Props) {
           onDone={() => setConfirmTarget(null)}
         />
       )}
+      {intervenantTarget && (
+        <SendIntervenantModal
+          row={intervenantTarget}
+          templates={intervenantTemplates}
+          onClose={() => setIntervenantTarget(null)}
+        />
+      )}
     </div>
   );
 }
@@ -599,6 +674,8 @@ function Row({
   onPlanify,
   onEdit,
   onConfirmEmail,
+  onSendIntervenant,
+  onStartRealisation,
   onFinalize,
   onGenerateFinale,
   onSold,
@@ -609,11 +686,23 @@ function Row({
   onPlanify: () => void;
   onEdit: () => void;
   onConfirmEmail: () => void;
+  onSendIntervenant: () => void;
+  onStartRealisation: () => void;
   onFinalize: () => void;
   onGenerateFinale: () => void;
   onSold: () => void;
 }) {
   const { dossier, lead, technician, devisDoc, finaleDoc, acompteDoc } = row;
+
+  // Suivi du paiement : part réglée / total du devis → pourcentage (0, 50, 100…).
+  // Réglé = factures payées (acompte + finale) ; un dossier soldé compte 100 %.
+  const totalTtc = devisDoc?.totalTtc ?? 0;
+  const paidTtc =
+    dossier.paymentStatus === "solde"
+      ? totalTtc
+      : (acompteDoc?.status === "paye" ? acompteDoc.totalTtc : 0) +
+        (finaleDoc?.status === "paye" ? finaleDoc.totalTtc : 0);
+  const paidPct = totalTtc > 0 ? Math.round((paidTtc / totalTtc) * 100) : 0;
 
   return (
     <tr data-status={dossier.status}>
@@ -650,9 +739,15 @@ function Row({
         <span className={styles.paymentPill} data-payment={dossier.paymentStatus}>
           {PAYMENT_STATUS_LABEL[dossier.paymentStatus]}
         </span>
-        {acompteDoc && dossier.paymentStatus !== "solde" && (
+        {totalTtc > 0 && (
           <div className={styles.paymentAmount}>
-            {formatEUR(acompteDoc.totalTtc)} acompte
+            <strong
+              className={styles.paidPct}
+              data-full={paidPct >= 100 ? "1" : undefined}
+            >
+              {paidPct} %
+            </strong>{" "}
+            · {formatEUR(paidTtc)} / {formatEUR(totalTtc)}
           </div>
         )}
       </td>
@@ -703,6 +798,31 @@ function Row({
         )}
       </td>
       <td className={styles.actionsCell}>
+        <div className={styles.actionsWrap}>
+        {finaleDoc ? (
+          <Link
+            href={`/factures/${finaleDoc.id}`}
+            className={styles.genFactureBtn}
+            data-variant="view"
+            title="Voir la facture finale"
+          >
+            <Icon name="document" size={14} /> Facture
+          </Link>
+        ) : (
+          <button
+            type="button"
+            className={styles.genFactureBtn}
+            onClick={onGenerateFinale}
+            disabled={dossier.status !== "finalise"}
+            title={
+              dossier.status === "finalise"
+                ? "Générer la facture finale"
+                : "Disponible une fois le dossier finalisé (intervention réalisée)"
+            }
+          >
+            <Icon name="document" size={14} /> Générer facture
+          </button>
+        )}
         <div className={styles.actionsAnchor}>
           <button
             type="button"
@@ -721,6 +841,14 @@ function Row({
                   Consulter le devis
                 </Link>
               )}
+              <button
+                type="button"
+                className={styles.menuItem}
+                role="menuitem"
+                onClick={() => { onToggleMenu(); onSendIntervenant(); }}
+              >
+                Envoyer à l&apos;intervenant
+              </button>
               {dossier.status === "a_planifier" && (
                 <button
                   type="button"
@@ -748,6 +876,32 @@ function Row({
                 </button>
               )}
               {dossier.status === "planifie" && (
+                <button
+                  type="button"
+                  className={styles.menuItem}
+                  role="menuitem"
+                  onClick={() => {
+                    onToggleMenu();
+                    onStartRealisation();
+                  }}
+                >
+                  ▶ En cours de réalisation
+                </button>
+              )}
+              {(dossier.status === "planifie" || dossier.status === "en_cours") && (
+                <button
+                  type="button"
+                  className={styles.menuItem}
+                  role="menuitem"
+                  onClick={() => {
+                    onToggleMenu();
+                    onPlanify();
+                  }}
+                >
+                  Reprogrammer (non présenté)
+                </button>
+              )}
+              {(dossier.status === "planifie" || dossier.status === "en_cours") && (
                 <button
                   type="button"
                   className={styles.menuItem}
@@ -804,6 +958,7 @@ function Row({
               </button>
             </div>
           )}
+        </div>
         </div>
       </td>
     </tr>

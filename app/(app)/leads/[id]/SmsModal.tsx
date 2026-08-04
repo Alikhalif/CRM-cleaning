@@ -1,20 +1,24 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon/Icon";
 import type { Lead } from "@/lib/leads";
 import {
   TEMPLATE_CATEGORY_LABEL,
-  leadTemplateVars,
   renderTemplate,
 } from "@/lib/message-templates-shared";
 import type { MessageTemplate } from "@/lib/message-templates-server";
 import { sendSmsViaWebphone } from "@/lib/ringover-webphone";
+import { logLeadSms } from "@/app/(app)/pipeline/actions";
 
 type Props = {
   lead: Lead;
   templates: MessageTemplate[];
-  commercialName: string;
+  // Variables réelles (BDD) résolues côté serveur.
+  vars: Record<string, string>;
+  // Corps pré-rempli (ex. bouton « SMS NRP »).
+  initialBody?: string;
   onClose: () => void;
 };
 
@@ -28,12 +32,8 @@ const inp: React.CSSProperties = {
   fontSize: "0.9375rem",
 };
 
-export default function SmsModal({ lead, templates, commercialName, onClose }: Props) {
-  const vars = useMemo(
-    () => leadTemplateVars(lead, { commercialName, societeName: lead.entityName ?? undefined }),
-    [lead, commercialName],
-  );
-
+export default function SmsModal({ lead, templates, vars, initialBody, onClose }: Props) {
+  const router = useRouter();
   // Ne garder que les templates globaux ou ciblant le secteur du lead.
   const eligible = useMemo(
     () => templates.filter((t) => !t.activitySlug || t.activitySlug === lead.sector),
@@ -41,7 +41,7 @@ export default function SmsModal({ lead, templates, commercialName, onClose }: P
   );
 
   const [templateId, setTemplateId] = useState("");
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(initialBody ?? "");
 
   const applyTemplate = (id: string) => {
     setTemplateId(id);
@@ -49,11 +49,15 @@ export default function SmsModal({ lead, templates, commercialName, onClose }: P
     if (t) setBody(renderTemplate(t.body, vars));
   };
 
-  const send = () => {
+  const send = async () => {
     const content = body.trim();
     if (!content) return;
     if (!lead.phone) { alert("Ce lead n'a pas de numéro de téléphone."); return; }
     sendSmsViaWebphone(lead.phone, content);
+    // Journalise l'envoi pour l'historique (date + heure). Le SMS lui-même part
+    // via le webphone Ringover côté client ; on enregistre la trace côté serveur.
+    await logLeadSms(lead.id, { recipient: lead.phone, body: content });
+    router.refresh();
     onClose();
   };
 

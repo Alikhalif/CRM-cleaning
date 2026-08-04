@@ -6,6 +6,7 @@ import {
   formatEUR,
 } from "@/lib/leads";
 import type { DocumentDetail } from "@/lib/documents-shared";
+import { getTemplatesForUser } from "@/lib/message-templates-server";
 import DocumentActions from "./DocumentActions";
 import styles from "./DocumentView.module.scss";
 
@@ -17,8 +18,11 @@ const DATE = new Intl.DateTimeFormat("fr-FR", {
 
 type Props = { detail: DocumentDetail };
 
-export default function DocumentView({ detail }: Props) {
+export default async function DocumentView({ detail }: Props) {
   const { doc, entity, lead } = detail;
+  // Email templates visible to the current user (role-scoped) — surfaced in
+  // the "Envoyer par email" modal as a selectable accompaniment.
+  const emailTemplates = await getTemplatesForUser("email");
   const isInvoice = doc.type !== "devis";
   const isUnsigned = doc.type === "devis" && doc.status !== "signe" && doc.status !== "refuse";
 
@@ -31,7 +35,7 @@ export default function DocumentView({ detail }: Props) {
 
   return (
     <div className={styles.page}>
-      <DocumentActions doc={doc} lead={lead} entity={entity} />
+      <DocumentActions doc={doc} lead={lead} entity={entity} emailTemplates={emailTemplates} />
 
       {doc.status === "refuse" && doc.refusalReason && (
         <aside className={styles.refusalBanner} role="status" data-no-print>

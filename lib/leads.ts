@@ -28,7 +28,8 @@ export const COUNTRIES: Country[] = ["FR", "CH", "LU", "BE", "CA"];
 // Profils commerciaux / pools de routage (CDC §7). Un commercial peut en cumuler.
 export type CommercialProfile =
   | "appel_entrant"
-  | "nettoyage"
+  | "emission_appel"
+  | "divers"
   | "debarras_demenagement"
   | "diogene"
   | "performant"
@@ -36,7 +37,8 @@ export type CommercialProfile =
 
 export const COMMERCIAL_PROFILES: CommercialProfile[] = [
   "appel_entrant",
-  "nettoyage",
+  "emission_appel",
+  "divers",
   "debarras_demenagement",
   "diogene",
   "performant",
@@ -45,7 +47,8 @@ export const COMMERCIAL_PROFILES: CommercialProfile[] = [
 
 export const COMMERCIAL_PROFILE_LABEL: Record<CommercialProfile, string> = {
   appel_entrant: "Appel entrant",
-  nettoyage: "Nettoyage",
+  emission_appel: "Émission d'appels",
+  divers: "Divers",
   debarras_demenagement: "Débarras / Déménagement",
   diogene: "Diogène",
   performant: "Performant",
@@ -55,10 +58,11 @@ export const COMMERCIAL_PROFILE_LABEL: Record<CommercialProfile, string> = {
 // Capacités dérivées du profil commercial (décision : « auto selon le profil »,
 // pas de réglage par utilisateur). Les profils « chasseurs » (appel entrant,
 // diogène, débarras/déménagement, performant, en attente) peuvent utiliser le
-// click-to-call Ringover et créer des leads. Le profil « nettoyage » (Divers)
-// ne reçoit que des devis : ni Ringover ni création. Un admin a tout.
+// click-to-call Ringover et créer des leads. Le profil « divers » (Divers)
+// ne reçoit que des leads : ni Ringover ni création. Un admin a tout.
 const RINGOVER_PROFILES: CommercialProfile[] = [
   "appel_entrant",
+  "emission_appel",
   "diogene",
   "debarras_demenagement",
   "performant",
@@ -96,6 +100,9 @@ export type LeadStatus =
 
 export type SubEnvoi = "mano" | "auto";
 export type SubSignature = "sans" | "avec";
+// How the devis was signed (call 2026-08-02): logiciel = e-signature software,
+// planificateur = marked signed manually by a planner (who now has that power).
+export type SubSignatureMode = "logiciel" | "planificateur";
 
 export type Source =
   | "google-ads"
@@ -145,6 +152,7 @@ export type Lead = {
   status: LeadStatus;
   subEnvoi: SubEnvoi | null;
   subSignature: SubSignature | null;
+  subSignatureMode: SubSignatureMode | null;
   receivedAt: string; // ISO
   lastActionLabel: string;
   lastActionAt: string; // ISO
@@ -312,6 +320,7 @@ export type TimelineEventKind =
   | "status"
   | "email"
   | "email-reply"
+  | "sms"
   | "call"
   | "doc-issued"
   | "doc-signed"
@@ -406,7 +415,7 @@ export const DEFAULT_PAYMENT_TERM: Record<Sector, PaymentTermSlug> = {
 // Spec from product owner: 4 stages of a dossier (à planifier → planifié →
 // finalisé → finalisé et soldé). PaymentStatus tracks where the dossier is
 // in its encaissement cycle.
-export type DossierStatus = "a_planifier" | "planifie" | "finalise" | "solde";
+export type DossierStatus = "a_planifier" | "planifie" | "en_cours" | "finalise" | "solde";
 
 export type PaymentStatus =
   | "acompte_non_paye"
@@ -424,6 +433,7 @@ export type Technician = {
   initials: string;
   color: string;
   sectors: Sector[];
+  email?: string;              // sous-traitant — pour l'envoi des mails de mission
   basePostalCode?: string;     // home/dépôt — drives km distance to the client
   serviceDepartments: string[]; // declared coverage (département codes)
 };
@@ -445,6 +455,7 @@ export type Dossier = {
 export const DOSSIER_STATUS_LABEL: Record<DossierStatus, string> = {
   a_planifier: "À planifier",
   planifie: "Planifié",
+  en_cours: "En cours de réalisation",
   finalise: "Finalisé",
   solde: "Finalisé et soldé",
 };
@@ -574,7 +585,7 @@ export function unpaidInvoiceId(
 }
 
 export const SECTOR_LABEL: Record<Sector, string> = {
-  urgence: "Urgence",
+  urgence: "Dépannage",
   nettoyage: "Nettoyage",
   nettoyage_difficile: "Nettoyage difficile",
   enr: "ENR",

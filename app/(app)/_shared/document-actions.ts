@@ -7,8 +7,9 @@ import { sendBrevoEmail } from "@/lib/brevo";
 import { getDocumentById } from "@/lib/documents-server";
 import DocumentPdf from "@/lib/pdf/DocumentPdf";
 import { supabaseServer } from "@/lib/supabase/server";
+import { supabaseServiceRole } from "@/lib/supabase/service";
 import type { Database } from "@/lib/supabase/database.types";
-import type { DocumentType } from "@/lib/leads";
+import type { DocumentType, SubSignatureMode } from "@/lib/leads";
 
 // Document-level mutations callable from any place that shows a document
 // (detail page, Comptabilité row menu). Mirrors the planification actions'
@@ -17,6 +18,7 @@ import type { DocumentType } from "@/lib/leads";
 type DocumentUpdate = Database["public"]["Tables"]["documents"]["Update"];
 type DocumentInsert = Database["public"]["Tables"]["documents"]["Insert"];
 type DossierUpdate = Database["public"]["Tables"]["dossiers"]["Update"];
+type DossierInsert = Database["public"]["Tables"]["dossiers"]["Insert"];
 type LineRow = Database["public"]["Tables"]["document_lines"]["Row"];
 type LineInsert = Database["public"]["Tables"]["document_lines"]["Insert"];
 
@@ -60,11 +62,24 @@ export async function markDocumentSent(id: string): Promise<Result> {
 // Idempotent: signing an already-signed devis returns ok=true with no-op.
 // The acompte guard checks `related_devis_id` so re-running this never
 // duplicates the deposit invoice.
+//
+// `mode` records HOW the devis was signed (call 2026-08-02):
+//   logiciel      = via the e-signature software
+//   planificateur = marked signed manually by a planner
+// It's persisted on the lead as sub_signature_mode for analytics. When
+// omitted (e.g. legacy callers) the mode is simply left unchanged.
+//
+// Step 2.5 creates the `dossier` so the deal lands in the planificatrice's
+// queue (/planification). Before this, signing generated the acompte but no
+// dossier → the handoff was broken.
 export type MarkSignedResult =
   | { ok: true; acompteId?: string; acompteNum?: string }
   | { ok: false; error: string };
 
-export async function markDocumentSigned(id: string): Promise<MarkSignedResult> {
+export async function markDocumentSigned(
+  id: string,
+  mode?: SubSignatureMode,
+): Promise<MarkSignedResult> {
   const supabase = await supabaseServer();
 
   const { data: doc, error: docErr } = await supabase
@@ -108,17 +123,59 @@ export async function markDocumentSigned(id: string): Promise<MarkSignedResult> 
     if (signErr) return { ok: false, error: `Signature : ${signErr.message}` };
   }
 
-  // ── 2. Lead status sync ──────────────────────────────────────────────
+  // ── 2. Lead status sync (+ signature mode) ───────────────────────────
   if (doc.lead_id) {
+    const leadUpdate: Record<string, unknown> = {
+      status: "signe",
+      last_action_label: `Devis ${doc.num} signé`,
+      last_action_at: now,
+    };
+    // Only touch sub_signature_mode when a mode was passed — keeps re-signs
+    // and legacy callers from wiping an existing value.
+    if (mode) leadUpdate.sub_signature_mode = mode;
     await supabase
       .from("leads")
-      .update({
-        status: "signe",
-        last_action_label: `Devis ${doc.num} signé`,
-        last_action_at: now,
-      } as never)
+      .update(leadUpdate as never)
       .eq("id", doc.lead_id)
       .in("status", ["lead", "envoye", "ouvert"]);
+    // The status guard above skips already-signed leads, but the mode should
+    // still be recorded on a re-sign — apply it unconditionally in that case.
+    if (mode) {
+      await supabase
+        .from("leads")
+        .update({ sub_signature_mode: mode } as never)
+        .eq("id", doc.lead_id);
+    }
+  }
+
+  // ── 2.5 Dossier creation — handoff to Planification ──────────────────
+  // Signing hands the deal to the planificatrice. Create the dossier now so
+  // it shows up in /planification (CDC handoff, client 2026-08-02). Uses the
+  // service role because dossiers RLS only allows admin/planner writes, yet a
+  // *commercial* signing their own devis must still trigger creation.
+  // Idempotent: one dossier per lead.
+  if (doc.lead_id) {
+    const admin = await supabaseServiceRole();
+    const { data: existingDossier } = await admin
+      .from("dossiers")
+      .select("id")
+      .eq("lead_id", doc.lead_id)
+      .maybeSingle<{ id: string }>();
+    if (!existingDossier) {
+      const { data: leadRow } = await admin
+        .from("leads")
+        .select("client_address")
+        .eq("id", doc.lead_id)
+        .maybeSingle<{ client_address: unknown }>();
+      const dossierInsert: DossierInsert = {
+        lead_id: doc.lead_id,
+        quote_document_id: id,
+        status: "a_planifier",
+        payment_status: "en_attente",
+        address: (leadRow?.client_address ?? null) as DossierInsert["address"],
+      };
+      await admin.from("dossiers").insert(dossierInsert as never);
+    }
   }
 
   // ── 3. Acompte auto-generation ───────────────────────────────────────

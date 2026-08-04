@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
-import { sendBrevoEmail } from "@/lib/brevo";
+import { sendBrevoEmail, PLANIF_SENDER } from "@/lib/brevo";
 import type { Database } from "@/lib/supabase/database.types";
 
 // Dossier mutations exposed to the Planification page. Each one is a small
@@ -94,6 +94,20 @@ export async function planifyDossier(id: string, input: PlanifyInput): Promise<R
       durationHours: input.durationHours,
     },
   });
+  return { ok: true };
+}
+
+// Le jour J, le technicien est arrivé et l'intervention démarre :
+// planifie → en_cours (client 2026-08-03). De là, "Marquer comme réalisé"
+// bascule en finalise. Si le client n'est PAS présent, on reprogramme plutôt
+// (planifyDossier avec une nouvelle date) sans passer par cet état.
+export async function startDossierRealisation(id: string): Promise<Result> {
+  const supabase = await supabaseServer();
+  const updates: DossierUpdate = { status: "en_cours" };
+  const { error } = await supabase.from("dossiers").update(updates as never).eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/planification");
+  await auditLog({ action: "dossier.start_realisation", entityType: "dossier", entityId: id });
   return { ok: true };
 }
 
@@ -363,6 +377,8 @@ ${escapeHtml(input.message).replace(/\n/g, "<br>")}
     to: input.recipient.trim(),
     subject: input.subject.trim(),
     htmlContent,
+    senderEmail: PLANIF_SENDER.email,
+    senderName: PLANIF_SENDER.name,
   });
   if (!result.ok) return { ok: false, error: `Brevo : ${result.error}` };
 
@@ -373,6 +389,48 @@ ${escapeHtml(input.message).replace(/\n/g, "<br>")}
     after: { recipient: input.recipient.trim(), subject: input.subject.trim() },
   });
 
+  return { ok: true };
+}
+
+// ── Envoi d'un mail de mission à l'intervenant (sous-traitant) ──────────
+// La planificatrice choisit un modèle « Intervenant » (déjà auto-rempli avec
+// les données du dossier, hors email/tél client) et l'envoie via Brevo à
+// l'email de l'intervenant. Client 2026-08-03.
+export async function sendIntervenantEmail(
+  dossierId: string,
+  input: { recipient: string; subject: string; message: string },
+): Promise<Result> {
+  const recipient = input.recipient.trim();
+  const subject = input.subject.trim();
+  const message = input.message.trim();
+  if (!recipient) return { ok: false, error: "Email de l'intervenant requis." };
+  if (!subject) return { ok: false, error: "Objet requis." };
+  if (!message) return { ok: false, error: "Message requis." };
+
+  const supabase = await supabaseServer();
+  const { data: dossier } = await supabase
+    .from("dossiers")
+    .select("lead_id")
+    .eq("id", dossierId)
+    .maybeSingle<{ lead_id: string }>();
+
+  const html = escapeHtml(message).replace(/\n/g, "<br>");
+  const res = await sendBrevoEmail({
+    to: recipient,
+    subject,
+    htmlContent: html,
+    senderEmail: PLANIF_SENDER.email,
+    senderName: PLANIF_SENDER.name,
+  });
+  if (!res.ok) return { ok: false, error: `Envoi email : ${res.error}` };
+
+  revalidatePath("/planification");
+  await auditLog({
+    action: "dossier.intervenant.email",
+    entityType: "dossier",
+    entityId: dossierId,
+    after: { recipient, subject, leadId: dossier?.lead_id ?? null },
+  });
   return { ok: true };
 }
 

@@ -138,6 +138,29 @@ export default function SettingsPage() {
           </span>
         </Link>
         <Link
+          href="/settings/technicians"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "var(--sp-2)",
+            padding: "var(--sp-3) var(--sp-4)",
+            border: "1px solid var(--border-subtle)",
+            borderRadius: "var(--r-md)",
+            textDecoration: "none",
+            color: "var(--text-primary)",
+            background: "var(--bg-elevated)",
+          }}
+        >
+          <Icon name="commerciaux" size={16} />
+          <span>
+            <strong>Intervenants</strong>
+            <br />
+            <span style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>
+              Carnet des sous-traitants (nom, email, secteurs) — pour les mails de mission (admin / planif.)
+            </span>
+          </span>
+        </Link>
+        <Link
           href="/settings/integrations"
           style={{
             display: "inline-flex",

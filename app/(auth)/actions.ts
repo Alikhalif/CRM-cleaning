@@ -1,9 +1,19 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
 import { passwordLengthError, isPasswordPwned } from "@/lib/password-policy";
+
+// Origine de la requête (proto + host), pour construire le lien de retour du
+// mail de réinitialisation — fonctionne en local comme derrière Traefik.
+async function requestOrigin(): Promise<string> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
 
 // Server actions powering the login + signup forms. Each redirects on success
 // (Next.js wraps redirect() in a throw, so it won't reach return statements
@@ -97,6 +107,66 @@ export async function signup(formData: FormData) {
   }
 
   redirect(next);
+}
+
+// Demande de réinitialisation de mot de passe. Envoie l'email Supabase (type
+// recovery) dont le lien revient sur /auth/callback → /reset-password. On
+// répond TOUJOURS par un message générique (pas d'énumération de comptes).
+export async function requestPasswordReset(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim();
+  const notice =
+    "Si un compte existe pour cet email, un lien de réinitialisation vient d'être envoyé. Pensez à vérifier vos spams.";
+
+  if (email) {
+    const supabase = await supabaseServer();
+    const origin = await requestOrigin();
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${origin}/auth/callback?next=/reset-password`,
+    });
+    await auditLog({
+      action: "auth.password_reset.request",
+      entityType: "user",
+      entityId: null,
+      after: { email, ok: !error, reason: error?.message ?? null },
+    });
+  }
+  redirect(`/login?notice=${encodeURIComponent(notice)}`);
+}
+
+// Applique le nouveau mot de passe pour l'utilisateur dont la session de
+// récupération est active (arrivé via le lien du mail). Vérifie la politique
+// de mot de passe puis met à jour, et renvoie vers le login.
+export async function updatePassword(formData: FormData) {
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+
+  if (password !== confirm) {
+    redirect(`/reset-password?error=${encodeURIComponent("Les deux mots de passe ne correspondent pas.")}`);
+  }
+  const lengthErr = passwordLengthError(password);
+  if (lengthErr) {
+    redirect(`/reset-password?error=${encodeURIComponent(lengthErr)}`);
+  }
+  if (await isPasswordPwned(password)) {
+    redirect(
+      `/reset-password?error=${encodeURIComponent(
+        "Ce mot de passe figure dans une fuite de données connue. Choisissez-en un autre.",
+      )}`,
+    );
+  }
+
+  const supabase = await supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect(`/reset-password?error=${encodeURIComponent("Lien expiré ou invalide. Refaites une demande de réinitialisation.")}`);
+  }
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) {
+    redirect(`/reset-password?error=${encodeURIComponent(error.message)}`);
+  }
+  await auditLog({ action: "auth.password_reset.done", entityType: "user", entityId: user!.id });
+  await supabase.auth.signOut();
+  redirect(`/login?notice=${encodeURIComponent("Mot de passe mis à jour. Connectez-vous avec le nouveau.")}`);
 }
 
 export async function logout() {

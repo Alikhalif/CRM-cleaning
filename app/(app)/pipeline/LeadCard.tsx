@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import Icon from "@/components/Icon/Icon";
 import RelativeTime from "@/components/RelativeTime/RelativeTime";
 import {
+  DEFAULT_ACOMPTE_PCT,
   PIPELINE_COLUMNS,
   SECTOR_LABEL,
   SECTOR_VAR,
@@ -52,6 +53,15 @@ export default function LeadCard({
   const sequenceEligible = canLaunchSequence(lead, n8nEnabled);
   const missingEnvoi = needsEnvoi(lead);
   const missingSignature = needsSignature(lead);
+
+  // % d'acompte affiché sur les cartes de leads SIGNÉS (demande client) :
+  // « sans » = 0 %, sinon l'acompte négocié, à défaut le défaut du secteur.
+  const signedAcomptePct =
+    lead.status === "signe"
+      ? lead.subSignature === "sans"
+        ? 0
+        : lead.acompteNegocie ?? DEFAULT_ACOMPTE_PCT[lead.sector]
+      : null;
 
   // Click-outside / Escape to close the kebab menu.
   useEffect(() => {
@@ -117,7 +127,17 @@ export default function LeadCard({
           {lead.client}
         </h3>
         <p className={styles.city}>{lead.city}</p>
-        <p className={styles.amount}>{formatEUR(lead.amount)}</p>
+        <p className={styles.amount}>
+          {formatEUR(lead.amount)}
+          {signedAcomptePct !== null && (
+            <span
+              className={styles.acomptePct}
+              title="Pourcentage d'acompte du devis signé"
+            >
+              acompte {signedAcomptePct}%
+            </span>
+          )}
+        </p>
       </Link>
 
       <footer className={styles.foot}>

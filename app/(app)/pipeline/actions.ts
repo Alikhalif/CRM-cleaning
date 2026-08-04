@@ -967,6 +967,91 @@ export async function updateInterventionDelay(
   return { ok: true };
 }
 
+// ── Relance par email (call 2026-08-02) ──────────────────────────────
+// Sends a plain relance email to the lead via Brevo — same idea as the SMS
+// compose modal but for email (role-scoped email templates picked client-side,
+// already interpolated). No document attached; this is a follow-up message.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+export async function sendLeadRelanceEmail(
+  leadId: string,
+  input: { recipient?: string; subject: string; message: string },
+): Promise<Result> {
+  const subject = input.subject.trim();
+  const message = input.message.trim();
+  if (!subject) return { ok: false, error: "Objet requis." };
+  if (!message) return { ok: false, error: "Message requis." };
+
+  const supabase = await supabaseServer();
+  // RLS scopes this read to the lead's owner/admin/planner — same guard the
+  // rest of the lead actions rely on.
+  const { data: lead, error: leadErr } = await supabase
+    .from("leads")
+    .select("client_email, client_first_name, client_last_name")
+    .eq("id", leadId)
+    .maybeSingle<{ client_email: string | null; client_first_name: string | null; client_last_name: string | null }>();
+  if (leadErr || !lead) return { ok: false, error: "Lead introuvable." };
+
+  const recipient = (input.recipient?.trim() || lead.client_email || "").trim();
+  if (!recipient) return { ok: false, error: "Ce lead n'a pas d'adresse email." };
+
+  const toName = `${lead.client_first_name ?? ""} ${lead.client_last_name ?? ""}`.trim() || undefined;
+  const htmlContent = escapeHtml(message).replace(/\n/g, "<br>");
+
+  const res = await sendBrevoEmail({ to: recipient, toName, subject, htmlContent });
+  if (!res.ok) return { ok: false, error: `Envoi email : ${res.error}` };
+
+  await supabase
+    .from("leads")
+    .update({
+      last_action_label: "Relance email envoyée",
+      last_action_at: new Date().toISOString(),
+    } as never)
+    .eq("id", leadId);
+
+  revalidatePath(`/leads/${leadId}`);
+  await auditLog({
+    action: "lead.relance.email",
+    entityType: "lead",
+    entityId: leadId,
+    after: { recipient, subject },
+  });
+  return { ok: true };
+}
+
+// Log an outbound SMS in the lead history (the SMS itself is dispatched
+// client-side by the Ringover webphone, so this just records it for the
+// timeline — action lead.sms.sent, surfaced by mapAuditRowToTimeline).
+export async function logLeadSms(
+  leadId: string,
+  input: { recipient: string; body: string },
+): Promise<Result> {
+  const body = input.body.trim();
+  if (!body) return { ok: false, error: "Message vide." };
+  const supabase = await supabaseServer();
+  await supabase
+    .from("leads")
+    .update({
+      last_action_label: "SMS envoyé",
+      last_action_at: new Date().toISOString(),
+    } as never)
+    .eq("id", leadId);
+  revalidatePath(`/leads/${leadId}`);
+  await auditLog({
+    action: "lead.sms.sent",
+    entityType: "lead",
+    entityId: leadId,
+    after: { recipient: input.recipient, preview: body.slice(0, 120) },
+  });
+  return { ok: true };
+}
+
 // Inline editor for the confidential Immobilier/Travaux annotation.
 // Guarded server-side by the immobTravaux permission once that's wired.
 export async function updateImmobTravauxAnnotation(

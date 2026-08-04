@@ -1,0 +1,4 @@
+-- Client edit 2026-08-02: new body for the "Relance devis (email)" template.
+update message_templates set body =
+  E'Bonjour,\n\nNous revenons vers vous concernant le devis que nous vous avons transmis.\n\nNous souhaitions savoir si vous aviez pu en prendre connaissance et connaître votre décision concernant cette intervention.\n\nSi vous souhaitez confirmer la prestation, nous vous invitons à nous en informer dès que possible afin que nous puissions réserver un créneau d''intervention. Notre planning évoluant rapidement, une confirmation nous permettra de garantir les disponibilités actuellement proposées.\n\nSi vous avez la moindre question ou souhaitez des précisions avant de prendre votre décision, nous restons bien entendu à votre entière disposition.\n\nDans l''attente de votre retour.\n\nBien professionnellement,\n\nL''équipe Optimivv Nettoyage\nLa qualité professionnelle, la proximité d''un artisan'
+where name = 'Relance devis (email)';

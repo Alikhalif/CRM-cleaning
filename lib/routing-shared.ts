@@ -23,7 +23,7 @@ export const DEFAULT_PERFORMANT_THRESHOLD = 100;
 //   • Nettoyage (+ hérités) urgent     → performant
 //   • Nettoyage (+ hérités) surf>seuil → performant
 //   • Nettoyage Générale               → appel_entrant
-//   • Nettoyage Famille / sans type    → appel_entrant OU nettoyage (Divers)
+//   • Nettoyage Famille / sans type    → appel_entrant OU divers (Divers)
 export function targetProfiles(input: ProfileRoutingInput, threshold: number): string[] {
   const s = input.sectorSlug;
   if (s === "diogene") return ["diogene"];
@@ -33,5 +33,5 @@ export function targetProfiles(input: ProfileRoutingInput, threshold: number): s
   // Famille "nettoyage" (nettoyage + secteurs hérités urgence/enr/renovation).
   if (input.isUrgent || (input.surfaceM2 != null && input.surfaceM2 > threshold)) return ["performant"];
   if (input.lpType === "generale") return ["appel_entrant"];
-  return ["appel_entrant", "nettoyage"]; // Famille (ou sans type) → union des deux pools
+  return ["appel_entrant", "divers"]; // Famille (ou sans type) → union des deux pools
 }

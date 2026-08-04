@@ -482,6 +482,8 @@
   [data-kind="payment"] & { border-color: var(--tone-success); background: var(--tone-success); }
   [data-kind="status"] & { border-color: var(--text-muted); }
   [data-kind="email"] & { border-color: var(--color-brand-500); }
+  [data-kind="email-reply"] & { border-color: var(--tone-info); }
+  [data-kind="sms"] & { border-color: var(--tone-info); background: var(--tone-info); }
   [data-kind="note"] & { border-color: var(--text-muted); }
 }
 

@@ -5,6 +5,11 @@ import Icon from "@/components/Icon/Icon";
 import { DOC_TYPE_LABEL, type CrmDocument } from "@/lib/leads";
 import { buildFinalInvoiceMessage } from "@/lib/templates";
 import {
+  TEMPLATE_CATEGORY_LABEL,
+  renderTemplate,
+} from "@/lib/message-templates-shared";
+import type { MessageTemplate } from "@/lib/message-templates-server";
+import {
   sendDocumentByEmail,
   type SendEmailInput,
   type Result,
@@ -19,6 +24,10 @@ type Props = {
   defaultRecipient: string;
   defaultRecipientName: string;
   entityName: string;
+  // Role-scoped email templates + their interpolation vars. Optional — when
+  // provided, a "Modèle" picker fills subject + message.
+  emailTemplates?: MessageTemplate[];
+  templateVars?: Record<string, string>;
   onClose: () => void;
   onDone: () => void;
 };
@@ -28,6 +37,8 @@ export default function SendEmailModal({
   defaultRecipient,
   defaultRecipientName,
   entityName,
+  emailTemplates = [],
+  templateVars = {},
   onClose,
   onDone,
 }: Props) {
@@ -55,6 +66,15 @@ ${entityName}`,
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [templateId, setTemplateId] = useState("");
+
+  const applyTemplate = (id: string) => {
+    setTemplateId(id);
+    const t = emailTemplates.find((x) => x.id === id);
+    if (!t) return;
+    if (t.subject) setSubject(renderTemplate(t.subject, templateVars));
+    setMessage(renderTemplate(t.body, templateVars));
+  };
 
   const firstInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -112,6 +132,24 @@ ${entityName}`,
         </header>
 
         <div className={styles.body}>
+          {emailTemplates.length > 0 && (
+            <label className={styles.field}>
+              <span className={styles.label}>Modèle</span>
+              <select
+                className={styles.input}
+                value={templateId}
+                onChange={(e) => applyTemplate(e.target.value)}
+              >
+                <option value="">— Choisir un modèle —</option>
+                {emailTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    [{TEMPLATE_CATEGORY_LABEL[t.category]}] {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
           <label className={styles.field}>
             <span className={styles.label}>Destinataire</span>
             <input
