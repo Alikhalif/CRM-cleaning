@@ -358,9 +358,9 @@ export async function markDocumentPaid(
   // Read enough to decide on the dossier-side update.
   const { data: doc, error: docErr } = await supabase
     .from("documents")
-    .select("id, type, status, lead_id")
+    .select("id, type, status, num, lead_id")
     .eq("id", id)
-    .maybeSingle<{ id: string; type: DocumentType; status: string; lead_id: string | null }>();
+    .maybeSingle<{ id: string; type: DocumentType; status: string; num: string; lead_id: string | null }>();
   if (docErr || !doc) return { ok: false, error: "Document introuvable." };
   if (doc.type === "devis") {
     return { ok: false, error: "Un devis ne peut pas être marqué payé (utilisez la facture)." };
@@ -391,6 +391,24 @@ export async function markDocumentPaid(
       .from("dossiers")
       .update(dossierUpdate as never)
       .eq("lead_id", doc.lead_id);
+
+    // Facture FINALE payée → le lead passe à « Encaissé » (fin du cycle).
+    // Relie le paiement au statut du pipeline (correctif du défaut #3 : avant,
+    // marquer la finale payée ne faisait pas avancer le lead).
+    if (doc.type === "finale") {
+      await supabase
+        .from("leads")
+        .update({
+          status: "encaisse",
+          last_action_label: `Facture ${doc.num ?? "finale"} payée`,
+          last_action_at: now,
+        } as never)
+        .eq("id", doc.lead_id)
+        .neq("status", "encaisse");
+      revalidatePath("/pipeline");
+      revalidatePath("/leads");
+      revalidatePath(`/leads/${doc.lead_id}`);
+    }
   }
 
   revalidatePath("/comptabilite");

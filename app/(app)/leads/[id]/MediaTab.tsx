@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon/Icon";
 import type { LeadMedia } from "@/lib/media-server";
-import { deleteLeadMedia, updateMediaComment, uploadLeadMedia } from "./media-actions";
+import { deleteLeadMedia, shareLeadMediaWithIntervenant, updateMediaComment, uploadLeadMedia } from "./media-actions";
 import styles from "./MediaTab.module.scss";
 
 type Props = { leadId: string; media: LeadMedia[]; canComment: boolean };
@@ -25,7 +25,21 @@ export default function MediaTab({ leadId, media, canComment }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<number | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareTo, setShareTo] = useState("");
+  const [shareMsg, setShareMsg] = useState("");
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareResult, setShareResult] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  const doShare = async () => {
+    if (!shareTo.trim()) return;
+    setShareBusy(true); setShareResult(null);
+    const res = await shareLeadMediaWithIntervenant(leadId, shareTo.trim(), shareMsg);
+    setShareBusy(false);
+    setShareResult(res.ok ? "✅ Médias envoyés à l'intervenant." : `❌ ${res.error}`);
+    if (res.ok) { setShareTo(""); setShareMsg(""); }
+  };
 
   const onFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -81,16 +95,47 @@ export default function MediaTab({ leadId, media, canComment }: Props) {
           style={{ display: "none" }}
           onChange={(e) => onFiles(e.target.files)}
         />
-        <button
-          type="button"
-          className={styles.uploadBtn}
-          data-busy={busy ? "1" : undefined}
-          disabled={busy}
-          onClick={() => inputRef.current?.click()}
-        >
-          <Icon name="plus" size={16} /> {busy ? "Envoi…" : "Ajouter des fichiers"}
-        </button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {media.length > 0 && (
+            <button
+              type="button"
+              className={styles.uploadBtn}
+              style={{ background: "transparent", color: "var(--color-brand-500)", border: "1px solid var(--border-strong)" }}
+              onClick={() => setShareOpen((o) => !o)}
+            >
+              <Icon name="mail" size={16} /> Partager à l&apos;intervenant
+            </button>
+          )}
+          <button
+            type="button"
+            className={styles.uploadBtn}
+            data-busy={busy ? "1" : undefined}
+            disabled={busy}
+            onClick={() => inputRef.current?.click()}
+          >
+            <Icon name="plus" size={16} /> {busy ? "Envoi…" : "Ajouter des fichiers"}
+          </button>
+        </div>
       </div>
+
+      {shareOpen && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "12px 14px", border: "1px solid var(--border-subtle)", borderRadius: "var(--r-lg)", background: "var(--bg-surface)" }}>
+          <span style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
+            Envoie <strong>tous les médias</strong> du dossier par email (liens valables 7 jours) à l&apos;intervenant.
+          </span>
+          <input type="email" value={shareTo} onChange={(e) => setShareTo(e.target.value)} placeholder="intervenant@exemple.fr"
+            style={{ padding: "8px 10px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-primary)" }} />
+          <textarea value={shareMsg} onChange={(e) => setShareMsg(e.target.value)} placeholder="Message (optionnel)…" rows={2}
+            style={{ padding: "8px 10px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-primary)", fontFamily: "inherit", resize: "vertical" }} />
+          {shareResult && <span style={{ fontSize: "0.8125rem", color: shareResult.startsWith("✅") ? "var(--tone-success)" : "var(--tone-danger)" }}>{shareResult}</span>}
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <button type="button" onClick={() => setShareOpen(false)} style={{ padding: "6px 14px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "transparent", color: "var(--text-primary)", cursor: "pointer" }}>Fermer</button>
+            <button type="button" onClick={doShare} disabled={shareBusy || !shareTo.trim()} style={{ padding: "6px 14px", borderRadius: "var(--r-sm)", border: "none", background: "var(--color-brand-500)", color: "#fff", fontWeight: 600, cursor: "pointer", opacity: shareBusy ? 0.7 : 1 }}>
+              {shareBusy ? "Envoi…" : "Envoyer les liens"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {error && <p className={styles.error} role="alert"><Icon name="alert" size={14} /> {error}</p>}
 

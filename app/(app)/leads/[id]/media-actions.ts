@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 import { auditLog } from "@/lib/audit";
+import { sendBrevoEmail, PLANIF_SENDER } from "@/lib/brevo";
 import { MEDIA_BUCKET } from "@/lib/media-server";
 
 export type Result = { ok: true } | { ok: false; error: string };
@@ -91,6 +92,65 @@ export async function deleteLeadMedia(mediaId: string): Promise<Result> {
 
   revalidatePath(`/leads/${row.lead_id}`);
   await auditLog({ action: "lead.media.delete", entityType: "lead", entityId: row.lead_id, after: { mediaId } });
+  return { ok: true };
+}
+
+// Partage des médias du dossier à un intervenant (sous-traitant) : envoie un
+// email avec des LIENS signés (valables 7 jours) vers chaque photo/vidéo — pas
+// de pièces jointes lourdes. Sender = planning dédié. Client 2026-08-03.
+export async function shareLeadMediaWithIntervenant(
+  leadId: string,
+  recipient: string,
+  message: string,
+): Promise<Result> {
+  const to = recipient.trim();
+  if (!to) return { ok: false, error: "Email de l'intervenant requis." };
+
+  const supabase = await supabaseServer();
+  // Lu avec la session → la RLS garantit l'accès au dossier.
+  const { data: rows, error } = await supabase
+    .from("lead_media")
+    .select("id, storage_path, file_name, kind")
+    .eq("lead_id", leadId)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true })
+    .returns<{ id: string; storage_path: string; file_name: string; kind: string }[]>();
+  if (error) return { ok: false, error: error.message };
+  if (!rows || rows.length === 0) return { ok: false, error: "Aucun média à partager." };
+
+  // Liens signés longue durée (7 jours) via le service role (bucket privé).
+  const admin = await supabaseServiceRole();
+  const { data: signed } = await admin.storage
+    .from(MEDIA_BUCKET)
+    .createSignedUrls(rows.map((r) => r.storage_path), 7 * 24 * 3600);
+  const urlByPath = new Map<string, string>();
+  for (const s of signed ?? []) if (s.signedUrl && s.path) urlByPath.set(s.path, s.signedUrl);
+
+  const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const items = rows
+    .map((r) => {
+      const url = urlByPath.get(r.storage_path);
+      const tag = r.kind === "video" ? "Vidéo" : "Photo";
+      return url ? `<li>${tag} — <a href="${url}">${esc(r.file_name)}</a></li>` : "";
+    })
+    .filter(Boolean)
+    .join("");
+  const intro = message.trim() ? `${esc(message.trim()).replace(/\n/g, "<br>")}<br><br>` : "";
+  const html =
+    `${intro}Bonjour,<br><br>Veuillez trouver ci-dessous les photos et vidéos du chantier ` +
+    `(liens valables 7 jours) :<br><ul>${items}</ul><br>` +
+    `Bien professionnellement,<br>La planificatrice<br>Optimivv`;
+
+  const res = await sendBrevoEmail({
+    to,
+    subject: "Photos & vidéos du chantier",
+    htmlContent: html,
+    senderEmail: PLANIF_SENDER.email,
+    senderName: PLANIF_SENDER.name,
+  });
+  if (!res.ok) return { ok: false, error: `Envoi email : ${res.error}` };
+
+  await auditLog({ action: "lead.media.share", entityType: "lead", entityId: leadId, after: { recipient: to, count: rows.length } });
   return { ok: true };
 }
 

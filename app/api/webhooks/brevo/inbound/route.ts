@@ -1,7 +1,50 @@
+import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 import { auditLog } from "@/lib/audit";
 import { notify } from "@/lib/notifications";
+import { MEDIA_BUCKET } from "@/lib/media-server";
+
+// Pièce jointe entrante (format Brevo inbound parsing).
+type InboundAttachment = { Name?: string; ContentType?: string; DownloadToken?: string };
+
+// Enregistre les photos/vidéos jointes dans le dossier (lead_media) via le
+// service role — best-effort. Télécharge chaque pièce via le token Brevo.
+async function ingestAttachments(leadId: string, attachments: InboundAttachment[]): Promise<number> {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) return 0;
+  const admin = await supabaseServiceRole();
+  let saved = 0;
+  for (const att of attachments) {
+    const mime = att.ContentType ?? "";
+    const kind = mime.startsWith("image/") ? "photo" : mime.startsWith("video/") ? "video" : null;
+    if (!kind || !att.DownloadToken) continue;
+    try {
+      const r = await fetch(`https://api.brevo.com/v3/inbound/attachments/${att.DownloadToken}`, {
+        headers: { "api-key": apiKey },
+      });
+      if (!r.ok) continue;
+      const buf = Buffer.from(await r.arrayBuffer());
+      const ext = (att.Name?.includes(".") ? att.Name.split(".").pop()! : mime.split("/")[1] ?? "bin").toLowerCase();
+      const path = `${leadId}/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await admin.storage.from(MEDIA_BUCKET).upload(path, buf, { contentType: mime, upsert: false });
+      if (upErr) continue;
+      await admin.from("lead_media").insert({
+        lead_id: leadId,
+        storage_path: path,
+        file_name: att.Name ?? `piece.${ext}`,
+        mime_type: mime,
+        kind,
+        size_bytes: buf.length,
+        uploaded_by: null,
+      } as never);
+      saved++;
+    } catch {
+      // best-effort — une pièce jointe qui échoue ne bloque pas les autres
+    }
+  }
+  return saved;
+}
 
 // Brevo inbound-parsing webhook. When a client replies to a transactional
 // email sent via Brevo (e.g., the devis or facture they received), Brevo
@@ -34,6 +77,7 @@ type BrevoInboundPayload = {
   RawHtmlBody?: string;
   RawTextBody?: string;
   ExtractedMarkdownMessage?: string;
+  Attachments?: InboundAttachment[];
 };
 
 export async function POST(request: Request) {
@@ -102,6 +146,38 @@ export async function POST(request: Request) {
     }
   }
 
+  // Fallback : pas de n° de doc dans le sujet → matcher par l'email de
+  // l'expéditeur. Permet d'attacher les photos même sur une réponse « libre ».
+  if (!leadId && from) {
+    const supabase = await supabaseServiceRole();
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("id, owner_id")
+      .ilike("client_email", from)
+      .is("deleted_at", null)
+      .order("received_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ id: string; owner_id: string | null }>();
+    if (lead) { leadId = lead.id; ownerId = lead.owner_id; }
+  }
+
+  // Ingestion automatique des photos/vidéos jointes dans le dossier du client.
+  let mediaSaved = 0;
+  if (leadId && Array.isArray(payload.Attachments) && payload.Attachments.length > 0) {
+    mediaSaved = await ingestAttachments(leadId, payload.Attachments);
+    if (mediaSaved > 0 && ownerId) {
+      await notify({
+        userId: ownerId,
+        kind: "email.reply",
+        entityType: "lead",
+        entityId: leadId,
+        title: `${mediaSaved} média(s) reçu(s) par email`,
+        body: subject,
+        href: `/leads/${leadId}?tab=media`,
+      });
+    }
+  }
+
   await auditLog({
     action: leadId ? "lead.email.reply" : "email.reply.unmatched",
     entityType: leadId ? "lead" : "user",
@@ -111,8 +187,9 @@ export async function POST(request: Request) {
       subject,
       matchedDocNum: docNum,
       bodyPreview,
+      mediaSaved,
     },
   });
 
-  return NextResponse.json({ ok: true, matched: Boolean(leadId), leadId });
+  return NextResponse.json({ ok: true, matched: Boolean(leadId), leadId, mediaSaved });
 }
