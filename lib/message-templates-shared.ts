@@ -95,6 +95,28 @@ export const TEMPLATE_CATEGORY_LABEL: Record<TemplateCategory, string> = {
   autre: "Autre",
 };
 
+// ── Rubriques Intervenant (sous-traitant) ────────────────────────────────
+// Le cycle réel d'une mission de sous-traitance, dans l'ordre chronologique.
+// Sert à regrouper (optgroup) et ordonner le menu « Envoyer à l'intervenant ».
+// Libellés dédiés (≠ TEMPLATE_CATEGORY_LABEL, qui vaut aussi pour le client).
+export const INTERVENANT_RUBRIC_ORDER: TemplateCategory[] = [
+  "consultation",
+  "affectation",
+  "avant_intervention",
+  "pendant_intervention",
+  "fin_intervention",
+  "cloture",
+];
+
+export const INTERVENANT_RUBRIC_LABEL: Partial<Record<TemplateCategory, string>> = {
+  consultation: "Consultation des sous-traitants",
+  affectation: "Affectation",
+  avant_intervention: "Avant intervention",
+  pendant_intervention: "Pendant l'intervention",
+  fin_intervention: "Fin d'intervention",
+  cloture: "Clôture de mission",
+};
+
 // ── Audiences (qui voit le template) ─────────────────────────────────────
 // Chaque template porte 0..N audiences. Une liste VIDE = visible par tous
 // (template global). Ces slugs mappent les profils commerciaux + rôles via

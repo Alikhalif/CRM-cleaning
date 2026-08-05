@@ -3,9 +3,12 @@
 import { useMemo, useState } from "react";
 import Icon from "@/components/Icon/Icon";
 import {
+  INTERVENANT_RUBRIC_ORDER,
+  INTERVENANT_RUBRIC_LABEL,
   TEMPLATE_CATEGORY_LABEL,
   leadTemplateVars,
   renderTemplate,
+  type TemplateCategory,
 } from "@/lib/message-templates-shared";
 import type { MessageTemplate } from "@/lib/message-templates-server";
 import type { DossierWithContext } from "@/lib/dossiers-shared";
@@ -49,6 +52,28 @@ export default function SendIntervenantModal({ row, templates, onClose }: Props)
     v["client.telephone"] = "";  // jamais transmis à l'intervenant
     return v;
   }, [lead, dossier.plannedAt]);
+
+  // Regroupe les modèles par rubrique, dans l'ordre chronologique du cycle de
+  // mission (Consultation → … → Clôture), chaque rubrique triée par sort_order.
+  const grouped = useMemo(() => {
+    const order = (c: TemplateCategory) => {
+      const i = INTERVENANT_RUBRIC_ORDER.indexOf(c);
+      return i === -1 ? INTERVENANT_RUBRIC_ORDER.length : i;
+    };
+    const byCat = new Map<TemplateCategory, MessageTemplate[]>();
+    for (const t of templates) {
+      const arr = byCat.get(t.category) ?? [];
+      arr.push(t);
+      byCat.set(t.category, arr);
+    }
+    return [...byCat.entries()]
+      .sort((a, b) => order(a[0]) - order(b[0]))
+      .map(([cat, list]) => ({
+        cat,
+        label: INTERVENANT_RUBRIC_LABEL[cat] ?? TEMPLATE_CATEGORY_LABEL[cat],
+        list: [...list].sort((x, y) => x.sortOrder - y.sortOrder || x.name.localeCompare(y.name)),
+      }));
+  }, [templates]);
 
   const [templateId, setTemplateId] = useState("");
   const [recipient, setRecipient] = useState(technician?.email ?? "");
@@ -103,8 +128,12 @@ export default function SendIntervenantModal({ row, templates, onClose }: Props)
               Modèle
               <select style={inp} value={templateId} onChange={(e) => applyTemplate(e.target.value)}>
                 <option value="">— Choisir un modèle —</option>
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>[{TEMPLATE_CATEGORY_LABEL[t.category]}] {t.name}</option>
+                {grouped.map((g) => (
+                  <optgroup key={g.cat} label={g.label}>
+                    {g.list.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name.replace(/^Intervenant — /, "")}</option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </label>
