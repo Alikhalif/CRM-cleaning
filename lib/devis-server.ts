@@ -30,6 +30,7 @@ export type PrestationOption = {
   unit: PrestationUnit;
   unitPriceHt: number;
   vatRate: number;
+  description: string | null;
 };
 
 // Minimal lead context for prefill — enough to seed sector defaults and
@@ -78,6 +79,7 @@ type PrestationRow = {
   unit: PrestationUnit;
   unit_price_ht: number;
   vat_rate: number;
+  description: string | null;
   activity: { slug: Sector } | null;
 };
 
@@ -156,7 +158,7 @@ export async function getPrestationsForPicker(): Promise<PrestationOption[]> {
   const supabase = await supabaseServer();
   const { data, error } = await supabase
     .from("prestations")
-    .select("id, label, unit, unit_price_ht, vat_rate, activity:activities(slug)")
+    .select("id, label, unit, unit_price_ht, vat_rate, description, activity:activities(slug)")
     .eq("is_active", true)
     .order("label", { ascending: true })
     .returns<PrestationRow[]>();
@@ -170,6 +172,7 @@ export async function getPrestationsForPicker(): Promise<PrestationOption[]> {
       unit: p.unit,
       unitPriceHt: Number(p.unit_price_ht),
       vatRate: Number(p.vat_rate),
+      description: p.description,
     }));
 }
 

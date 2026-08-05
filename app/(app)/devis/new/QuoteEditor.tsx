@@ -190,7 +190,16 @@ export default function QuoteEditor({
           vatRate: 20,
           discountPct: 0,
         };
-    setDraft((d) => ({ ...d, lines: [...d.lines, line] }));
+    setDraft((d) => {
+      // Un service porteur d'une description (bibliothèque de devis) pré-remplit
+      // ses conditions/prestations comprises dans les notes du devis.
+      const desc = prestation?.description?.trim();
+      const notes =
+        desc && prestation
+          ? [d.notes.trim(), `${prestation.label} :\n${desc}`].filter(Boolean).join("\n\n")
+          : d.notes;
+      return { ...d, lines: [...d.lines, line], notes };
+    });
   };
 
   const prestationsBySector = useMemo(() => {
