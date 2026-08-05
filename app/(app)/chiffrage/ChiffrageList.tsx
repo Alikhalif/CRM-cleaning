@@ -8,7 +8,7 @@ import {
   CONSULT_STATUS_LABEL,
   type ConsultationOverview,
   type ConsultationStatus,
-} from "@/lib/consultations-server";
+} from "@/lib/consultations-shared";
 import { attributeConsultation, closeConsultation, relanceConsultation } from "./actions";
 
 type Props = { consultations: ConsultationOverview[] };

@@ -685,35 +685,59 @@
 }
 
 .menu {
-  position: absolute;
-  top: 32px;
-  right: 0;
-  z-index: 10;
-  min-width: 220px;
+  // `fixed` (coords calculées en JS depuis le rect du bouton) pour échapper au
+  // clipping de `.tableWrap { overflow-x:auto }` — sinon le menu est tronqué.
+  position: fixed;
+  z-index: 200;
+  width: 250px;
+  max-height: min(420px, calc(100vh - 24px));
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: var(--sp-1);
+  padding: 6px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg);
 }
 
 .menuItem {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: 10px;
   width: 100%;
-  padding: var(--sp-2);
+  padding: 8px 10px;
   border-radius: var(--r-sm);
   text-align: left;
   font-size: var(--fs-sm);
   color: var(--text-primary);
   background: transparent;
   border: 0;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease-out);
 
-  &:hover { background: var(--bg-surface-2); }
+  svg { color: var(--text-muted); flex-shrink: 0; }
+  &:hover { background: var(--bg-surface-2); svg { color: var(--text-primary); } }
+
+  &[data-variant="primary"] { color: var(--color-brand-600); font-weight: 600; svg { color: var(--color-brand-500); } }
+  &[data-variant="success"] { color: var(--tone-success); svg { color: var(--tone-success); } }
+}
+
+.menuLabel {
+  padding: 8px 10px 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  user-select: none;
+}
+.menuDivider {
+  height: 1px;
+  margin: 5px 6px;
+  background: var(--border-subtle);
 }
 
 .empty {

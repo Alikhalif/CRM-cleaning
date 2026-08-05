@@ -704,6 +704,42 @@ function Row({
         (finaleDoc?.status === "paye" ? finaleDoc.totalTtc : 0);
   const paidPct = totalTtc > 0 ? Math.round((paidTtc / totalTtc) * 100) : 0;
 
+  // Menu ⋯ : positionné en `fixed` (calculé depuis le rect du bouton) pour
+  // échapper au clipping de `.tableWrap { overflow-x:auto }`. On rabat vers le
+  // haut quand il n'y a pas la place en dessous (bas de viewport).
+  const kebabRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    // `place` ne s'exécute que dans un rAF / un callback d'évènement — jamais
+    // de setState synchrone dans le corps de l'effet (règle react-hooks).
+    const place = () => {
+      const btn = kebabRef.current;
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      const W = 250;
+      const left = Math.max(8, Math.min(r.right - W, window.innerWidth - W - 8));
+      const menuH = menuRef.current?.offsetHeight ?? 320;
+      const spaceBelow = window.innerHeight - r.bottom;
+      if (spaceBelow < menuH + 16 && r.top > spaceBelow) {
+        setMenuPos({ bottom: window.innerHeight - r.top + 6, left });
+      } else {
+        setMenuPos({ top: r.bottom + 6, left });
+      }
+    };
+    const raf = requestAnimationFrame(place);
+    // Recalcule si l'on scrolle (liste ou fenêtre) ou redimensionne.
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [isMenuOpen]);
+
   return (
     <tr data-status={dossier.status}>
       <td>
@@ -825,6 +861,7 @@ function Row({
         )}
         <div className={styles.actionsAnchor}>
           <button
+            ref={kebabRef}
             type="button"
             className={styles.kebab}
             onClick={onToggleMenu}
@@ -835,126 +872,88 @@ function Row({
             <Icon name="more-vertical" size={16} />
           </button>
           {isMenuOpen && (
-            <div className={styles.menu} role="menu">
-              {devisDoc && (
-                <Link href={`/devis/${devisDoc.id}`} className={styles.menuItem} role="menuitem">
-                  Consulter le devis
-                </Link>
+            <div
+              ref={menuRef}
+              className={styles.menu}
+              role="menu"
+              style={
+                menuPos
+                  ? { top: menuPos.top, bottom: menuPos.bottom, left: menuPos.left }
+                  : { visibility: "hidden" }
+              }
+            >
+              {(dossier.status === "a_planifier" || dossier.status === "planifie" || dossier.status === "en_cours") && (
+                <div className={styles.menuLabel}>Intervention</div>
               )}
-              <button
-                type="button"
-                className={styles.menuItem}
-                role="menuitem"
-                onClick={() => { onToggleMenu(); onSendIntervenant(); }}
-              >
-                Envoyer à l&apos;intervenant
-              </button>
               {dossier.status === "a_planifier" && (
-                <button
-                  type="button"
-                  className={styles.menuItem}
-                  role="menuitem"
-                  onClick={() => {
-                    onToggleMenu();
-                    onPlanify();
-                  }}
-                >
-                  Planifier l&apos;intervention
-                </button>
-              )}
-              {dossier.status === "planifie" && lead.email && dossier.plannedAt && (
-                <button
-                  type="button"
-                  className={styles.menuItem}
-                  role="menuitem"
-                  onClick={() => {
-                    onToggleMenu();
-                    onConfirmEmail();
-                  }}
-                >
-                  Envoyer confirmation client
+                <button type="button" className={styles.menuItem} data-variant="primary" role="menuitem"
+                  onClick={() => { onToggleMenu(); onPlanify(); }}>
+                  <Icon name="planification" size={15} /> Planifier l&apos;intervention
                 </button>
               )}
               {dossier.status === "planifie" && (
-                <button
-                  type="button"
-                  className={styles.menuItem}
-                  role="menuitem"
-                  onClick={() => {
-                    onToggleMenu();
-                    onStartRealisation();
-                  }}
-                >
-                  ▶ En cours de réalisation
+                <button type="button" className={styles.menuItem} role="menuitem"
+                  onClick={() => { onToggleMenu(); onStartRealisation(); }}>
+                  <Icon name="zap" size={15} /> Démarrer la réalisation
                 </button>
               )}
               {(dossier.status === "planifie" || dossier.status === "en_cours") && (
-                <button
-                  type="button"
-                  className={styles.menuItem}
-                  role="menuitem"
-                  onClick={() => {
-                    onToggleMenu();
-                    onPlanify();
-                  }}
-                >
-                  Reprogrammer (non présenté)
+                <button type="button" className={styles.menuItem} data-variant="success" role="menuitem"
+                  onClick={() => { onToggleMenu(); onFinalize(); }}>
+                  <Icon name="check" size={15} /> Marquer comme réalisé
                 </button>
               )}
               {(dossier.status === "planifie" || dossier.status === "en_cours") && (
-                <button
-                  type="button"
-                  className={styles.menuItem}
-                  role="menuitem"
-                  onClick={() => {
-                    onToggleMenu();
-                    onFinalize();
-                  }}
-                >
-                  Marquer comme réalisé
+                <button type="button" className={styles.menuItem} role="menuitem"
+                  onClick={() => { onToggleMenu(); onPlanify(); }}>
+                  <Icon name="planification" size={15} /> Reprogrammer (non présenté)
                 </button>
+              )}
+
+              {(dossier.status === "a_planifier" || dossier.status === "planifie" || dossier.status === "en_cours") && (
+                <div className={styles.menuDivider} />
+              )}
+              <div className={styles.menuLabel}>Communication</div>
+              {dossier.status === "planifie" && lead.email && dossier.plannedAt && (
+                <button type="button" className={styles.menuItem} role="menuitem"
+                  onClick={() => { onToggleMenu(); onConfirmEmail(); }}>
+                  <Icon name="mail" size={15} /> Confirmation au client
+                </button>
+              )}
+              <button type="button" className={styles.menuItem} role="menuitem"
+                onClick={() => { onToggleMenu(); onSendIntervenant(); }}>
+                <Icon name="mail" size={15} /> Envoyer à l&apos;intervenant
+              </button>
+
+              <div className={styles.menuDivider} />
+              <div className={styles.menuLabel}>Documents &amp; facturation</div>
+              {devisDoc && (
+                <Link href={`/devis/${devisDoc.id}`} className={styles.menuItem} role="menuitem">
+                  <Icon name="document" size={15} /> Consulter le devis
+                </Link>
               )}
               {dossier.status === "finalise" && !finaleDoc && (
-                <button
-                  type="button"
-                  className={styles.menuItem}
-                  role="menuitem"
-                  onClick={() => {
-                    onToggleMenu();
-                    onGenerateFinale();
-                  }}
-                >
-                  Émettre la facture finale
+                <button type="button" className={styles.menuItem} data-variant="primary" role="menuitem"
+                  onClick={() => { onToggleMenu(); onGenerateFinale(); }}>
+                  <Icon name="comptabilite" size={15} /> Émettre la facture finale
                 </button>
               )}
               {finaleDoc && (
                 <Link href={`/factures/${finaleDoc.id}`} className={styles.menuItem} role="menuitem">
-                  Voir facture finale
+                  <Icon name="document" size={15} /> Voir la facture finale
                 </Link>
               )}
               {dossier.status !== "solde" && dossier.paymentStatus !== "solde" && (
-                <button
-                  type="button"
-                  className={styles.menuItem}
-                  role="menuitem"
-                  onClick={() => {
-                    onToggleMenu();
-                    onSold();
-                  }}
-                >
-                  Marquer soldé
+                <button type="button" className={styles.menuItem} data-variant="success" role="menuitem"
+                  onClick={() => { onToggleMenu(); onSold(); }}>
+                  <Icon name="check" size={15} /> Marquer soldé
                 </button>
               )}
-              <button
-                type="button"
-                className={styles.menuItem}
-                role="menuitem"
-                onClick={() => {
-                  onToggleMenu();
-                  onEdit();
-                }}
-              >
-                Modifier le dossier
+
+              <div className={styles.menuDivider} />
+              <button type="button" className={styles.menuItem} role="menuitem"
+                onClick={() => { onToggleMenu(); onEdit(); }}>
+                <Icon name="edit" size={15} /> Modifier le dossier
               </button>
             </div>
           )}

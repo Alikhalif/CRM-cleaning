@@ -6,40 +6,18 @@ import {
   type Sector,
   type DelaiSouhaite,
 } from "./leads";
+import {
+  CONSULT_STATUS_LABEL,
+  type ConsultationStatus,
+  type ConsultationOverview,
+} from "./consultations-shared";
 
 // Vue agrégée des demandes de chiffrage (toutes consultations intervenants,
 // jointes au dossier + intervenant). RLS : réservé admin / planificatrice.
+// Les types + labels partagés vivent dans consultations-shared.ts (client-safe).
 
-export type ConsultationStatus = "envoyee" | "repondue" | "retenue" | "refusee" | "expiree";
-
-export const CONSULT_STATUS_LABEL: Record<ConsultationStatus, string> = {
-  envoyee: "En attente",
-  repondue: "Réponse reçue",
-  retenue: "Mission attribuée",
-  refusee: "Refusée",
-  expiree: "Expirée",
-};
-
-export type ConsultationOverview = {
-  id: string;
-  leadId: string;
-  leadShortId: string;
-  clientName: string;
-  sectorLabel: string;
-  delaiLabel: string | null;
-  intervenantEmail: string;
-  intervenantName: string | null;
-  status: ConsultationStatus;
-  montantPropose: number | null;
-  disponibilites: string | null;
-  notes: string | null;
-  sentAt: string;
-  respondedAt: string | null;
-  attributedAt: string | null;
-  mediaCount: number;
-  relances: number;
-  siblingCount: number; // nb d'intervenants consultés pour ce dossier
-};
+export { CONSULT_STATUS_LABEL };
+export type { ConsultationStatus, ConsultationOverview };
 
 type Row = {
   id: string;
