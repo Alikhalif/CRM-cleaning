@@ -683,14 +683,17 @@ export type Database = {
       }
       intervenant_consultations: {
         Row: {
+          attributed_at: string | null
           disponibilites: string | null
           id: string
           intervenant_email: string
           intervenant_id: string | null
+          last_relance_at: string | null
           lead_id: string
           media_count: number
           montant_propose: number | null
           notes: string | null
+          relances: number
           responded_at: string | null
           sent_at: string
           sent_by: string | null
@@ -698,14 +701,17 @@ export type Database = {
           template_name: string | null
         }
         Insert: {
+          attributed_at?: string | null
           disponibilites?: string | null
           id?: string
           intervenant_email: string
           intervenant_id?: string | null
+          last_relance_at?: string | null
           lead_id: string
           media_count?: number
           montant_propose?: number | null
           notes?: string | null
+          relances?: number
           responded_at?: string | null
           sent_at?: string
           sent_by?: string | null
@@ -713,14 +719,17 @@ export type Database = {
           template_name?: string | null
         }
         Update: {
+          attributed_at?: string | null
           disponibilites?: string | null
           id?: string
           intervenant_email?: string
           intervenant_id?: string | null
+          last_relance_at?: string | null
           lead_id?: string
           media_count?: number
           montant_propose?: number | null
           notes?: string | null
+          relances?: number
           responded_at?: string | null
           sent_at?: string
           sent_by?: string | null

@@ -22,11 +22,18 @@ export default async function TechniciansPage() {
         <span>Intervenants</span>
       </nav>
 
-      <header>
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--text-primary)" }}>Intervenants (sous-traitants)</h1>
-        <p style={{ color: "var(--text-muted)", marginTop: 4 }}>
-          Carnet des intervenants avec leur email — utilisé pour l&apos;envoi des mails de mission depuis la planification.
-        </p>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--text-primary)" }}>Intervenants (sous-traitants)</h1>
+          <p style={{ color: "var(--text-muted)", marginTop: 4 }}>
+            Carnet des intervenants avec leur email — utilisé pour l&apos;envoi des mails de mission depuis la planification.
+          </p>
+        </div>
+        {allowed && (
+          <Link href="/chiffrage" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 16px", borderRadius: "var(--r-sm)", background: "var(--color-brand-500)", color: "#fff", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}>
+            📋 Demandes de chiffrage
+          </Link>
+        )}
       </header>
 
       {!allowed ? (
