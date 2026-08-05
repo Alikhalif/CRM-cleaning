@@ -75,9 +75,10 @@ export default function Topbar({ user, unreadCount }: Props) {
   const primaryRoleLabel =
     user?.roles[0]?.label ?? (user ? "Utilisateur" : "Invité");
 
-  // Le bouton webphone n'apparaît que pour les profils qui téléphonent.
+  // Le bouton webphone apparaît pour les profils qui téléphonent + la planificatrice.
   const isAdmin = (user?.roles ?? []).some((r) => r.slug === "admin");
-  const { canUseRingover } = profileCapabilities(user?.commercialProfiles ?? [], isAdmin);
+  const isPlanificateur = (user?.roles ?? []).some((r) => r.slug === "planification");
+  const { canUseRingover } = profileCapabilities(user?.commercialProfiles ?? [], isAdmin, isPlanificateur);
 
   return (
     <header className={styles.topbar} role="banner" data-no-print="true">

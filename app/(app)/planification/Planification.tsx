@@ -40,6 +40,9 @@ import EditDossierModal from "./EditDossierModal";
 import PlanifyDossierModal from "./PlanifyDossierModal";
 import SendIntervenantModal from "./SendIntervenantModal";
 import MediaViewerModal from "./MediaViewerModal";
+import SmsModal from "@/app/(app)/leads/[id]/SmsModal";
+import { leadTemplateVars } from "@/lib/message-templates-shared";
+import { startCall } from "@/lib/ringover-webphone";
 import type { MessageTemplate } from "@/lib/message-templates-server";
 import styles from "./Planification.module.scss";
 
@@ -73,9 +76,11 @@ type Props = {
   initialRows: DossierWithContext[];
   technicians: Technician[];
   intervenantTemplates: MessageTemplate[];
+  smsTemplates: MessageTemplate[];
+  canUseRingover: boolean;
 };
 
-export default function Planification({ initialRows, technicians, intervenantTemplates }: Props) {
+export default function Planification({ initialRows, technicians, intervenantTemplates, smsTemplates, canUseRingover }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [search, setSearch] = useState("");
@@ -93,6 +98,7 @@ export default function Planification({ initialRows, technicians, intervenantTem
   const [confirmTarget, setConfirmTarget] = useState<DossierWithContext | null>(null);
   const [intervenantTarget, setIntervenantTarget] = useState<DossierWithContext | null>(null);
   const [mediaTarget, setMediaTarget] = useState<DossierWithContext | null>(null);
+  const [smsTarget, setSmsTarget] = useState<DossierWithContext | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
@@ -597,6 +603,17 @@ export default function Planification({ initialRows, technicians, intervenantTem
                 onConfirmEmail={() => setConfirmTarget(r)}
                 onSendIntervenant={() => setIntervenantTarget(r)}
                 onViewMedia={() => setMediaTarget(r)}
+                canUseRingover={canUseRingover}
+                onCall={() =>
+                  startCall({
+                    phone: r.lead.phone ?? "",
+                    name: r.lead.client,
+                    sublabel: SECTOR_LABEL[r.lead.sector],
+                    sectorVar: SECTOR_VAR[r.lead.sector],
+                    leadId: r.lead.id,
+                  })
+                }
+                onSms={() => setSmsTarget(r)}
                 onStartRealisation={() => onStartRealisation(r)}
                 onFinalize={() => onFinalize(r)}
                 onGenerateFinale={() => onGenerateFinale(r)}
@@ -651,6 +668,14 @@ export default function Planification({ initialRows, technicians, intervenantTem
           onClose={() => setMediaTarget(null)}
         />
       )}
+      {smsTarget && (
+        <SmsModal
+          lead={smsTarget.lead}
+          templates={smsTemplates}
+          vars={leadTemplateVars(smsTarget.lead)}
+          onClose={() => setSmsTarget(null)}
+        />
+      )}
     </div>
   );
 }
@@ -686,6 +711,9 @@ function Row({
   onConfirmEmail,
   onSendIntervenant,
   onViewMedia,
+  canUseRingover,
+  onCall,
+  onSms,
   onStartRealisation,
   onFinalize,
   onGenerateFinale,
@@ -699,6 +727,9 @@ function Row({
   onConfirmEmail: () => void;
   onSendIntervenant: () => void;
   onViewMedia: () => void;
+  canUseRingover: boolean;
+  onCall: () => void;
+  onSms: () => void;
   onStartRealisation: () => void;
   onFinalize: () => void;
   onGenerateFinale: () => void;
@@ -935,6 +966,18 @@ function Row({
                 <div className={styles.menuDivider} />
               )}
               <div className={styles.menuLabel}>Communication</div>
+              {canUseRingover && lead.phone && (
+                <button type="button" className={styles.menuItem} role="menuitem"
+                  onClick={() => { onToggleMenu(); onCall(); }}>
+                  <Icon name="phone" size={15} /> Appeler le client
+                </button>
+              )}
+              {canUseRingover && lead.phone && (
+                <button type="button" className={styles.menuItem} role="menuitem"
+                  onClick={() => { onToggleMenu(); onSms(); }}>
+                  <Icon name="phone" size={15} /> SMS au client
+                </button>
+              )}
               {dossier.status === "planifie" && lead.email && dossier.plannedAt && (
                 <button type="button" className={styles.menuItem} role="menuitem"
                   onClick={() => { onToggleMenu(); onConfirmEmail(); }}>

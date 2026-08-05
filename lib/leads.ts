@@ -71,10 +71,17 @@ const RINGOVER_PROFILES: CommercialProfile[] = [
 
 export type Capabilities = { canUseRingover: boolean; canAddLead: boolean };
 
-export function profileCapabilities(profiles: string[], isAdmin = false): Capabilities {
+// `isPlanificateur` : la planificatrice a aussi accès au téléphone + SMS
+// Ringover (appeler l'intervenant / le client, envoyer un SMS) — décision
+// client 2026-08-05 — mais ne crée pas de leads (canAddLead reste faux).
+export function profileCapabilities(
+  profiles: string[],
+  isAdmin = false,
+  isPlanificateur = false,
+): Capabilities {
   if (isAdmin) return { canUseRingover: true, canAddLead: true };
   const granted = RINGOVER_PROFILES.some((p) => profiles.includes(p));
-  return { canUseRingover: granted, canAddLead: granted };
+  return { canUseRingover: granted || isPlanificateur, canAddLead: granted };
 }
 
 // Déduit le pays depuis l'indicatif téléphonique. Sert de dernier recours

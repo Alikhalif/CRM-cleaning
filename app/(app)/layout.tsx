@@ -19,11 +19,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ]);
 
   // Le webphone Ringover n'est monté que pour les profils qui téléphonent
-  // (mêmes capacités que le bouton « Appeler »). Exception : le profil « Divers »
-  // a aussi accès au bouton « SMS NRP » (envoi via webphone) → on le monte pour
-  // lui également (décision client 2026-08-02).
+  // (mêmes capacités que le bouton « Appeler »). Exceptions : le profil « Divers »
+  // a aussi accès au bouton « SMS NRP », et la planificatrice a accès à l'appel +
+  // SMS Ringover (décisions client 2026-08-02 / 2026-08-05).
   const isAdmin = (user?.roles ?? []).some((r) => r.slug === "admin");
-  const { canUseRingover } = profileCapabilities(user?.commercialProfiles ?? [], isAdmin);
+  const isPlanificateur = (user?.roles ?? []).some((r) => r.slug === "planification");
+  const { canUseRingover } = profileCapabilities(user?.commercialProfiles ?? [], isAdmin, isPlanificateur);
   const isDivers = (user?.commercialProfiles ?? []).includes("divers");
   const showWebphone = canUseRingover || isDivers;
 

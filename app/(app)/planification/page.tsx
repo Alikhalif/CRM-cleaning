@@ -1,8 +1,9 @@
 import Planification from "./Planification";
 import { getAllDossiers, getAllTechnicians } from "@/lib/planification-server";
-import { getIntervenantTemplates } from "@/lib/message-templates-server";
+import { getIntervenantTemplates, getActiveSmsTemplates } from "@/lib/message-templates-server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { getCurrentUserProfile } from "@/lib/users-server";
+import { profileCapabilities } from "@/lib/leads";
 
 export const metadata = { title: "Planification" };
 
@@ -11,15 +12,18 @@ export const metadata = { title: "Planification" };
 // gardent la vision globale. Le scoping se fait ici, en amont du client.
 
 export default async function PlanificationPage() {
-  const [rows, technicians, me, intervenantTemplates] = await Promise.all([
+  const [rows, technicians, me, intervenantTemplates, smsTemplates] = await Promise.all([
     getAllDossiers(),
     getAllTechnicians(),
     getCurrentUserProfile(),
     getIntervenantTemplates(),
+    getActiveSmsTemplates(),
   ]);
 
   const isAdmin = (me?.roles ?? []).some((r) => r.slug === "admin");
   const isPlanif = (me?.roles ?? []).some((r) => r.slug === "planification");
+  // La planificatrice a l'appel + SMS Ringover (décision client 2026-08-05).
+  const { canUseRingover } = profileCapabilities(me?.commercialProfiles ?? [], isAdmin, isPlanif);
 
   let myCountries: string[] = [];
   if (isPlanif && !isAdmin && me) {
@@ -35,5 +39,13 @@ export default async function PlanificationPage() {
       ? rows.filter((r) => r.lead.country && myCountries.includes(r.lead.country))
       : rows;
 
-  return <Planification initialRows={scoped} technicians={technicians} intervenantTemplates={intervenantTemplates} />;
+  return (
+    <Planification
+      initialRows={scoped}
+      technicians={technicians}
+      intervenantTemplates={intervenantTemplates}
+      smsTemplates={smsTemplates}
+      canUseRingover={canUseRingover}
+    />
+  );
 }

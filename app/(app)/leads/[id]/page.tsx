@@ -88,7 +88,8 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   // commercial « Divers » (profil nettoyage) n'a pas accès au click-to-call.
   const isAdmin = (me?.roles ?? []).some((r) => r.slug === "admin");
   const isPlanner = (me?.roles ?? []).some((r) => r.slug === "planification");
-  const { canUseRingover } = profileCapabilities(me?.commercialProfiles ?? [], isAdmin);
+  // La planificatrice a aussi l'appel + SMS Ringover (décision client 2026-08-05).
+  const { canUseRingover } = profileCapabilities(me?.commercialProfiles ?? [], isAdmin, isPlanner);
 
   const { lead, owner, documents, timeline } = detail;
   const statusLabel =
