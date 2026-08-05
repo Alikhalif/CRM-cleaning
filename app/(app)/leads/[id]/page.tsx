@@ -17,7 +17,8 @@ import {
 import { getAllCommerciaux, getLeadDetail, getLegalEntityPhone } from "@/lib/leads-server";
 import { getCurrentUserProfile } from "@/lib/users-server";
 import { getActiveSmsTemplates, getTemplatesForUser, getTemplateByName } from "@/lib/message-templates-server";
-import { getLeadMedia } from "@/lib/media-server";
+import { getLeadMedia, getLeadConsultations } from "@/lib/media-server";
+import { getAllTechnicians } from "@/lib/planification-server";
 import { leadTemplateVars, renderTemplate } from "@/lib/message-templates-shared";
 import MediaTab from "./MediaTab";
 import { isN8nSequenceEnabled } from "@/lib/app-settings";
@@ -75,7 +76,12 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
       getTemplateByName("SMS relance — NRP (non joignable)"),
       getTemplateByName("Mail relance 1 — non joignable"),
     ]);
-  const media = await getLeadMedia(id);
+  const [media, consultations, allTechnicians, consultTpl] = await Promise.all([
+    getLeadMedia(id),
+    getLeadConsultations(id),
+    getAllTechnicians(),
+    getTemplateByName("Intervenant — Envoi photos/vidéos pour chiffrage"),
+  ]);
   if (!detail) notFound();
 
   // Capacités dérivées du profil (décision « auto selon le profil ») : un
@@ -143,6 +149,20 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   const nrpSmsBody = nrpSmsTpl ? renderTemplate(nrpSmsTpl.body, templateVars) : "";
   const nrpEmailSubject = nrpEmailTpl ? renderTemplate(nrpEmailTpl.subject ?? "", templateVars) : "";
   const nrpEmailBody = nrpEmailTpl ? renderTemplate(nrpEmailTpl.body, templateVars) : "";
+
+  // ── Consultation intervenant (chiffrage) — RÉSERVÉE à la planificatrice ──
+  // Le template chiffrage est pré-rempli avec le brief technique, mais SANS
+  // l'adresse/email/téléphone (confidentiels en phase de consultation).
+  const canShare = isAdmin || isPlanner;
+  const consultVars = leadTemplateVars(lead, { societeName: lead.entityName ?? undefined });
+  consultVars["client.adresse"] = "";
+  consultVars["client.email"] = "";
+  consultVars["client.telephone"] = "";
+  const consultationSubject = consultTpl ? renderTemplate(consultTpl.subject ?? "Demande de chiffrage", consultVars) : "Demande de chiffrage";
+  const consultationBody = consultTpl ? renderTemplate(consultTpl.body, consultVars) : "";
+  const shareTechnicians = allTechnicians
+    .filter((t) => t.email)
+    .map((t) => ({ id: t.id, name: t.name, email: t.email as string }));
 
   return (
     <div className={styles.page}>
@@ -394,6 +414,12 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
           leadId={lead.id}
           media={media}
           canComment={isAdmin || isPlanner || lead.ownerId === me?.id}
+          canShare={canShare}
+          consultationSubject={consultationSubject}
+          consultationBody={consultationBody}
+          consultationTemplateName="Intervenant — Envoi photos/vidéos pour chiffrage"
+          technicians={shareTechnicians}
+          consultations={consultations}
         />
       )}
 

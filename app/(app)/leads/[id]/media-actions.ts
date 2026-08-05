@@ -95,62 +95,103 @@ export async function deleteLeadMedia(mediaId: string): Promise<Result> {
   return { ok: true };
 }
 
-// Partage des médias du dossier à un intervenant (sous-traitant) : envoie un
-// email avec des LIENS signés (valables 7 jours) vers chaque photo/vidéo — pas
-// de pièces jointes lourdes. Sender = planning dédié. Client 2026-08-03.
-export async function shareLeadMediaWithIntervenant(
+const escHtml = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// Consultation intervenant (demande de chiffrage) — RÉSERVÉE à la planificatrice
+// (gérée par la RLS de intervenant_consultations + l'UI). Le corps (template
+// chiffrage, déjà pré-rempli côté client, SANS adresse) est envoyé avec les
+// liens signés (7 j) des médias en pièces liées, puis la consultation est
+// tracée dans l'historique. Client 2026-08-05.
+export async function sendConsultation(
   leadId: string,
-  recipient: string,
-  message: string,
+  input: { recipient: string; subject: string; message: string; intervenantId?: string; templateName?: string },
 ): Promise<Result> {
-  const to = recipient.trim();
+  const to = input.recipient.trim();
+  const subject = input.subject.trim() || "Demande de chiffrage";
+  const message = input.message.trim();
   if (!to) return { ok: false, error: "Email de l'intervenant requis." };
+  if (!message) return { ok: false, error: "Message requis." };
 
   const supabase = await supabaseServer();
-  // Lu avec la session → la RLS garantit l'accès au dossier.
-  const { data: rows, error } = await supabase
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { data: rows } = await supabase
     .from("lead_media")
-    .select("id, storage_path, file_name, kind")
+    .select("storage_path, file_name, kind")
     .eq("lead_id", leadId)
     .is("deleted_at", null)
     .order("created_at", { ascending: true })
-    .returns<{ id: string; storage_path: string; file_name: string; kind: string }[]>();
-  if (error) return { ok: false, error: error.message };
-  if (!rows || rows.length === 0) return { ok: false, error: "Aucun média à partager." };
+    .returns<{ storage_path: string; file_name: string; kind: string }[]>();
+  const media = rows ?? [];
 
-  // Liens signés longue durée (7 jours) via le service role (bucket privé).
-  const admin = await supabaseServiceRole();
-  const { data: signed } = await admin.storage
-    .from(MEDIA_BUCKET)
-    .createSignedUrls(rows.map((r) => r.storage_path), 7 * 24 * 3600);
-  const urlByPath = new Map<string, string>();
-  for (const s of signed ?? []) if (s.signedUrl && s.path) urlByPath.set(s.path, s.signedUrl);
+  // Liens signés 7 jours (bucket privé) via le service role.
+  let itemsHtml = "";
+  if (media.length > 0) {
+    const admin = await supabaseServiceRole();
+    const { data: signed } = await admin.storage
+      .from(MEDIA_BUCKET)
+      .createSignedUrls(media.map((r) => r.storage_path), 7 * 24 * 3600);
+    const urlByPath = new Map<string, string>();
+    for (const s of signed ?? []) if (s.signedUrl && s.path) urlByPath.set(s.path, s.signedUrl);
+    itemsHtml = media
+      .map((r) => {
+        const url = urlByPath.get(r.storage_path);
+        return url ? `<li>${r.kind === "video" ? "Vidéo" : "Photo"} — <a href="${url}">${escHtml(r.file_name)}</a></li>` : "";
+      })
+      .filter(Boolean)
+      .join("");
+  }
 
-  const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const items = rows
-    .map((r) => {
-      const url = urlByPath.get(r.storage_path);
-      const tag = r.kind === "video" ? "Vidéo" : "Photo";
-      return url ? `<li>${tag} — <a href="${url}">${esc(r.file_name)}</a></li>` : "";
-    })
-    .filter(Boolean)
-    .join("");
-  const intro = message.trim() ? `${esc(message.trim()).replace(/\n/g, "<br>")}<br><br>` : "";
   const html =
-    `${intro}Bonjour,<br><br>Veuillez trouver ci-dessous les photos et vidéos du chantier ` +
-    `(liens valables 7 jours) :<br><ul>${items}</ul><br>` +
-    `Bien professionnellement,<br>La planificatrice<br>Optimivv`;
+    escHtml(message).replace(/\n/g, "<br>") +
+    (itemsHtml ? `<br><br>Photos &amp; vidéos (liens valables 7 jours) :<br><ul>${itemsHtml}</ul>` : "");
 
   const res = await sendBrevoEmail({
     to,
-    subject: "Photos & vidéos du chantier",
+    subject,
     htmlContent: html,
     senderEmail: PLANIF_SENDER.email,
     senderName: PLANIF_SENDER.name,
   });
   if (!res.ok) return { ok: false, error: `Envoi email : ${res.error}` };
 
-  await auditLog({ action: "lead.media.share", entityType: "lead", entityId: leadId, after: { recipient: to, count: rows.length } });
+  // Trace dans l'historique (RLS : planif/admin uniquement).
+  await supabase.from("intervenant_consultations").insert({
+    lead_id: leadId,
+    intervenant_email: to,
+    intervenant_id: input.intervenantId ?? null,
+    template_name: input.templateName ?? null,
+    media_count: media.length,
+    sent_by: user?.id ?? null,
+  } as never);
+
+  revalidatePath(`/leads/${leadId}`);
+  await auditLog({ action: "lead.consultation.sent", entityType: "lead", entityId: leadId, after: { recipient: to, mediaCount: media.length } });
+  return { ok: true };
+}
+
+// Enregistre la réponse d'un intervenant à une consultation (montant, dispos,
+// statut) — planificatrice/admin (RLS).
+export async function updateConsultationResponse(
+  id: string,
+  input: { status: string; montantPropose?: number | null; disponibilites?: string; notes?: string },
+): Promise<Result> {
+  const supabase = await supabaseServer();
+  const { data: row } = await supabase
+    .from("intervenant_consultations")
+    .select("lead_id")
+    .eq("id", id)
+    .maybeSingle<{ lead_id: string }>();
+
+  const upd: Record<string, unknown> = { status: input.status };
+  if (input.status !== "envoyee") upd.responded_at = new Date().toISOString();
+  if (input.montantPropose !== undefined) upd.montant_propose = input.montantPropose;
+  if (input.disponibilites !== undefined) upd.disponibilites = input.disponibilites.trim() || null;
+  if (input.notes !== undefined) upd.notes = input.notes.trim() || null;
+
+  const { error } = await supabase.from("intervenant_consultations").update(upd as never).eq("id", id);
+  if (error) return { ok: false, error: `Échec : ${error.message}` };
+  if (row) revalidatePath(`/leads/${row.lead_id}`);
   return { ok: true };
 }
 

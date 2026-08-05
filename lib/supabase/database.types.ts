@@ -681,6 +681,54 @@ export type Database = {
           },
         ]
       }
+      intervenant_consultations: {
+        Row: {
+          disponibilites: string | null
+          id: string
+          intervenant_email: string
+          intervenant_id: string | null
+          lead_id: string
+          media_count: number
+          montant_propose: number | null
+          notes: string | null
+          responded_at: string | null
+          sent_at: string
+          sent_by: string | null
+          status: string
+          template_name: string | null
+        }
+        Insert: {
+          disponibilites?: string | null
+          id?: string
+          intervenant_email: string
+          intervenant_id?: string | null
+          lead_id: string
+          media_count?: number
+          montant_propose?: number | null
+          notes?: string | null
+          responded_at?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          status?: string
+          template_name?: string | null
+        }
+        Update: {
+          disponibilites?: string | null
+          id?: string
+          intervenant_email?: string
+          intervenant_id?: string | null
+          lead_id?: string
+          media_count?: number
+          montant_propose?: number | null
+          notes?: string | null
+          responded_at?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          status?: string
+          template_name?: string | null
+        }
+        Relationships: []
+      }
       lead_media: {
         Row: {
           comment: string | null

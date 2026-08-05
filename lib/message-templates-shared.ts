@@ -1,7 +1,7 @@
 // Pure helpers for communication templates (email + SMS) — no I/O, safe to
 // import from client components (the SMS compose modal, the settings editor).
 
-import { SECTOR_LABEL, type Lead } from "./leads";
+import { SECTOR_LABEL, DELAI_SOUHAITE_LABEL, type Lead } from "./leads";
 import {
   labelOf,
   ACCES,
@@ -264,6 +264,7 @@ export const TEMPLATE_VARIABLES: { key: string; label: string }[] = [
   { key: "lead.acces", label: "Accès" },
   { key: "lead.encombrement", label: "Niveau d'encombrement" },
   { key: "lead.contexte", label: "Contexte de l'intervention" },
+  { key: "lead.delai", label: "Délai / date souhaitée" },
   { key: "devis.numero", label: "N° de devis" },
   { key: "facture.numero", label: "N° de facture" },
   { key: "intervention.date", label: "Date d'intervention" },
@@ -350,6 +351,7 @@ export function leadTemplateVars(
     "lead.acces": lblOrEmpty(ACCES, details.acces),
     "lead.encombrement": lblOrEmpty(ENCOMBREMENT, details.encombrement),
     "lead.contexte": lead.contexteIntervention ?? "",
+    "lead.delai": lead.delaiSouhaite ? DELAI_SOUHAITE_LABEL[lead.delaiSouhaite] : "",
     "devis.numero": opts?.devisNum ?? "",
     "facture.numero": opts?.factureNum ?? "",
     "intervention.date": opts?.interventionDate ?? "",

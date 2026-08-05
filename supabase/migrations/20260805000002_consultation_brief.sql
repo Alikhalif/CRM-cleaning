@@ -1,0 +1,6 @@
+-- Enrichir le template « Consultation / Demande de chiffrage » avec un brief
+-- technique pré-rempli (type, surface/volume, accès, description, date) — SANS
+-- l'adresse (confidentielle en phase de consultation). Client 2026-08-05.
+update message_templates set body =
+  E'Bonjour,\n\nDans le cadre d''une future intervention, nous vous remercions de bien vouloir consulter les photos et/ou vidéos jointes afin d''établir votre proposition de sous-traitance.\n\nInformations techniques :\n- Type de prestation : {lead.secteur}\n- Surface : {lead.surface}\n- Volume : {lead.volume}\n- Conditions d''accès : {lead.acces}\n- Description de la demande : {lead.contexte}\n- Date souhaitée : {lead.delai}\n\n(L''adresse exacte du chantier vous sera communiquée après attribution de la mission.)\n\nMerci de nous communiquer :\n- Votre tarif pour la réalisation de cette prestation ;\n- Vos disponibilités ;\n- Les moyens humains prévus (nombre d''intervenants) ;\n- Le matériel spécifique éventuellement nécessaire ;\n- Toute observation ou réserve que vous jugeriez utile.\n\nÀ réception de votre retour, nous étudierons votre proposition et reviendrons vers vous dans les meilleurs délais.\n\nBien professionnellement,\nLa planificatrice\nOptimivv Nettoyage'
+where name = 'Intervenant — Envoi photos/vidéos pour chiffrage';

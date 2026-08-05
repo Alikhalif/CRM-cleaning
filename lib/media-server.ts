@@ -39,6 +39,47 @@ type Row = {
   uploader: { first_name: string | null; last_name: string | null } | null;
 };
 
+export type Consultation = {
+  id: string;
+  intervenantEmail: string;
+  intervenantId: string | null;
+  status: "envoyee" | "repondue" | "retenue" | "refusee";
+  mediaCount: number;
+  montantPropose: number | null;
+  disponibilites: string | null;
+  notes: string | null;
+  sentAt: string;
+  respondedAt: string | null;
+};
+
+// Historique des consultations intervenants d'un dossier. RLS : ne renvoie
+// des lignes qu'aux admin / planificatrice (les commerciaux voient []).
+export async function getLeadConsultations(leadId: string): Promise<Consultation[]> {
+  const supabase = await supabaseServer();
+  const { data } = await supabase
+    .from("intervenant_consultations")
+    .select("id, intervenant_email, intervenant_id, status, media_count, montant_propose, disponibilites, notes, sent_at, responded_at")
+    .eq("lead_id", leadId)
+    .order("sent_at", { ascending: false })
+    .returns<{
+      id: string; intervenant_email: string; intervenant_id: string | null; status: string;
+      media_count: number; montant_propose: number | null; disponibilites: string | null;
+      notes: string | null; sent_at: string; responded_at: string | null;
+    }[]>();
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    intervenantEmail: r.intervenant_email,
+    intervenantId: r.intervenant_id,
+    status: r.status as Consultation["status"],
+    mediaCount: r.media_count,
+    montantPropose: r.montant_propose,
+    disponibilites: r.disponibilites,
+    notes: r.notes,
+    sentAt: r.sent_at,
+    respondedAt: r.responded_at,
+  }));
+}
+
 export async function getLeadMedia(leadId: string): Promise<LeadMedia[]> {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
