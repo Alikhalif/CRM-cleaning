@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
 import { sendBrevoEmail, PLANIF_SENDER } from "@/lib/brevo";
+import { getLeadMedia, type LeadMedia } from "@/lib/media-server";
 import type { Database } from "@/lib/supabase/database.types";
 
 // Dossier mutations exposed to the Planification page. Each one is a small
@@ -17,6 +18,20 @@ type DocumentInsert = Database["public"]["Tables"]["documents"]["Insert"];
 type DocumentLineInsert = Database["public"]["Tables"]["document_lines"]["Insert"];
 
 export type Result = { ok: true } | { ok: false; error: string };
+
+// Charge à la demande les photos/vidéos d'un dossier pour la visionneuse de la
+// planification (URLs signées 60 min). La RLS de lead_media n'autorise que le
+// propriétaire / la planificatrice / l'admin.
+export async function loadDossierMedia(
+  leadId: string,
+): Promise<{ ok: true; media: LeadMedia[] } | { ok: false; error: string }> {
+  try {
+    const media = await getLeadMedia(leadId);
+    return { ok: true, media };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Chargement impossible." };
+  }
+}
 
 export type PlanifyInput = {
   plannedAt: string; // ISO datetime (UTC) — combined from the modal's date + time

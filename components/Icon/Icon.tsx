@@ -28,6 +28,7 @@ export type IconName =
   | "edit"
   | "plus"
   | "document"
+  | "image"
   | "trending-up"
   | "trending-down";
 
@@ -113,6 +114,13 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <circle cx="12" cy="5"  r="1" />
       <circle cx="12" cy="12" r="1" />
       <circle cx="12" cy="19" r="1" />
+    </>
+  ),
+  image: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <path d="m21 15-5-5L5 21" />
     </>
   ),
   zap: <path d="M13 2 4 14h7l-1 8 9-12h-7z" />,

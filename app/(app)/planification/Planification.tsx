@@ -39,6 +39,7 @@ import ConfirmInterventionModal from "./ConfirmInterventionModal";
 import EditDossierModal from "./EditDossierModal";
 import PlanifyDossierModal from "./PlanifyDossierModal";
 import SendIntervenantModal from "./SendIntervenantModal";
+import MediaViewerModal from "./MediaViewerModal";
 import type { MessageTemplate } from "@/lib/message-templates-server";
 import styles from "./Planification.module.scss";
 
@@ -91,6 +92,7 @@ export default function Planification({ initialRows, technicians, intervenantTem
   const [editTarget, setEditTarget] = useState<DossierWithContext | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<DossierWithContext | null>(null);
   const [intervenantTarget, setIntervenantTarget] = useState<DossierWithContext | null>(null);
+  const [mediaTarget, setMediaTarget] = useState<DossierWithContext | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
@@ -594,6 +596,7 @@ export default function Planification({ initialRows, technicians, intervenantTem
                 onEdit={() => setEditTarget(r)}
                 onConfirmEmail={() => setConfirmTarget(r)}
                 onSendIntervenant={() => setIntervenantTarget(r)}
+                onViewMedia={() => setMediaTarget(r)}
                 onStartRealisation={() => onStartRealisation(r)}
                 onFinalize={() => onFinalize(r)}
                 onGenerateFinale={() => onGenerateFinale(r)}
@@ -641,6 +644,13 @@ export default function Planification({ initialRows, technicians, intervenantTem
           onClose={() => setIntervenantTarget(null)}
         />
       )}
+      {mediaTarget && (
+        <MediaViewerModal
+          leadId={mediaTarget.lead.id}
+          clientName={mediaTarget.lead.client}
+          onClose={() => setMediaTarget(null)}
+        />
+      )}
     </div>
   );
 }
@@ -675,6 +685,7 @@ function Row({
   onEdit,
   onConfirmEmail,
   onSendIntervenant,
+  onViewMedia,
   onStartRealisation,
   onFinalize,
   onGenerateFinale,
@@ -687,6 +698,7 @@ function Row({
   onEdit: () => void;
   onConfirmEmail: () => void;
   onSendIntervenant: () => void;
+  onViewMedia: () => void;
   onStartRealisation: () => void;
   onFinalize: () => void;
   onGenerateFinale: () => void;
@@ -859,6 +871,15 @@ function Row({
             <Icon name="document" size={14} /> Générer facture
           </button>
         )}
+        <button
+          type="button"
+          className={styles.kebab}
+          onClick={onViewMedia}
+          title="Photos & vidéos du dossier"
+          aria-label={`Photos et vidéos de ${lead.client}`}
+        >
+          <Icon name="image" size={16} />
+        </button>
         <div className={styles.actionsAnchor}>
           <button
             ref={kebabRef}
