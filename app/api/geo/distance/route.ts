@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { supabaseServer } from "@/lib/supabase/server";
 
 // Distance routière entre deux adresses, sans clé API : géocodage Nominatim
 // (OpenStreetMap) puis itinéraire OSRM public. Best-effort — si un service est
@@ -18,6 +19,11 @@ async function geocode(q: string): Promise<{ lat: number; lon: number } | null> 
 }
 
 export async function GET(req: Request) {
+  // Réservé aux utilisateurs authentifiés (évite un proxy de géocodage ouvert).
+  const supabase = await supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
+
   const { searchParams } = new URL(req.url);
   const from = (searchParams.get("from") ?? "").trim();
   const to = (searchParams.get("to") ?? "").trim();

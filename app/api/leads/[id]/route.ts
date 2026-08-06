@@ -40,7 +40,11 @@ function normaliseStatus(raw: string | undefined | null): LeadStatus | null {
 function bearerOk(req: NextRequest): boolean {
   const expected = process.env.N8N_TO_CRM_BEARER;
   if (!expected) {
-    // Dev shortcut — same posture as the leads inbound webhook.
+    // Fail-closed en production (mutation de statut via service-role). Dev only sinon.
+    if (process.env.NODE_ENV === "production") {
+      console.error("[leads PATCH] N8N_TO_CRM_BEARER manquant en production — requête refusée");
+      return false;
+    }
     console.warn("[leads PATCH] N8N_TO_CRM_BEARER unset — accepting all requests (dev only).");
     return true;
   }

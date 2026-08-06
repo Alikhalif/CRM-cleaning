@@ -27,7 +27,37 @@ export type LeadDetail = {
   owner: Commercial | undefined;
   documents: CrmDocument[];
   timeline: TimelineEvent[];
+  // Le lecteur détient-il la permission confidentielle immob_travaux (CDC §3.5) ?
+  canImmobTravaux: boolean;
 };
+
+// Le champ immob_travaux (annotation Immobilier/Travaux) est confidentiel : il
+// n'est visible que par un admin ou un utilisateur détenant la permission
+// granulaire `immob_travaux`. Résolu côté serveur via les RPC security-definer
+// (évaluées pour auth.uid()). NE JAMAIS se fier à un flag hardcodé côté page.
+export async function currentUserHasImmobTravaux(): Promise<boolean> {
+  const supabase = await supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  // Lecture via service-role, strictement scopée à l'id de l'utilisateur courant
+  // (pas d'IDOR) : la RLS de user_permissions ne garantit pas la self-lecture.
+  const admin = await supabaseServiceRole();
+  const [permRes, rolesRes] = await Promise.all([
+    admin
+      .from("user_permissions")
+      .select("permission_key")
+      .eq("user_id", user.id)
+      .eq("permission_key", "immob_travaux")
+      .maybeSingle(),
+    admin
+      .from("user_roles")
+      .select("roles(slug)")
+      .eq("user_id", user.id)
+      .returns<{ roles: { slug: string } | null }[]>(),
+  ]);
+  if (permRes.data) return true;
+  return (rolesRes.data ?? []).some((r) => r.roles?.slug === "admin");
+}
 
 // DB source slugs use snake_case (google_ads); UI uses kebab-case (google-ads).
 // The two diverged before the seed was finalised — bridge here until we
@@ -117,7 +147,7 @@ export type LeadRowJoined = {
   owner: OwnerRow | null;
 };
 
-export function mapLead(row: LeadRowJoined): Lead {
+export function mapLead(row: LeadRowJoined, canImmob = false): Lead {
   const { address, postalCode, city } = parseAddress(row.client_address);
   const displayName = row.is_company
     ? row.client_company ?? "—"
@@ -157,7 +187,8 @@ export function mapLead(row: LeadRowJoined): Lead {
     isNrp: row.is_nrp,
     nrpAt: row.nrp_at ?? undefined,
     lostReason: row.lost_reason ?? undefined,
-    immobTravauxAnnotation: row.immob_travaux_annotation ?? undefined,
+    // Confidentiel (CDC §3.5) : omis du payload si le lecteur n'a pas la permission.
+    immobTravauxAnnotation: canImmob ? (row.immob_travaux_annotation ?? undefined) : undefined,
     interventionDelay: (row.intervention_delay ?? undefined) as Lead["interventionDelay"],
     interventionDelayNotes: row.intervention_delay_notes ?? undefined,
     notes: row.notes ?? undefined,
@@ -243,7 +274,7 @@ export async function getAllLeads(): Promise<Lead[]> {
 
   if (error || !data) return [];
 
-  const leads = (data as unknown as LeadRowJoined[]).map(mapLead);
+  const leads = (data as unknown as LeadRowJoined[]).map((r) => mapLead(r));
 
   // Batch-fetch minimal docs per lead so the Kanban can bucket cards into
   // "Acompte encaissé" / "Encaissement final" without an N+1 round-trip.
@@ -324,7 +355,8 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
     .eq("lead_id", lead.id)
     .order("issued_at", { ascending: false });
 
-  const uiLead = mapLead(lead);
+  const canImmob = await currentUserHasImmobTravaux();
+  const uiLead = mapLead(lead, canImmob);
   const uiDocs = (docs ?? []).map((d) => mapDocument(d as DocumentRow));
   const owner = lead.owner ? mapOwner(lead.owner) : undefined;
 
@@ -336,7 +368,7 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
   const auditEvents = await fetchLeadAuditEvents(lead.id);
   const timeline = buildTimeline(uiLead, uiDocs, auditEvents);
 
-  return { lead: uiLead, owner, documents: uiDocs, timeline };
+  return { lead: uiLead, owner, documents: uiDocs, timeline, canImmobTravaux: canImmob };
 }
 
 // Contact phone of a legal entity — used to fill {societe.telephone} in the

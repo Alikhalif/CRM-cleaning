@@ -11,10 +11,22 @@ import { MEDIA_BUCKET } from "@/lib/media-server";
 export type Result = { ok: true } | { ok: false; error: string };
 
 const MAX_BYTES = 100 * 1024 * 1024; // 100 Mo / fichier
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Allowlist stricte des types acceptés. Exclut volontairement image/svg+xml
+// (et tout HTML) : un SVG servi inline via URL signée exécuterait du script
+// dans le navigateur du visionneur (stored XSS).
+const PHOTO_MIME = new Set([
+  "image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif",
+]);
+const VIDEO_MIME = new Set([
+  "video/mp4", "video/webm", "video/quicktime", "video/x-msvideo", "video/x-matroska",
+]);
 
 function kindOf(mime: string): "photo" | "video" | null {
-  if (mime.startsWith("image/")) return "photo";
-  if (mime.startsWith("video/")) return "video";
+  const m = (mime ?? "").toLowerCase();
+  if (PHOTO_MIME.has(m)) return "photo";
+  if (VIDEO_MIME.has(m)) return "video";
   return null;
 }
 
@@ -28,6 +40,7 @@ function extOf(name: string, mime: string): string {
 // bucket privé (service role), la ligne lead_media est insérée avec le client
 // de session (la RLS vérifie le droit : propriétaire / planificatrice / admin).
 export async function uploadLeadMedia(leadId: string, formData: FormData): Promise<Result> {
+  if (!UUID_RE.test(leadId)) return { ok: false, error: "Dossier invalide." };
   const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
   if (files.length === 0) return { ok: false, error: "Aucun fichier sélectionné." };
 
@@ -130,7 +143,7 @@ export async function sendConsultation(
     const admin = await supabaseServiceRole();
     const { data: signed } = await admin.storage
       .from(MEDIA_BUCKET)
-      .createSignedUrls(media.map((r) => r.storage_path), 7 * 24 * 3600);
+      .createSignedUrls(media.map((r) => r.storage_path), 3600); // 60 min (CDC §8)
     const urlByPath = new Map<string, string>();
     for (const s of signed ?? []) if (s.signedUrl && s.path) urlByPath.set(s.path, s.signedUrl);
     itemsHtml = media

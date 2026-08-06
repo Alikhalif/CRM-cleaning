@@ -11,7 +11,11 @@ export const runtime = "nodejs";
 
 function bearerOk(req: NextRequest): boolean {
   const expected = process.env.N8N_TO_CRM_BEARER;
-  if (!expected) return true;
+  if (!expected) {
+    // Fail-closed en production ; raccourci « accepter tout » réservé au dev.
+    if (process.env.NODE_ENV === "production") return false;
+    return true;
+  }
   const header = req.headers.get("authorization") ?? "";
   const token = header.replace(/^Bearer\s+/i, "").trim();
   if (!token) return false;

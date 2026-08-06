@@ -82,9 +82,18 @@ type BrevoInboundPayload = {
 
 export async function POST(request: Request) {
   const secret = process.env.BREVO_INBOUND_SECRET;
-  if (secret) {
+  if (!secret) {
+    // Fail-closed en production (ingestion via service-role). Dev only sinon.
+    if (process.env.NODE_ENV === "production") {
+      console.error("[brevo.inbound] BREVO_INBOUND_SECRET manquant en production — requête refusée");
+      return NextResponse.json({ error: "not_configured" }, { status: 401 });
+    }
+  } else {
     const got = request.headers.get("X-Brevo-Secret") ?? "";
-    if (got !== secret) {
+    // Comparaison en temps constant (évite le canal auxiliaire de timing).
+    const a = Buffer.from(got, "utf8");
+    const b = Buffer.from(secret, "utf8");
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
       return NextResponse.json({ error: "invalid_secret" }, { status: 401 });
     }
   }

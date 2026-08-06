@@ -31,10 +31,9 @@ import LeadActions from "./LeadActions";
 import PipelineProgress from "./PipelineProgress";
 import styles from "./LeadDetail.module.scss";
 
-// CDC §3.5 — visible only if the current user holds the immobTravaux
-// permission. Hardcoded true while the permission resolver lives outside
-// the session claims; flip to false to verify it disappears.
-const CURRENT_USER_HAS_IMMOB_TRAVAUX = true;
+// CDC §3.5 — l'annotation immobTravaux n'est visible que si l'utilisateur
+// détient la permission granulaire. Résolu côté serveur par getLeadDetail
+// (getLeadDetail().canImmobTravaux) — jamais un flag hardcodé.
 
 // Tabs the user can toggle via ?tab=… in the URL. Each one filters which
 // sections of the page are visible. Default = informations.
@@ -91,7 +90,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   // La planificatrice a aussi l'appel + SMS Ringover (décision client 2026-08-05).
   const { canUseRingover } = profileCapabilities(me?.commercialProfiles ?? [], isAdmin, isPlanner);
 
-  const { lead, owner, documents, timeline } = detail;
+  const { lead, owner, documents, timeline, canImmobTravaux } = detail;
   const statusLabel =
     PIPELINE_COLUMNS.find((c) => c.status === lead.status)?.label ?? lead.status;
 
@@ -400,7 +399,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
                 initialNotes={lead.interventionDelayNotes ?? ""}
               />
             )}
-            {CURRENT_USER_HAS_IMMOB_TRAVAUX && (
+            {canImmobTravaux && (
               <ImmobAnnotationCard
                 leadId={lead.id}
                 initialValue={lead.immobTravauxAnnotation ?? ""}

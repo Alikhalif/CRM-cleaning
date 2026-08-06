@@ -4,7 +4,10 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 // Next.js 16 renamed `middleware.ts` → `proxy.ts` and the function name
 // from `middleware` to `proxy`. The runtime is always nodejs.
 
-const PUBLIC_PATH = /^\/(login|signup|forgot-password|reset-password|auth\/callback|api\/|_next\/|favicon\.ico)/;
+// Chemins publics ancrés : les routes d'auth doivent matcher exactement ou avec
+// un sous-chemin (`/login`, `/login/…`) — mais PAS `/login-xxx`. `api/` et
+// `_next/` restent des préfixes ; `favicon.ico` est exact.
+const PUBLIC_PATH = /^\/(login|signup|forgot-password|reset-password|auth\/callback)(\/|$)|^\/(api|_next)\/|^\/favicon\.ico$/;
 
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request });

@@ -92,6 +92,11 @@ export async function initiateCall(input: InitiateCallInput): Promise<InitiateCa
 export function verifyWebhookSignature(rawBody: string, signature: string | null): boolean {
   const secret = process.env.RINGOVER_WEBHOOK_SECRET;
   if (!secret) {
+    // Fail-closed en production (écritures via service-role). Dev only sinon.
+    if (process.env.NODE_ENV === "production") {
+      console.error("[ringover] RINGOVER_WEBHOOK_SECRET manquant en production — requête refusée");
+      return false;
+    }
     console.warn("[ringover] no RINGOVER_WEBHOOK_SECRET set — accepting webhook without verification");
     return true;
   }

@@ -106,6 +106,12 @@ type LeadPayload = {
 function verifySignature(rawBody: string, signature: string | null): boolean {
   const secret = process.env.LEADS_INBOUND_SECRET;
   if (!secret) {
+    // Fail-closed en production : sans secret, on refuse (l'endpoint écrit via
+    // service-role, bypass RLS). Le raccourci « accepter tout » reste réservé au dev.
+    if (process.env.NODE_ENV === "production") {
+      console.error("[leads.inbound] LEADS_INBOUND_SECRET manquant en production — requête refusée");
+      return false;
+    }
     console.warn("[leads.inbound] no LEADS_INBOUND_SECRET set — accepting webhook without verification (dev mode)");
     return true;
   }

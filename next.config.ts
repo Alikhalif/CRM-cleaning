@@ -22,6 +22,25 @@ const nextConfig: NextConfig = {
       allowedOrigins: ["crmoptimum.com", "www.crmoptimum.com"],
     },
   },
+  // En-têtes de sécurité (CDC §Sécurité). CSP limitée à `frame-ancestors 'none'`
+  // (anti-clickjacking) pour ne pas casser le chargement des ressources ; une
+  // CSP de contenu complète (script-src/connect-src avec nonces) reste à ajouter
+  // après tests (webphone Ringover, Realtime Supabase, workers PDF).
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "geolocation=(), payment=(), usb=(), browsing-topics=()" },
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

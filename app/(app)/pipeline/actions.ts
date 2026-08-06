@@ -11,6 +11,7 @@ import { resolveOwner } from "@/lib/routing";
 import { sendBrevoEmail, sendBrevoSms } from "@/lib/brevo";
 import { buildPhotoRequestEmail, buildPhotoRequestSms } from "@/lib/templates";
 import { countryFromPhone } from "@/lib/leads";
+import { currentUserHasImmobTravaux } from "@/lib/leads-server";
 import type { Country, DiscoveryOutcome, LeadStatus, Sector, SubEnvoi, SubSignature } from "@/lib/leads";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -1053,11 +1054,14 @@ export async function logLeadSms(
 }
 
 // Inline editor for the confidential Immobilier/Travaux annotation.
-// Guarded server-side by the immobTravaux permission once that's wired.
+// Gardé côté serveur par la permission immob_travaux (CDC §3.5).
 export async function updateImmobTravauxAnnotation(
   id: string,
   annotation: string,
 ): Promise<Result> {
+  if (!(await currentUserHasImmobTravaux())) {
+    return { ok: false, error: "Accès refusé : permission immob_travaux requise." };
+  }
   const supabase = await supabaseServer();
   const updates: LeadUpdate = {
     immob_travaux_annotation: annotation.trim() || null,

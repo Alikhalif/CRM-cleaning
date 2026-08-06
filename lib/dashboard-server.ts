@@ -7,6 +7,7 @@ import {
   type RawLead,
 } from "./dashboard";
 import type { Sector } from "./leads";
+import { currentUserHasImmobTravaux } from "./leads-server";
 
 // Fetches raw leads + documents from Supabase and buckets them into the
 // DailyMetric[] shape the Dashboard's existing aggregators consume.
@@ -121,6 +122,9 @@ type AnnotRow = {
 };
 
 export async function getImmobAnnotations(): Promise<ImmobAnnotation[]> {
+  // Confidentiel (CDC §3.5) : ne rien renvoyer sans la permission immob_travaux
+  // (ni admin). Sinon un planificateur récupérait jusqu'à 50 annotations.
+  if (!(await currentUserHasImmobTravaux())) return [];
   const supabase = await supabaseServer();
   const { data } = await supabase
     .from("leads")
