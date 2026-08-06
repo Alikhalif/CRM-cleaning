@@ -28,7 +28,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
       </head>
-      <body>{children}</body>
+      {/* suppressHydrationWarning : certaines extensions navigateur (Bitdefender
+          « bis_skin_checked », Grammarly…) injectent des attributs sur <body>
+          avant l'hydratation. On ignore ce delta au niveau body uniquement ;
+          les enfants gardent la vérification d'hydratation normale. */}
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }
