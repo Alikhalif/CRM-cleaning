@@ -19,6 +19,8 @@ type Props = {
   commerciaux: Commercial[];
   defaultOwnerId: string; // current user id — pre-selected
   onClose: () => void;
+  // Secteurs que le créateur a le droit de choisir (restriction par activité).
+  visibleSectors: Sector[];
 };
 
 // DB-slugs for the source dropdown — must match lead_sources.slug values
@@ -31,9 +33,7 @@ const SOURCES: { slug: NewLeadInput["sourceSlug"]; label: string }[] = [
   { slug: "recommandation", label: "Recommandation" },
 ];
 
-const SECTORS: Sector[] = ["urgence", "nettoyage", "nettoyage_difficile", "enr", "renovation", "debarras", "demenagement", "diogene"];
-
-export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose }: Props) {
+export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose, visibleSectors }: Props) {
   const router = useRouter();
 
   const [isCompany, setIsCompany] = useState(false);
@@ -45,7 +45,7 @@ export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose }: P
   const [addressLine, setAddressLine] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [city, setCity] = useState("");
-  const [activitySlug, setActivitySlug] = useState<Sector>("nettoyage");
+  const [activitySlug, setActivitySlug] = useState<Sector>(visibleSectors[0] ?? "nettoyage");
   const [country, setCountry] = useState<Country | "">("");
   const [sourceSlug, setSourceSlug] = useState<NewLeadInput["sourceSlug"]>("telephone");
   const [ownerId, setOwnerId] = useState<string>(defaultOwnerId || commerciaux[0]?.id || "");
@@ -272,7 +272,7 @@ export default function NewLeadModal({ commerciaux, defaultOwnerId, onClose }: P
                 required
                 className={styles.input}
               >
-                {SECTORS.map((s) => (
+                {visibleSectors.map((s) => (
                   <option key={s} value={s}>{SECTOR_LABEL[s]}</option>
                 ))}
               </select>

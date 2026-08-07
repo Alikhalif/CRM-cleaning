@@ -47,6 +47,8 @@ type Props = {
   firstName: string;
   currentUserId: string;
   isAdmin: boolean;
+  // Secteurs visibles par l'utilisateur (restriction commerciale par activité).
+  visibleSectors: Sector[];
 };
 
 export default function Dashboard({
@@ -56,6 +58,7 @@ export default function Dashboard({
   firstName,
   currentUserId,
   isAdmin,
+  visibleSectors,
 }: Props) {
   // Période + activité viennent de l'URL (source unique, partagée avec le
   // filtre global de la Topbar). Le canal reste local (pas dans la Topbar).
@@ -149,11 +152,12 @@ export default function Dashboard({
           commerciaux={commerciaux}
           defaultOwnerId={currentUserId}
           onClose={() => setNewLeadOpen(false)}
+          visibleSectors={visibleSectors}
         />
       )}
 
       {/* ── Filter bar ───────────────────────────────────────────── */}
-      <FilterBar filter={filter} setFilter={setFilter} />
+      <FilterBar filter={filter} setFilter={setFilter} visibleSectors={visibleSectors} />
 
       {/* ── Section 1 · Acquisition de leads ─────────────────────── */}
       <Section
@@ -371,10 +375,15 @@ function Section({
 function FilterBar({
   filter,
   setFilter,
+  visibleSectors,
 }: {
   filter: DashboardFilter;
   setFilter: (f: DashboardFilter) => void;
+  visibleSectors: Sector[];
 }) {
+  // Commercial restreint à son/ses activité(s) → on masque le sélecteur
+  // ACTIVITÉS (il n'a pas à choisir un autre secteur que le sien).
+  const restricted = visibleSectors.length < SECTORS.length;
   return (
     <div className={styles.filterBar} role="toolbar" aria-label="Filtres dashboard">
       <fieldset className={styles.filterGroup}>
@@ -394,21 +403,23 @@ function FilterBar({
         </div>
       </fieldset>
 
-      <fieldset className={styles.filterGroup}>
-        <legend className={styles.filterLabel}>ACTIVITÉS</legend>
-        <select
-          className={styles.filterSelect}
-          value={filter.sector}
-          onChange={(e) =>
-            setFilter({ ...filter, sector: (e.target.value as Sector | "all") })
-          }
-        >
-          <option value="all">Toutes les activités</option>
-          {SECTORS.map((s) => (
-            <option key={s} value={s}>{SECTOR_LABEL[s]}</option>
-          ))}
-        </select>
-      </fieldset>
+      {!restricted && (
+        <fieldset className={styles.filterGroup}>
+          <legend className={styles.filterLabel}>ACTIVITÉS</legend>
+          <select
+            className={styles.filterSelect}
+            value={filter.sector}
+            onChange={(e) =>
+              setFilter({ ...filter, sector: (e.target.value as Sector | "all") })
+            }
+          >
+            <option value="all">Toutes les activités</option>
+            {visibleSectors.map((s) => (
+              <option key={s} value={s}>{SECTOR_LABEL[s]}</option>
+            ))}
+          </select>
+        </fieldset>
+      )}
 
       <fieldset className={styles.filterGroup}>
         <legend className={styles.filterLabel}>CANAL D&apos;ENVOI</legend>

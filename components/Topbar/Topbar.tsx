@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import Icon from "../Icon/Icon";
 import { OPEN_PALETTE_EVENT } from "../CommandPalette/CommandPalette";
 import { useClientValue } from "@/lib/client-store";
-import { profileCapabilities, SECTOR_LABEL, type Sector } from "@/lib/leads";
+import { profileCapabilities, SECTOR_LABEL, SECTORS, visibleSectorsForUser, type Sector } from "@/lib/leads";
 import { DASHBOARD_PERIODS, parsePeriod } from "@/lib/dashboard";
 import { toggleWebphone } from "@/lib/ringover-webphone";
 import { logout } from "@/app/(auth)/actions";
@@ -32,7 +32,6 @@ export default function Topbar({ user, unreadCount }: Props) {
   const period = parsePeriod(searchParams.get("period"));
   const sectorRaw = searchParams.get("sector") ?? "all";
   const sector = sectorRaw === "all" || sectorRaw in SECTOR_LABEL ? sectorRaw : "all";
-  const sectorList = Object.keys(SECTOR_LABEL) as Sector[];
   const setParam = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set(key, value);
@@ -78,6 +77,9 @@ export default function Topbar({ user, unreadCount }: Props) {
   // Le bouton webphone apparaît pour les profils qui téléphonent + la planificatrice.
   const isAdmin = (user?.roles ?? []).some((r) => r.slug === "admin");
   const isPlanificateur = (user?.roles ?? []).some((r) => r.slug === "planification");
+  // Restriction commerciale par activité : secteurs que le user a le droit de voir.
+  const visibleSectors = visibleSectorsForUser({ isAdmin, isPlanner: isPlanificateur, activities: user?.activities ?? [] });
+  const activityRestricted = visibleSectors.length < SECTORS.length;
   const { canUseRingover } = profileCapabilities(user?.commercialProfiles ?? [], isAdmin, isPlanificateur);
 
   return (
@@ -113,24 +115,26 @@ export default function Topbar({ user, unreadCount }: Props) {
             ))}
           </select>
         </label>
-        <label className={styles.filterChip} title="Activité analysée (Dashboard)">
-          <span className={styles.filterLabel}>Activité</span>
-          <span className={styles.filterValue}>
-            {sector === "all" ? "Toutes" : SECTOR_LABEL[sector as Sector]}
-          </span>
-          <Icon name="chevron-down" size={14} />
-          <select
-            className={styles.filterSelectOverlay}
-            value={sector}
-            onChange={(e) => setParam("sector", e.target.value)}
-            aria-label="Filtre global — activité"
-          >
-            <option value="all">Toutes</option>
-            {sectorList.map((s) => (
-              <option key={s} value={s}>{SECTOR_LABEL[s]}</option>
-            ))}
-          </select>
-        </label>
+        {!activityRestricted && (
+          <label className={styles.filterChip} title="Activité analysée (Dashboard)">
+            <span className={styles.filterLabel}>Activité</span>
+            <span className={styles.filterValue}>
+              {sector === "all" ? "Toutes" : SECTOR_LABEL[sector as Sector]}
+            </span>
+            <Icon name="chevron-down" size={14} />
+            <select
+              className={styles.filterSelectOverlay}
+              value={sector}
+              onChange={(e) => setParam("sector", e.target.value)}
+              aria-label="Filtre global — activité"
+            >
+              <option value="all">Toutes</option>
+              {visibleSectors.map((s) => (
+                <option key={s} value={s}>{SECTOR_LABEL[s]}</option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
       <div className={styles.right}>

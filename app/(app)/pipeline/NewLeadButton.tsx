@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Icon from "@/components/Icon/Icon";
-import type { Commercial } from "@/lib/leads";
+import type { Commercial, Sector } from "@/lib/leads";
 import NewLeadModal from "./NewLeadModal";
 import styles from "./Pipeline.module.scss";
 
@@ -13,9 +13,10 @@ import styles from "./Pipeline.module.scss";
 type Props = {
   commerciaux: Commercial[];
   currentUserId: string;
+  visibleSectors: Sector[];
 };
 
-export default function NewLeadButton({ commerciaux, currentUserId }: Props) {
+export default function NewLeadButton({ commerciaux, currentUserId, visibleSectors }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -32,6 +33,7 @@ export default function NewLeadButton({ commerciaux, currentUserId }: Props) {
           commerciaux={commerciaux}
           defaultOwnerId={currentUserId}
           onClose={() => setOpen(false)}
+          visibleSectors={visibleSectors}
         />
       )}
     </>

@@ -35,7 +35,7 @@ export default async function PipelinePage() {
           </p>
         </div>
         {canAddLead && (
-          <NewLeadButton commerciaux={commerciaux} currentUserId={user?.id ?? ""} />
+          <NewLeadButton commerciaux={commerciaux} currentUserId={user?.id ?? ""} visibleSectors={visibleSectors} />
         )}
       </header>
       <PipelineBoard initialLeads={leads} commerciaux={commerciaux} n8nEnabled={n8nEnabled} visibleSectors={visibleSectors} />
