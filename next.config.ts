@@ -20,6 +20,10 @@ const nextConfig: NextConfig = {
     // navigation post-login (« This page couldn't load »).
     serverActions: {
       allowedOrigins: ["crmoptimum.com", "www.crmoptimum.com"],
+      // Upload photos/vidéos (uploadLeadMedia) : le défaut Next est 1 Mo, or on
+      // accepte jusqu'à 100 Mo/fichier. On aligne (+ marge multipart) pour qu'un
+      // fichier au plafond passe. Uploader les grosses vidéos une par une.
+      bodySizeLimit: "110mb",
     },
   },
   // En-têtes de sécurité (CDC §Sécurité). CSP limitée à `frame-ancestors 'none'`
