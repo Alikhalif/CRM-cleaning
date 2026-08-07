@@ -9,13 +9,14 @@ import {
   COUNTRIES,
   COUNTRY_LABEL,
 } from "@/lib/leads";
-import type { AdminUserRow, RoleOption } from "@/lib/users-server";
+import type { AdminUserRow, RoleOption, ActivityOption } from "@/lib/users-server";
 import {
   assignRole,
   createUserWithPassword,
   inviteUser,
   removeRole,
   setRingoverAgentId,
+  setUserActivities,
   setUserCountries,
   setUserEntity,
   setUserFlag,
@@ -24,9 +25,9 @@ import {
 } from "./actions";
 
 type EntityOption = { id: string; name: string };
-type Props = { users: AdminUserRow[]; roles: RoleOption[]; entities: EntityOption[] };
+type Props = { users: AdminUserRow[]; roles: RoleOption[]; entities: EntityOption[]; activities: ActivityOption[] };
 
-export default function UsersList({ users, roles, entities }: Props) {
+export default function UsersList({ users, roles, entities, activities }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -200,6 +201,7 @@ export default function UsersList({ users, roles, entities }: Props) {
               <th style={th}>Premium</th>
               <th style={th}>Extrême</th>
               <th style={th}>Profils commerciaux</th>
+              <th style={th}>Activités (secteurs visibles)</th>
               <th style={th}>Pays</th>
               <th style={th}>Société</th>
               <th style={th}>N° Ringover</th>
@@ -295,6 +297,38 @@ export default function UsersList({ users, roles, entities }: Props) {
                   </div>
                 </td>
                 <td style={td}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", maxWidth: 300 }}>
+                    {activities.map((a) => {
+                      const active = u.activityIds.includes(a.id);
+                      const key = `act-${u.id}-${a.id}`;
+                      const next = active
+                        ? u.activityIds.filter((x) => x !== a.id)
+                        : [...u.activityIds, a.id];
+                      return (
+                        <button
+                          key={a.id}
+                          type="button"
+                          disabled={busy !== null}
+                          onClick={() => run(key, () => setUserActivities(u.id, next))}
+                          title={`${active ? "Retirer" : "Ajouter"} l'activité ${a.label}`}
+                          style={{
+                            padding: "3px 8px",
+                            borderRadius: "999px",
+                            fontSize: "0.75rem",
+                            cursor: busy !== null ? "default" : "pointer",
+                            border: active ? "1px solid var(--color-brand-500)" : "1px solid var(--border-strong)",
+                            background: active ? "var(--color-brand-500)" : "transparent",
+                            color: active ? "#fff" : "var(--text-muted)",
+                          }}
+                        >
+                          {busy === key ? "…" : a.label}
+                        </button>
+                      );
+                    })}
+                    {activities.length === 0 && <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>—</span>}
+                  </div>
+                </td>
+                <td style={td}>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     {COUNTRIES.map((c) => {
                       const active = u.countries.includes(c);
@@ -376,7 +410,7 @@ export default function UsersList({ users, roles, entities }: Props) {
             ))}
             {users.length === 0 && (
               <tr>
-                <td colSpan={8} style={{ ...td, color: "var(--text-muted)" }}>
+                <td colSpan={9} style={{ ...td, color: "var(--text-muted)" }}>
                   Aucun utilisateur.
                 </td>
               </tr>

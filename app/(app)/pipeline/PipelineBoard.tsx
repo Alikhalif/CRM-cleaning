@@ -18,6 +18,7 @@ import {
   type Lead,
   type LeadStatus,
   type PipelineColumnKey,
+  type Sector,
   type SubEnvoi,
   type SubSignature,
 } from "@/lib/leads";
@@ -43,9 +44,11 @@ type Props = {
   initialLeads: Lead[];
   commerciaux: Commercial[];
   n8nEnabled: boolean;
+  // Secteurs visibles par l'utilisateur (restriction commerciale par activité).
+  visibleSectors: Sector[];
 };
 
-export default function PipelineBoard({ initialLeads, commerciaux, n8nEnabled }: Props) {
+export default function PipelineBoard({ initialLeads, commerciaux, n8nEnabled, visibleSectors }: Props) {
   // Local state seeded from the server fetch. Optimistic updates apply
   // immediately; the server action runs in a transition and rolls back on
   // error.
@@ -63,27 +66,33 @@ export default function PipelineBoard({ initialLeads, commerciaux, n8nEnabled }:
     [commerciaux],
   );
 
+  // Restriction commerciale par activité : ne garder que les secteurs visibles.
+  const visibleLeads = useMemo(() => {
+    const allowed = new Set<string>(visibleSectors);
+    return leads.filter((l) => allowed.has(l.sector));
+  }, [leads, visibleSectors]);
+
   const byColumn = useMemo(() => {
     const map = new Map<PipelineColumnKey, Lead[]>();
     for (const col of PIPELINE_COLUMNS) map.set(col.status, []);
-    const sorted = [...leads].sort(
+    const sorted = [...visibleLeads].sort(
       (a, b) => +new Date(b.lastActionAt) - +new Date(a.lastActionAt),
     );
     // Use pipelineColumnFor (status + paid documents) so Acompte / Encaisse
     // columns get populated automatically when invoices flip to paid.
     for (const lead of sorted) map.get(pipelineColumnFor(lead))?.push(lead);
     return map;
-  }, [leads]);
+  }, [visibleLeads]);
 
   // Flat list (Liste view) — same data, sorted by pipeline column then activity.
   const flat = useMemo(
     () =>
-      [...leads].sort((a, b) => {
+      [...visibleLeads].sort((a, b) => {
         const so = COLUMN_ORDER[pipelineColumnFor(a)] - COLUMN_ORDER[pipelineColumnFor(b)];
         if (so !== 0) return so;
         return +new Date(b.lastActionAt) - +new Date(a.lastActionAt);
       }),
-    [leads],
+    [visibleLeads],
   );
 
   // Optimistic helper: applies a transform locally, runs the server action,

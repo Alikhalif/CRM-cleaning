@@ -15,6 +15,7 @@ import {
   type Commercial,
   type Lead,
   type LeadStatus,
+  type Sector,
   type Source,
 } from "@/lib/leads";
 import styles from "./LeadsTable.module.scss";
@@ -33,9 +34,12 @@ const ALL_SOURCES: Source[] = [
 type Props = {
   leads: Lead[];
   commerciaux: Commercial[];
+  // Secteurs que l'utilisateur a le droit de voir (restriction par activité).
+  visibleSectors: Sector[];
 };
 
-export default function LeadsTable({ leads, commerciaux }: Props) {
+export default function LeadsTable({ leads, commerciaux, visibleSectors }: Props) {
+  const sectorSet = useMemo(() => new Set<string>(visibleSectors), [visibleSectors]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<Set<LeadStatus>>(new Set());
   const [sourceFilter, setSourceFilter] = useState<Set<Source>>(new Set());
@@ -62,6 +66,8 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
     const q = search.trim().toLowerCase();
 
     const rows = leads.filter((l) => {
+      // Restriction par activité : masquer les leads hors des secteurs visibles.
+      if (!sectorSet.has(l.sector)) return false;
       if (!showPerdu && l.status === "perdu") return false;
       if (nrpOnly && !l.isNrp) return false;
       if (statusFilter.size > 0 && !statusFilter.has(l.status)) return false;
@@ -81,7 +87,7 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
 
     rows.sort((a, b) => compareLeads(a, b, sort));
     return rows;
-  }, [leads, search, statusFilter, sourceFilter, ownerFilter, countryFilter, societeFilter, sectorFilter, urgentOnly, bigSurfaceOnly, showPerdu, nrpOnly, sort]);
+  }, [leads, search, statusFilter, sourceFilter, ownerFilter, countryFilter, societeFilter, sectorFilter, urgentOnly, bigSurfaceOnly, showPerdu, nrpOnly, sort, sectorSet]);
 
   const toggleSet = <T,>(set: Set<T>, value: T): Set<T> => {
     const next = new Set(set);
@@ -215,17 +221,19 @@ export default function LeadsTable({ leads, commerciaux }: Props) {
           </select>
         )}
 
-        <select
-          value={sectorFilter}
-          onChange={(e) => setSectorFilter(e.target.value)}
-          className={styles.select}
-          aria-label="Filtrer par secteur"
-        >
-          <option value="">Tous les secteurs</option>
-          {(Object.keys(SECTOR_LABEL) as (keyof typeof SECTOR_LABEL)[]).map((s) => (
-            <option key={s} value={s}>{SECTOR_LABEL[s]}</option>
-          ))}
-        </select>
+        {visibleSectors.length > 1 && (
+          <select
+            value={sectorFilter}
+            onChange={(e) => setSectorFilter(e.target.value)}
+            className={styles.select}
+            aria-label="Filtrer par secteur"
+          >
+            <option value="">Tous les secteurs</option>
+            {visibleSectors.map((s) => (
+              <option key={s} value={s}>{SECTOR_LABEL[s]}</option>
+            ))}
+          </select>
+        )}
 
         <button
           type="button"

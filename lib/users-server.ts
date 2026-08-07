@@ -22,6 +22,9 @@ export type CurrentUserProfile = {
   // Profils commerciaux du user — sert à dériver ses capacités (Ringover,
   // création de lead) via profileCapabilities().
   commercialProfiles: string[];
+  // Activités (secteurs) affectées au user (slugs). Un commercial n'a accès
+  // qu'à ces secteurs ; vide = aucune restriction (voir visibleSectorsForUser).
+  activities: string[];
 };
 
 type UserRow = {
@@ -66,6 +69,8 @@ export type AdminUserRow = {
   commercialProfiles: string[];
   countries: string[];
   entityId: string | null;
+  // Activités (secteurs) affectées — ids de la table activities.
+  activityIds: string[];
 };
 
 type AdminUserRaw = {
@@ -85,7 +90,7 @@ type AdminUserRaw = {
 // underlying tables to admins, so a non-admin session simply gets nothing.
 export async function getAllUsersForAdmin(): Promise<AdminUserRow[]> {
   const supabase = await supabaseServer();
-  const [usersRes, urRes] = await Promise.all([
+  const [usersRes, urRes, uaRes] = await Promise.all([
     supabase
       .from("users")
       .select("id, email, first_name, last_name, is_premium, is_extreme, ringover_agent_id, commercial_profiles, countries, entity_id")
@@ -95,6 +100,10 @@ export async function getAllUsersForAdmin(): Promise<AdminUserRow[]> {
       .from("user_roles")
       .select("user_id, roles(slug)")
       .returns<{ user_id: string; roles: { slug: string } | null }[]>(),
+    supabase
+      .from("user_activities")
+      .select("user_id, activity_id")
+      .returns<{ user_id: string; activity_id: string }[]>(),
   ]);
 
   const rolesByUser = new Map<string, string[]>();
@@ -103,6 +112,13 @@ export async function getAllUsersForAdmin(): Promise<AdminUserRow[]> {
     const arr = rolesByUser.get(r.user_id) ?? [];
     arr.push(r.roles.slug);
     rolesByUser.set(r.user_id, arr);
+  }
+
+  const actsByUser = new Map<string, string[]>();
+  for (const a of uaRes.data ?? []) {
+    const arr = actsByUser.get(a.user_id) ?? [];
+    arr.push(a.activity_id);
+    actsByUser.set(a.user_id, arr);
   }
 
   return (usersRes.data ?? []).map((u) => ({
@@ -116,6 +132,7 @@ export async function getAllUsersForAdmin(): Promise<AdminUserRow[]> {
     commercialProfiles: u.commercial_profiles ?? [],
     countries: u.countries ?? [],
     entityId: u.entity_id ?? null,
+    activityIds: actsByUser.get(u.id) ?? [],
   }));
 }
 
@@ -129,13 +146,25 @@ export async function getAllRoles(): Promise<RoleOption[]> {
   return data ?? [];
 }
 
+// Option-list des activités (secteurs) pour l'écran d'affectation admin.
+export type ActivityOption = { id: string; slug: string; label: string };
+export async function getAllActivities(): Promise<ActivityOption[]> {
+  const supabase = await supabaseServer();
+  const { data } = await supabase
+    .from("activities")
+    .select("id, slug, label")
+    .order("label", { ascending: true })
+    .returns<ActivityOption[]>();
+  return data ?? [];
+}
+
 export async function getCurrentUserProfile(): Promise<CurrentUserProfile | null> {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Two queries in parallel — users + user_roles+roles join.
-  const [profileRes, rolesRes] = await Promise.all([
+  // Three queries in parallel — users + user_roles+roles + user_activities.
+  const [profileRes, rolesRes, actsRes] = await Promise.all([
     supabase
       .from("users")
       .select("id, email, first_name, last_name, color, commercial_profiles")
@@ -146,6 +175,11 @@ export async function getCurrentUserProfile(): Promise<CurrentUserProfile | null
       .select("roles(slug, label)")
       .eq("user_id", user.id)
       .returns<RoleJoinRow[]>(),
+    supabase
+      .from("user_activities")
+      .select("activity:activities(slug)")
+      .eq("user_id", user.id)
+      .returns<{ activity: { slug: string } | null }[]>(),
   ]);
 
   // If the public.users row hasn't been provisioned yet (e.g., fresh signup
@@ -169,5 +203,8 @@ export async function getCurrentUserProfile(): Promise<CurrentUserProfile | null
       .map((r) => r.roles)
       .filter((r): r is { slug: string; label: string } => r !== null),
     commercialProfiles: profile?.commercial_profiles ?? [],
+    activities: (actsRes.data ?? [])
+      .map((a) => a.activity?.slug)
+      .filter((s): s is string => !!s),
   };
 }

@@ -120,6 +120,27 @@ export async function setUserCountries(userId: string, countries: string[]): Pro
   return setUserArray(userId, "countries", countries, "user.countries.set");
 }
 
+// Remplace les activités (secteurs) affectées à un commercial. La table
+// user_activities est une jointure : on efface puis réinsère. Un commercial ne
+// voit ensuite que ces secteurs (visibleSectorsForUser). Admin uniquement.
+export async function setUserActivities(userId: string, activityIds: string[]): Promise<Result> {
+  const supabase = await supabaseServer();
+  if (!(await callerIsAdmin(supabase))) return { ok: false, error: "Réservé aux administrateurs." };
+
+  const { error: delErr } = await supabase.from("user_activities").delete().eq("user_id", userId);
+  if (delErr) return { ok: false, error: delErr.message };
+
+  if (activityIds.length > 0) {
+    const rows = activityIds.map((activity_id) => ({ user_id: userId, activity_id }));
+    const { error: insErr } = await supabase.from("user_activities").insert(rows as never);
+    if (insErr) return { ok: false, error: insErr.message };
+  }
+
+  revalidatePath("/settings/users");
+  await auditLog({ action: "user.activities.set", entityType: "user", entityId: userId, after: { activityIds } });
+  return { ok: true };
+}
+
 export async function assignRole(userId: string, roleId: string): Promise<Result> {
   const supabase = await supabaseServer();
   if (!(await callerIsAdmin(supabase))) return { ok: false, error: "Réservé aux administrateurs." };

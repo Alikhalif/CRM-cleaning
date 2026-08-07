@@ -602,6 +602,33 @@ export const SECTOR_LABEL: Record<Sector, string> = {
   diogene: "Diogène",
 };
 
+// Liste ordonnée de tous les secteurs (mêmes valeurs que le type Sector).
+export const SECTORS: Sector[] = [
+  "urgence",
+  "nettoyage",
+  "nettoyage_difficile",
+  "enr",
+  "renovation",
+  "debarras",
+  "demenagement",
+  "diogene",
+];
+
+// Secteurs qu'un utilisateur a le DROIT de voir (restriction commerciale par
+// activité — décision client 2026-08-07). Admin / planificateur → tous les
+// secteurs. Commercial → uniquement ses activités affectées (user_activities).
+// Aucune activité affectée → tous (compat : pas de restriction tant que l'admin
+// n'a rien affecté). Renvoie toujours une liste (jamais vide).
+export function visibleSectorsForUser(input: {
+  isAdmin: boolean;
+  isPlanner: boolean;
+  activities: string[];
+}): Sector[] {
+  if (input.isAdmin || input.isPlanner) return SECTORS;
+  const assigned = input.activities.filter((s): s is Sector => (SECTORS as string[]).includes(s));
+  return assigned.length ? assigned : SECTORS;
+}
+
 // Maps to the --sector-* CSS custom properties already defined in _tokens.scss.
 export const SECTOR_VAR: Record<Sector, string> = {
   urgence: "--sector-urgence",
