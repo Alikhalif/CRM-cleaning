@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon/Icon";
 import type { Lead } from "@/lib/leads";
 import {
+  TEMPLATE_CATEGORIES,
   TEMPLATE_CATEGORY_LABEL,
   renderTemplate,
+  type TemplateCategory,
 } from "@/lib/message-templates-shared";
 import type { MessageTemplate } from "@/lib/message-templates-server";
 import { sendLeadRelanceEmail } from "@/app/(app)/pipeline/actions";
@@ -43,6 +45,28 @@ export default function EmailModal({ lead, templates, vars, initialSubject, init
     () => templates.filter((t) => !t.activitySlug || t.activitySlug === lead.sector),
     [templates, lead.sector],
   );
+
+  // Regroupe par rubrique (catégorie) dans l'ordre du parcours métier, chaque
+  // rubrique triée par sort_order — sélecteur structuré en optgroups.
+  const grouped = useMemo(() => {
+    const order = (c: TemplateCategory) => {
+      const i = TEMPLATE_CATEGORIES.indexOf(c);
+      return i === -1 ? TEMPLATE_CATEGORIES.length : i;
+    };
+    const byCat = new Map<TemplateCategory, MessageTemplate[]>();
+    for (const t of eligible) {
+      const arr = byCat.get(t.category) ?? [];
+      arr.push(t);
+      byCat.set(t.category, arr);
+    }
+    return [...byCat.entries()]
+      .sort((a, b) => order(a[0]) - order(b[0]))
+      .map(([cat, list]) => ({
+        cat,
+        label: TEMPLATE_CATEGORY_LABEL[cat],
+        list: [...list].sort((x, y) => x.sortOrder - y.sortOrder || x.name.localeCompare(y.name)),
+      }));
+  }, [eligible]);
 
   const [templateId, setTemplateId] = useState("");
   const [recipient, setRecipient] = useState(lead.email ?? "");
@@ -96,10 +120,12 @@ export default function EmailModal({ lead, templates, vars, initialSubject, init
           Modèle
           <select style={inp} value={templateId} onChange={(e) => applyTemplate(e.target.value)}>
             <option value="">— Choisir un modèle —</option>
-            {eligible.map((t) => (
-              <option key={t.id} value={t.id}>
-                [{TEMPLATE_CATEGORY_LABEL[t.category]}] {t.name}
-              </option>
+            {grouped.map((g) => (
+              <optgroup key={g.cat} label={g.label}>
+                {g.list.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </label>
