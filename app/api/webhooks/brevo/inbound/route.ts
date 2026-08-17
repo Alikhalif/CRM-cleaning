@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 import { auditLog } from "@/lib/audit";
-import { notify } from "@/lib/notifications";
+import { notify, notifyRole } from "@/lib/notifications";
 import { MEDIA_BUCKET } from "@/lib/media-server";
 
 // Pièce jointe entrante (format Brevo inbound parsing).
@@ -174,16 +174,19 @@ export async function POST(request: Request) {
   let mediaSaved = 0;
   if (leadId && Array.isArray(payload.Attachments) && payload.Attachments.length > 0) {
     mediaSaved = await ingestAttachments(leadId, payload.Attachments);
-    if (mediaSaved > 0 && ownerId) {
-      await notify({
-        userId: ownerId,
+    if (mediaSaved > 0) {
+      const mediaNotif = {
         kind: "email.reply",
         entityType: "lead",
         entityId: leadId,
         title: `${mediaSaved} média(s) reçu(s) par email`,
         body: subject,
         href: `/leads/${leadId}?tab=media`,
-      });
+      };
+      // Le commercial propriétaire…
+      if (ownerId) await notify({ userId: ownerId, ...mediaNotif });
+      // …ET la planification (toutes les planificatrices), sans doublonner le propriétaire.
+      await notifyRole("planification", mediaNotif, ownerId ?? undefined);
     }
   }
 

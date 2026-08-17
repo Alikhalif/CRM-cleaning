@@ -40,6 +40,37 @@ export async function notify(input: NotifyInput): Promise<void> {
   }
 }
 
+// Notifie TOUS les utilisateurs porteurs d'un rôle (ex. la planification).
+// Lecture via service-role (contexte sessionless : webhooks). `excludeUserId`
+// évite de doublonner la notification du propriétaire s'il détient aussi le rôle.
+// Best-effort : renvoie le nombre de destinataires notifiés.
+export async function notifyRole(
+  roleSlug: string,
+  input: Omit<NotifyInput, "userId">,
+  excludeUserId?: string,
+): Promise<number> {
+  try {
+    const supabase = await supabaseServiceRole();
+    const { data: role } = await supabase
+      .from("roles")
+      .select("id")
+      .eq("slug", roleSlug as never) // slug est un enum ; le param est libre
+      .maybeSingle<{ id: string }>();
+    if (!role) return 0;
+    const { data: urs } = await supabase
+      .from("user_roles")
+      .select("user_id")
+      .eq("role_id", role.id)
+      .returns<{ user_id: string }[]>();
+    const ids = [...new Set((urs ?? []).map((r) => r.user_id))].filter((id) => id !== excludeUserId);
+    await Promise.all(ids.map((userId) => notify({ ...input, userId })));
+    return ids.length;
+  } catch (err) {
+    console.error("notifyRole failed:", err);
+    return 0;
+  }
+}
+
 // Count unread for the current user — used by the topbar badge. RLS scopes
 // to user_id = auth.uid(), so a non-authenticated call returns 0 cleanly.
 export async function getUnreadCount(): Promise<number> {
