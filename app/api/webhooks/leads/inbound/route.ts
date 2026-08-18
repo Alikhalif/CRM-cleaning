@@ -103,12 +103,22 @@ type LeadPayload = {
   assigned_to?: string;
 };
 
-function verifySignature(rawBody: string, signature: string | null): boolean {
+const REPLAY_WINDOW_SEC = 300; // ±5 min
+
+function hmacEq(expectedHex: string, signature: string): boolean {
+  const a = Buffer.from(expectedHex, "hex");
+  const b = Buffer.from(signature, "hex");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+// Vérifie l'authenticité (HMAC) + l'anti-rejeu (timestamp signé + fenêtre de
+// fraîcheur). En production, le X-Timestamp est OBLIGATOIRE et l'HMAC porte sur
+// `${timestamp}.${body}`. En dev, on tolère l'HMAC body-only (compat).
+function verifySignature(rawBody: string, signature: string | null, timestamp: string | null): boolean {
   const secret = process.env.LEADS_INBOUND_SECRET;
+  const isProd = process.env.NODE_ENV === "production";
   if (!secret) {
-    // Fail-closed en production : sans secret, on refuse (l'endpoint écrit via
-    // service-role, bypass RLS). Le raccourci « accepter tout » reste réservé au dev.
-    if (process.env.NODE_ENV === "production") {
+    if (isProd) {
       console.error("[leads.inbound] LEADS_INBOUND_SECRET manquant en production — requête refusée");
       return false;
     }
@@ -116,11 +126,22 @@ function verifySignature(rawBody: string, signature: string | null): boolean {
     return true;
   }
   if (!signature) return false;
-  const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-  const a = Buffer.from(expected, "hex");
-  const b = Buffer.from(signature, "hex");
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
+
+  if (timestamp) {
+    const ts = Number(timestamp);
+    if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > REPLAY_WINDOW_SEC) {
+      console.warn("[leads.inbound] timestamp hors fenêtre (anti-rejeu) — requête refusée");
+      return false;
+    }
+    return hmacEq(crypto.createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex"), signature);
+  }
+
+  if (isProd) {
+    console.error("[leads.inbound] X-Timestamp requis en production (anti-rejeu) — requête refusée");
+    return false;
+  }
+  // Dev / compat : HMAC body-only.
+  return hmacEq(crypto.createHmac("sha256", secret).update(rawBody).digest("hex"), signature);
 }
 
 function normalize(value: string | undefined): string {
@@ -148,7 +169,8 @@ function normalizePhone(phone: string): string {
 export async function POST(request: Request) {
   const rawBody = await request.text();
   const signature = request.headers.get("X-Signature");
-  if (!verifySignature(rawBody, signature)) {
+  const timestamp = request.headers.get("X-Timestamp");
+  if (!verifySignature(rawBody, signature, timestamp)) {
     return corsJson({ error: "invalid_signature" }, 401);
   }
 

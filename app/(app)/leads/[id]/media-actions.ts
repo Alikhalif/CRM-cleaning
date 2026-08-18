@@ -127,6 +127,16 @@ export async function sendConsultation(
 
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Session expirée." };
+  // Réservé admin / planificatrice : la consultation envoie un e-mail sous
+  // l'identité du service planification — pas de relais ouvert.
+  const { data: myRoles } = await supabase
+    .from("user_roles")
+    .select("roles(slug)")
+    .eq("user_id", user.id)
+    .returns<{ roles: { slug: string } | null }[]>();
+  const allowed = (myRoles ?? []).some((r) => r.roles?.slug === "admin" || r.roles?.slug === "planification");
+  if (!allowed) return { ok: false, error: "Réservé à la planification." };
 
   const { data: rows } = await supabase
     .from("lead_media")

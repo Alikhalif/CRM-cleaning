@@ -3,6 +3,7 @@ import { auditLog } from "@/lib/audit";
 import { notify } from "@/lib/notifications";
 import { verifyWebhookSignature, type RingoverCallEvent } from "@/lib/ringover";
 import { supabaseServiceRole } from "@/lib/supabase/service";
+import { isDuplicateWebhook } from "@/lib/webhook-dedup";
 
 // Ringover webhook receiver. Open endpoint — proxy.ts already whitelists
 // /api/* as public so n8n / Ringover can reach us without an auth cookie.
@@ -49,6 +50,12 @@ export async function POST(request: Request) {
     typeof event.call_id !== "string"
   ) {
     return NextResponse.json({ error: "missing_required_fields" }, { status: 400 });
+  }
+
+  // Idempotence : un même (event, call_id) rejoué → 200 no-op (pas de double
+  // audit / notification / upload).
+  if (await isDuplicateWebhook("ringover", `${event.event}:${event.call_id}`)) {
+    return NextResponse.json({ ok: true, duplicate: true });
   }
 
   // Map Ringover event → CRM audit action namespace.

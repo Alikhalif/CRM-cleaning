@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
 import { passwordLengthError, isPasswordPwned } from "@/lib/password-policy";
+import { checkLoginLock, recordLoginFailure, resetLoginThrottle, loginKey } from "@/lib/auth-throttle";
 
 // Origine de la requête (proto + host), pour construire le lien de retour du
 // mail de réinitialisation — fonctionne en local comme derrière Traefik.
@@ -30,12 +31,21 @@ export async function login(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   const next = safeNext(formData.get("next"));
+  const key = loginKey(email);
+
+  // Verrouillage anti-brute-force : refuse avant même de tenter l'authentification.
+  const lock = await checkLoginLock(key);
+  if (lock.locked) {
+    await auditLog({ action: "auth.login.locked", entityType: "user", entityId: null, after: { email, retryInSec: lock.retryInSec } });
+    const min = Math.ceil(lock.retryInSec / 60);
+    redirect(`/login?next=${encodeURIComponent(next)}&error=${encodeURIComponent(`Trop de tentatives. Réessayez dans ${min} min.`)}`);
+  }
 
   const supabase = await supabaseServer();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
-    // Failed-login audit row — no user id since auth didn't succeed, but the
-    // email + reason are useful for forensics (brute-force detection later).
+    // Échec → incrémente le compteur (verrouillage exponentiel au-delà du seuil).
+    await recordLoginFailure(key);
     await auditLog({
       action: "auth.login.failed",
       entityType: "user",
@@ -47,6 +57,7 @@ export async function login(formData: FormData) {
     );
   }
   if (data.user) {
+    await resetLoginThrottle(key); // succès → remet le compteur à zéro
     await auditLog({ action: "auth.login", entityType: "user", entityId: data.user.id });
   }
   redirect(next);

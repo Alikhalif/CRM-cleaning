@@ -163,6 +163,30 @@ export type Database = {
           },
         ]
       }
+      auth_throttle: {
+        Row: {
+          attempts: number
+          first_attempt_at: string
+          locked_until: string | null
+          throttle_key: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          first_attempt_at?: string
+          locked_until?: string | null
+          throttle_key: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          first_attempt_at?: string
+          locked_until?: string | null
+          throttle_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           address: Json | null
@@ -1863,6 +1887,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      webhook_events: {
+        Row: {
+          event_key: string
+          received_at: string
+          source: string
+        }
+        Insert: {
+          event_key: string
+          received_at?: string
+          source: string
+        }
+        Update: {
+          event_key?: string
+          received_at?: string
+          source?: string
+        }
+        Relationships: []
       }
     }
     Views: {

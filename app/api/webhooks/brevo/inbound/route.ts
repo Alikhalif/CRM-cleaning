@@ -4,6 +4,7 @@ import { supabaseServiceRole } from "@/lib/supabase/service";
 import { auditLog } from "@/lib/audit";
 import { notify, notifyRole } from "@/lib/notifications";
 import { MEDIA_BUCKET } from "@/lib/media-server";
+import { isDuplicateWebhook } from "@/lib/webhook-dedup";
 
 // Pièce jointe entrante (format Brevo inbound parsing).
 type InboundAttachment = { Name?: string; ContentType?: string; DownloadToken?: string };
@@ -78,6 +79,8 @@ type BrevoInboundPayload = {
   RawTextBody?: string;
   ExtractedMarkdownMessage?: string;
   Attachments?: InboundAttachment[];
+  MessageId?: string;
+  Uuid?: string;
 };
 
 export async function POST(request: Request) {
@@ -109,6 +112,16 @@ export async function POST(request: Request) {
   const subject = payload.Subject ?? "";
   const bodyPreview =
     (payload.ExtractedMarkdownMessage ?? payload.RawTextBody ?? "").slice(0, 500);
+
+  // Idempotence : un même email rejoué → 200 no-op (évite la ré-ingestion des
+  // pièces jointes + notifications en double). Clé = MessageId/Uuid Brevo, sinon
+  // empreinte (expéditeur + objet + début du corps).
+  const eventKey =
+    payload.MessageId ?? payload.Uuid ??
+    crypto.createHash("sha256").update(`${from}|${subject}|${bodyPreview}`).digest("hex");
+  if (await isDuplicateWebhook("brevo", eventKey)) {
+    return NextResponse.json({ ok: true, duplicate: true });
+  }
 
   // Try to bind the reply to a known lead via the document number in the
   // subject. Service-role bypass on the read so the webhook can match
