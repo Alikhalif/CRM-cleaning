@@ -79,8 +79,25 @@ export type MarkSignedResult =
 export async function markDocumentSigned(
   id: string,
   mode?: SubSignatureMode,
+  trusted = false,
 ): Promise<MarkSignedResult> {
-  const supabase = await supabaseServer();
+  // Contrôle d'accès pour les appels UI (non trusted) : la RLS de session
+  // vérifie que l'appelant a bien accès à ce document. Le parcours PUBLIC de
+  // signature (trusted) est déjà validé par token en amont — pas de session.
+  if (!trusted) {
+    const session = await supabaseServer();
+    const { data: { user } } = await session.auth.getUser();
+    if (!user) return { ok: false, error: "Session expirée." };
+    const { data: allowed } = await session
+      .from("documents")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle<{ id: string }>();
+    if (!allowed) return { ok: false, error: "Accès refusé à ce document." };
+  }
+  // Écritures via service-role : la cascade (dossier, facture d'acompte) en
+  // avait déjà besoin, et le parcours public de signature n'a pas de session.
+  const supabase = await supabaseServiceRole();
 
   const { data: doc, error: docErr } = await supabase
     .from("documents")

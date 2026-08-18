@@ -23,6 +23,7 @@ export type NavIcon =
   | "commerciaux"
   | "planification"
   | "comptabilite"
+  | "document"
   | "settings";
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -41,6 +42,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/planification",  label: "Planification", icon: "planification" },
       { href: "/chiffrage",      label: "Chiffrage",     icon: "planification" },
       { href: "/comptabilite",   label: "Comptabilité",  icon: "comptabilite" },
+      { href: "/signatures",     label: "Signatures",    icon: "document" },
     ],
   },
   {

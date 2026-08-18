@@ -7,7 +7,9 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 // Chemins publics ancrés : les routes d'auth doivent matcher exactement ou avec
 // un sous-chemin (`/login`, `/login/…`) — mais PAS `/login-xxx`. `api/` et
 // `_next/` restent des préfixes ; `favicon.ico` est exact.
-const PUBLIC_PATH = /^\/(login|signup|forgot-password|reset-password|auth\/callback)(\/|$)|^\/(api|_next)\/|^\/favicon\.ico$/;
+// `sign` = page publique de signature électronique (/sign/{token}) : le client
+// n'est pas authentifié, l'accès est validé par le token côté serveur.
+const PUBLIC_PATH = /^\/(login|signup|forgot-password|reset-password|auth\/callback|sign)(\/|$)|^\/(api|_next)\/|^\/favicon\.ico$/;
 
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request });

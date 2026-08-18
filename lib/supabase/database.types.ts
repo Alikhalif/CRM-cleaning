@@ -617,6 +617,85 @@ export type Database = {
           },
         ]
       }
+      intervenant_consultations: {
+        Row: {
+          attributed_at: string | null
+          disponibilites: string | null
+          id: string
+          intervenant_email: string
+          intervenant_id: string | null
+          last_relance_at: string | null
+          lead_id: string
+          media_count: number
+          montant_propose: number | null
+          notes: string | null
+          relances: number
+          responded_at: string | null
+          sent_at: string
+          sent_by: string | null
+          status: string
+          template_name: string | null
+        }
+        Insert: {
+          attributed_at?: string | null
+          disponibilites?: string | null
+          id?: string
+          intervenant_email: string
+          intervenant_id?: string | null
+          last_relance_at?: string | null
+          lead_id: string
+          media_count?: number
+          montant_propose?: number | null
+          notes?: string | null
+          relances?: number
+          responded_at?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          status?: string
+          template_name?: string | null
+        }
+        Update: {
+          attributed_at?: string | null
+          disponibilites?: string | null
+          id?: string
+          intervenant_email?: string
+          intervenant_id?: string | null
+          last_relance_at?: string | null
+          lead_id?: string
+          media_count?: number
+          montant_propose?: number | null
+          notes?: string | null
+          relances?: number
+          responded_at?: string | null
+          sent_at?: string
+          sent_by?: string | null
+          status?: string
+          template_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intervenant_consultations_intervenant_id_fkey"
+            columns: ["intervenant_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intervenant_consultations_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intervenant_consultations_sent_by_fkey"
+            columns: ["sent_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       landing_pages: {
         Row: {
           activity_id: string | null
@@ -681,63 +760,6 @@ export type Database = {
           },
         ]
       }
-      intervenant_consultations: {
-        Row: {
-          attributed_at: string | null
-          disponibilites: string | null
-          id: string
-          intervenant_email: string
-          intervenant_id: string | null
-          last_relance_at: string | null
-          lead_id: string
-          media_count: number
-          montant_propose: number | null
-          notes: string | null
-          relances: number
-          responded_at: string | null
-          sent_at: string
-          sent_by: string | null
-          status: string
-          template_name: string | null
-        }
-        Insert: {
-          attributed_at?: string | null
-          disponibilites?: string | null
-          id?: string
-          intervenant_email: string
-          intervenant_id?: string | null
-          last_relance_at?: string | null
-          lead_id: string
-          media_count?: number
-          montant_propose?: number | null
-          notes?: string | null
-          relances?: number
-          responded_at?: string | null
-          sent_at?: string
-          sent_by?: string | null
-          status?: string
-          template_name?: string | null
-        }
-        Update: {
-          attributed_at?: string | null
-          disponibilites?: string | null
-          id?: string
-          intervenant_email?: string
-          intervenant_id?: string | null
-          last_relance_at?: string | null
-          lead_id?: string
-          media_count?: number
-          montant_propose?: number | null
-          notes?: string | null
-          relances?: number
-          responded_at?: string | null
-          sent_at?: string
-          sent_by?: string | null
-          status?: string
-          template_name?: string | null
-        }
-        Relationships: []
-      }
       lead_media: {
         Row: {
           comment: string | null
@@ -781,7 +803,29 @@ export type Database = {
           storage_path?: string
           uploaded_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "lead_media_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_media_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_media_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       lead_sources: {
         Row: {
@@ -865,7 +909,9 @@ export type Database = {
           statut_client: string | null
           sub_envoi: Database["public"]["Enums"]["sub_envoi"] | null
           sub_signature: Database["public"]["Enums"]["sub_signature"] | null
-          sub_signature_mode: Database["public"]["Enums"]["sub_signature_mode"] | null
+          sub_signature_mode:
+            | Database["public"]["Enums"]["sub_signature_mode"]
+            | null
           surface_m2: number | null
           type_service: string | null
           updated_at: string
@@ -926,7 +972,9 @@ export type Database = {
           statut_client?: string | null
           sub_envoi?: Database["public"]["Enums"]["sub_envoi"] | null
           sub_signature?: Database["public"]["Enums"]["sub_signature"] | null
-          sub_signature_mode?: Database["public"]["Enums"]["sub_signature_mode"] | null
+          sub_signature_mode?:
+            | Database["public"]["Enums"]["sub_signature_mode"]
+            | null
           surface_m2?: number | null
           type_service?: string | null
           updated_at?: string
@@ -987,7 +1035,9 @@ export type Database = {
           statut_client?: string | null
           sub_envoi?: Database["public"]["Enums"]["sub_envoi"] | null
           sub_signature?: Database["public"]["Enums"]["sub_signature"] | null
-          sub_signature_mode?: Database["public"]["Enums"]["sub_signature_mode"] | null
+          sub_signature_mode?:
+            | Database["public"]["Enums"]["sub_signature_mode"]
+            | null
           surface_m2?: number | null
           type_service?: string | null
           updated_at?: string
@@ -1275,6 +1325,7 @@ export type Database = {
         Row: {
           activity_id: string
           created_at: string
+          description: string | null
           id: string
           is_active: boolean
           label: string
@@ -1286,6 +1337,7 @@ export type Database = {
         Insert: {
           activity_id: string
           created_at?: string
+          description?: string | null
           id?: string
           is_active?: boolean
           label: string
@@ -1297,6 +1349,7 @@ export type Database = {
         Update: {
           activity_id?: string
           created_at?: string
+          description?: string | null
           id?: string
           is_active?: boolean
           label?: string
@@ -1379,6 +1432,209 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      signature_events: {
+        Row: {
+          actor: string | null
+          browser: string | null
+          created_at: string
+          device_type: string | null
+          document_sha256: string | null
+          event_type: string
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          occurred_at: string
+          os: string | null
+          session_id: string | null
+          signature_request_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          actor?: string | null
+          browser?: string | null
+          created_at?: string
+          device_type?: string | null
+          document_sha256?: string | null
+          event_type: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          occurred_at?: string
+          os?: string | null
+          session_id?: string | null
+          signature_request_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          actor?: string | null
+          browser?: string | null
+          created_at?: string
+          device_type?: string | null
+          document_sha256?: string | null
+          event_type?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          occurred_at?: string
+          os?: string | null
+          session_id?: string | null
+          signature_request_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signature_events_signature_request_id_fkey"
+            columns: ["signature_request_id"]
+            isOneToOne: false
+            referencedRelation: "signature_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      signature_requests: {
+        Row: {
+          cancelled_at: string | null
+          certificate_pdf_path: string | null
+          client_id: string | null
+          company_id: string | null
+          completed_at: string | null
+          consent_accepted_at: string | null
+          consent_text: string | null
+          created_at: string
+          created_by: string | null
+          document_id: string
+          expires_at: string | null
+          id: string
+          lead_id: string | null
+          opened_at: string | null
+          original_pdf_path: string | null
+          original_sha256: string | null
+          recipient_email: string
+          recipient_name: string | null
+          recipient_phone: string | null
+          ref: string | null
+          refused_at: string | null
+          sent_at: string | null
+          signature_image_path: string | null
+          signature_type: string | null
+          signed_at: string | null
+          signed_pdf_path: string | null
+          signed_sha256: string | null
+          signer_ip: string | null
+          signer_typed_name: string | null
+          signer_user_agent: string | null
+          status: Database["public"]["Enums"]["signature_status"]
+          token_hash: string
+          updated_at: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          certificate_pdf_path?: string | null
+          client_id?: string | null
+          company_id?: string | null
+          completed_at?: string | null
+          consent_accepted_at?: string | null
+          consent_text?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_id: string
+          expires_at?: string | null
+          id?: string
+          lead_id?: string | null
+          opened_at?: string | null
+          original_pdf_path?: string | null
+          original_sha256?: string | null
+          recipient_email: string
+          recipient_name?: string | null
+          recipient_phone?: string | null
+          ref?: string | null
+          refused_at?: string | null
+          sent_at?: string | null
+          signature_image_path?: string | null
+          signature_type?: string | null
+          signed_at?: string | null
+          signed_pdf_path?: string | null
+          signed_sha256?: string | null
+          signer_ip?: string | null
+          signer_typed_name?: string | null
+          signer_user_agent?: string | null
+          status?: Database["public"]["Enums"]["signature_status"]
+          token_hash: string
+          updated_at?: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          certificate_pdf_path?: string | null
+          client_id?: string | null
+          company_id?: string | null
+          completed_at?: string | null
+          consent_accepted_at?: string | null
+          consent_text?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_id?: string
+          expires_at?: string | null
+          id?: string
+          lead_id?: string | null
+          opened_at?: string | null
+          original_pdf_path?: string | null
+          original_sha256?: string | null
+          recipient_email?: string
+          recipient_name?: string | null
+          recipient_phone?: string | null
+          ref?: string | null
+          refused_at?: string | null
+          sent_at?: string | null
+          signature_image_path?: string | null
+          signature_type?: string | null
+          signed_at?: string | null
+          signed_pdf_path?: string | null
+          signed_sha256?: string | null
+          signer_ip?: string | null
+          signer_typed_name?: string | null
+          signer_user_agent?: string | null
+          status?: Database["public"]["Enums"]["signature_status"]
+          token_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signature_requests_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "legal_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signature_requests_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
             referencedColumns: ["id"]
           },
         ]
@@ -1638,7 +1894,12 @@ export type Database = {
         | "retard"
       document_type: "devis" | "acompte" | "finale"
       dossier_flag: "a_rappeler" | "attente_retour" | "litige" | "bloque"
-      dossier_status: "a_planifier" | "planifie" | "en_cours" | "finalise" | "solde"
+      dossier_status:
+        | "a_planifier"
+        | "planifie"
+        | "en_cours"
+        | "finalise"
+        | "solde"
       lead_source_slug:
         | "google_ads"
         | "meta_ads"
@@ -1657,6 +1918,18 @@ export type Database = {
       payment_term_slug: "comptant" | "jours_30" | "jours_45" | "jours_60"
       prestation_unit: "unite" | "forfait" | "h" | "m2" | "mois"
       role_slug: "admin" | "commercial" | "planification" | "assistant"
+      signature_status:
+        | "brouillon"
+        | "pret"
+        | "envoye"
+        | "distribue"
+        | "consulte"
+        | "en_attente_signature"
+        | "signe"
+        | "refuse"
+        | "expire"
+        | "annule"
+        | "erreur"
       sub_envoi: "mano" | "auto"
       sub_signature: "sans" | "avec"
       sub_signature_mode: "logiciel" | "planificateur"
@@ -1804,7 +2077,13 @@ export const Constants = {
       ],
       document_type: ["devis", "acompte", "finale"],
       dossier_flag: ["a_rappeler", "attente_retour", "litige", "bloque"],
-      dossier_status: ["a_planifier", "planifie", "en_cours", "finalise", "solde"],
+      dossier_status: [
+        "a_planifier",
+        "planifie",
+        "en_cours",
+        "finalise",
+        "solde",
+      ],
       lead_source_slug: [
         "google_ads",
         "meta_ads",
@@ -1825,6 +2104,19 @@ export const Constants = {
       payment_term_slug: ["comptant", "jours_30", "jours_45", "jours_60"],
       prestation_unit: ["unite", "forfait", "h", "m2", "mois"],
       role_slug: ["admin", "commercial", "planification", "assistant"],
+      signature_status: [
+        "brouillon",
+        "pret",
+        "envoye",
+        "distribue",
+        "consulte",
+        "en_attente_signature",
+        "signe",
+        "refuse",
+        "expire",
+        "annule",
+        "erreur",
+      ],
       sub_envoi: ["mano", "auto"],
       sub_signature: ["sans", "avec"],
       sub_signature_mode: ["logiciel", "planificateur"],

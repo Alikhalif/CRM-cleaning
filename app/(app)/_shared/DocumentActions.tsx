@@ -12,6 +12,7 @@ import {
   markDocumentPaid,
   markDocumentSent,
 } from "./document-actions";
+import { sendForSignature } from "./signature-actions";
 import MarkRefusedModal from "./MarkRefusedModal";
 import MarkSignedModal from "./MarkSignedModal";
 import type { MarkSignedResult } from "./document-actions";
@@ -37,6 +38,7 @@ export default function DocumentActions({ doc, lead, entity, emailTemplates = []
   const searchParams = useSearchParams();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
   // Auto-open the send modal when arriving via /?send=1 (the Comptabilité
   // row menu links here). One-shot — clears the param after opening so a
   // page refresh doesn't re-open the modal forever.
@@ -121,6 +123,23 @@ export default function DocumentActions({ doc, lead, entity, emailTemplates = []
     });
   };
 
+  // Envoi pour signature électronique : dès qu'un devis existe et n'est pas déjà
+  // signé/refusé/expiré. Renvoie un nouveau lien à chaque envoi (l'ancien est révoqué).
+  const canRequestSignature =
+    doc.type === "devis" && ["brouillon", "envoye", "ouvert"].includes(doc.status);
+  const onSendForSignature = () => {
+    setError(null);
+    setOkMsg(null);
+    setBusy("esign");
+    startTransition(async () => {
+      const r = await sendForSignature(doc.id);
+      setBusy(null);
+      if (!r.ok) { setError(r.error); return; }
+      setOkMsg("Demande de signature envoyée au client par e-mail. 📩");
+      router.refresh();
+    });
+  };
+
   const isDevisDraft = doc.type === "devis" && doc.status === "brouillon";
   const isInvoice = doc.type !== "devis";
   const isPaid = doc.status === "paye";
@@ -176,6 +195,18 @@ export default function DocumentActions({ doc, lead, entity, emailTemplates = []
           {busy === "dup" ? "Duplication…" : "Dupliquer"}
         </button>
 
+        {canRequestSignature && (
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnPrimary}`}
+            disabled={busy !== null}
+            onClick={onSendForSignature}
+            title="Envoyer un lien de signature électronique au client par e-mail"
+          >
+            <Icon name="mail" size={14} /> {busy === "esign" ? "Envoi…" : "Envoyer pour signature"}
+          </button>
+        )}
+
         {canSign && (
           <button
             type="button"
@@ -230,6 +261,12 @@ export default function DocumentActions({ doc, lead, entity, emailTemplates = []
       {error && (
         <p className={styles.errorBanner} role="alert" data-no-print>
           <Icon name="alert" size={14} /> {error}
+        </p>
+      )}
+
+      {okMsg && (
+        <p className={styles.errorBanner} role="status" data-no-print style={{ color: "var(--tone-success)", borderColor: "var(--tone-success)" }}>
+          <Icon name="check" size={14} /> {okMsg}
         </p>
       )}
 
