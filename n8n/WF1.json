@@ -1,43 +1,35 @@
 {
-  "name": "WF1 - Capture lead par email (Gmail -> CRM)",
+  "name": "WF1 - Capture lead (landing pages -> CRM + email)",
   "nodes": [
     {
       "parameters": {
-        "pollTimes": {
-          "item": [
-            {
-              "mode": "everyMinute"
-            }
-          ]
-        },
-        "simple": true,
-        "filters": {}
+        "httpMethod": "POST",
+        "path": "lead-capture",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
       },
-      "id": "wf1-gmail",
-      "name": "Nouveau mail lead (Gmail)",
-      "type": "n8n-nodes-base.gmailTrigger",
-      "typeVersion": 1.2,
+      "id": "wf1-webhook",
+      "name": "Webhook LP",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
       "position": [
-        -220,
+        -200,
         300
       ],
-      "credentials": {
-        "gmailOAuth2": {
-          "id": "REMPLACER",
-          "name": "Gmail leadnettoyage360"
-        }
-      }
+      "webhookId": "lead-capture"
     },
     {
       "parameters": {
-        "jsCode": "// WF1 — Capture des leads recus par EMAIL (leadnettoyage360@gmail.com) -> CRM.\n// n8n lit la boite Gmail, extrait les champs et POST le lead au CRM,\n// signe HMAC-SHA256 + anti-rejeu (X-Timestamp). Le corps signe DOIT etre\n// exactement le corps envoye -> `payload` est serialise une seule fois ici.\n// /!\\ ADAPTE l'extraction au format EXACT de tes emails de landing page.\n\nconst DEFAULT_ACTIVITY = 'nettoyage';\nconst DEFAULT_SOURCE = 'site_web';\nconst ACTIVITIES = ['urgence','nettoyage','nettoyage_difficile','enr','renovation','debarras','demenagement','diogene'];\nconst SOURCES = ['google_ads','meta_ads','site_web','telephone','recommandation'];\nconst IGNORE_EMAILS = ['leadnettoyage360@gmail.com'];\n\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json || {};\n  const subject = String(j.Subject || j.subject || '');\n  const text = String(j.text || j.textPlain || j.snippet || j.html || '');\n  const hay = subject + '\\n' + text;\n  const lines = hay.split(/\\r?\\n/);\n\n  const field = (...labels) => {\n    const low = labels.map((l) => l.toLowerCase());\n    for (const line of lines) {\n      const idx = line.indexOf(':');\n      if (idx === -1) continue;\n      const key = line.slice(0, idx).trim().toLowerCase();\n      if (low.some((l) => key.includes(l))) {\n        const v = line.slice(idx + 1).trim();\n        if (v) return v;\n      }\n    }\n    return '';\n  };\n\n  const emails = (hay.match(/[\\w.+-]+@[\\w-]+\\.[\\w.-]+/g) || [])\n    .map((e) => e.toLowerCase())\n    .filter((e) => !IGNORE_EMAILS.includes(e));\n  const email = (field('email', 'e-mail', 'mail') || emails[0] || '').toLowerCase();\n\n  let phone = (field('telephone', 'tel', 'phone', 'mobile', 'numero') ||\n    (hay.match(/(\\+?\\d[\\d\\s.\\-()]{7,}\\d)/) || [])[0] || '').replace(/[^\\d+]/g, '');\n  if (/^0\\d{9}$/.test(phone)) phone = '+33' + phone.slice(1);\n\n  let firstName = field('prenom', 'firstname', 'first name');\n  let lastName = field('nom', 'lastname', 'last name', 'name');\n  if (!firstName && lastName.includes(' ')) {\n    const p = lastName.split(/\\s+/); firstName = p.shift(); lastName = p.join(' ');\n  }\n\n  let activity = field('activite', 'prestation', 'service', 'metier').toLowerCase();\n  if (!ACTIVITIES.includes(activity)) activity = DEFAULT_ACTIVITY;\n  let source = field('source').toLowerCase();\n  if (!SOURCES.includes(source)) source = DEFAULT_SOURCE;\n\n  const num = (s) => { const n = Number(String(s).replace(',', '.')); return Number.isFinite(n) && n > 0 ? n : null; };\n  const surfaceRaw = field('surface', 'm2', 'superficie');\n  const surfaceMatch = surfaceRaw.match(/\\d+/);\n  const surfaceM2 = surfaceMatch ? num(surfaceMatch[0]) : null;\n\n  const lead = {\n    external_id: field('external_id', 'id') || ('mail_' + (j.id || Date.now())),\n    is_company: false,\n    first_name: firstName,\n    last_name: lastName,\n    company_name: field('societe', 'entreprise', 'company') || null,\n    email: email,\n    phone: phone,\n    address_line: field('adresse', 'address', 'rue'),\n    postal_code: field('code postal', 'cp', 'zip'),\n    city: field('ville', 'city'),\n    activity_slug: activity,\n    source_slug: source,\n    estimated_amount: num(field('budget', 'montant')),\n    surface_m2: surfaceM2,\n    type_service: field('type', 'formule') || null,\n    notes: field('message', 'commentaire', 'demande', 'description') || text.slice(0, 500),\n  };\n\n  const missing = [];\n  if (!lead.phone) missing.push('phone');\n  if (!(lead.first_name + ' ' + lead.last_name).trim()) missing.push('nom');\n\n  const ts = Math.floor(Date.now() / 1000);\n  const payload = JSON.stringify(lead);\n  out.push({ json: { ts: ts, payload: payload, signedString: ts + '.' + payload, lead: lead, valid: missing.length === 0, missing: missing.join(', ') } });\n}\nreturn out;\n"
+        "jsCode": "\n// WF1 — normalise n'importe quel formulaire de landing page vers le contrat\n// attendu par POST /api/webhooks/leads/inbound du CRM.\n// Le corps signe DOIT etre exactement le corps envoye -> on serialise ici une\n// seule fois dans `payload`. NOUVEAU : anti-rejeu -> on signe `ts.payload` et on\n// envoie l'en-tete X-Timestamp (le CRM l'exige en production).\n\nconst ACTIVITIES = ['urgence', 'nettoyage', 'nettoyage_difficile', 'enr', 'renovation', 'debarras', 'demenagement', 'diogene'];\nconst SOURCES = ['google_ads', 'meta_ads', 'site_web', 'telephone', 'recommandation'];\n\nconst SRC_ALIAS = {\n  google: 'google_ads', 'google-ads': 'google_ads', googleads: 'google_ads', adwords: 'google_ads',\n  facebook: 'meta_ads', meta: 'meta_ads', instagram: 'meta_ads', fb: 'meta_ads',\n  site: 'site_web', web: 'site_web', website: 'site_web', formulaire: 'site_web',\n  phone: 'telephone', tel: 'telephone',\n  reco: 'recommandation', parrainage: 'recommandation',\n};\n\nconst DEFAULT_ACTIVITY = 'nettoyage';\nconst DEFAULT_SOURCE = 'site_web';\n\nconst out = [];\n\nfor (const item of $input.all()) {\n  const b = item.json.body || item.json.query || item.json || {};\n\n  const pick = (...keys) => {\n    for (const k of keys) {\n      const v = b[k];\n      if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();\n    }\n    return '';\n  };\n  const truthy = (s) => ['true', '1', 'oui', 'yes', 'on'].includes(s.toLowerCase());\n\n  let phone = pick('phone', 'telephone', 'tel', 'mobile', 'numero').replace(/[^\\d+]/g, '');\n  if (/^0\\d{9}$/.test(phone)) phone = '+33' + phone.slice(1);\n\n  let activity = pick('activity_slug', 'activity', 'prestation', 'service', 'metier').toLowerCase();\n  if (!ACTIVITIES.includes(activity)) activity = DEFAULT_ACTIVITY;\n\n  let source = pick('source_slug', 'source', 'utm_source').toLowerCase();\n  source = SRC_ALIAS[source] || source;\n  if (!SOURCES.includes(source)) source = DEFAULT_SOURCE;\n\n  const isCompany = truthy(pick('is_company', 'societe', 'pro'));\n  const num = (s) => { const n = Number(String(s).replace(',', '.')); return Number.isFinite(n) && n > 0 ? n : null; };\n\n  let firstName = pick('first_name', 'prenom', 'firstname', 'fname');\n  let lastName = pick('last_name', 'nom', 'lastname', 'lname');\n  if (!firstName && lastName.includes(' ')) {\n    const nameParts = lastName.split(/\\s+/);\n    firstName = nameParts.shift();\n    lastName = nameParts.join(' ');\n  }\n\n  const surfaceMatch = pick('surface_m2', 'surface', 'm2', 'superficie').match(/\\d+/);\n  const surfaceM2 = surfaceMatch ? num(surfaceMatch[0]) : null;\n\n  const lead = {\n    external_id: pick('external_id') || `lp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,\n    is_company: isCompany,\n    first_name: firstName,\n    last_name: lastName,\n    company_name: pick('company_name', 'societe_nom', 'company', 'entreprise') || null,\n    email: pick('email', 'mail', 'e-mail').toLowerCase(),\n    phone: phone,\n    address_line: pick('address_line', 'adresse', 'address', 'rue'),\n    postal_code: pick('postal_code', 'code_postal', 'cp', 'zip'),\n    city: pick('city', 'ville'),\n    activity_slug: activity,\n    source_slug: source,\n    lp: pick('lp', 'lp_token', 'source_token') || null,\n    estimated_amount: num(pick('estimated_amount', 'budget', 'montant')),\n    surface_m2: surfaceM2,\n    type_service: pick('type_service', 'service_type', 'type_prestation', 'formule') || null,\n    is_extreme: truthy(pick('is_extreme', 'urgent', 'urgence_extreme')),\n    gclid: pick('gclid') || null,\n    utm_source: pick('utm_source') || null,\n    utm_campaign: pick('utm_campaign') || null,\n    utm_medium: pick('utm_medium') || null,\n    utm_term: pick('utm_term') || null,\n    utm_content: pick('utm_content') || null,\n    notes: pick('notes', 'message', 'commentaire', 'demande', 'description'),\n  };\n\n  const missing = [];\n  if (!lead.phone) missing.push('phone');\n  if (isCompany && !lead.company_name) missing.push('company_name');\n  if (!isCompany && !`${lead.first_name} ${lead.last_name}`.trim()) missing.push('nom');\n\n  // NOUVEAU : timestamp (anti-rejeu) + chaine signee = `ts.payload`.\n  const ts = Math.floor(Date.now() / 1000);\n  const payload = JSON.stringify(lead);\n  out.push({\n    json: {\n      ts: ts,\n      payload: payload,\n      signedString: ts + '.' + payload,\n      lead: lead,\n      valid: missing.length === 0,\n      missing: missing.join(', '),\n    },\n  });\n}\n\nreturn out;\n"
       },
-      "id": "wf1-parse",
-      "name": "Extraire le lead de l email",
+      "id": "wf1-normalise",
+      "name": "Normaliser le formulaire",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        40,
+        20,
         300
       ]
     },
@@ -65,12 +57,12 @@
         },
         "options": {}
       },
-      "id": "wf1-if",
+      "id": "wf1-if-valid",
       "name": "Champs obligatoires OK ?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        280,
+        240,
         300
       ]
     },
@@ -84,12 +76,12 @@
         "encoding": "hex"
       },
       "id": "wf1-sign",
-      "name": "Signer (HMAC de timestamp.body)",
+      "name": "Signer (HMAC SHA256)",
       "type": "n8n-nodes-base.crypto",
       "typeVersion": 1,
       "position": [
-        540,
-        220
+        460,
+        200
       ]
     },
     {
@@ -131,35 +123,148 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        780,
-        220
+        680,
+        200
       ]
     },
     {
-      "parameters": {},
-      "id": "wf1-skip",
-      "name": "Ignore (email incomplet)",
-      "type": "n8n-nodes-base.noOp",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "http200",
+              "leftValue": "={{ $json.statusCode }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "wf1-if-ok",
+      "name": "CRM a accepte ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.brevo.com/v3/smtp/email",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"sender\":{\"email\":\"tech@cgkoptimum.com\",\"name\":\"CRM OPTIMIVV\"},\"to\":[{\"email\":\"leadnettoyage360@gmail.com\"}],\"subject\":\"Nouveau lead {{ $json.body.short_id }} — {{ $('Normaliser le formulaire').item.json.lead.activity_slug }}\",\"htmlContent\":\"<h2>Nouveau lead — {{ $('Normaliser le formulaire').item.json.lead.activity_slug }}</h2><p><b>Client :</b> {{ $('Normaliser le formulaire').item.json.lead.first_name }} {{ $('Normaliser le formulaire').item.json.lead.last_name }}{{ $('Normaliser le formulaire').item.json.lead.company_name }}</p><p><b>Telephone :</b> {{ $('Normaliser le formulaire').item.json.lead.phone }}<br/><b>Email :</b> {{ $('Normaliser le formulaire').item.json.lead.email }}<br/><b>Ville :</b> {{ $('Normaliser le formulaire').item.json.lead.postal_code }} {{ $('Normaliser le formulaire').item.json.lead.city }}<br/><b>Surface :</b> {{ $('Normaliser le formulaire').item.json.lead.surface_m2 }} m2<br/><b>Source :</b> {{ $('Normaliser le formulaire').item.json.lead.source_slug }}</p><p><b>Message :</b><br/>{{ $('Normaliser le formulaire').item.json.lead.notes }}</p><hr/><p>Fiche CRM : https://crmoptimum.com/leads/{{ $json.body.id }} (ref. {{ $json.body.short_id }})</p>\"}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "wf1-email",
+      "name": "M'envoyer un email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        120
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REMPLACER",
+          "name": "Brevo API key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, id: $('POST vers le CRM').item.json.body.id, short_id: $('POST vers le CRM').item.json.body.short_id }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "wf1-resp-ok",
+      "name": "Reponse 200",
+      "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        540,
+        1340,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.body || \"crm_rejected\" }) }}",
+        "options": {
+          "responseCode": 502
+        }
+      },
+      "id": "wf1-resp-crm-ko",
+      "name": "Reponse 502 (CRM KO)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: \"champs manquants\", missing: $json.missing }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "wf1-resp-invalid",
+      "name": "Reponse 400 (formulaire incomplet)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        460,
         420
       ]
     }
   ],
   "connections": {
-    "Nouveau mail lead (Gmail)": {
+    "Webhook LP": {
       "main": [
         [
           {
-            "node": "Extraire le lead de l email",
+            "node": "Normaliser le formulaire",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Extraire le lead de l email": {
+    "Normaliser le formulaire": {
       "main": [
         [
           {
@@ -174,25 +279,65 @@
       "main": [
         [
           {
-            "node": "Signer (HMAC de timestamp.body)",
+            "node": "Signer (HMAC SHA256)",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Ignore (email incomplet)",
+            "node": "Reponse 400 (formulaire incomplet)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Signer (HMAC de timestamp.body)": {
+    "Signer (HMAC SHA256)": {
       "main": [
         [
           {
             "node": "POST vers le CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST vers le CRM": {
+      "main": [
+        [
+          {
+            "node": "CRM a accepte ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM a accepte ?": {
+      "main": [
+        [
+          {
+            "node": "M'envoyer un email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reponse 502 (CRM KO)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "M'envoyer un email": {
+      "main": [
+        [
+          {
+            "node": "Reponse 200",
             "type": "main",
             "index": 0
           }
