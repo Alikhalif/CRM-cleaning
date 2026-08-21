@@ -10,7 +10,9 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 // `sign` = signature électronique documents (/sign/{token}) ;
 // `devis-signer` = signature du devis OPTIMIVV (/devis-signer/{token}). Dans les
 // deux cas le client n'est pas authentifié, l'accès est validé par le token.
-const PUBLIC_PATH = /^\/(login|signup|forgot-password|reset-password|auth\/callback|sign|devis-signer)(\/|$)|^\/(api|_next)\/|^\/favicon\.ico$/;
+// `email-signatures/` = bannières publiques ajoutées aux e-mails client (doivent
+// être chargeables par les clients mail non authentifiés, ex. le proxy Gmail).
+const PUBLIC_PATH = /^\/(login|signup|forgot-password|reset-password|auth\/callback|sign|devis-signer)(\/|$)|^\/(api|_next|email-signatures)\/|^\/favicon\.ico$/;
 
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request });
