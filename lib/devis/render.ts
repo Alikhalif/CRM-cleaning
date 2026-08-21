@@ -14,6 +14,7 @@ import {
   X,
   YT,
   W,
+  H,
   FS,
   safe,
   euro,
@@ -563,8 +564,27 @@ function buildPdf(donnees: DevisInput): Doc {
     if (i < 2) line(592, yy + 4, 742, yy + 4, "#4A4F5A", 0.6);
   });
 
+  // Devis signé en ligne : remplit nom/date + dessine la signature à la place
+  // de la mention « Bon pour accord ».
+  const sig = !isFacture ? D.signature : undefined;
+  if (sig?.nom) draw(sig.nom, X(598), YT(1425), "PopM", FS(12.5), NAVY);
+  if (sig?.date) draw(sig.date, X(598), YT(1445), "PopM", FS(12.5), NAVY);
+
   rect(765, 1412, 984, 1472, { fill: WHITE, stroke: BORDER, r: 8, lw: 0.9 });
-  txt(isFacture ? "Merci !" : "Bon pour accord", 874, 1450, "Script", FS(31), NAVY, 0, "c");
+  const sigBuf = sig?.imageDataUrl ? dataUrlToBuffer(sig.imageDataUrl) : null;
+  if (sigBuf) {
+    try {
+      doc.image(sigBuf, X(772), YT(1416), {
+        fit: [W(205), H(52)],
+        align: "center",
+        valign: "center",
+      });
+    } catch {
+      /* image invalide → on ignore */
+    }
+  } else {
+    txt(isFacture ? "Merci !" : "Bon pour accord", 874, 1450, "Script", FS(31), NAVY, 0, "c");
+  }
 
   // ================================================================= PIED DE PAGE
   rect(33, 1478, 990, 1522, { fill: NAVY_FT });
@@ -598,4 +618,16 @@ function buildPdf(donnees: DevisInput): Doc {
 function formatDateFr(d: Date): string {
   const p = (n: number): string => String(n).padStart(2, "0");
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+// Décode une data URL (PNG/JPEG base64, ex. sortie d'un canvas de signature) en
+// Buffer pour pdfkit. Renvoie null si le format n'est pas reconnu.
+function dataUrlToBuffer(dataUrl: string): Buffer | null {
+  const m = /^data:image\/(?:png|jpe?g);base64,(.+)$/i.exec(dataUrl.trim());
+  if (!m) return null;
+  try {
+    return Buffer.from(m[1], "base64");
+  } catch {
+    return null;
+  }
 }

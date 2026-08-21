@@ -6,7 +6,7 @@ import { allocateNumero } from "@/lib/devis/numero";
 import { archiveDevis } from "@/lib/devis/archive";
 import { envoyerDevisEmail } from "@/lib/devis/email";
 import { markDevisSentToClient } from "@/app/(app)/pipeline/actions";
-import { signOpenToken } from "@/lib/devis/tracking";
+import { signOpenToken, signSignToken } from "@/lib/devis/tracking";
 import { headers } from "next/headers";
 
 async function baseUrl(): Promise<string> {
@@ -76,13 +76,17 @@ export async function POST(request: Request) {
   // pour un DEVIS lié à une affaire → à l'ouverture de l'e-mail, le lead passe
   // « envoyé » → « ouvert ».
   let trackPixelUrl: string | undefined;
+  let signUrl: string | undefined;
   if (docType === "devis" && body.affaire) {
-    trackPixelUrl = `${await baseUrl()}/api/devis/track/${signOpenToken(body.affaire)}.gif`;
+    const base = await baseUrl();
+    trackPixelUrl = `${base}/api/devis/track/${signOpenToken(body.affaire)}.gif`;
+    // Lien de signature en ligne → à la signature, le lead passe à « Signé ».
+    signUrl = `${base}/devis-signer/${signSignToken(body.affaire)}`;
   }
 
   let envoyeA: string;
   try {
-    envoyeA = await envoyerDevisEmail(devis, pdf, { sujet, corps, trackPixelUrl });
+    envoyeA = await envoyerDevisEmail(devis, pdf, { sujet, corps, trackPixelUrl, signUrl });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: "email_failed", detail: (e as Error).message, numero },

@@ -45,6 +45,13 @@ export type Devis = {
   montant_ht?: number | null;
   prestataire?: Partial<Prestataire>;
   marque?: Partial<Marque>;
+  // Rempli quand le client a signé en ligne (devis uniquement) : nom + date +
+  // image de la signature (data URL PNG). Dessiné dans la case « Bon pour accord ».
+  signature?: {
+    nom: string;
+    date: string;
+    imageDataUrl?: string;
+  };
 };
 
 // Entrée partielle : ce que l'appelant fournit avant application des défauts.

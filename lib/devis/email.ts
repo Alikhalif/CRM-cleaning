@@ -60,7 +60,12 @@ const escapeHtml = (s: string): string =>
 export async function envoyerDevisEmail(
   donnees: Devis,
   pdf: Buffer,
-  opts?: { corps?: string; sujet?: string; trackPixelUrl?: string },
+  opts?: {
+    corps?: string;
+    sujet?: string;
+    trackPixelUrl?: string;
+    signUrl?: string;
+  },
 ): Promise<string> {
   const dest = donnees.client?.email;
   if (!dest) {
@@ -100,11 +105,20 @@ export async function envoyerDevisEmail(
     ? `<img src="${opts.trackPixelUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;border:0" />`
     : "";
 
+  // Bouton « Signer votre devis » (signature en ligne → lead « Signé »).
+  const signButton = opts?.signUrl
+    ? `<div style="margin:20px 0 4px"><a href="${opts.signUrl}" style="display:inline-block;background:#0050c7;color:#fff;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:15px;padding:13px 26px;border-radius:8px">✍️ Signer votre devis en ligne</a></div>`
+    : "";
+  // Version texte du lien (repli lecteurs sans HTML).
+  const texteBody = opts?.signUrl
+    ? `${texte}\nPour signer votre devis en ligne : ${opts.signUrl}\n`
+    : texte;
+
   // ── Canal 1 : Brevo (défaut) ──────────────────────────────────────────
   if (!forceSmtp && process.env.BREVO_API_KEY) {
     const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;white-space:pre-wrap;line-height:1.5">${escapeHtml(
       texte,
-    )}</div>${pixel}`;
+    )}</div>${signButton}${pixel}`;
     const res = await sendBrevoEmail({
       to: dest,
       toName: donnees.client?.nom || undefined,
@@ -144,10 +158,10 @@ export async function envoyerDevisEmail(
     replyTo: P.email || USER,
     bcc: BCC || undefined,
     subject: sujet,
-    text: texte,
+    text: texteBody,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;white-space:pre-wrap;line-height:1.5">${escapeHtml(
       texte,
-    )}</div>${pixel}`,
+    )}</div>${signButton}${pixel}`,
     attachments: [
       {
         filename: `devis-${donnees.numero}.pdf`,

@@ -21,13 +21,30 @@ export function signOpenToken(leadId: string): string {
 }
 
 export function verifyOpenToken(token: string): string | null {
+  return verify(token, hmac);
+}
+
+// Jeton de SIGNATURE (namespace distinct « sign: » pour qu'un jeton de pixel ne
+// puisse pas servir à signer, et inversement).
+function hmacSign(leadId: string): string {
+  return crypto.createHmac("sha256", secret()).update("sign:" + leadId).digest("hex");
+}
+
+export function signSignToken(leadId: string): string {
+  return `${leadId}.${hmacSign(leadId)}`;
+}
+
+export function verifySignToken(token: string): string | null {
+  return verify(token, hmacSign);
+}
+
+function verify(token: string, mac: (id: string) => string): string | null {
   const i = token.lastIndexOf(".");
   if (i <= 0) return null;
   const leadId = token.slice(0, i);
   const sig = token.slice(i + 1);
-  const expected = hmac(leadId);
   const a = Buffer.from(sig, "utf8");
-  const b = Buffer.from(expected, "utf8");
+  const b = Buffer.from(mac(leadId), "utf8");
   if (a.length !== b.length) return null;
   try {
     return crypto.timingSafeEqual(a, b) ? leadId : null;
