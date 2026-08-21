@@ -18,6 +18,22 @@ async function baseUrl(): Promise<string> {
   return `${proto}://${host}`;
 }
 
+// Domaine des liens client (signature + pixel) selon le SECTEUR du lead :
+//   nettoyage    → devis.optimivv-nettoyage.com
+//   déménagement → devis.optimivv-demenagement.com
+// Surchargables par env. Renvoie null pour les autres secteurs → repli baseUrl().
+function domainForSector(sector: string | null): string | null {
+  if (!sector) return null;
+  const clean = (u: string) => u.replace(/\/$/, "");
+  if (sector === "nettoyage" || sector === "nettoyage_difficile") {
+    return clean(process.env.DEVIS_BASE_URL_NETTOYAGE || "https://devis.optimivv-nettoyage.com");
+  }
+  if (sector === "demenagement") {
+    return clean(process.env.DEVIS_BASE_URL_DEMENAGEMENT || "https://devis.optimivv-demenagement.com");
+  }
+  return null;
+}
+
 export const runtime = "nodejs";
 
 type Body = {
@@ -78,7 +94,13 @@ export async function POST(request: Request) {
   let trackPixelUrl: string | undefined;
   let signUrl: string | undefined;
   if (docType === "devis" && body.affaire) {
-    const base = await baseUrl();
+    // Domaine selon le secteur du lead (nettoyage vs déménagement…).
+    const { data: leadRow } = await supabase
+      .from("leads")
+      .select("activity:activities(slug)")
+      .eq("id", body.affaire)
+      .maybeSingle<{ activity: { slug: string } | null }>();
+    const base = domainForSector(leadRow?.activity?.slug ?? null) ?? (await baseUrl());
     trackPixelUrl = `${base}/api/devis/track/${signOpenToken(body.affaire)}.gif`;
     // Lien de signature en ligne → à la signature, le lead passe à « Signé ».
     signUrl = `${base}/devis-signer/${signSignToken(body.affaire)}`;
