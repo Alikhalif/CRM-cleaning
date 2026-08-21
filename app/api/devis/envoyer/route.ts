@@ -7,7 +7,7 @@ import { archiveDevis } from "@/lib/devis/archive";
 import { envoyerDevisEmail } from "@/lib/devis/email";
 import { markDevisSentToClient } from "@/app/(app)/pipeline/actions";
 import { signOpenToken, signSignToken } from "@/lib/devis/tracking";
-import { senderForSector } from "@/lib/devis/sender";
+import { senderForSector, domainForSector, signatureBannerFile } from "@/lib/devis/sender";
 import { headers } from "next/headers";
 
 async function baseUrl(): Promise<string> {
@@ -17,22 +17,6 @@ async function baseUrl(): Promise<string> {
   const host = h.get("x-forwarded-host") || h.get("host") || "localhost:3000";
   const proto = h.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
   return `${proto}://${host}`;
-}
-
-// Domaine des liens client (signature + pixel) selon le SECTEUR du lead :
-//   nettoyage    → devis.optimivv-nettoyage.com
-//   déménagement → devis.optimivv-demenagement.com
-// Surchargables par env. Renvoie null pour les autres secteurs → repli baseUrl().
-function domainForSector(sector: string | null): string | null {
-  if (!sector) return null;
-  const clean = (u: string) => u.replace(/\/$/, "");
-  if (sector === "nettoyage" || sector === "nettoyage_difficile") {
-    return clean(process.env.DEVIS_BASE_URL_NETTOYAGE || "https://devis.optimivv-nettoyage.com");
-  }
-  if (sector === "demenagement") {
-    return clean(process.env.DEVIS_BASE_URL_DEMENAGEMENT || "https://devis.optimivv-demenagement.com");
-  }
-  return null;
 }
 
 export const runtime = "nodejs";
@@ -104,14 +88,20 @@ export async function POST(request: Request) {
     sector = leadRow?.activity?.slug ?? null;
   }
 
+  // Base des URL client selon le secteur (liens + bannière), calculée une fois.
+  const sectorBase = domainForSector(sector) ?? (await baseUrl());
+
   let trackPixelUrl: string | undefined;
   let signUrl: string | undefined;
   if (docType === "devis" && body.affaire) {
-    const base = domainForSector(sector) ?? (await baseUrl());
-    trackPixelUrl = `${base}/api/devis/track/${signOpenToken(body.affaire)}.gif`;
+    trackPixelUrl = `${sectorBase}/api/devis/track/${signOpenToken(body.affaire)}.gif`;
     // Lien de signature en ligne → à la signature, le lead passe à « Signé ».
-    signUrl = `${base}/devis-signer/${signSignToken(body.affaire)}`;
+    signUrl = `${sectorBase}/devis-signer/${signSignToken(body.affaire)}`;
   }
+
+  // Bannière de signature e-mail selon le secteur (déménagement / nettoyage).
+  const sigFile = signatureBannerFile(sector);
+  const signatureImgUrl = sigFile ? `${sectorBase}/email-signatures/${sigFile}` : undefined;
 
   const sender = senderForSector(sector);
 
@@ -124,6 +114,7 @@ export async function POST(request: Request) {
       signUrl,
       senderEmail: sender.email,
       senderName: sender.name,
+      signatureImgUrl,
     });
   } catch (e) {
     return NextResponse.json(

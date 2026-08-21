@@ -29,3 +29,27 @@ export function senderForSector(
     name: process.env.DEVIS_SENDER_NAME || "OPTIMIVV Déménagement",
   };
 }
+
+// Domaine des liens client (signature + pixel) selon le secteur du lead.
+// Renvoie null pour les autres secteurs → l'appelant retombe sur baseUrl().
+export function domainForSector(sector: string | null): string | null {
+  if (!sector) return null;
+  const clean = (u: string) => u.replace(/\/$/, "");
+  if (sector === "nettoyage" || sector === "nettoyage_difficile") {
+    return clean(process.env.DEVIS_BASE_URL_NETTOYAGE || "https://devis.optimivv-nettoyage.com");
+  }
+  if (sector === "demenagement") {
+    return clean(process.env.DEVIS_BASE_URL_DEMENAGEMENT || "https://devis.optimivv-demenagement.com");
+  }
+  return null;
+}
+
+// Bannière de signature e-mail (fichier dans public/email-signatures/) selon le
+// secteur. Le visuel nettoyage couvre aussi le débarras. null → pas de bannière.
+export function signatureBannerFile(sector: string | null): string | null {
+  if (sector === "nettoyage" || sector === "nettoyage_difficile" || sector === "debarras") {
+    return "nettoyage.png";
+  }
+  if (sector === "demenagement") return "demenagement.png";
+  return null;
+}

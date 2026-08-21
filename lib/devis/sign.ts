@@ -6,7 +6,7 @@ import { todayFr, type Devis } from "./types";
 import { markLeadDevisSigne } from "./status";
 import { signedDevisUrl } from "./archive";
 import { sendBrevoEmail } from "@/lib/brevo";
-import { senderForSector } from "./sender";
+import { senderForSector, domainForSector, signatureBannerFile } from "./sender";
 
 const BUCKET = "devis-optimivv";
 
@@ -132,13 +132,22 @@ export async function recordDevisSignature(
           activity: { slug: string } | null;
         }>();
       const ownerEmail = lead?.owner?.email ?? undefined;
-      const sender = senderForSector(lead?.activity?.slug ?? null);
+      const sector = lead?.activity?.slug ?? null;
+      const sender = senderForSector(sector);
+      // Bannière de signature par secteur (même visuel que l'e-mail d'envoi).
+      const sigFile = signatureBannerFile(sector);
+      const sigBase =
+        domainForSector(sector) ??
+        (process.env.SIGNATURE_BASE_URL || "https://crmoptimum.com").replace(/\/$/, "");
+      const banner = sigFile
+        ? `<div style="margin-top:26px;border-top:1px solid #eee;padding-top:16px"><img src="${sigBase}/email-signatures/${sigFile}" alt="OPTIMIVV" width="440" style="display:block;width:100%;max-width:440px;height:auto;border:0" /></div>`
+        : "";
       const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;line-height:1.5">
         Bonjour ${input.nom},<br /><br />
         Merci — votre devis <strong>${row.numero}</strong> a bien été signé « Bon pour accord ».<br />
         Vous trouverez l'exemplaire signé en pièce jointe.<br /><br />
-        Bien cordialement,<br />OPTIMIVV Déménagement
-      </div>`;
+        Bien cordialement,<br />${sender.name}
+      </div>${banner}`;
       await sendBrevoEmail({
         to: clientEmail,
         toName: input.nom,

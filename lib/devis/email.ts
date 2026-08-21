@@ -68,6 +68,8 @@ export async function envoyerDevisEmail(
     // Expéditeur surchargé (ex. par secteur : devispro@optimivv-nettoyage.com).
     senderEmail?: string;
     senderName?: string;
+    // Bannière de signature (image hébergée) ajoutée en bas de l'e-mail.
+    signatureImgUrl?: string;
   },
 ): Promise<string> {
   const dest = donnees.client?.email;
@@ -108,6 +110,11 @@ export async function envoyerDevisEmail(
     ? `<img src="${opts.trackPixelUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;border:0" />`
     : "";
 
+  // Bannière de signature (visuel de marque par secteur) en bas de l'e-mail.
+  const signatureBanner = opts?.signatureImgUrl
+    ? `<div style="margin-top:26px;border-top:1px solid #eee;padding-top:16px"><img src="${opts.signatureImgUrl}" alt="OPTIMIVV" width="440" style="display:block;width:100%;max-width:440px;height:auto;border:0" /></div>`
+    : "";
+
   // Bouton « Signer votre devis » (signature en ligne → lead « Signé »).
   const signButton = opts?.signUrl
     ? `<div style="margin:20px 0 4px"><a href="${opts.signUrl}" style="display:inline-block;background:#0050c7;color:#fff;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-weight:700;font-size:15px;padding:13px 26px;border-radius:8px">✍️ Signer votre devis en ligne</a></div>`
@@ -121,7 +128,7 @@ export async function envoyerDevisEmail(
   if (!forceSmtp && process.env.BREVO_API_KEY) {
     const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;white-space:pre-wrap;line-height:1.5">${escapeHtml(
       texte,
-    )}</div>${signButton}${pixel}`;
+    )}</div>${signButton}${signatureBanner}${pixel}`;
     const res = await sendBrevoEmail({
       to: dest,
       toName: donnees.client?.nom || undefined,
@@ -164,7 +171,7 @@ export async function envoyerDevisEmail(
     text: texteBody,
     html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;white-space:pre-wrap;line-height:1.5">${escapeHtml(
       texte,
-    )}</div>${signButton}${pixel}`,
+    )}</div>${signButton}${signatureBanner}${pixel}`,
     attachments: [
       {
         filename: `devis-${donnees.numero}.pdf`,
