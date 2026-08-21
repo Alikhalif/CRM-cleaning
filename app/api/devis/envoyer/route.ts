@@ -7,6 +7,7 @@ import { archiveDevis } from "@/lib/devis/archive";
 import { envoyerDevisEmail } from "@/lib/devis/email";
 import { markDevisSentToClient } from "@/app/(app)/pipeline/actions";
 import { signOpenToken, signSignToken } from "@/lib/devis/tracking";
+import { senderForSector } from "@/lib/devis/sender";
 import { headers } from "next/headers";
 
 async function baseUrl(): Promise<string> {
@@ -91,24 +92,39 @@ export async function POST(request: Request) {
   // Pixel de suivi d'ouverture (méthode gratuite, sans Brevo Pro) : seulement
   // pour un DEVIS lié à une affaire → à l'ouverture de l'e-mail, le lead passe
   // « envoyé » → « ouvert ».
-  let trackPixelUrl: string | undefined;
-  let signUrl: string | undefined;
-  if (docType === "devis" && body.affaire) {
-    // Domaine selon le secteur du lead (nettoyage vs déménagement…).
+  // Secteur du lead → pilote le domaine des liens (devis) ET l'expéditeur
+  // (devis + facture).
+  let sector: string | null = null;
+  if (body.affaire) {
     const { data: leadRow } = await supabase
       .from("leads")
       .select("activity:activities(slug)")
       .eq("id", body.affaire)
       .maybeSingle<{ activity: { slug: string } | null }>();
-    const base = domainForSector(leadRow?.activity?.slug ?? null) ?? (await baseUrl());
+    sector = leadRow?.activity?.slug ?? null;
+  }
+
+  let trackPixelUrl: string | undefined;
+  let signUrl: string | undefined;
+  if (docType === "devis" && body.affaire) {
+    const base = domainForSector(sector) ?? (await baseUrl());
     trackPixelUrl = `${base}/api/devis/track/${signOpenToken(body.affaire)}.gif`;
     // Lien de signature en ligne → à la signature, le lead passe à « Signé ».
     signUrl = `${base}/devis-signer/${signSignToken(body.affaire)}`;
   }
 
+  const sender = senderForSector(sector);
+
   let envoyeA: string;
   try {
-    envoyeA = await envoyerDevisEmail(devis, pdf, { sujet, corps, trackPixelUrl, signUrl });
+    envoyeA = await envoyerDevisEmail(devis, pdf, {
+      sujet,
+      corps,
+      trackPixelUrl,
+      signUrl,
+      senderEmail: sender.email,
+      senderName: sender.name,
+    });
   } catch (e) {
     return NextResponse.json(
       { ok: false, error: "email_failed", detail: (e as Error).message, numero },

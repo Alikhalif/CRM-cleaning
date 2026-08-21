@@ -65,6 +65,9 @@ export async function envoyerDevisEmail(
     sujet?: string;
     trackPixelUrl?: string;
     signUrl?: string;
+    // Expéditeur surchargé (ex. par secteur : devispro@optimivv-nettoyage.com).
+    senderEmail?: string;
+    senderName?: string;
   },
 ): Promise<string> {
   const dest = donnees.client?.email;
@@ -96,7 +99,7 @@ export async function envoyerDevisEmail(
       site: P.site || "www.optimivv.fr",
     });
 
-  const fromName = process.env.DEVIS_SENDER_NAME || process.env.SMTP_FROM_NAME || FROM_NAME_DEFAULT;
+  const fromName = opts?.senderName || process.env.DEVIS_SENDER_NAME || process.env.SMTP_FROM_NAME || FROM_NAME_DEFAULT;
   const forceSmtp = process.env.DEVIS_EMAIL_TRANSPORT === "smtp";
 
   // Pixel de suivi d'ouverture (méthode maison, sans Brevo Pro) — chargé par le
@@ -124,7 +127,7 @@ export async function envoyerDevisEmail(
       toName: donnees.client?.nom || undefined,
       subject: sujet,
       htmlContent: html,
-      senderEmail: process.env.DEVIS_SENDER_EMAIL || undefined,
+      senderEmail: opts?.senderEmail || process.env.DEVIS_SENDER_EMAIL || undefined,
       senderName: fromName,
       attachment: { name: `devis-${donnees.numero}.pdf`, bytes: pdf },
     });

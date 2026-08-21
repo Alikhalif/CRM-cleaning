@@ -6,6 +6,7 @@ import { todayFr, type Devis } from "./types";
 import { markLeadDevisSigne } from "./status";
 import { signedDevisUrl } from "./archive";
 import { sendBrevoEmail } from "@/lib/brevo";
+import { senderForSector } from "./sender";
 
 const BUCKET = "devis-optimivv";
 
@@ -124,10 +125,14 @@ export async function recordDevisSignature(
     try {
       const { data: lead } = await sb
         .from("leads")
-        .select("owner:users!leads_owner_id_fkey(email)")
+        .select("owner:users!leads_owner_id_fkey(email), activity:activities(slug)")
         .eq("id", leadId)
-        .maybeSingle<{ owner: { email: string | null } | null }>();
+        .maybeSingle<{
+          owner: { email: string | null } | null;
+          activity: { slug: string } | null;
+        }>();
       const ownerEmail = lead?.owner?.email ?? undefined;
+      const sender = senderForSector(lead?.activity?.slug ?? null);
       const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;line-height:1.5">
         Bonjour ${input.nom},<br /><br />
         Merci — votre devis <strong>${row.numero}</strong> a bien été signé « Bon pour accord ».<br />
@@ -139,9 +144,8 @@ export async function recordDevisSignature(
         toName: input.nom,
         subject: `Votre devis signé n° ${row.numero} — OPTIMIVV Déménagement`,
         htmlContent: html,
-        senderEmail: process.env.DEVIS_SENDER_EMAIL || undefined,
-        senderName:
-          process.env.DEVIS_SENDER_NAME || "OPTIMIVV Déménagement",
+        senderEmail: sender.email,
+        senderName: sender.name,
         attachment: { name: `devis-signe-${row.numero}.pdf`, bytes: pdf },
         bcc: ownerEmail,
       });
