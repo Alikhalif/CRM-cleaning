@@ -73,6 +73,29 @@ export async function markLeadDevisSigne(
     .eq("id", leadId);
   if (error) return "error";
 
+  // Handoff Planification : créer le dossier pour que l'affaire apparaisse dans
+  // /planification (comme le flux de signature classique). Idempotent : un seul
+  // dossier par lead. quote_document_id reste null (le devis OPTIMIVV n'est pas
+  // dans la table `documents`).
+  const { data: existingDossier } = await sb
+    .from("dossiers")
+    .select("id")
+    .eq("lead_id", leadId)
+    .maybeSingle<{ id: string }>();
+  if (!existingDossier) {
+    const { data: leadRow } = await sb
+      .from("leads")
+      .select("client_address")
+      .eq("id", leadId)
+      .maybeSingle<{ client_address: unknown }>();
+    await sb.from("dossiers").insert({
+      lead_id: leadId,
+      status: "a_planifier",
+      payment_status: "en_attente",
+      address: (leadRow?.client_address ?? null) as never,
+    } as never);
+  }
+
   await auditLog({
     action: "lead.status.change",
     entityType: "lead",
