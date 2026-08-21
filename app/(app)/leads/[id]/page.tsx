@@ -28,6 +28,7 @@ import FollowupCard from "./FollowupCard";
 import ImmobAnnotationCard from "./ImmobAnnotationCard";
 import InterventionDelayCard from "./InterventionDelayCard";
 import LeadActions from "./LeadActions";
+import { getLeadOptimivvDevisMeta } from "@/lib/devis/sign";
 import PipelineProgress from "./PipelineProgress";
 import styles from "./LeadDetail.module.scss";
 
@@ -91,6 +92,8 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   const { canUseRingover } = profileCapabilities(me?.commercialProfiles ?? [], isAdmin, isPlanner);
 
   const { lead, owner, documents, timeline, canImmobTravaux } = detail;
+  // Devis OPTIMIVV archivé pour ce lead (bouton « Voir le devis signé »).
+  const optimivvDevis = await getLeadOptimivvDevisMeta(lead.id);
   const statusLabel =
     PIPELINE_COLUMNS.find((c) => c.status === lead.status)?.label ?? lead.status;
 
@@ -257,6 +260,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
             nrpSmsBody={nrpSmsBody}
             nrpEmailSubject={nrpEmailSubject}
             nrpEmailBody={nrpEmailBody}
+            optimivvDevis={optimivvDevis}
           />
         </div>
 

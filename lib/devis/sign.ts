@@ -5,6 +5,7 @@ import { genererDevisBuffer } from "./render";
 import { todayFr, type Devis } from "./types";
 import { markLeadDevisSigne } from "./status";
 import { signedDevisUrl } from "./archive";
+import { sendBrevoEmail } from "@/lib/brevo";
 
 const BUCKET = "devis-optimivv";
 
@@ -21,6 +22,24 @@ async function latestDevisRow(leadId: string): Promise<Row | null> {
     .limit(1)
     .maybeSingle<Row>();
   return data ?? null;
+}
+
+// Méta du dernier devis OPTIMIVV d'un lead (pour afficher le bouton « Voir le
+// devis signé » sur la fiche). `signed` = le pdf_path pointe sur la version signée.
+export async function getLeadOptimivvDevisMeta(
+  leadId: string,
+): Promise<{ numero: string; signed: boolean } | null> {
+  const sb = await supabaseServiceRole();
+  const { data } = await sb
+    .from("devis_optimivv")
+    .select("numero, pdf_path")
+    .eq("lead_id", leadId)
+    .eq("doc_type", "devis")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ numero: string; pdf_path: string }>();
+  if (!data) return null;
+  return { numero: data.numero, signed: (data.pdf_path || "").includes("/signed-") };
 }
 
 export type SignContext = {
@@ -98,6 +117,38 @@ export async function recordDevisSignature(
   const sub = (devis?.acompte_pct ?? 0) > 0 ? "avec" : "sans";
   const r = await markLeadDevisSigne(leadId, sub);
   if (r === "error") return { ok: false, error: "Mise à jour du statut échouée." };
+
+  // Envoi du PDF signé au client (+ copie commercial en BCC) — best-effort.
+  const clientEmail = devis?.client?.email;
+  if (process.env.BREVO_API_KEY && clientEmail) {
+    try {
+      const { data: lead } = await sb
+        .from("leads")
+        .select("owner:users!leads_owner_id_fkey(email)")
+        .eq("id", leadId)
+        .maybeSingle<{ owner: { email: string | null } | null }>();
+      const ownerEmail = lead?.owner?.email ?? undefined;
+      const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;line-height:1.5">
+        Bonjour ${input.nom},<br /><br />
+        Merci — votre devis <strong>${row.numero}</strong> a bien été signé « Bon pour accord ».<br />
+        Vous trouverez l'exemplaire signé en pièce jointe.<br /><br />
+        Bien cordialement,<br />OPTIMIVV Déménagement
+      </div>`;
+      await sendBrevoEmail({
+        to: clientEmail,
+        toName: input.nom,
+        subject: `Votre devis signé n° ${row.numero} — OPTIMIVV Déménagement`,
+        htmlContent: html,
+        senderEmail: process.env.DEVIS_SENDER_EMAIL || undefined,
+        senderName:
+          process.env.DEVIS_SENDER_NAME || "OPTIMIVV Déménagement",
+        attachment: { name: `devis-signe-${row.numero}.pdf`, bytes: pdf },
+        bcc: ownerEmail,
+      });
+    } catch {
+      /* best-effort — la signature reste enregistrée même si l'e-mail échoue */
+    }
+  }
 
   return { ok: true, numero: row.numero };
 }

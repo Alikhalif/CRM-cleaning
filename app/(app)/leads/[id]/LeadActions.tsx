@@ -39,9 +39,11 @@ type Props = {
   nrpSmsBody: string;
   nrpEmailSubject: string;
   nrpEmailBody: string;
+  // Devis OPTIMIVV archivé pour ce lead (null si aucun) → bouton de consultation.
+  optimivvDevis: { numero: string; signed: boolean } | null;
 };
 
-export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingover, smsTemplates, emailTemplates, templateVars, showNrp, nrpSmsBody, nrpEmailSubject, nrpEmailBody }: Props) {
+export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingover, smsTemplates, emailTemplates, templateVars, showNrp, nrpSmsBody, nrpEmailSubject, nrpEmailBody, optimivvDevis }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [lostModalOpen, setLostModalOpen] = useState(false);
@@ -259,6 +261,19 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
           <Icon name="check" size={14} />{" "}
           {lead.sector === "demenagement" ? "Devis déménagement" : "Générer devis"}
         </Link>
+      )}
+      {optimivvDevis && (
+        // Ouvre le dernier devis OPTIMIVV archivé (version signée si signée).
+        <a
+          href={`/api/devis/pdf?lead=${lead.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.btn}
+          title={`Ouvrir le devis ${optimivvDevis.numero}${optimivvDevis.signed ? " (signé)" : ""}`}
+        >
+          <Icon name="document" size={14} />{" "}
+          {optimivvDevis.signed ? "Devis signé" : "Voir le devis"}
+        </a>
       )}
       {(eligible || inSequenceZone) && (
         <div

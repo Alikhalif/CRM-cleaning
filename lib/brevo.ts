@@ -22,6 +22,8 @@ export type SendEmailInput = {
   senderName?: string;
   // Attachment as raw bytes — wrapper handles base64 encoding.
   attachment?: { name: string; bytes: Buffer | Uint8Array };
+  // Copie cachée (ex. copie au commercial).
+  bcc?: string;
 };
 
 // Expéditeur des emails de PLANIFICATION (confirmations client) et des mails
@@ -53,6 +55,10 @@ export async function sendBrevoEmail(input: SendEmailInput): Promise<BrevoSendRe
     subject: input.subject,
     htmlContent: input.htmlContent,
   };
+
+  if (input.bcc) {
+    body.bcc = [{ email: input.bcc }];
+  }
 
   if (input.attachment) {
     body.attachment = [
