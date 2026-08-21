@@ -21,6 +21,8 @@ type Props = {
   // Objet / corps pré-remplis (ex. bouton « Email NRP »).
   initialSubject?: string;
   initialBody?: string;
+  // Titre de la modale (défaut « Relance par email »).
+  heading?: string;
   onClose: () => void;
 };
 
@@ -37,7 +39,7 @@ const inp: React.CSSProperties = {
 // "Relance par email" — mirror of SmsModal but for email (Brevo). Same
 // role-scoped template picker + variable interpolation; adds subject +
 // recipient. Sends via the sendLeadRelanceEmail server action.
-export default function EmailModal({ lead, templates, vars, initialSubject, initialBody, onClose }: Props) {
+export default function EmailModal({ lead, templates, vars, initialSubject, initialBody, heading, onClose }: Props) {
   const router = useRouter();
 
   // Ne garder que les templates globaux ou ciblant le secteur du lead.
@@ -110,7 +112,7 @@ export default function EmailModal({ lead, templates, vars, initialSubject, init
     >
       <div style={{ background: "var(--bg-elevated)", borderRadius: "var(--r-lg)", padding: 20, width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
         <h2 style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8 }}>
-          <Icon name="mail" size={16} /> Relance par email — {lead.client}
+          <Icon name="mail" size={16} /> {heading ?? "Relance par email"} — {lead.client}
         </h2>
         <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", marginTop: -6 }}>
           Envoyé via Brevo. Choisissez un modèle ou rédigez librement.

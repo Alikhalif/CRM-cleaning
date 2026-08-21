@@ -9,10 +9,16 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
-  // Ship the embedded PDF font with the server bundle (read via process.cwd()
-  // in the @react-pdf devis renderer) so it survives on Vercel.
+  // pdfkit/fontkit/nodemailer lisent des fichiers (polices AFM, TTF, images) via
+  // fs/__dirname au runtime — les laisser externes empêche le bundler de casser
+  // ces accès (même logique que @react-pdf).
+  serverExternalPackages: ["pdfkit", "fontkit", "nodemailer"],
+  // Ship the embedded PDF fonts/images with the server bundle (read via
+  // process.cwd()) so they survive on the standalone/VPS deploy.
   outputFileTracingIncludes: {
     "/api/documents/**": ["./public/fonts/**"],
+    // Générateur de devis OPTIMIVV (pdfkit) : polices Poppins/Chorus + logo/photo.
+    "/api/devis/**": ["./public/devis-assets/**"],
   },
   experimental: {
     // Derrière le reverse-proxy (Traefik) : autorise les Server Actions depuis

@@ -2,11 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
 import { canLaunchSequence, SECTOR_LABEL, SECTOR_VAR, type Commercial, type Lead } from "@/lib/leads";
 import { startCall } from "@/lib/ringover-webphone";
 import type { MessageTemplate } from "@/lib/message-templates-server";
+import type { TemplateCategory } from "@/lib/message-templates-shared";
+
+// Catégories « relance » : le bouton « Relance » ne montre QUE celles-ci ; le
+// bouton « Model email » montre tout le reste (décision 2026-08-20).
+const RELANCE_CATS: TemplateCategory[] = ["suivi_commercial", "relance"];
 import { launchSequence, setLeadNrp, stopAutoSequence } from "@/app/(app)/pipeline/actions";
 import EditContactModal from "./EditContactModal";
 import EmailModal from "./EmailModal";
@@ -47,6 +52,16 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
   // Contenu de pré-remplissage quand on ouvre via un bouton NRP (sinon vide).
   const [smsInit, setSmsInit] = useState<string | undefined>(undefined);
   const [emailInit, setEmailInit] = useState<{ subject: string; body: string } | undefined>(undefined);
+  // Portée des modèles affichés dans EmailModal : "model" (tout sauf relances)
+  // ou "relance" (suivi commercial + relances uniquement).
+  const [emailScope, setEmailScope] = useState<"model" | "relance">("model");
+  const emailTemplatesForModal = useMemo(
+    () =>
+      emailScope === "relance"
+        ? emailTemplates.filter((t) => RELANCE_CATS.includes(t.category))
+        : emailTemplates.filter((t) => !RELANCE_CATS.includes(t.category)),
+    [emailTemplates, emailScope],
+  );
   const [menuOpen, setMenuOpen] = useState(false);
   const [, startTransition] = useTransition();
 
@@ -192,10 +207,20 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
         <button
           type="button"
           className={styles.btn}
-          onClick={() => { setEmailInit(undefined); setEmailModalOpen(true); }}
-          title="Relance par email via Brevo (modèles disponibles)"
+          onClick={() => { setEmailInit(undefined); setEmailScope("model"); setEmailModalOpen(true); }}
+          title="Modèles e-mail (hors relances) via Brevo"
         >
-          <Icon name="mail" size={14} /> Relance email
+          <Icon name="mail" size={14} /> Model email
+        </button>
+      )}
+      {lead.email && (
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={() => { setEmailInit(undefined); setEmailScope("relance"); setEmailModalOpen(true); }}
+          title="Relances (suivi commercial + relances) via Brevo"
+        >
+          <Icon name="mail" size={14} /> Relance
         </button>
       )}
       {showNrp && lead.phone && (
@@ -212,19 +237,27 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
         <button
           type="button"
           className={styles.btn}
-          onClick={() => { setEmailInit({ subject: nrpEmailSubject, body: nrpEmailBody }); setEmailModalOpen(true); }}
+          onClick={() => { setEmailInit({ subject: nrpEmailSubject, body: nrpEmailBody }); setEmailScope("relance"); setEmailModalOpen(true); }}
           title="Email de relance NRP (pré-rempli), envoi via Brevo"
         >
           <Icon name="mail" size={14} /> Email NRP
         </button>
       )}
       {!closed && (
+        // Secteur déménagement → générateur OPTIMIVV pixel-perfect
+        // (/devis/nouveau, prérempli depuis l'affaire) ; autres secteurs →
+        // éditeur de devis générique du CRM (/devis/new).
         <Link
-          href={`/devis/new?lead=${lead.id}`}
+          href={
+            lead.sector === "demenagement"
+              ? `/devis/nouveau?affaire=${lead.id}`
+              : `/devis/new?lead=${lead.id}`
+          }
           className={`${styles.btn} ${styles.btnPrimary}`}
           aria-disabled={busy !== null}
         >
-          <Icon name="check" size={14} /> Générer devis
+          <Icon name="check" size={14} />{" "}
+          {lead.sector === "demenagement" ? "Devis déménagement" : "Générer devis"}
         </Link>
       )}
       {(eligible || inSequenceZone) && (
@@ -374,7 +407,8 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
       {emailModalOpen && (
         <EmailModal
           lead={lead}
-          templates={emailTemplates}
+          heading={emailScope === "relance" ? "Relance par email" : "Modèle e-mail"}
+          templates={emailTemplatesForModal}
           vars={templateVars}
           initialSubject={emailInit?.subject}
           initialBody={emailInit?.body}

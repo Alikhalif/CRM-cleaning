@@ -265,6 +265,84 @@ export type Database = {
           },
         ]
       }
+      devis_optimivv: {
+        Row: {
+          client_email: string | null
+          client_nom: string | null
+          created_at: string
+          created_by: string | null
+          data: Json
+          doc_type: string
+          id: string
+          lead_id: string | null
+          montant_ht: number | null
+          numero: string
+          pdf_path: string
+          sent_at: string | null
+          sent_to: string | null
+        }
+        Insert: {
+          client_email?: string | null
+          client_nom?: string | null
+          created_at?: string
+          created_by?: string | null
+          data: Json
+          doc_type?: string
+          id?: string
+          lead_id?: string | null
+          montant_ht?: number | null
+          numero: string
+          pdf_path: string
+          sent_at?: string | null
+          sent_to?: string | null
+        }
+        Update: {
+          client_email?: string | null
+          client_nom?: string | null
+          created_at?: string
+          created_by?: string | null
+          data?: Json
+          doc_type?: string
+          id?: string
+          lead_id?: string | null
+          montant_ht?: number | null
+          numero?: string
+          pdf_path?: string
+          sent_at?: string | null
+          sent_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devis_optimivv_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devis_optimivv_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      devis_optimivv_counters: {
+        Row: {
+          next_value: number
+          year: number
+        }
+        Insert: {
+          next_value?: number
+          year: number
+        }
+        Update: {
+          next_value?: number
+          year?: number
+        }
+        Relationships: []
+      }
       doc_counters: {
         Row: {
           doc_type: Database["public"]["Enums"]["document_type"]
@@ -640,6 +718,21 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      facture_optimivv_counters: {
+        Row: {
+          next_value: number
+          year: number
+        }
+        Insert: {
+          next_value?: number
+          year: number
+        }
+        Update: {
+          next_value?: number
+          year?: number
+        }
+        Relationships: []
       }
       intervenant_consultations: {
         Row: {
@@ -1914,6 +2007,7 @@ export type Database = {
       has_permission: { Args: { p_key: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_planificateur: { Args: never; Returns: boolean }
+      next_devis_optimivv_num: { Args: { p_year: number }; Returns: string }
       next_doc_num: {
         Args: {
           p_type: Database["public"]["Enums"]["document_type"]
@@ -1921,6 +2015,7 @@ export type Database = {
         }
         Returns: string
       }
+      next_facture_optimivv_num: { Args: { p_year: number }; Returns: string }
     }
     Enums: {
       client_origin: "lead" | "direct"

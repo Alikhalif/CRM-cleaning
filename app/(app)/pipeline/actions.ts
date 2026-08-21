@@ -85,6 +85,42 @@ export async function updateLeadStatus(id: string, target: LeadStatus): Promise<
   return { ok: true };
 }
 
+// Envoi d'un devis au client depuis le générateur OPTIMIVV → fait avancer le
+// lead à « Devis envoyé · Mano ». MONOTONE : n'agit que si le lead est encore
+// « lead » (entrant) ; ne recule jamais un lead déjà ouvert/signé/encaissé/perdu
+// (no-op renvoyant ok). Best-effort : appelé après un envoi réussi.
+export async function markDevisSentToClient(leadId: string): Promise<Result> {
+  const supabase = await supabaseServer();
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("status")
+    .eq("id", leadId)
+    .maybeSingle<{ status: string }>();
+  if (!lead) return { ok: false, error: "Lead introuvable ou accès refusé." };
+  if (lead.status !== "lead") return { ok: true }; // déjà envoyé ou plus loin
+
+  const updates: LeadUpdate = {
+    status: "envoye",
+    sub_envoi: "mano",
+    sub_signature: null,
+    last_action_label: "Devis envoyé",
+    last_action_at: new Date().toISOString(),
+  };
+  const { error } = await supabase.from("leads").update(updates as never).eq("id", leadId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/pipeline");
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${leadId}`);
+  await auditLog({
+    action: "lead.status.change",
+    entityType: "lead",
+    entityId: leadId,
+    after: { status: "envoye", subEnvoi: "mano", via: "devis_optimivv" },
+  });
+  return { ok: true };
+}
+
 export async function updateLeadSubEnvoi(id: string, value: SubEnvoi): Promise<Result> {
   const supabase = await supabaseServer();
   const updates: LeadUpdate = {

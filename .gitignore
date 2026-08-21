@@ -49,3 +49,8 @@ supabase/.env
 
 # n8n workflows remplis avec des secrets réels — jamais commités
 n8n/*.local.json
+
+# Références devis (ne pas versionner)
+api.py
+devis-template.zip
+optimivv-devis.zip
