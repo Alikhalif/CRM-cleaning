@@ -160,28 +160,12 @@ export async function genererDevisNettoyageBuffer(
   cover(62, 267.5, 200, 278.5, GREEN);
   put(PRESTATAIRE_NETTOYAGE.site, 63.7, 276.9, light, 8, WHITE, { maxRight: 199 });
 
-  // ---- Pied de page : tél + site (même contact, cohérent avec la carte) ------
-  cover(446, 820.5, 495, 830.5, GREEN);
-  put(PRESTATAIRE_NETTOYAGE.tel, 447.4, 829.2, reg, 7.2, WHITE, { maxRight: 495 });
-  cover(503, 820.5, 563, 830.5, GREEN);
-  put(PRESTATAIRE_NETTOYAGE.site, 504.3, 829.2, reg, 7.2, WHITE, { maxRight: 588 });
-
   // ---- Cartouche CLIENT (carte de droite) -----------------------------------
-  // Toutes les valeurs démarrent à la MÊME abscisse (colonne alignée, aspect
-  // structuré) et sont bornées à droite AVANT la photo (hero à x≈309) pour ne
-  // jamais déborder dessus — sinon les longues adresses/e-mails s'y étalent.
-  const CX = 296; // départ commun (juste après le plus long label « Nom/Société : »)
-  const CMAX = 460; // bord droit utile de la carte, en deçà de la photo
-  const clientRows: Array<[string | undefined, number]> = [
-    [CL.nom, 182],
-    [CL.adresse, 197.8],
-    [CL.adresse2, 213.5],
-    [CL.telephone, 245],
-    [CL.email, 260.7],
-  ];
-  for (const [val, b] of clientRows) {
-    put(val, CX, b, med, 8.4, VALUE, { maxRight: CMAX });
-  }
+  put(CL.nom, 292, 183.5, med, 8.6, VALUE, { maxRight: 560 });
+  put(CL.adresse, 268, 199.3, med, 8.6, VALUE, { maxRight: 560 });
+  put(CL.adresse2, 240, 215, med, 8.6, VALUE, { maxRight: 560 });
+  put(CL.telephone, 278, 246.5, med, 8.6, VALUE, { maxRight: 560 });
+  put(CL.email, 258, 262.2, med, 8.6, VALUE, { maxRight: 560 });
 
   // ---- Lieu / date prévue d'intervention ------------------------------------
   put(D.lieu_intervention, 160, 391, med, 8, VALUE, { maxRight: 305 });
