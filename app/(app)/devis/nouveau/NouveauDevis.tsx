@@ -20,6 +20,9 @@ type Props = {
   // et variables réelles du lead pour l'interpolation.
   templates: MessageTemplate[];
   vars: Record<string, string>;
+  // Modèle graphique du PDF (secteur du lead) : "nettoyage" → design OPTIMIVV
+  // NETTOYAGE ; "demenagement" (défaut) → design déménagement.
+  template?: "demenagement" | "nettoyage";
 };
 
 type Form = {
@@ -36,9 +39,25 @@ type Form = {
   acompte_pct: string;
 };
 
+// Montants dérivés du formulaire — source unique partagée par formToInput,
+// buildProEmail et mergedVars.
+function deriveMontants(f: Form): {
+  montantHt: number | null;
+  acomptePct: number | null;
+  acompteAmt: number | null;
+} {
+  const raw = f.montant_ht.trim().replace(",", ".");
+  const n = Number(raw);
+  const montantHt = raw !== "" && Number.isFinite(n) ? n : null;
+  const acomptePct = f.acompte_pct ? Number(f.acompte_pct) : null;
+  const acompteAmt =
+    montantHt != null && acomptePct
+      ? Math.round(montantHt * acomptePct) / 100
+      : null;
+  return { montantHt, acomptePct, acompteAmt };
+}
+
 function formToInput(f: Form): DevisInput {
-  const montant = f.montant_ht.trim().replace(",", ".");
-  const n = Number(montant);
   return {
     client: {
       nom: f.nom.trim(),
@@ -50,7 +69,7 @@ function formToInput(f: Form): DevisInput {
     lieu_intervention: f.lieu_intervention.trim() || undefined,
     date_prevue: f.date_prevue.trim() || undefined,
     description: f.description || undefined,
-    montant_ht: montant !== "" && Number.isFinite(n) ? n : null,
+    montant_ht: deriveMontants(f).montantHt,
     validite_jours: f.validite_jours ? Number(f.validite_jours) : undefined,
     acompte_pct: f.acompte_pct ? Number(f.acompte_pct) : undefined,
   };
@@ -68,15 +87,7 @@ function buildProEmail(
   docType: "devis" | "facture",
 ): { subject: string; body: string } {
   const kind = docType === "facture" ? "facture" : "devis";
-  const montantRaw = f.montant_ht.trim().replace(",", ".");
-  const parsed = Number(montantRaw);
-  const montantHt =
-    montantRaw !== "" && Number.isFinite(parsed) ? parsed : null;
-  const acomptePct = f.acompte_pct ? Number(f.acompte_pct) : null;
-  const acompteAmt =
-    montantHt != null && acomptePct
-      ? Math.round(montantHt * acomptePct) / 100
-      : null;
+  const { montantHt, acomptePct, acompteAmt } = deriveMontants(f);
 
   const lines: string[] = [];
   lines.push(`Bonjour ${f.nom.trim() || "Madame, Monsieur"},`);
@@ -113,7 +124,7 @@ function buildProEmail(
   };
 }
 
-export default function NouveauDevis({ prefill, leadId, templates, vars }: Props) {
+export default function NouveauDevis({ prefill, leadId, templates, vars, template = "demenagement" }: Props) {
   const [form, setForm] = useState<Form>({
     nom: prefill?.client.nom ?? "",
     adresse: prefill?.client.adresse ?? "",
@@ -190,15 +201,7 @@ export default function NouveauDevis({ prefill, leadId, templates, vars }: Props
     );
     setIf("client.ville", form.adresse2.trim());
 
-    const montantRaw = form.montant_ht.trim().replace(",", ".");
-    const parsed = Number(montantRaw);
-    const montantHt =
-      montantRaw !== "" && Number.isFinite(parsed) ? parsed : null;
-    const acomptePct = form.acompte_pct ? Number(form.acompte_pct) : null;
-    const acompteAmt =
-      montantHt != null && acomptePct
-        ? Math.round(montantHt * acomptePct) / 100
-        : null;
+    const { montantHt, acomptePct, acompteAmt } = deriveMontants(form);
     if (acomptePct) v["acompte.pct"] = `${acomptePct} %`;
     if (montantHt != null) v["montant.total"] = formatEUR(montantHt);
     if (acompteAmt != null) v["montant.acompte"] = formatEUR(acompteAmt);
@@ -227,7 +230,9 @@ export default function NouveauDevis({ prefill, leadId, templates, vars }: Props
     setEmailBody(renderTemplate(t.body, mergedVars));
   };
 
-  const input = useMemo(() => formToInput(form), [form]);
+  // `template` pilote le modèle graphique du PDF côté serveur (aperçu, émission,
+  // envoi, signature passent tous par genererDevisBuffer, qui dispatche dessus).
+  const input = useMemo(() => ({ ...formToInput(form), template }), [form, template]);
   const dataKey = useMemo(() => JSON.stringify(input), [input]);
 
   // Aperçu : régénéré en debounce 600 ms (pas à chaque frappe) via un <iframe>
@@ -358,7 +363,8 @@ export default function NouveauDevis({ prefill, leadId, templates, vars }: Props
       <header className={styles.head}>
         <div className={styles.headTop}>
           <h1 className={styles.title}>
-            Nouveau {docType === "facture" ? "facture" : "devis"} — OPTIMIVV
+            Nouveau {docType === "facture" ? "facture" : "devis"} —{" "}
+            {template === "nettoyage" ? "OPTIMIVV NETTOYAGE" : "OPTIMIVV DÉMÉNAGEMENT"}
           </h1>
           <div className={styles.toggle} role="group" aria-label="Type de document">
             <button
@@ -378,7 +384,9 @@ export default function NouveauDevis({ prefill, leadId, templates, vars }: Props
           </div>
         </div>
         <p className={styles.subtitle}>
-          Déménagement · Débarras · Intervention spécialisée
+          {template === "nettoyage"
+            ? "Nettoyage · Désinfection · Décontamination"
+            : "Déménagement · Débarras · Intervention spécialisée"}
           {leadId ? " · prérempli depuis l'affaire" : ""}
         </p>
       </header>

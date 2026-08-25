@@ -32,6 +32,11 @@ export type DocType = "devis" | "facture";
 
 export type Devis = {
   docType: DocType; // "devis" (défaut) ou "facture" — même template, libellés adaptés
+  // Modèle graphique du PDF, choisi selon le secteur du lead :
+  //  • "demenagement" (défaut) → rendu vectoriel pdfkit (render.ts)
+  //  • "nettoyage" → surcouche sur le design figé OPTIMIVV NETTOYAGE
+  //    (render-nettoyage.ts). Voir generer via lib/devis/render.ts.
+  template?: "demenagement" | "nettoyage";
   numero: string; // "2026-00045" (devis) / "FAC-2026-00001" (facture)
   date_emission: string; // "21/07/2026"
   validite_jours: number; // 30

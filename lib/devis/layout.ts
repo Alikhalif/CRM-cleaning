@@ -47,12 +47,19 @@ const SUBST: Record<string, string> = {
   "’": "'", // ’ '
 };
 
+// Classe de caractères précompilée (aucune valeur de SUBST n'est elle-même une
+// clé → un seul passage suffit et donne un résultat identique à la boucle).
+const SUBST_RE = new RegExp(
+  "[" +
+    Object.keys(SUBST)
+      .map((k) => "\\u" + k.charCodeAt(0).toString(16).padStart(4, "0"))
+      .join("") +
+    "]",
+  "g",
+);
+
 export function safe(s: unknown): string {
-  let out = String(s);
-  for (const [a, b] of Object.entries(SUBST)) {
-    out = out.split(a).join(b);
-  }
-  return out;
+  return String(s).replace(SUBST_RE, (ch) => SUBST[ch]);
 }
 
 // "1250 -> '1 250,00 €'"  (identique à euro() Python)

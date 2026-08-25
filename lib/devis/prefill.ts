@@ -17,6 +17,7 @@ import {
 // commercial ne peut préremplir que depuis SES leads.
 export type DevisPrefill = {
   leadId: string;
+  sector: string; // secteur du lead → choix du modèle graphique du PDF
   client: {
     nom: string;
     adresse?: string;
@@ -110,6 +111,7 @@ function buildPrefill(detail: LeadDetail): DevisPrefill {
 
   return {
     leadId: l.id,
+    sector: l.sector,
     client: {
       nom,
       adresse: l.address || undefined,
@@ -180,14 +182,4 @@ export async function getDevisPageData(
   });
 
   return { prefill, templates, vars };
-}
-
-// Conservé pour compat : préremplissage seul (sans modèles ni variables).
-export async function getDevisPrefill(
-  affaire?: string | null,
-): Promise<DevisPrefill | null> {
-  if (!affaire) return null;
-  const detail = await getLeadDetail(affaire);
-  if (!detail) return null;
-  return buildPrefill(detail);
 }

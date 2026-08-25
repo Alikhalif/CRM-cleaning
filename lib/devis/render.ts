@@ -58,15 +58,38 @@ import {
   PRESTATAIRE,
   MARQUE,
   DEFAUTS,
+  todayFr,
   type Devis,
   type DevisInput,
 } from "./types";
+import { genererDevisNettoyageBuffer } from "./render-nettoyage";
 import path from "node:path";
+import fs from "node:fs";
+
+// Octets des polices/images lus UNE fois (pdfkit accepte un Buffer). Évite un
+// accès disque par police (×5) + image (×2) à chaque rendu — la boucle d'aperçu
+// régénère le PDF à chaque frappe. Sortie embarquée identique.
+const fileCache = new Map<string, Buffer>();
+function fileBytes(p: string): Buffer {
+  let b = fileCache.get(p);
+  if (!b) {
+    b = fs.readFileSync(p);
+    fileCache.set(p, b);
+  }
+  return b;
+}
 
 type Doc = PDFKit.PDFDocument;
 type IconFn = (g: Gfx) => void;
 
+// Point d'entrée unique du générateur de devis/facture OPTIMIVV. Dispatche selon
+// le modèle graphique du secteur : "nettoyage" → surcouche sur le design figé
+// (render-nettoyage.ts) ; sinon rendu vectoriel déménagement ci-dessous. Tous
+// les appelants (aperçu, envoi, signature) passent par ici.
 export function genererDevisBuffer(donnees: DevisInput): Promise<Buffer> {
+  if (donnees.template === "nettoyage") {
+    return genererDevisNettoyageBuffer(donnees);
+  }
   return new Promise<Buffer>((resolve, reject) => {
     try {
       const buf = buildPdf(donnees);
@@ -86,7 +109,7 @@ function buildPdf(donnees: DevisInput): Doc {
   const D: Devis = {
     ...DEFAUTS,
     numero: new Date().getFullYear() + "-00001",
-    date_emission: formatDateFr(new Date()),
+    date_emission: todayFr(),
     ...donnees,
   } as Devis;
   const P = { ...PRESTATAIRE, ...(donnees.prestataire || {}) };
@@ -101,7 +124,7 @@ function buildPdf(donnees: DevisInput): Doc {
   doc.info.Subject = `${kind} - déménagement, débarras, intervention spécialisée`;
 
   for (const [alias, file] of FONT_FILES) {
-    doc.registerFont(alias, path.join(FONTS_DIR, file));
+    doc.registerFont(alias, fileBytes(path.join(FONTS_DIR, file)));
   }
   const g = makeGfx(doc);
 
@@ -273,7 +296,7 @@ function buildPdf(donnees: DevisInput): Doc {
 
   // ================================================================= PHOTO (fond)
   const px0Img = X(600);
-  doc.image(PHOTO, px0Img, YT(95), {
+  doc.image(fileBytes(PHOTO), px0Img, YT(95), {
     width: PW - px0Img,
     height: YT(663) - YT(95),
   });
@@ -282,7 +305,7 @@ function buildPdf(donnees: DevisInput): Doc {
   const LOGO_R = 900.0 / 656.0;
   const lw = W(134);
   const lh = lw / LOGO_R;
-  doc.image(LOGO, X(40), YT(44), { width: lw, height: lh });
+  doc.image(fileBytes(LOGO), X(40), YT(44), { width: lw, height: lh });
 
   txt(marque.nom, 200, 96, "PopB", FS(53), NAVY, W(2.0));
   txt(marque.activite, 202, 141, "PopB", FS(31), NAVY, W(6.2));
@@ -613,11 +636,6 @@ function buildPdf(donnees: DevisInput): Doc {
   );
 
   return doc;
-}
-
-function formatDateFr(d: Date): string {
-  const p = (n: number): string => String(n).padStart(2, "0");
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
 // Décode une data URL (PNG/JPEG base64, ex. sortie d'un canvas de signature) en

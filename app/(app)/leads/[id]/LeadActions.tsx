@@ -246,12 +246,12 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
         </button>
       )}
       {!closed && (
-        // Secteur déménagement → générateur OPTIMIVV pixel-perfect
-        // (/devis/nouveau, prérempli depuis l'affaire) ; autres secteurs →
-        // éditeur de devis générique du CRM (/devis/new).
+        // Secteurs déménagement & nettoyage → générateur OPTIMIVV pixel-perfect
+        // (/devis/nouveau, prérempli depuis l'affaire, design selon le secteur) ;
+        // autres secteurs → éditeur de devis générique du CRM (/devis/new).
         <Link
           href={
-            lead.sector === "demenagement"
+            lead.sector === "demenagement" || lead.sector === "nettoyage"
               ? `/devis/nouveau?affaire=${lead.id}`
               : `/devis/new?lead=${lead.id}`
           }
@@ -259,7 +259,11 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
           aria-disabled={busy !== null}
         >
           <Icon name="check" size={14} />{" "}
-          {lead.sector === "demenagement" ? "Devis déménagement" : "Générer devis"}
+          {lead.sector === "demenagement"
+            ? "Devis déménagement"
+            : lead.sector === "nettoyage"
+              ? "Devis nettoyage"
+              : "Générer devis"}
         </Link>
       )}
       {optimivvDevis && (

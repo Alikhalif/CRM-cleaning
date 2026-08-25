@@ -66,27 +66,27 @@ export async function POST(request: Request) {
 
   const docType: DocType =
     body.docType === "facture" || input.docType === "facture" ? "facture" : "devis";
+
+  // Secteur du lead → pilote le domaine des liens (devis) ET l'expéditeur
+  // (devis + facture). Lecture lancée en parallèle de la génération du PDF.
+  const sectorPromise = body.affaire
+    ? supabase
+        .from("leads")
+        .select("activity:activities(slug)")
+        .eq("id", body.affaire)
+        .maybeSingle<{ activity: { slug: string } | null }>()
+    : Promise.resolve({ data: null });
+
   const numero = await allocateNumero(docType);
   const devis = buildDevis({ ...input, docType }, numero);
-  const pdf = await genererDevisBuffer(devis);
+  const [pdf, leadRes] = await Promise.all([
+    genererDevisBuffer(devis),
+    sectorPromise,
+  ]);
+  const sector: string | null = leadRes.data?.activity?.slug ?? null;
 
   const sujet = typeof body.sujet === "string" && body.sujet.trim() ? body.sujet.trim() : undefined;
   const corps = typeof body.corps === "string" && body.corps.trim() ? body.corps : undefined;
-
-  // Pixel de suivi d'ouverture (méthode gratuite, sans Brevo Pro) : seulement
-  // pour un DEVIS lié à une affaire → à l'ouverture de l'e-mail, le lead passe
-  // « envoyé » → « ouvert ».
-  // Secteur du lead → pilote le domaine des liens (devis) ET l'expéditeur
-  // (devis + facture).
-  let sector: string | null = null;
-  if (body.affaire) {
-    const { data: leadRow } = await supabase
-      .from("leads")
-      .select("activity:activities(slug)")
-      .eq("id", body.affaire)
-      .maybeSingle<{ activity: { slug: string } | null }>();
-    sector = leadRow?.activity?.slug ?? null;
-  }
 
   // Base des URL client selon le secteur (liens + bannière), calculée une fois.
   const sectorBase = domainForSector(sector) ?? (await baseUrl());

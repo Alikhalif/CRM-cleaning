@@ -6,14 +6,22 @@ import { todayFr, type Devis } from "./types";
 import { markLeadDevisSigne } from "./status";
 import { signedDevisUrl } from "./archive";
 import { sendBrevoEmail } from "@/lib/brevo";
-import { senderForSector, domainForSector, signatureBannerFile } from "./sender";
+import {
+  senderForSector,
+  domainForSector,
+  signatureBannerFile,
+  signatureBannerHtml,
+} from "./sender";
 
 const BUCKET = "devis-optimivv";
 
 type Row = { numero: string; data: unknown; pdf_path: string };
+type Sb = Awaited<ReturnType<typeof supabaseServiceRole>>;
 
-async function latestDevisRow(leadId: string): Promise<Row | null> {
-  const sb = await supabaseServiceRole();
+// Dernier devis OPTIMIVV archivé du lead. Réutilise le client fourni si présent
+// (évite une 2e instanciation quand l'appelant en a déjà un).
+async function latestDevisRow(leadId: string, client?: Sb): Promise<Row | null> {
+  const sb = client ?? (await supabaseServiceRole());
   const { data } = await sb
     .from("devis_optimivv")
     .select("numero, data, pdf_path")
@@ -25,22 +33,14 @@ async function latestDevisRow(leadId: string): Promise<Row | null> {
   return data ?? null;
 }
 
-// Méta du dernier devis OPTIMIVV d'un lead (pour afficher le bouton « Voir le
-// devis signé » sur la fiche). `signed` = le pdf_path pointe sur la version signée.
+// Méta du dernier devis OPTIMIVV d'un lead (bouton « Voir le devis signé » sur
+// la fiche). `signed` = le pdf_path pointe sur la version signée.
 export async function getLeadOptimivvDevisMeta(
   leadId: string,
 ): Promise<{ numero: string; signed: boolean } | null> {
-  const sb = await supabaseServiceRole();
-  const { data } = await sb
-    .from("devis_optimivv")
-    .select("numero, pdf_path")
-    .eq("lead_id", leadId)
-    .eq("doc_type", "devis")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle<{ numero: string; pdf_path: string }>();
-  if (!data) return null;
-  return { numero: data.numero, signed: (data.pdf_path || "").includes("/signed-") };
+  const row = await latestDevisRow(leadId);
+  if (!row) return null;
+  return { numero: row.numero, signed: (row.pdf_path || "").includes("/signed-") };
 }
 
 export type SignContext = {
@@ -55,17 +55,16 @@ export type SignContext = {
 export async function getDevisForSigning(
   leadId: string,
 ): Promise<SignContext | null> {
-  const row = await latestDevisRow(leadId);
+  // Un seul client, devis + statut lus en parallèle.
+  const sb = await supabaseServiceRole();
+  const [row, leadRes] = await Promise.all([
+    latestDevisRow(leadId, sb),
+    sb.from("leads").select("status").eq("id", leadId).maybeSingle<{ status: string }>(),
+  ]);
   if (!row) return null;
   const devis = row.data as Devis;
-
-  const sb = await supabaseServiceRole();
-  const { data: lead } = await sb
-    .from("leads")
-    .select("status")
-    .eq("id", leadId)
-    .maybeSingle<{ status: string }>();
-  const alreadySigned = !!lead && ["signe", "encaisse"].includes(lead.status);
+  const status = leadRes.data?.status;
+  const alreadySigned = status === "signe" || status === "encaisse";
 
   return {
     numero: row.numero,
@@ -140,7 +139,7 @@ export async function recordDevisSignature(
         domainForSector(sector) ??
         (process.env.SIGNATURE_BASE_URL || "https://crmoptimum.com").replace(/\/$/, "");
       const banner = sigFile
-        ? `<div style="margin-top:26px;border-top:1px solid #eee;padding-top:16px"><img src="${sigBase}/email-signatures/${sigFile}" alt="OPTIMIVV" width="440" style="display:block;width:100%;max-width:440px;height:auto;border:0" /></div>`
+        ? signatureBannerHtml(`${sigBase}/email-signatures/${sigFile}`)
         : "";
       const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;line-height:1.5">
         Bonjour ${input.nom},<br /><br />
@@ -151,7 +150,7 @@ export async function recordDevisSignature(
       await sendBrevoEmail({
         to: clientEmail,
         toName: input.nom,
-        subject: `Votre devis signé n° ${row.numero} — OPTIMIVV Déménagement`,
+        subject: `Votre devis signé n° ${row.numero} — ${sender.name}`,
         htmlContent: html,
         senderEmail: sender.email,
         senderName: sender.name,

@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 import { euro } from "./layout";
 import { PRESTATAIRE, type Devis } from "./types";
 import { sendBrevoEmail } from "@/lib/brevo";
+import { signatureBannerHtml } from "./sender";
 
 // Envoi du devis PDF au client. Deux canaux :
 //   1. BREVO (par défaut si BREVO_API_KEY est présent) — cohérent avec le reste
@@ -83,9 +84,13 @@ export async function envoyerDevisEmail(
       ? euro(donnees.montant_ht).replace(" €", " EUR HT")
       : "à confirmer";
   const kind = donnees.docType === "facture" ? "facture" : "devis";
+  // Nom d'expéditeur / de marque, sector-aware (ex. « OPTIMIVV Nettoyage »).
+  // Sert d'entête (FROM), de suffixe de sujet et de signature du corps par
+  // défaut — pour ne jamais afficher « Déménagement » sur un devis nettoyage.
+  const fromName = opts?.senderName || process.env.DEVIS_SENDER_NAME || process.env.SMTP_FROM_NAME || FROM_NAME_DEFAULT;
   const sujet =
     opts?.sujet ||
-    `Votre ${kind} n° ${donnees.numero} - OPTIMIVV Déménagement`;
+    `Votre ${kind} n° ${donnees.numero} - ${fromName}`;
   const texte =
     opts?.corps ||
     corpsTexte({
@@ -95,13 +100,11 @@ export async function envoyerDevisEmail(
       montant,
       validite: donnees.validite_jours ?? 30,
       date_emission: donnees.date_emission || "",
-      signature: P.enseigne || FROM_NAME_DEFAULT,
+      signature: opts?.senderName || P.enseigne || FROM_NAME_DEFAULT,
       tel: P.telephone || "01 84 80 41 15",
       email: P.email || "contact@optimivv.fr",
       site: P.site || "www.optimivv.fr",
     });
-
-  const fromName = opts?.senderName || process.env.DEVIS_SENDER_NAME || process.env.SMTP_FROM_NAME || FROM_NAME_DEFAULT;
   const forceSmtp = process.env.DEVIS_EMAIL_TRANSPORT === "smtp";
 
   // Pixel de suivi d'ouverture (méthode maison, sans Brevo Pro) — chargé par le
@@ -112,7 +115,7 @@ export async function envoyerDevisEmail(
 
   // Bannière de signature (visuel de marque par secteur) en bas de l'e-mail.
   const signatureBanner = opts?.signatureImgUrl
-    ? `<div style="margin-top:26px;border-top:1px solid #eee;padding-top:16px"><img src="${opts.signatureImgUrl}" alt="OPTIMIVV" width="440" style="display:block;width:100%;max-width:440px;height:auto;border:0" /></div>`
+    ? signatureBannerHtml(opts.signatureImgUrl)
     : "";
 
   // Bouton « Signer votre devis » (signature en ligne → lead « Signé »).
@@ -123,17 +126,18 @@ export async function envoyerDevisEmail(
   const texteBody = opts?.signUrl
     ? `${texte}\nPour signer votre devis en ligne : ${opts.signUrl}\n`
     : texte;
+  // Corps HTML commun aux deux canaux (Brevo + SMTP).
+  const bodyHtml = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;white-space:pre-wrap;line-height:1.5">${escapeHtml(
+    texte,
+  )}</div>${signButton}${signatureBanner}${pixel}`;
 
   // ── Canal 1 : Brevo (défaut) ──────────────────────────────────────────
   if (!forceSmtp && process.env.BREVO_API_KEY) {
-    const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;white-space:pre-wrap;line-height:1.5">${escapeHtml(
-      texte,
-    )}</div>${signButton}${signatureBanner}${pixel}`;
     const res = await sendBrevoEmail({
       to: dest,
       toName: donnees.client?.nom || undefined,
       subject: sujet,
-      htmlContent: html,
+      htmlContent: bodyHtml,
       senderEmail: opts?.senderEmail || process.env.DEVIS_SENDER_EMAIL || undefined,
       senderName: fromName,
       attachment: { name: `devis-${donnees.numero}.pdf`, bytes: pdf },
@@ -169,9 +173,7 @@ export async function envoyerDevisEmail(
     bcc: BCC || undefined,
     subject: sujet,
     text: texteBody,
-    html: `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;white-space:pre-wrap;line-height:1.5">${escapeHtml(
-      texte,
-    )}</div>${signButton}${signatureBanner}${pixel}`,
+    html: bodyHtml,
     attachments: [
       {
         filename: `devis-${donnees.numero}.pdf`,
