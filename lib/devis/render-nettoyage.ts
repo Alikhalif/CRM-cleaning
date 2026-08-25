@@ -161,11 +161,31 @@ export async function genererDevisNettoyageBuffer(
   put(PRESTATAIRE_NETTOYAGE.site, 63.7, 276.9, light, 8, WHITE, { maxRight: 199 });
 
   // ---- Cartouche CLIENT (carte de droite) -----------------------------------
-  put(CL.nom, 292, 183.5, med, 8.6, VALUE, { maxRight: 560 });
-  put(CL.adresse, 268, 199.3, med, 8.6, VALUE, { maxRight: 560 });
-  put(CL.adresse2, 240, 215, med, 8.6, VALUE, { maxRight: 560 });
-  put(CL.telephone, 278, 246.5, med, 8.6, VALUE, { maxRight: 560 });
-  put(CL.email, 258, 262.2, med, 8.6, VALUE, { maxRight: 560 });
+  // Valeurs à leur place naturelle (juste après chaque label), MAIS bornées au
+  // bord droit utile de la carte (avant la photo hero à x≈309) pour qu'aucune
+  // donnée ne sorte du cadre.
+  const CMAX = 460;
+  put(CL.nom, 292, 183.5, med, 8.6, VALUE, { maxRight: CMAX });
+
+  // Adresse : 3 lignes dispo dans le gabarit → RETOUR À LA LIGNE (wrap au mot)
+  // au lieu de déborder. Rue (adresse) + CP/ville (adresse2) forment un bloc
+  // aligné à la même abscisse. Le CP/ville est toujours affiché (prioritaire) :
+  // la rue s'enveloppe dans les lignes du dessus, tronquée si vraiment trop long.
+  const ADX = 268; // départ du bloc adresse (juste après « Adresse : »)
+  const addrBaselines = [199.3, 215, 230.7];
+  const aw = CMAX - ADX; // largeur utile pour le wrap
+  const street = (CL.adresse ?? "").trim();
+  const city = (CL.adresse2 ?? "").trim();
+  const cityLines = city ? wrap(city, med, 8.6, aw) : [];
+  const streetLines = street
+    ? wrap(street, med, 8.6, aw).slice(0, addrBaselines.length - cityLines.length)
+    : [];
+  [...streetLines, ...cityLines]
+    .slice(0, addrBaselines.length)
+    .forEach((ln, i) => put(ln, ADX, addrBaselines[i], med, 8.6, VALUE, { maxRight: CMAX }));
+
+  put(CL.telephone, 278, 246.5, med, 8.6, VALUE, { maxRight: CMAX });
+  put(CL.email, 258, 262.2, med, 8.6, VALUE, { maxRight: CMAX });
 
   // ---- Lieu / date prévue d'intervention ------------------------------------
   put(D.lieu_intervention, 160, 391, med, 8, VALUE, { maxRight: 305 });
