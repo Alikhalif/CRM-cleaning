@@ -39,6 +39,28 @@ type Form = {
   acompte_pct: string;
 };
 
+// Montant en euros, format français à 2 décimales (« 1 250,00 € »). Utilisé
+// dans le récapitulatif de tarif ; formatEUR (lib/leads) arrondit à l'entier,
+// insuffisant pour un devis.
+const fmtEUR2 = (n: number): string =>
+  new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+
+// Conversions pour le sélecteur de date natif (<input type="date"> parle ISO
+// AAAA-MM-JJ) ↔ le format JJ/MM/AAAA attendu par le PDF.
+const frToIso = (fr: string): string => {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(fr.trim());
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
+};
+const isoToFr = (iso: string): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
+};
+
 // Montants dérivés du formulaire — source unique partagée par formToInput,
 // buildProEmail et mergedVars.
 function deriveMontants(f: Form): {
@@ -234,6 +256,8 @@ export default function NouveauDevis({ prefill, leadId, templates, vars, templat
   // envoi, signature passent tous par genererDevisBuffer, qui dispatche dessus).
   const input = useMemo(() => ({ ...formToInput(form), template }), [form, template]);
   const dataKey = useMemo(() => JSON.stringify(input), [input]);
+  // Récapitulatif de tarif affiché en direct (Total HT / acompte € / solde).
+  const montants = useMemo(() => deriveMontants(form), [form]);
 
   // Aperçu : régénéré en debounce 600 ms (pas à chaque frappe) via un <iframe>
   // sur un blob PDF. Mode "preview" côté API → aucun numéro consommé.
@@ -429,7 +453,13 @@ export default function NouveauDevis({ prefill, leadId, templates, vars, templat
               </label>
               <label className={styles.field}>
                 <span>Date prévue</span>
-                <input value={form.date_prevue} onChange={set("date_prevue")} placeholder="12/09/2026" />
+                <input
+                  type="date"
+                  value={frToIso(form.date_prevue)}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, date_prevue: isoToFr(e.target.value) }))
+                  }
+                />
               </label>
             </div>
             <label className={styles.field}>
@@ -442,8 +472,11 @@ export default function NouveauDevis({ prefill, leadId, templates, vars, templat
             <legend>Tarif & conditions</legend>
             <div className={styles.row}>
               <label className={styles.field}>
-                <span>Montant HT (€)</span>
-                <input value={form.montant_ht} onChange={set("montant_ht")} placeholder="à chiffrer" inputMode="decimal" />
+                <span>Montant HT</span>
+                <div className={styles.inputEuro}>
+                  <input value={form.montant_ht} onChange={set("montant_ht")} placeholder="0,00" inputMode="decimal" />
+                  <span className={styles.euroSuffix}>€ HT</span>
+                </div>
               </label>
               <label className={styles.field}>
                 <span>Validité (jours)</span>
@@ -453,6 +486,29 @@ export default function NouveauDevis({ prefill, leadId, templates, vars, templat
                 <span>Acompte (%)</span>
                 <input value={form.acompte_pct} onChange={set("acompte_pct")} inputMode="numeric" />
               </label>
+            </div>
+
+            {/* Récapitulatif calculé en direct : Total HT, acompte € et solde.
+                Pour ces secteurs en franchise de TVA, TTC = HT. */}
+            <div className={styles.recap} aria-live="polite">
+              <div className={styles.recapRow}>
+                <span>Total HT</span>
+                <strong>{montants.montantHt != null ? fmtEUR2(montants.montantHt) : "—"}</strong>
+              </div>
+              <div className={styles.recapRow}>
+                <span>
+                  Acompte{montants.acomptePct != null ? ` (${montants.acomptePct} %)` : ""}
+                </span>
+                <strong>{montants.acompteAmt != null ? fmtEUR2(montants.acompteAmt) : "—"}</strong>
+              </div>
+              <div className={`${styles.recapRow} ${styles.recapTotal}`}>
+                <span>Solde à la livraison</span>
+                <strong>
+                  {montants.montantHt != null && montants.acompteAmt != null
+                    ? fmtEUR2(montants.montantHt - montants.acompteAmt)
+                    : "—"}
+                </strong>
+              </div>
             </div>
           </fieldset>
 

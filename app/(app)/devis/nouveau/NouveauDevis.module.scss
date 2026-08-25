@@ -154,6 +154,89 @@
   }
 }
 
+// Champ montant avec suffixe « € HT » posé à l'intérieur, à droite.
+.inputEuro {
+  position: relative;
+
+  input {
+    width: 100%;
+    padding: var(--sp-2) var(--sp-3);
+    padding-right: 3.2rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-md);
+    background: var(--bg-app);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: var(--fs-sm);
+    text-align: right;
+
+    &:focus {
+      outline: none;
+      border-color: var(--color-brand-500);
+      box-shadow: 0 0 0 3px var(--color-brand-50);
+    }
+
+    &::placeholder {
+      color: var(--text-muted);
+    }
+  }
+
+  .euroSuffix {
+    position: absolute;
+    right: var(--sp-3);
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    pointer-events: none;
+  }
+}
+
+// Récapitulatif de tarif calculé en direct.
+.recap {
+  margin-top: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  background: var(--bg-app);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.recapRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: var(--fs-sm);
+
+  span {
+    color: var(--text-secondary);
+  }
+
+  strong {
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.recapTotal {
+  margin-top: var(--sp-1);
+  padding-top: var(--sp-2);
+  border-top: 1px dashed var(--border-strong);
+
+  span {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  strong {
+    font-size: var(--fs-md);
+    color: var(--color-brand-600);
+  }
+}
+
 .actions {
   display: flex;
   gap: var(--sp-3);
