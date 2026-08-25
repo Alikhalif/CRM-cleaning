@@ -41,10 +41,18 @@ function hex(h: string): RGB {
 }
 
 // Charte relevée sur le gabarit.
-const GREEN = hex("#0E3B2C"); // vert foncé (N° devis, montant)
+const GREEN = hex("#0E3B2C"); // vert foncé (N° devis, montant, carte prestataire)
 const DGREY = hex("#33413B"); // gris-vert (date, texte courant)
 const VALUE = hex("#12241C"); // valeurs client
 const WHITE = rgb(1, 1, 1);
+
+// Prestataire OPTIMIVV NETTOYAGE — corrige le tél. et l'e-mail incrustés dans le
+// design figé (le gabarit portait contact@optimivv.fr / 01 84 80 41 15).
+const PRESTATAIRE_NETTOYAGE = {
+  tel: "07 56 88 82 75",
+  email: "devis@optimivv-nettoyage.com",
+  site: "www.optimivv-nettoyage.com",
+};
 
 function dataUrlToImageBytes(
   dataUrl: string,
@@ -87,19 +95,29 @@ export async function genererDevisNettoyageBuffer(
     fileBytes(path.join(FONTS_DIR, "Poppins-Bold.ttf")),
     { subset: true },
   );
+  const light = await pdf.embedFont(
+    fileBytes(path.join(FONTS_DIR, "Poppins-Light.ttf")),
+    { subset: true },
+  );
 
   const page = pdf.getPage(0);
   const H = page.getHeight();
 
   // Rectangle blanc (masque une valeur d'exemple du gabarit). Coordonnées en
   // haut-origine (top), converties pour pdf-lib.
-  const cover = (x0: number, t0: number, x1: number, t1: number): void => {
+  const cover = (
+    x0: number,
+    t0: number,
+    x1: number,
+    t1: number,
+    color: RGB = WHITE,
+  ): void => {
     page.drawRectangle({
       x: x0,
       y: H - t1,
       width: x1 - x0,
       height: t1 - t0,
-      color: WHITE,
+      color,
     });
   };
 
@@ -132,6 +150,15 @@ export async function genererDevisNettoyageBuffer(
   put(D.numero, 123.1, 110, bold, 12, GREEN);
   cover(113.5, 115.5, 158, 126.5);
   put(D.date_emission, 115, 124.8, reg, 7.4, DGREY);
+
+  // ---- Prestataire (carte verte) : tél + e-mail (design figé corrigé) --------
+  // Masque vert #0E3B2C par-dessus l'ancien texte blanc, sans toucher l'icône.
+  cover(62, 236.5, 150, 248, GREEN);
+  put(PRESTATAIRE_NETTOYAGE.tel, 63.7, 246.5, light, 8, WHITE, { maxRight: 199 });
+  cover(62, 252, 200, 263.5, GREEN);
+  put(PRESTATAIRE_NETTOYAGE.email, 63.7, 261.7, light, 8, WHITE, { maxRight: 199 });
+  cover(62, 267.5, 200, 278.5, GREEN);
+  put(PRESTATAIRE_NETTOYAGE.site, 63.7, 276.9, light, 8, WHITE, { maxRight: 199 });
 
   // ---- Cartouche CLIENT (carte de droite) -----------------------------------
   put(CL.nom, 292, 183.5, med, 8.6, VALUE, { maxRight: 560 });
