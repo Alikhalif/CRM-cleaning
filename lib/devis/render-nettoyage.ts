@@ -160,6 +160,12 @@ export async function genererDevisNettoyageBuffer(
   cover(62, 267.5, 200, 278.5, GREEN);
   put(PRESTATAIRE_NETTOYAGE.site, 63.7, 276.9, light, 8, WHITE, { maxRight: 199 });
 
+  // ---- Pied de page : tél + site (même contact, cohérent avec la carte) ------
+  cover(446, 820.5, 495, 830.5, GREEN);
+  put(PRESTATAIRE_NETTOYAGE.tel, 447.4, 829.2, reg, 7.2, WHITE, { maxRight: 495 });
+  cover(503, 820.5, 563, 830.5, GREEN);
+  put(PRESTATAIRE_NETTOYAGE.site, 504.3, 829.2, reg, 7.2, WHITE, { maxRight: 588 });
+
   // ---- Cartouche CLIENT (carte de droite) -----------------------------------
   // Valeurs à leur place naturelle (juste après chaque label), MAIS bornées au
   // bord droit utile de la carte (avant la photo hero à x≈309) pour qu'aucune
