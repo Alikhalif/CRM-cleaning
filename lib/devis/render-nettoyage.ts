@@ -172,16 +172,28 @@ export async function genererDevisNettoyageBuffer(
   // jamais déborder dessus — sinon les longues adresses/e-mails s'y étalent.
   const CX = 296; // départ commun (juste après le plus long label « Nom/Société : »)
   const CMAX = 460; // bord droit utile de la carte, en deçà de la photo
-  const clientRows: Array<[string | undefined, number]> = [
-    [CL.nom, 182],
-    [CL.adresse, 197.8],
-    [CL.adresse2, 213.5],
-    [CL.telephone, 245],
-    [CL.email, 260.7],
-  ];
-  for (const [val, b] of clientRows) {
-    put(val, CX, b, med, 8.4, VALUE, { maxRight: CMAX });
-  }
+  const CW = CMAX - CX; // largeur utile pour le retour à la ligne
+
+  put(CL.nom, CX, 182, med, 8.4, VALUE, { maxRight: CMAX });
+
+  // Adresse : 3 lignes disponibles dans le gabarit → on ENVELOPPE le texte
+  // (retour à la ligne) au lieu de le laisser sortir du cadre. On garantit
+  // toujours l'affichage du CP/ville (adresse2, prioritaire) : la rue (adresse)
+  // s'enveloppe dans les lignes restantes au-dessus, tronquée si vraiment trop
+  // longue. Lignes rendues de haut en bas, sans trou.
+  const addrBaselines = [197.8, 213.5, 229.2];
+  const street = (CL.adresse ?? "").trim();
+  const city = (CL.adresse2 ?? "").trim();
+  const cityLines = city ? wrap(city, med, 8.4, CW) : [];
+  const streetLines = street
+    ? wrap(street, med, 8.4, CW).slice(0, addrBaselines.length - cityLines.length)
+    : [];
+  [...streetLines, ...cityLines]
+    .slice(0, addrBaselines.length)
+    .forEach((ln, i) => put(ln, CX, addrBaselines[i], med, 8.4, VALUE, { maxRight: CMAX }));
+
+  put(CL.telephone, CX, 245, med, 8.4, VALUE, { maxRight: CMAX });
+  put(CL.email, CX, 260.7, med, 8.4, VALUE, { maxRight: CMAX });
 
   // ---- Lieu / date prévue d'intervention ------------------------------------
   put(D.lieu_intervention, 160, 391, med, 8, VALUE, { maxRight: 305 });
