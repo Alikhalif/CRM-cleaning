@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { isCurrentUserAdmin } from "@/lib/presence/guard";
 import { updateRule, setThresholds, evaluate } from "@/lib/presence/alerts-server";
+import { setUserSchedule, type ScheduleEntry } from "@/lib/presence/schedule-server";
 
 type Result = { ok: boolean; error?: string };
 
@@ -20,6 +21,14 @@ export async function updateRuleAction(
 export async function setThresholdsAction(value: Record<string, number>): Promise<Result> {
   if (!(await isCurrentUserAdmin())) return { ok: false, error: "Accès réservé au Super Admin." };
   await setThresholds(value);
+  revalidatePath("/presence/parametres");
+  return { ok: true };
+}
+
+// Horaires attendus d'un utilisateur (règle d'alerte absence).
+export async function setScheduleAction(userId: string, entries: ScheduleEntry[]): Promise<Result> {
+  if (!(await isCurrentUserAdmin())) return { ok: false, error: "Accès réservé au Super Admin." };
+  await setUserSchedule(userId, entries);
   revalidatePath("/presence/parametres");
   return { ok: true };
 }

@@ -2,7 +2,9 @@ import Link from "next/link";
 import Icon from "@/components/Icon/Icon";
 import { getCurrentUserProfile } from "@/lib/users-server";
 import { getRules, getThresholdsConfig } from "@/lib/presence/alerts-server";
+import { getSchedulesData } from "@/lib/presence/schedule-server";
 import AlertSettings from "./AlertSettings";
+import ScheduleEditor from "./ScheduleEditor";
 import styles from "../presence.module.scss";
 
 export const metadata = { title: "Paramètres des alertes — Présence & Actions" };
@@ -19,7 +21,11 @@ export default async function PresenceSettingsPage() {
     );
   }
 
-  const [rules, thresholds] = await Promise.all([getRules(), getThresholdsConfig()]);
+  const [rules, thresholds, schedules] = await Promise.all([
+    getRules(),
+    getThresholdsConfig(),
+    getSchedulesData(),
+  ]);
 
   return (
     <div className={styles.page}>
@@ -31,6 +37,7 @@ export default async function PresenceSettingsPage() {
         </div>
       </header>
       <AlertSettings rules={rules} thresholds={thresholds} />
+      <ScheduleEditor data={schedules} />
     </div>
   );
 }
