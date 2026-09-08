@@ -15,6 +15,7 @@ import {
   profileCapabilities,
 } from "@/lib/leads";
 import { getAllCommerciaux, getLeadDetail, getLegalEntityPhone } from "@/lib/leads-server";
+import { logEntityRead } from "@/lib/presence/read-log";
 import { getCurrentUserProfile } from "@/lib/users-server";
 import { getActiveSmsTemplates, getTemplatesForUser, getTemplateByName } from "@/lib/message-templates-server";
 import { getLeadMedia, getLeadConsultations } from "@/lib/media-server";
@@ -61,6 +62,8 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function LeadDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  // Présence & Actions : trace l'ouverture du lead (throttlé, invisible).
+  void logEntityRead("lead", id);
   const { tab: tabParam } = await searchParams;
   const tab: TabKey =
     TABS.find((t) => t.key === tabParam)?.key ?? "informations";

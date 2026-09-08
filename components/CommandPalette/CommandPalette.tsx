@@ -47,7 +47,7 @@ const KIND_TO_ICON: Record<PaletteEntity["kind"], IconName> = {
   document: "comptabilite",
 };
 
-export default function CommandPalette() {
+export default function CommandPalette({ isAdmin = false }: { isAdmin?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -142,6 +142,7 @@ export default function CommandPalette() {
     // Pages
     for (const group of NAV_GROUPS) {
       for (const item of group.items) {
+        if (item.superAdminOnly && !isAdmin) continue;
         results.push({
           id: `page-${item.href}`,
           group: "page",
@@ -210,7 +211,7 @@ export default function CommandPalette() {
     }
 
     return results;
-  }, [theme, entities]);
+  }, [theme, entities, isAdmin]);
 
   // ── Filter + group ───────────────────────────────────────────────────
   const filtered = useMemo(() => {

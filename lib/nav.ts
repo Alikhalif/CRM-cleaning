@@ -7,6 +7,9 @@ export type NavItem = {
   icon: NavIcon;
   // For the leads counter badge etc.
   badge?: "leadsUntreated";
+  // Visible uniquement par le Super Admin (rôle slug "admin"). Filtré dans la
+  // Sidebar et la palette ⌘K.
+  superAdminOnly?: boolean;
 };
 
 export type NavGroup = {
@@ -24,6 +27,7 @@ export type NavIcon =
   | "planification"
   | "comptabilite"
   | "document"
+  | "presence"
   | "settings";
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -43,6 +47,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/chiffrage",      label: "Chiffrage",     icon: "planification" },
       { href: "/comptabilite",   label: "Comptabilité",  icon: "comptabilite" },
       { href: "/signatures",     label: "Signatures",    icon: "document" },
+      { href: "/presence",       label: "Présence & Actions", icon: "presence", superAdminOnly: true },
     ],
   },
   {

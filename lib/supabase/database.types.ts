@@ -265,6 +265,186 @@ export type Database = {
           },
         ]
       }
+      activity_daily_summary: {
+        Row: {
+          user_id: string
+          day: string
+          first_seen_at: string | null
+          last_seen_at: string | null
+          session_seconds: number
+          active_seconds: number
+          sessions_count: number
+          action_counts: Json
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          day: string
+          first_seen_at?: string | null
+          last_seen_at?: string | null
+          session_seconds?: number
+          active_seconds?: number
+          sessions_count?: number
+          action_counts?: Json
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          day?: string
+          first_seen_at?: string | null
+          last_seen_at?: string | null
+          session_seconds?: number
+          active_seconds?: number
+          sessions_count?: number
+          action_counts?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      alert_rules: {
+        Row: { key: string; label: string; enabled: boolean; config: Json; updated_at: string }
+        Insert: { key: string; label: string; enabled?: boolean; config?: Json; updated_at?: string }
+        Update: { key?: string; label?: string; enabled?: boolean; config?: Json; updated_at?: string }
+        Relationships: []
+      }
+      alerts: {
+        Row: {
+          id: string
+          rule_key: string
+          severity: string
+          user_id: string | null
+          entity_type: string | null
+          entity_id: string | null
+          title: string
+          context: Json
+          status: string
+          created_at: string
+          escalated_at: string | null
+          resolved_at: string | null
+          resolved_action: string | null
+          delay_seconds: number | null
+        }
+        Insert: {
+          id?: string
+          rule_key: string
+          severity?: string
+          user_id?: string | null
+          entity_type?: string | null
+          entity_id?: string | null
+          title: string
+          context?: Json
+          status?: string
+          created_at?: string
+          escalated_at?: string | null
+          resolved_at?: string | null
+          resolved_action?: string | null
+          delay_seconds?: number | null
+        }
+        Update: {
+          id?: string
+          rule_key?: string
+          severity?: string
+          user_id?: string | null
+          entity_type?: string | null
+          entity_id?: string | null
+          title?: string
+          context?: Json
+          status?: string
+          created_at?: string
+          escalated_at?: string | null
+          resolved_at?: string | null
+          resolved_action?: string | null
+          delay_seconds?: number | null
+        }
+        Relationships: []
+      }
+      presence_config: {
+        Row: { key: string; value: Json; updated_at: string }
+        Insert: { key: string; value: Json; updated_at?: string }
+        Update: { key?: string; value?: Json; updated_at?: string }
+        Relationships: []
+      }
+      presence_pings: {
+        Row: { id: number; user_id: string; ts: string; active: boolean; page: string | null }
+        Insert: { id?: number; user_id: string; ts?: string; active?: boolean; page?: string | null }
+        Update: { id?: number; user_id?: string; ts?: string; active?: boolean; page?: string | null }
+        Relationships: []
+      }
+      user_presence: {
+        Row: {
+          user_id: string
+          status: string
+          last_seen_at: string | null
+          last_active_at: string | null
+          current_page: string | null
+          session_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          status?: string
+          last_seen_at?: string | null
+          last_active_at?: string | null
+          current_page?: string | null
+          session_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          status?: string
+          last_seen_at?: string | null
+          last_active_at?: string | null
+          current_page?: string | null
+          session_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_sessions: {
+        Row: {
+          id: string
+          user_id: string
+          started_at: string
+          last_seen_at: string
+          ended_at: string | null
+          ended_reason: string | null
+          user_agent: string | null
+          active_seconds: number
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          started_at?: string
+          last_seen_at?: string
+          ended_at?: string | null
+          ended_reason?: string | null
+          user_agent?: string | null
+          active_seconds?: number
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          started_at?: string
+          last_seen_at?: string
+          ended_at?: string | null
+          ended_reason?: string | null
+          user_agent?: string | null
+          active_seconds?: number
+        }
+        Relationships: []
+      }
+      work_absences: {
+        Row: { id: string; user_id: string; day: string; reason: string | null }
+        Insert: { id?: string; user_id: string; day: string; reason?: string | null }
+        Update: { id?: string; user_id?: string; day?: string; reason?: string | null }
+        Relationships: []
+      }
+      work_schedules: {
+        Row: { user_id: string; weekday: number; start_time: string | null; end_time: string | null }
+        Insert: { user_id: string; weekday: number; start_time?: string | null; end_time?: string | null }
+        Update: { user_id?: string; weekday?: number; start_time?: string | null; end_time?: string | null }
+        Relationships: []
+      }
       cert_hotte: {
         Row: {
           client_email: string | null

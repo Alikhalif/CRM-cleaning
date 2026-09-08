@@ -11,6 +11,7 @@ import {
   formatEUR,
 } from "@/lib/leads";
 import { getClientById, getClientStats } from "@/lib/clients-server";
+import { logEntityRead } from "@/lib/presence/read-log";
 import styles from "./ClientDetail.module.scss";
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -31,6 +32,8 @@ export default async function ClientDetailPage({ params }: PageProps) {
   const { id } = await params;
   const client = await getClientById(id);
   if (!client) notFound();
+  // Présence & Actions : trace la consultation de la fiche client (throttlé).
+  void logEntityRead("client", id);
 
   const { documents, caEncaisse, caSigne, lastActivityAt } = await getClientStats(client);
 

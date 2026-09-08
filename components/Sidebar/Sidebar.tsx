@@ -11,7 +11,7 @@ import styles from "./Sidebar.module.scss";
 const COLLAPSED_KEY = "cgk-sidebar-collapsed";
 const THEME_KEY = "cgk-theme";
 
-export default function Sidebar() {
+export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
   const collapsed = useStoredValue(COLLAPSED_KEY, "0") === "1";
   const theme = (useStoredValue(THEME_KEY, "light") === "dark" ? "dark" : "light") as
@@ -39,11 +39,14 @@ export default function Sidebar() {
       </div>
 
       <nav className={styles.nav}>
-        {NAV_GROUPS.map((group) => (
+        {NAV_GROUPS.map((group) => {
+          const items = group.items.filter((item) => !item.superAdminOnly || isAdmin);
+          if (items.length === 0) return null;
+          return (
           <div key={group.id} className={styles.group}>
             {!collapsed && <div className={styles.groupLabel}>{group.label}</div>}
             <ul>
-              {group.items.map((item) => {
+              {items.map((item) => {
                 const active = pathname === item.href || pathname.startsWith(item.href + "/");
                 return (
                   <li key={item.href}>
@@ -63,7 +66,8 @@ export default function Sidebar() {
               })}
             </ul>
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       <div className={styles.footer}>

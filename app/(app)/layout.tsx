@@ -1,5 +1,6 @@
 import CallScreenPop from "@/components/CallScreenPop/CallScreenPop";
 import CommandPalette from "@/components/CommandPalette/CommandPalette";
+import PresenceHeartbeat from "@/components/PresenceHeartbeat/PresenceHeartbeat";
 import RealtimeNotifications from "@/components/RealtimeNotifications/RealtimeNotifications";
 import RingoverPhone from "@/components/RingoverPhone/RingoverPhone";
 import Sidebar from "@/components/Sidebar/Sidebar";
@@ -30,13 +31,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className={styles.shell}>
-      <Sidebar />
+      <Sidebar isAdmin={isAdmin} />
       <div className={styles.main}>
         <Topbar user={user} unreadCount={unreadCount} />
         <main className={styles.content}>{children}</main>
       </div>
-      <CommandPalette />
+      <CommandPalette isAdmin={isAdmin} />
       {user && <RealtimeNotifications userId={user.id} />}
+      {user && <PresenceHeartbeat userId={user.id} />}
       {showWebphone && <RingoverPhone />}
       {showWebphone && <CallScreenPop />}
     </div>

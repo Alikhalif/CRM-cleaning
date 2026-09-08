@@ -30,9 +30,16 @@ export type IconName =
   | "document"
   | "image"
   | "trending-up"
-  | "trending-down";
+  | "trending-down"
+  | "presence";
 
 const PATHS: Record<IconName, React.ReactNode> = {
+  presence: (
+    <>
+      <path d="M3 12h3l2 5 4-12 2 7h3" />
+      <circle cx="20" cy="7" r="1.6" />
+    </>
+  ),
   dashboard: (
     <>
       <rect x="3"  y="3"  width="7" height="9"  rx="1.5" />

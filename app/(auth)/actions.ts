@@ -187,6 +187,13 @@ export async function logout() {
   const { data: { user } } = await supabase.auth.getUser();
   if (user) {
     await auditLog({ action: "auth.logout", entityType: "user", entityId: user.id });
+    // Présence & Actions : clôt la session pour un temps de session exact (best-effort).
+    try {
+      const { recordOffline } = await import("@/lib/presence/heartbeat-server");
+      await recordOffline(user.id, "logout");
+    } catch {
+      /* présence best-effort */
+    }
   }
   await supabase.auth.signOut();
   redirect("/login");
