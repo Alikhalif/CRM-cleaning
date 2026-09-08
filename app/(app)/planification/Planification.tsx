@@ -996,6 +996,11 @@ function Row({
                   <Icon name="document" size={15} /> Consulter le devis
                 </Link>
               )}
+              {(lead.sector === "nettoyage" || lead.sector === "nettoyage_difficile") && (
+                <Link href={`/certificat-hotte?dossier=${dossier.id}`} className={styles.menuItem} role="menuitem">
+                  <Icon name="check" size={15} /> Certificat Hotte
+                </Link>
+              )}
               {dossier.status === "finalise" && !finaleDoc && (
                 <button type="button" className={styles.menuItem} data-variant="primary" role="menuitem"
                   onClick={() => { onToggleMenu(); onGenerateFinale(); }}>

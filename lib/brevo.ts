@@ -22,6 +22,9 @@ export type SendEmailInput = {
   senderName?: string;
   // Attachment as raw bytes — wrapper handles base64 encoding.
   attachment?: { name: string; bytes: Buffer | Uint8Array };
+  // Plusieurs pièces jointes (ex. certificat + facture). Fusionnées avec
+  // `attachment` s'il est aussi fourni.
+  attachments?: { name: string; bytes: Buffer | Uint8Array }[];
   // Copie cachée (ex. copie au commercial).
   bcc?: string;
 };
@@ -60,14 +63,16 @@ export async function sendBrevoEmail(input: SendEmailInput): Promise<BrevoSendRe
     body.bcc = [{ email: input.bcc }];
   }
 
-  if (input.attachment) {
-    body.attachment = [
-      {
-        name: input.attachment.name,
-        // Buffer.from copy → base64. Uint8Array also works via Buffer.from(view).
-        content: Buffer.from(input.attachment.bytes).toString("base64"),
-      },
-    ];
+  const allAttachments = [
+    ...(input.attachment ? [input.attachment] : []),
+    ...(input.attachments ?? []),
+  ];
+  if (allAttachments.length) {
+    body.attachment = allAttachments.map((a) => ({
+      name: a.name,
+      // Buffer.from copy → base64. Uint8Array also works via Buffer.from(view).
+      content: Buffer.from(a.bytes).toString("base64"),
+    }));
   }
 
   let response: Response;

@@ -265,6 +265,51 @@ export type Database = {
           },
         ]
       }
+      cert_hotte: {
+        Row: {
+          client_email: string | null
+          client_nom: string | null
+          created_at: string
+          created_by: string | null
+          data: Json
+          dossier_id: string | null
+          id: string
+          lead_id: string | null
+          numero: string
+          pdf_path: string
+          sent_at: string | null
+          sent_to: string | null
+        }
+        Insert: {
+          client_email?: string | null
+          client_nom?: string | null
+          created_at?: string
+          created_by?: string | null
+          data: Json
+          dossier_id?: string | null
+          id?: string
+          lead_id?: string | null
+          numero: string
+          pdf_path: string
+          sent_at?: string | null
+          sent_to?: string | null
+        }
+        Update: {
+          client_email?: string | null
+          client_nom?: string | null
+          created_at?: string
+          created_by?: string | null
+          data?: Json
+          dossier_id?: string | null
+          id?: string
+          lead_id?: string | null
+          numero?: string
+          pdf_path?: string
+          sent_at?: string | null
+          sent_to?: string | null
+        }
+        Relationships: []
+      }
       devis_optimivv: {
         Row: {
           client_email: string | null
@@ -2007,6 +2052,7 @@ export type Database = {
       has_permission: { Args: { p_key: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       is_planificateur: { Args: never; Returns: boolean }
+      next_cert_hotte_num: { Args: { p_year: number }; Returns: string }
       next_devis_optimivv_num: { Args: { p_year: number }; Returns: string }
       next_doc_num: {
         Args: {
