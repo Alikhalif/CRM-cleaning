@@ -15,3 +15,12 @@
   flex: 1;
   padding: var(--sp-6);
 }
+
+// ── Mobile (≤ 768px) : la sidebar passe en tiroir (position fixed hors flux),
+// le contenu prend toute la largeur, avec un espace bas pour la barre d'onglets.
+@media (max-width: 768px) {
+  .content {
+    padding: var(--sp-4);
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px) + var(--sp-4));
+  }
+}

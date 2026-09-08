@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.scss";
 
@@ -8,6 +8,15 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export const metadata: Metadata = {
   title: { default: "CGK CRM", template: "%s · CGK CRM" },
   description: "Commercial · devis · facturation",
+};
+
+// Rend le CRM réellement utilisable sur mobile/tablette : sans ce viewport, les
+// navigateurs mobiles rendent la page en largeur desktop dézoomée. viewportFit
+// "cover" gère les encoches (iPhone). Aucun impact sur le rendu desktop.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 // Inline pre-paint script: applies the saved theme before React hydrates,

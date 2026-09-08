@@ -328,3 +328,19 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+// ── Mobile (≤ 768px) : éviter tout débordement horizontal de la topbar ──────
+@media (max-width: 768px) {
+  .topbar {
+    padding: 0 var(--sp-3);
+    gap: var(--sp-2);
+  }
+  .search {
+    width: auto;
+    max-width: none;
+    flex: 1;
+    min-width: 0;
+  }
+  // Le raccourci clavier ⌘K n'a pas de sens sur mobile.
+  .kbd { display: none; }
+}

@@ -1,5 +1,6 @@
 import CallScreenPop from "@/components/CallScreenPop/CallScreenPop";
 import CommandPalette from "@/components/CommandPalette/CommandPalette";
+import MobileTabBar from "@/components/MobileTabBar/MobileTabBar";
 import PresenceHeartbeat from "@/components/PresenceHeartbeat/PresenceHeartbeat";
 import RealtimeNotifications from "@/components/RealtimeNotifications/RealtimeNotifications";
 import RingoverPhone from "@/components/RingoverPhone/RingoverPhone";
@@ -29,6 +30,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const isDivers = (user?.commercialProfiles ?? []).includes("divers");
   const showWebphone = canUseRingover || isDivers;
 
+  // Rôle pour la navigation mobile (barre d'onglets) — priorité admin > planif.
+  const mobileRole = isAdmin ? "admin" : isPlanificateur ? "planification" : "commercial";
+
   return (
     <div className={styles.shell}>
       <Sidebar isAdmin={isAdmin} />
@@ -39,6 +43,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <CommandPalette isAdmin={isAdmin} />
       {user && <RealtimeNotifications userId={user.id} />}
       {user && <PresenceHeartbeat userId={user.id} />}
+      {user && <MobileTabBar role={mobileRole} />}
       {showWebphone && <RingoverPhone />}
       {showWebphone && <CallScreenPop />}
     </div>

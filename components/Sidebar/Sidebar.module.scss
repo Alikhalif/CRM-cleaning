@@ -133,3 +133,41 @@
   .navLink { justify-content: center; padding: var(--sp-2); }
   .footerBtn { justify-content: center; padding: var(--sp-2); }
 }
+
+// ── Mobile : la sidebar devient un tiroir off-canvas (≤ 768px) ──────────────
+.backdrop { display: none; }
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    height: 100dvh;
+    width: min(84vw, 300px) !important; // ignore l'état "réduit" en mobile
+    z-index: 90;
+    transform: translateX(-100%);
+    transition: transform 0.26s var(--ease-out, ease);
+    box-shadow: 4px 0 26px rgba(10, 15, 25, 0.3);
+
+    &[data-mobile-open="true"] {
+      transform: translateX(0);
+    }
+    // sur mobile on rétablit les libellés même si "réduit" était actif
+    .brand { justify-content: flex-start; }
+    .navLink { justify-content: flex-start; }
+    .footerBtn { justify-content: flex-start; }
+  }
+
+  .backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 15, 25, 0.45);
+    z-index: 89;
+  }
+}
+
+@media print {
+  .backdrop { display: none; }
+}
