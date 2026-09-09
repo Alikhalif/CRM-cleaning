@@ -350,7 +350,7 @@ export default function LeadsTable({ leads, commerciaux, visibleSectors }: Props
                       {l.shortId}
                     </Link>
                   </td>
-                  <td className={styles.nowrap}>{dateFmt.format(new Date(l.receivedAt))}</td>
+                  <td className={styles.nowrap} data-label="Reçu">{dateFmt.format(new Date(l.receivedAt))}</td>
                   <td>
                     <div className={styles.client}>
                       {l.isUrgent && (
@@ -372,7 +372,7 @@ export default function LeadsTable({ leads, commerciaux, visibleSectors }: Props
                       {l.country ? ` · ${l.country}` : ""}
                     </div>
                   </td>
-                  <td className={`${styles.colPhone} ${styles.mono}`}>
+                  <td className={`${styles.colPhone} ${styles.mono}`} data-label="Tél">
                     {l.phone ? (
                       <a href={`tel:${l.phone.replace(/[^\d+]/g, "")}`} title="Composer">
                         {l.phone}
@@ -381,7 +381,7 @@ export default function LeadsTable({ leads, commerciaux, visibleSectors }: Props
                       "—"
                     )}
                   </td>
-                  <td>
+                  <td data-label="Secteur">
                     <span
                       className={styles.sector}
                       style={{ ["--sc" as string]: `var(${SECTOR_VAR[l.sector]})` }}
@@ -409,8 +409,8 @@ export default function LeadsTable({ leads, commerciaux, visibleSectors }: Props
                     )}
                   </td>
                   <td className={styles.colSource}>{SOURCE_LABEL[l.source]}</td>
-                  <td className={styles.amount}>{formatEUR(l.amount)}</td>
-                  <td>
+                  <td className={styles.amount} data-label="Montant">{formatEUR(l.amount)}</td>
+                  <td data-label="Statut">
                     <span className={styles.statusPill} data-status={l.status}>
                       {labelForStatus(l.status)}
                     </span>

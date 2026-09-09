@@ -346,3 +346,73 @@
   .ownerName { display: none; } // keep just the avatar
   .toggleOn, .toggle, .select, .exportBtn { font-size: var(--fs-xs); padding: 0 var(--sp-2); }
 }
+
+// ── Mobile (≤ 768px) : la table 12 colonnes devient une pile de CARTES ──────
+// (au lieu d'un immense tableau scrollable horizontalement). Desktop intact.
+@media (max-width: 768px) {
+  .tableWrap {
+    overflow-x: visible;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+  .colPhone { display: block; } // on ré-affiche le téléphone en carte
+  .colSource { display: none; }
+
+  .table {
+    min-width: 0;
+    display: block;
+    font-size: var(--fs-sm);
+
+    thead { display: none; }
+    tbody { display: block; }
+
+    tr {
+      display: block;
+      position: relative;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--r-lg);
+      padding: 11px 13px;
+      margin-bottom: 10px;
+    }
+    td {
+      display: block;
+      border: 0 !important;
+      padding: 3px 0;
+    }
+    // colonnes secondaires masquées (type service, commercial, dernière action, relance)
+    td:nth-child(6),
+    td:nth-child(7),
+    td:nth-child(11),
+    td:nth-child(12) { display: none; }
+    // ID en coin haut-droit de la carte
+    td:nth-child(1) { position: absolute; top: 11px; right: 13px; padding: 0; }
+    // bloc client : place pour l'ID + titre plus gros
+    td:nth-child(3) { padding-right: 60px; }
+    // lignes libellées : libellé à gauche, valeur à droite
+    td[data-label] {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      padding: 5px 0;
+    }
+    td[data-label]::before {
+      content: attr(data-label);
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    td.empty { text-align: center; padding: 20px 0; }
+  }
+  .idLink { font-size: var(--fs-xs); color: var(--text-muted); }
+  .clientLink { font-size: var(--fs-md); font-weight: 700; }
+
+  // Barre d'outils : plein écran + retour à la ligne
+  .toolbar { flex-wrap: wrap; }
+  .searchBox { width: 100%; }
+  .select { flex: 1 1 44%; min-width: 0; }
+}
