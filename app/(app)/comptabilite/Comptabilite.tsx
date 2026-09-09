@@ -407,7 +407,7 @@ function Row({
       <td className={styles.mono}>
         <Link href={docHref} className={styles.numLink}>{doc.num}</Link>
       </td>
-      <td>
+      <td data-label="Client">
         <div className={styles.clientName}>{lead.client}</div>
         <div className={styles.muted}>{lead.city}</div>
       </td>
@@ -421,7 +421,7 @@ function Row({
           {entity.legalName}
         </span>
       </td>
-      <td className={styles.colDate}>{DATE.format(issued)}</td>
+      <td className={styles.colDate} data-label="Émis">{DATE.format(issued)}</td>
       <td className={styles.colDate}>{DATE.format(validUntil)}</td>
       {tabType === "devis" && (
         <td>
@@ -433,7 +433,7 @@ function Row({
           )}
         </td>
       )}
-      <td>
+      <td data-label="Activité">
         <span
           className={styles.activityPill}
           style={{ ["--sc" as string]: `var(${SECTOR_VAR[lead.sector]})` }}
@@ -466,8 +466,8 @@ function Row({
         )}
       </td>
       <td className={styles.tNum}>{formatEUR(totalHt)}</td>
-      <td className={styles.tNum}>{formatEUR(doc.totalTtc)}</td>
-      <td>
+      <td className={styles.tNum} data-label="Montant TTC">{formatEUR(doc.totalTtc)}</td>
+      <td data-label="Statut">
         <span className={styles.statusPill} data-status={doc.status}>
           {DOC_STATUS_LABEL[doc.status]}
         </span>

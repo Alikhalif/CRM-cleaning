@@ -750,3 +750,55 @@
 @media (max-width: 900px) {
   .table { min-width: 1000px; }
 }
+
+// ── Mobile (≤ 768px) : dossiers en CARTES (au lieu du tableau 8 colonnes) ───
+@media (max-width: 768px) {
+  .tableWrap {
+    overflow: visible;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+  .table {
+    min-width: 0;
+    display: block;
+
+    thead { display: none; }
+    tbody { display: block; }
+
+    tr {
+      display: block;
+      position: relative;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--r-lg);
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+    td {
+      display: block;
+      border: 0 !important;
+      padding: 4px 0;
+    }
+    td:nth-child(7) { display: none; } // drapeaux (secondaire)
+    td:nth-child(8) { position: absolute; top: 8px; right: 8px; padding: 0; } // menu ⋮
+    td:nth-child(1) { padding-right: 44px; } // place pour le menu
+    td[data-label] {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      padding: 5px 0;
+    }
+    td[data-label]::before {
+      content: attr(data-label);
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    td.empty { text-align: center; padding: 20px 0; }
+  }
+  .dossierClient { font-size: var(--fs-md); font-weight: 700; }
+}

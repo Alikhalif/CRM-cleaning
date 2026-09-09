@@ -800,7 +800,7 @@ function Row({
           <span className={styles.mono}>{lead.shortId}</span>
         </div>
       </td>
-      <td>
+      <td data-label="Devis">
         {devisDoc ? (
           <Link href={`/devis/${devisDoc.id}`} className={styles.docLink}>
             {devisDoc.num}
@@ -809,12 +809,12 @@ function Row({
           <span className={styles.muted}>—</span>
         )}
       </td>
-      <td>
+      <td data-label="Statut">
         <span className={styles.statusPill} data-status={dossier.status}>
           {DOSSIER_STATUS_LABEL[dossier.status]}
         </span>
       </td>
-      <td>
+      <td data-label="Paiement">
         <span className={styles.paymentPill} data-payment={dossier.paymentStatus}>
           {PAYMENT_STATUS_LABEL[dossier.paymentStatus]}
         </span>
@@ -830,7 +830,7 @@ function Row({
           </div>
         )}
       </td>
-      <td>
+      <td data-label="Intervenant">
         {technician ? (
           <span className={styles.intervenant}>
             <span
@@ -846,7 +846,7 @@ function Row({
           <span className={styles.muted}>—</span>
         )}
       </td>
-      <td>
+      <td data-label="Intervention">
         {dossier.plannedAt ? (
           <>
             <div className={styles.plannedDate}>{DATE.format(new Date(dossier.plannedAt))}</div>
