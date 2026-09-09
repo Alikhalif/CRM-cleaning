@@ -84,13 +84,17 @@
 }
 .hint { font-size: 11px; color: var(--text-muted); }
 
-input[type="text"], input[type="date"], textarea, select {
-  width: 100%; font: inherit; font-size: var(--fs-sm);
-  padding: 8px 10px; border-radius: var(--r-md);
-  border: 1px solid var(--border-strong); background: var(--bg-app); color: var(--text-primary);
-  &:focus { outline: none; border-color: var(--color-brand-500); box-shadow: 0 0 0 3px var(--color-brand-50); }
+// Scopé sous .page : les sélecteurs d'élément nus sont refusés par le check
+// CSS-modules « pure selector » de Turbopack (build prod).
+.page {
+  input[type="text"], input[type="date"], textarea, select {
+    width: 100%; font: inherit; font-size: var(--fs-sm);
+    padding: 8px 10px; border-radius: var(--r-md);
+    border: 1px solid var(--border-strong); background: var(--bg-app); color: var(--text-primary);
+    &:focus { outline: none; border-color: var(--color-brand-500); box-shadow: 0 0 0 3px var(--color-brand-50); }
+  }
+  textarea { resize: vertical; min-height: 62px; line-height: 1.5; }
 }
-textarea { resize: vertical; min-height: 62px; line-height: 1.5; }
 
 .ops { display: flex; flex-direction: column; gap: 6px; }
 .op {
