@@ -1226,8 +1226,19 @@
   background: var(--border-subtle);
 }
 
-// ── Mobile (≤ 768px) : actions en gros boutons tap-friendly ─────────────────
+// ── Mobile (≤ 768px) : hero empilé + actions en gros boutons tap-friendly ───
 @media (max-width: 768px) {
+  .heroCard { padding: var(--sp-4); gap: var(--sp-4); }
+
+  // Cause du débordement : avatar + identité + actions étaient forcés sur une
+  // seule ligne. On autorise le retour à la ligne et on met les actions en
+  // pleine largeur SOUS l'identité.
+  .heroRow { flex-wrap: wrap; }
+  .heroRow .actions {
+    flex-basis: 100%;
+    margin-top: var(--sp-2);
+  }
+
   .actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1245,4 +1256,7 @@
     padding: 14px;
     font-size: var(--fs-md);
   }
+
+  // Cartes KPI : 2 colonnes au lieu de 4 sur petit écran.
+  .kpiRow { grid-template-columns: 1fr 1fr; }
 }
