@@ -1217,3 +1217,24 @@
   margin: var(--sp-1) 0;
   background: var(--border-subtle);
 }
+
+// ── Mobile (≤ 768px) : actions en gros boutons tap-friendly ─────────────────
+@media (max-width: 768px) {
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-2);
+  }
+  .actions .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 12px 10px;
+    font-size: var(--fs-sm);
+  }
+  // Le CTA principal (ex. Appeler / Générer devis) prend toute la largeur.
+  .actions .btnPrimary {
+    grid-column: 1 / -1;
+    padding: 14px;
+    font-size: var(--fs-md);
+  }
+}
