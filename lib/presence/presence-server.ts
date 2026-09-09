@@ -60,14 +60,24 @@ export async function listPresenceUsers(client?: Sb): Promise<UserLite[]> {
 }
 
 // ── Seuils (paramétrables) ──────────────────────────────────────────────────
+// Cache mémoire court (30 s) : les seuils changent rarement mais getThresholds
+// est appelé à chaque heartbeat (toutes les 45 s / utilisateur). Évite une
+// requête DB par battement. Invalidé quand le Super Admin modifie les seuils.
+let thCache: { at: number; val: PresenceThresholds } | null = null;
+export function invalidateThresholdsCache(): void {
+  thCache = null;
+}
 export async function getThresholds(client?: Sb): Promise<PresenceThresholds> {
+  if (thCache && Date.now() - thCache.at < 30_000) return thCache.val;
   const sb = client ?? (await supabaseServiceRole());
   const { data } = await sb
     .from("presence_config")
     .select("value")
     .eq("key", "thresholds")
     .maybeSingle<{ value: Partial<PresenceThresholds> }>();
-  return { ...DEFAULT_THRESHOLDS, ...(data?.value ?? {}) };
+  const val = { ...DEFAULT_THRESHOLDS, ...(data?.value ?? {}) };
+  thCache = { at: Date.now(), val };
+  return val;
 }
 
 type PresenceRow = {

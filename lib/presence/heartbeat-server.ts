@@ -46,23 +46,32 @@ export async function recordHeartbeat(
     await sb.from("user_sessions").update({ last_seen_at: nowIso }).eq("id", sessionId);
   }
 
-  // Snapshot présence : last_active_at ne bouge que si interaction réelle.
-  const { data: prev } = await sb.from("user_presence").select("last_active_at").eq("user_id", userId).maybeSingle<{ last_active_at: string | null }>();
-  await sb.from("user_presence").upsert(
-    {
-      user_id: userId,
-      status: opts.active ? "active" : "inactive",
-      last_seen_at: nowIso,
-      last_active_at: opts.active ? nowIso : prev?.last_active_at ?? null,
-      current_page: opts.page ?? null,
-      session_id: sessionId,
-      updated_at: nowIso,
-    },
-    { onConflict: "user_id" },
-  );
+  // Snapshot présence + ping, en PARALLÈLE (indépendants). last_active_at ne
+  // bouge que si interaction réelle : on évite la lecture préalable en faisant
+  // un UPDATE (qui laisse last_active_at) quand inactif, un UPSERT complet
+  // (qui pose last_active_at=now) quand actif.
+  const presenceWrite = opts.active
+    ? sb.from("user_presence").upsert(
+        {
+          user_id: userId,
+          status: "active",
+          last_seen_at: nowIso,
+          last_active_at: nowIso,
+          current_page: opts.page ?? null,
+          session_id: sessionId,
+          updated_at: nowIso,
+        },
+        { onConflict: "user_id" },
+      )
+    : sb
+        .from("user_presence")
+        .update({ status: "inactive", last_seen_at: nowIso, current_page: opts.page ?? null, session_id: sessionId, updated_at: nowIso })
+        .eq("user_id", userId);
 
-  // Battement brut (base de la timeline + temps actif).
-  await sb.from("presence_pings").insert({ user_id: userId, ts: nowIso, active: opts.active, page: opts.page ?? null });
+  await Promise.all([
+    presenceWrite,
+    sb.from("presence_pings").insert({ user_id: userId, ts: nowIso, active: opts.active, page: opts.page ?? null }),
+  ]);
 }
 
 // Fermeture propre (onglet fermé via sendBeacon, ou déconnexion).

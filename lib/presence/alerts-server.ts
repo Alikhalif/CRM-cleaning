@@ -2,7 +2,7 @@ import "server-only";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 import type { Json } from "@/lib/supabase/database.types";
 import { QUALIFYING_LEAD_ACTIONS, TREAT_ACTIONS, actionMeta, type AlertSeverity } from "./taxonomy";
-import { parisDayRange, todayParis, getThresholds, listPresenceUsers } from "./presence-server";
+import { parisDayRange, todayParis, getThresholds, listPresenceUsers, invalidateThresholdsCache } from "./presence-server";
 import type { AlertRow, AlertRule, DashboardStats } from "./types";
 
 type Sb = Awaited<ReturnType<typeof supabaseServiceRole>>;
@@ -149,6 +149,7 @@ export async function updateRule(key: string, patch: { enabled?: boolean; config
 export async function setThresholds(value: Record<string, number>): Promise<void> {
   const sb = await supabaseServiceRole();
   await sb.from("presence_config").upsert({ key: "thresholds", value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+  invalidateThresholdsCache();
 }
 
 // ════════════════════════════════════════════════════════════════════════════
