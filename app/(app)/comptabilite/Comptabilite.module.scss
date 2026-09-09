@@ -536,7 +536,7 @@
 // ── Mobile (≤ 768px) : devis/factures en CARTES (colonnes variables 11/12) ──
 // Robuste : on masque toutes les cellules par défaut, on n'affiche que le
 // numéro (titre), les actions (coin) et les cellules libellées (data-label).
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .tableWrap {
     overflow: visible;
     background: transparent;
@@ -591,4 +591,10 @@
     td.empty { display: block; text-align: center; padding: 20px 0; }
   }
   .numLink { font-size: var(--fs-md); font-weight: 700; }
+}
+
+// ── Tablette (640–1024px) : cartes en 2 colonnes pour exploiter l'espace ────
+@media (min-width: 640px) and (max-width: 1024px) {
+  .table tbody { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); align-items: start; }
+  .table tr { margin-bottom: 0; }
 }

@@ -752,7 +752,7 @@
 }
 
 // ── Mobile (≤ 768px) : dossiers en CARTES (au lieu du tableau 8 colonnes) ───
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .tableWrap {
     overflow: visible;
     background: transparent;
@@ -801,4 +801,10 @@
     td.empty { text-align: center; padding: 20px 0; }
   }
   .dossierClient { font-size: var(--fs-md); font-weight: 700; }
+}
+
+// ── Tablette (640–1024px) : cartes en 2 colonnes pour exploiter l'espace ────
+@media (min-width: 640px) and (max-width: 1024px) {
+  .table tbody { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); align-items: start; }
+  .table tr { margin-bottom: 0; }
 }

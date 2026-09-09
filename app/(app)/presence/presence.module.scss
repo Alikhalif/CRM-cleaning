@@ -144,7 +144,7 @@
 .hint { font-size: 11.5px; color: var(--text-muted); }
 
 // ── Mobile (≤ 768px) : tables Équipe & Alertes en CARTES ────────────────────
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .tableWrap { overflow-x: visible; }
   .table {
     display: block;
@@ -181,4 +181,10 @@
     td.rowActions { justify-content: flex-start; gap: 8px; padding-top: 8px; }
     td.empty { display: block; text-align: center; }
   }
+}
+
+// ── Tablette (640–1024px) : cartes en 2 colonnes pour exploiter l'espace ────
+@media (min-width: 640px) and (max-width: 1024px) {
+  .table tbody { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); align-items: start; }
+  .table tr { margin-bottom: 0; }
 }
