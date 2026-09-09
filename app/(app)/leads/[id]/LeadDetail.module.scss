@@ -806,6 +806,12 @@
   gap: var(--sp-1);
   border-bottom: 1px solid var(--border-subtle);
   padding: 0 var(--sp-2);
+  // Onglets défilants sur petit écran : ils scrollent dans leur barre au lieu
+  // d'élargir la page (évite un scroll horizontal global sur mobile).
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  &::-webkit-scrollbar { display: none; }
 }
 
 .tab {
@@ -819,6 +825,8 @@
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   text-decoration: none;
+  white-space: nowrap;
+  flex: none;
 
   &:hover {
     color: var(--text-primary);
