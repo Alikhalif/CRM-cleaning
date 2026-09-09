@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import Icon from "../Icon/Icon";
 import { OPEN_PALETTE_EVENT } from "../CommandPalette/CommandPalette";
+import { TOGGLE_MOBILE_NAV } from "../MobileTabBar/MobileTabBar";
 import { useClientValue } from "@/lib/client-store";
 import { profileCapabilities, SECTOR_LABEL, SECTORS, visibleSectorsForUser, type Sector } from "@/lib/leads";
 import { DASHBOARD_PERIODS, parsePeriod } from "@/lib/dashboard";
@@ -84,6 +85,15 @@ export default function Topbar({ user, unreadCount }: Props) {
 
   return (
     <header className={styles.topbar} role="banner" data-no-print="true">
+      {/* Bouton menu — mobile uniquement (≤768px, cf. SCSS) : ouvre le tiroir. */}
+      <button
+        type="button"
+        className={styles.burger}
+        aria-label="Ouvrir le menu"
+        onClick={() => window.dispatchEvent(new Event(TOGGLE_MOBILE_NAV))}
+      >
+        <Icon name="panel-left" size={20} />
+      </button>
       <button
         type="button"
         className={styles.search}
@@ -168,7 +178,7 @@ export default function Topbar({ user, unreadCount }: Props) {
         </Link>
 
         {/* ── Vue selector ─────────────────────────────────────────── */}
-        <div ref={vueRef} className={styles.menuAnchor}>
+        <div ref={vueRef} className={`${styles.menuAnchor} ${styles.vueAnchor}`}>
           <button
             type="button"
             className={styles.viewSwitcher}
