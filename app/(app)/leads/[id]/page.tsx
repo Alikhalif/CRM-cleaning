@@ -68,22 +68,37 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   const tab: TabKey =
     TABS.find((t) => t.key === tabParam)?.key ?? "informations";
 
-  const [detail, commerciaux, n8nEnabled, me, smsTemplates, emailTemplates, nrpSmsTpl, nrpEmailTpl] =
-    await Promise.all([
-      getLeadDetail(id),
-      getAllCommerciaux(),
-      isN8nSequenceEnabled(),
-      getCurrentUserProfile(),
-      getActiveSmsTemplates(),
-      getTemplatesForUser("email"),
-      getTemplateByName("SMS relance — NRP (non joignable)"),
-      getTemplateByName("Mail relance 1 — non joignable"),
-    ]);
-  const [media, consultations, allTechnicians, consultTpl] = await Promise.all([
+  // Toutes ces lectures ne dépendent que de `id` (pas de `detail`) → une seule
+  // vague parallèle (au lieu de 3 séquentielles) pour minimiser la latence,
+  // surtout notable quand la base est distante.
+  const [
+    detail,
+    commerciaux,
+    n8nEnabled,
+    me,
+    smsTemplates,
+    emailTemplates,
+    nrpSmsTpl,
+    nrpEmailTpl,
+    media,
+    consultations,
+    allTechnicians,
+    consultTpl,
+    optimivvDevis,
+  ] = await Promise.all([
+    getLeadDetail(id),
+    getAllCommerciaux(),
+    isN8nSequenceEnabled(),
+    getCurrentUserProfile(),
+    getActiveSmsTemplates(),
+    getTemplatesForUser("email"),
+    getTemplateByName("SMS relance — NRP (non joignable)"),
+    getTemplateByName("Mail relance 1 — non joignable"),
     getLeadMedia(id),
     getLeadConsultations(id),
     getAllTechnicians(),
     getTemplateByName("Intervenant — Envoi photos/vidéos pour chiffrage"),
+    getLeadOptimivvDevisMeta(id),
   ]);
   if (!detail) notFound();
 
@@ -95,8 +110,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   const { canUseRingover } = profileCapabilities(me?.commercialProfiles ?? [], isAdmin, isPlanner);
 
   const { lead, owner, documents, timeline, canImmobTravaux } = detail;
-  // Devis OPTIMIVV archivé pour ce lead (bouton « Voir le devis signé »).
-  const optimivvDevis = await getLeadOptimivvDevisMeta(lead.id);
+  // (optimivvDevis est déjà chargé dans la vague parallèle ci-dessus.)
   const statusLabel =
     PIPELINE_COLUMNS.find((c) => c.status === lead.status)?.label ?? lead.status;
 
