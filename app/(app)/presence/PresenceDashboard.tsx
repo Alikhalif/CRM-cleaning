@@ -111,11 +111,11 @@ export default function PresenceDashboard({ team, stats, alerts }: { team: TeamR
                   const href = alertHref(a);
                   return (
                     <tr key={a.id} data-sev={a.severity}>
-                      <td className={styles.mono}>{fmtTime(a.createdAt)}</td>
-                      <td><span className={styles.sevPill} data-sev={a.severity}>{SEVERITY_ICON[a.severity]} {a.title}</span></td>
-                      <td>{a.userName ? <Link href={`/presence/${a.userId}`} className={styles.link}>{a.userName}</Link> : "—"}</td>
-                      <td>{a.entityRef ?? (a.entityType === "lead" ? "lead" : "—")}</td>
-                      <td className={styles.mono}>{fmtDelay(a.delaySeconds ?? (nowTs ? Math.round((nowTs - +new Date(a.createdAt)) / 1000) : null))}</td>
+                      <td className={styles.mono} data-label="Heure">{fmtTime(a.createdAt)}</td>
+                      <td data-label="Type"><span className={styles.sevPill} data-sev={a.severity}>{SEVERITY_ICON[a.severity]} {a.title}</span></td>
+                      <td data-label="Utilisateur">{a.userName ? <Link href={`/presence/${a.userId}`} className={styles.link}>{a.userName}</Link> : "—"}</td>
+                      <td data-label="Dossier">{a.entityRef ?? (a.entityType === "lead" ? "lead" : "—")}</td>
+                      <td className={styles.mono} data-label="Retard">{fmtDelay(a.delaySeconds ?? (nowTs ? Math.round((nowTs - +new Date(a.createdAt)) / 1000) : null))}</td>
                       <td className={styles.rowActions}>
                         {href && <Link href={href} className={styles.miniBtn}>Voir</Link>}
                         {a.userId && <Link href={`/presence/${a.userId}`} className={styles.miniBtn}>Activité</Link>}
@@ -143,14 +143,14 @@ export default function PresenceDashboard({ team, stats, alerts }: { team: TeamR
             <tbody>
               {filteredTeam.map((u) => (
                 <tr key={u.userId} className={styles.clickRow} onClick={() => router.push(`/presence/${u.userId}`)}>
-                  <td><span className={styles.userName}>{u.name}</span><span className={styles.roles}>{u.roles.join(" · ")}</span></td>
-                  <td><span className={styles.statusChip} data-status={u.status}>{STATUS_DOT[u.status]} {STATUS_LABEL[u.status]}</span></td>
-                  <td className={styles.mono}>{fmtTime(u.firstSeenAt)}</td>
-                  <td className={styles.mono}>{fmtTime(u.lastActiveAt)}</td>
-                  <td className={styles.mono}>{fmtDuration(u.activeSeconds)}</td>
-                  <td className={styles.num}>{u.actionsCount}</td>
-                  <td className={styles.num}>{u.leadsTreated}</td>
-                  <td>{u.openAlerts > 0 ? <span className={styles.sevPill} data-sev={u.topSeverity ?? "warn"}>{u.openAlerts}</span> : <span className={styles.dim}>—</span>}</td>
+                  <td className={styles.userCell}><span className={styles.userName}>{u.name}</span><span className={styles.roles}>{u.roles.join(" · ")}</span></td>
+                  <td data-label="Statut"><span className={styles.statusChip} data-status={u.status}>{STATUS_DOT[u.status]} {STATUS_LABEL[u.status]}</span></td>
+                  <td className={styles.mono} data-label="1ʳᵉ conn.">{fmtTime(u.firstSeenAt)}</td>
+                  <td className={styles.mono} data-label="Dernière act.">{fmtTime(u.lastActiveAt)}</td>
+                  <td className={styles.mono} data-label="Temps actif">{fmtDuration(u.activeSeconds)}</td>
+                  <td className={styles.num} data-label="Actions">{u.actionsCount}</td>
+                  <td className={styles.num} data-label="Leads traités">{u.leadsTreated}</td>
+                  <td data-label="Alertes">{u.openAlerts > 0 ? <span className={styles.sevPill} data-sev={u.topSeverity ?? "warn"}>{u.openAlerts}</span> : <span className={styles.dim}>—</span>}</td>
                 </tr>
               ))}
               {filteredTeam.length === 0 && <tr><td colSpan={8} className={styles.empty}>Aucun utilisateur.</td></tr>}
