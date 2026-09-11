@@ -29,9 +29,9 @@ const TABS: Record<string, Tab[]> = {
   ],
   commercial: [
     { href: "/dashboard", label: "Accueil", icon: "dashboard" },
+    { href: "/ma-journee", label: "Ma journée", icon: "checklist" },
     { href: "/leads", label: "Leads", icon: "leads" },
     { href: "/pipeline", label: "Pipeline", icon: "pipeline" },
-    { href: "/devis/new", label: "Devis", icon: "document" },
   ],
 };
 

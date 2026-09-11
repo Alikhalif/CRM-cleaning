@@ -1,0 +1,26 @@
+.card {
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--color-brand-500);
+  border-radius: var(--r-lg);
+  background: var(--bg-surface);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.t_decouverte { border-left-color: var(--color-brand-500); }
+.t_photos { border-left-color: #0e8a6e; }
+.t_devis { border-left-color: #6d5ae0; }
+.t_relance { border-left-color: #a86a1a; }
+.late { border-color: color-mix(in srgb, #b23b2e 40%, var(--border-subtle)); background: color-mix(in srgb, #b23b2e 5%, var(--bg-surface)); }
+
+.head { display: flex; align-items: flex-start; gap: 10px; }
+.icon { flex: none; width: 30px; height: 30px; border-radius: var(--r-md); display: grid; place-items: center; background: var(--bg-app); color: var(--text-secondary); }
+.kicker { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); font-weight: 600; }
+.title { font-size: 14px; font-weight: 650; color: var(--text-primary); margin-top: 2px; }
+.reason { font-size: 12.5px; color: var(--text-secondary); }
+
+.foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
+.due { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-muted); }
+.dueLate { color: #b23b2e; font-weight: 600; }
+.link { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600; color: var(--color-brand-600); text-decoration: none; svg { transform: rotate(-90deg); } &:hover { text-decoration: underline; } }

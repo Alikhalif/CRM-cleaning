@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { evaluate } from "@/lib/presence/alerts-server";
+import { evaluateCommercialActions } from "@/lib/commercial-actions/engine-server";
 import { isCurrentUserAdmin } from "@/lib/presence/guard";
 
 export const runtime = "nodejs";
@@ -17,7 +18,16 @@ async function run(request: Request) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
   const result = await evaluate();
-  return NextResponse.json(result);
+  // Couche complémentaire « Actions & Relances commerciales » : même cron, en
+  // additif. Isolée : une erreur ici ne doit jamais faire échouer les alertes.
+  let commercial: unknown = { ok: false, skipped: true };
+  try {
+    commercial = await evaluateCommercialActions();
+  } catch (e) {
+    console.error("[commercial-actions.evaluate] échec :", (e as Error).message);
+    commercial = { ok: false, error: (e as Error).message };
+  }
+  return NextResponse.json({ ...result, commercial });
 }
 
 export async function POST(request: Request) {

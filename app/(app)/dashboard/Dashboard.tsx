@@ -32,6 +32,7 @@ import {
 } from "@/lib/dashboard";
 import type { ImmobAnnotation } from "@/lib/dashboard-server";
 import { Donut, EvolutionChart } from "./Charts";
+import PhotoWaitingBanner from "./PhotoWaitingBanner";
 import styles from "./Dashboard.module.scss";
 
 // Périodes partagées avec le filtre global de la Topbar (source unique).
@@ -49,6 +50,8 @@ type Props = {
   isAdmin: boolean;
   // Secteurs visibles par l'utilisateur (restriction commerciale par activité).
   visibleSectors: Sector[];
+  // Dossiers en attente de photos (indicateur — module Actions & Relances).
+  photoWaitingCount?: number;
 };
 
 export default function Dashboard({
@@ -59,6 +62,7 @@ export default function Dashboard({
   currentUserId,
   isAdmin,
   visibleSectors,
+  photoWaitingCount = 0,
 }: Props) {
   // Période + activité viennent de l'URL (source unique, partagée avec le
   // filtre global de la Topbar). Le canal reste local (pas dans la Topbar).
@@ -155,6 +159,9 @@ export default function Dashboard({
           visibleSectors={visibleSectors}
         />
       )}
+
+      {/* ── Indicateur : clients en attente de photos ────────────── */}
+      <PhotoWaitingBanner count={photoWaitingCount} />
 
       {/* ── Filter bar ───────────────────────────────────────────── */}
       <FilterBar filter={filter} setFilter={setFilter} visibleSectors={visibleSectors} />
