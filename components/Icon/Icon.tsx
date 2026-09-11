@@ -31,9 +31,20 @@ export type IconName =
   | "image"
   | "trending-up"
   | "trending-down"
-  | "presence";
+  | "presence"
+  | "checklist";
 
 const PATHS: Record<IconName, React.ReactNode> = {
+  checklist: (
+    <>
+      <path d="M9 6h11" />
+      <path d="M9 12h11" />
+      <path d="M9 18h11" />
+      <path d="M3.5 6l1.2 1.2L7 5" />
+      <path d="M3.5 12l1.2 1.2L7 11" />
+      <path d="M3.5 18l1.2 1.2L7 17" />
+    </>
+  ),
   presence: (
     <>
       <path d="M3 12h3l2 5 4-12 2 7h3" />

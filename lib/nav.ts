@@ -28,6 +28,7 @@ export type NavIcon =
   | "comptabilite"
   | "document"
   | "presence"
+  | "checklist"
   | "settings";
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -36,6 +37,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Pilotage",
     items: [
       { href: "/dashboard",      label: "Dashboard",     icon: "dashboard" },
+      { href: "/ma-journee",     label: "Ma journée",    icon: "checklist" },
       { href: "/recherche",      label: "Recherche",     icon: "search" },
       { href: "/pipeline",       label: "Pipeline",      icon: "pipeline" },
       { href: "/leads",          label: "Leads & devis", icon: "leads", badge: "leadsUntreated" },

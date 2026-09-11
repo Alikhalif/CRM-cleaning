@@ -358,6 +358,75 @@ export type Database = {
         }
         Relationships: []
       }
+      commercial_actions: {
+        Row: {
+          id: string
+          lead_id: string
+          owner_id: string | null
+          type: string
+          title: string
+          reason: string | null
+          status: string
+          created_at: string
+          due_at: string
+          snoozed_until: string | null
+          report_count: number
+          closed_at: string | null
+          closed_reason: string | null
+          result: string | null
+          origin_event: string | null
+          subtype: string | null
+        }
+        Insert: {
+          id?: string
+          lead_id: string
+          owner_id?: string | null
+          type: string
+          title: string
+          reason?: string | null
+          status?: string
+          created_at?: string
+          due_at?: string
+          snoozed_until?: string | null
+          report_count?: number
+          closed_at?: string | null
+          closed_reason?: string | null
+          result?: string | null
+          origin_event?: string | null
+          subtype?: string | null
+        }
+        Update: {
+          id?: string
+          lead_id?: string
+          owner_id?: string | null
+          type?: string
+          title?: string
+          reason?: string | null
+          status?: string
+          created_at?: string
+          due_at?: string
+          snoozed_until?: string | null
+          report_count?: number
+          closed_at?: string | null
+          closed_reason?: string | null
+          result?: string | null
+          origin_event?: string | null
+          subtype?: string | null
+        }
+        Relationships: []
+      }
+      commercial_action_rules: {
+        Row: { key: string; label: string; enabled: boolean; config: Json; updated_at: string }
+        Insert: { key: string; label: string; enabled?: boolean; config?: Json; updated_at?: string }
+        Update: { key?: string; label?: string; enabled?: boolean; config?: Json; updated_at?: string }
+        Relationships: []
+      }
+      commercial_action_events: {
+        Row: { id: number; action_id: string; at: string; kind: string; by_user: string | null; detail: Json }
+        Insert: { id?: number; action_id: string; at?: string; kind: string; by_user?: string | null; detail?: Json }
+        Update: { id?: number; action_id?: string; at?: string; kind?: string; by_user?: string | null; detail?: Json }
+        Relationships: []
+      }
       presence_config: {
         Row: { key: string; value: Json; updated_at: string }
         Insert: { key: string; value: Json; updated_at?: string }

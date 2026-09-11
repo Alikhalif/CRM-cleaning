@@ -16,6 +16,8 @@ import {
 } from "@/lib/leads";
 import { getAllCommerciaux, getLeadDetail, getLegalEntityPhone } from "@/lib/leads-server";
 import { logEntityRead } from "@/lib/presence/read-log";
+import { getNextActionForLead } from "@/lib/commercial-actions/read-server";
+import NextActionCard from "./NextActionCard";
 import { getCurrentUserProfile } from "@/lib/users-server";
 import { getActiveSmsTemplates, getTemplatesForUser, getTemplateByName } from "@/lib/message-templates-server";
 import { getLeadMedia, getLeadConsultations } from "@/lib/media-server";
@@ -85,6 +87,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
     allTechnicians,
     consultTpl,
     optimivvDevis,
+    nextAction,
   ] = await Promise.all([
     getLeadDetail(id),
     getAllCommerciaux(),
@@ -99,6 +102,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
     getAllTechnicians(),
     getTemplateByName("Intervenant — Envoi photos/vidéos pour chiffrage"),
     getLeadOptimivvDevisMeta(id),
+    getNextActionForLead(id),
   ]);
   if (!detail) notFound();
 
@@ -404,6 +408,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
           </main>
 
           <aside className={styles.aside}>
+            {nextAction && <NextActionCard action={nextAction} />}
             <CallNotesCard
               leadId={lead.id}
               initialNotes={lead.notes ?? ""}
