@@ -30,8 +30,10 @@ import { countryFromPhone, COUNTRIES, type Country } from "@/lib/leads";
 //   "surface_m2": 120,
 //   "gclid": "Cj0KCQ...",                      // optional — Google offline conversions
 //   "utm_source": "google", "utm_campaign": "renov-2026",
+//   "source_url": "https://cgk-services.fr/nettoyage?ref=fb",  // URL de la page/formulaire d'origine
 //   "notes": "Demande devis cuisine"
 // }
+// (alias tolérés pour l'URL d'origine : page_url, form_url, referrer)
 //
 // Idempotency: if `external_id` is supplied and matches an existing lead,
 // the endpoint returns 200 with the existing lead id and does NOT create a
@@ -97,6 +99,11 @@ type LeadPayload = {
   utm_term?: string;
   utm_medium?: string;
   utm_content?: string;
+  // URL de la page / du formulaire d'origine (site web). Alias tolérés côté LP.
+  source_url?: string;
+  page_url?: string;
+  referrer?: string;
+  form_url?: string;
   notes?: string;
   // Optional override — used by n8n if a specific commercial is already known.
   // Routing rules still run first; this is only the fallback.
@@ -154,6 +161,22 @@ function capitalize(name: string): string {
     .split(/(\s|-)/)
     .map((part) => (/^[a-zà-ÿ]/i.test(part) ? part[0].toUpperCase() + part.slice(1) : part))
     .join("");
+}
+
+// Assainit l'URL d'origine : http(s) uniquement, longueur bornée. Toute valeur
+// non conforme est ignorée (null) — jamais d'échec de création pour autant.
+function sanitizeSourceUrl(...candidates: (string | undefined)[]): string | null {
+  for (const raw of candidates) {
+    const v = (raw ?? "").trim();
+    if (!v || v.length > 2048) continue;
+    try {
+      const u = new URL(v);
+      if (u.protocol === "http:" || u.protocol === "https:") return u.toString();
+    } catch {
+      // pas une URL absolue valide → on ignore ce candidat
+    }
+  }
+  return null;
 }
 
 function normalizePhone(phone: string): string {
@@ -357,6 +380,7 @@ export async function POST(request: Request) {
     utm_term: payload.utm_term ?? null,
     utm_medium: payload.utm_medium ?? null,
     utm_content: payload.utm_content ?? null,
+    source_url: sanitizeSourceUrl(payload.source_url, payload.page_url, payload.form_url, payload.referrer),
   };
 
   const { data: inserted, error } = await supabase

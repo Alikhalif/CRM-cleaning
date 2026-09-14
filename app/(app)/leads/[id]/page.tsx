@@ -391,6 +391,22 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
                   <dt>Source</dt>
                   <dd>{SOURCE_LABEL[lead.source]}</dd>
                 </div>
+                {lead.sourceUrl && (
+                  <div>
+                    <dt>Site / formulaire d&apos;origine</dt>
+                    <dd>
+                      <a
+                        href={lead.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.link}
+                        title={lead.sourceUrl}
+                      >
+                        {formatSourceUrl(lead.sourceUrl)}
+                      </a>
+                    </dd>
+                  </div>
+                )}
                 {lead.isCompany && lead.siret && (
                   <div>
                     <dt>SIRET</dt>
@@ -602,6 +618,17 @@ function KpiCard({
 
 function daysSince(iso: string): number {
   return Math.max(0, Math.floor((Date.now() - +new Date(iso)) / 86_400_000));
+}
+
+// Affichage compact d'une URL (domaine + chemin, sans protocole), tronqué.
+function formatSourceUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    const compact = `${u.host}${u.pathname === "/" ? "" : u.pathname}${u.search}`;
+    return compact.length > 60 ? `${compact.slice(0, 57)}…` : compact;
+  } catch {
+    return url.length > 60 ? `${url.slice(0, 57)}…` : url;
+  }
 }
 
 function sectorIcon(sector: string): Parameters<typeof Icon>[0]["name"] {

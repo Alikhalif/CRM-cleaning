@@ -1316,6 +1316,7 @@ export type Database = {
           received_at: string
           short_id: string
           source_id: string | null
+          source_url: string | null
           status: Database["public"]["Enums"]["lead_status"]
           statut_client: string | null
           sub_envoi: Database["public"]["Enums"]["sub_envoi"] | null
@@ -1379,6 +1380,7 @@ export type Database = {
           received_at?: string
           short_id: string
           source_id?: string | null
+          source_url?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           statut_client?: string | null
           sub_envoi?: Database["public"]["Enums"]["sub_envoi"] | null
@@ -1442,6 +1444,7 @@ export type Database = {
           received_at?: string
           short_id?: string
           source_id?: string | null
+          source_url?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           statut_client?: string | null
           sub_envoi?: Database["public"]["Enums"]["sub_envoi"] | null

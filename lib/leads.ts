@@ -149,6 +149,8 @@ export type Lead = {
   entityId?: string;
   entityName?: string;
   landingPage?: string;
+  // URL exacte du site / formulaire d'origine (renseignée par WF1).
+  sourceUrl?: string;
   // Free-text sub-qualifier within the sector (e.g. "longue distance",
   // "succession"). Captured from the LP form or entered manually.
   typeService?: string;

@@ -128,6 +128,7 @@ export type LeadRowJoined = {
   entity_id?: string | null;
   entity?: { legal_name: string } | null;
   landing_page?: { name: string } | null;
+  source_url?: string | null;
   // Découverte columns — optional so selects that don't fetch them still map.
   announced_price?: number | null;
   discovery_outcome?: string | null;
@@ -171,6 +172,7 @@ export function mapLead(row: LeadRowJoined, canImmob = false): Lead {
     entityId: row.entity_id ?? undefined,
     entityName: row.entity?.legal_name ?? undefined,
     landingPage: row.landing_page?.name ?? undefined,
+    sourceUrl: row.source_url ?? undefined,
     source: SOURCE_DB_TO_UI[row.source?.slug ?? ""] ?? "google-ads",
     amount: row.estimated_amount ?? 0,
     ownerId: row.owner_id ?? "",
@@ -261,7 +263,7 @@ export async function getAllLeads(): Promise<Lead[]> {
         received_at, last_action_label, last_action_at, next_followup_at,
         is_urgent, surface_m2, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
         intervention_delay, intervention_delay_notes, notes, type_service, country,
-        entity_id, entity:legal_entities(legal_name), landing_page:landing_pages(name),
+        entity_id, entity:legal_entities(legal_name), landing_page:landing_pages(name), source_url,
         announced_price, discovery_outcome, discovery_done_at,
         photos_requested_at, delai_souhaite, price_range, reaction_prix,
         statut_client, etat_salete, contexte_intervention, acompte_negocie, discovery_details, is_extreme,
@@ -332,7 +334,7 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
         received_at, last_action_label, last_action_at, next_followup_at,
         is_urgent, surface_m2, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
         intervention_delay, intervention_delay_notes, notes, type_service, country,
-        entity_id, entity:legal_entities(legal_name), landing_page:landing_pages(name),
+        entity_id, entity:legal_entities(legal_name), landing_page:landing_pages(name), source_url,
         announced_price, discovery_outcome, discovery_done_at,
         photos_requested_at, delai_souhaite, price_range, reaction_prix,
         statut_client, etat_salete, contexte_intervention, acompte_negocie, discovery_details, is_extreme,
