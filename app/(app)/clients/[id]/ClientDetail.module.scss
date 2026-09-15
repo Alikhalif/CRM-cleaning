@@ -319,3 +319,203 @@
     border-color: color-mix(in oklab, var(--tone-danger) 30%, transparent);
   }
 }
+
+// ── Onglets fiche client ───────────────────────────────────────────────
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+  @include m.scrollbar-thin;
+}
+.tab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  white-space: nowrap;
+  &:hover { color: var(--text-primary); }
+}
+.tabOn { color: var(--text-primary); border-bottom-color: var(--color-brand-500); }
+.tabCount {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  background: var(--bg-surface-2); border: 1px solid var(--border-subtle);
+  font-size: var(--fs-xs); font-weight: 700; color: var(--text-secondary);
+}
+
+// ── Section « Activités / Contrats » ───────────────────────────────────
+.tagGroups { display: grid; gap: var(--sp-3); }
+.tagGroup { display: grid; gap: 8px; }
+.tagGroupTitle {
+  font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.4px; color: var(--text-muted);
+}
+.tagChecks { display: flex; flex-wrap: wrap; gap: 8px; }
+.tagCheck {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 11px; border-radius: 999px;
+  border: 1px solid var(--border-strong); background: var(--bg-surface);
+  font-size: var(--fs-sm); color: var(--text-secondary); cursor: pointer;
+  input { width: 15px; height: 15px; accent-color: var(--color-brand-600); cursor: pointer; }
+  &:hover { border-color: var(--color-brand-500); }
+}
+.tagCheckOn {
+  color: var(--color-brand-600);
+  background: var(--color-brand-50);
+  border-color: color-mix(in oklab, var(--color-brand-500) 40%, transparent);
+}
+.tagFoot { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-3); }
+.savedTag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--fs-sm); font-weight: 600; color: var(--tone-success);
+}
+
+// ── Onglet Documents & Contrats ────────────────────────────────────────
+.docHead { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
+
+.uploadPanel {
+  display: grid; gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  background: var(--bg-surface-2);
+}
+.uploadRow { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-3); }
+.uploadField {
+  display: grid; gap: 4px; font-size: var(--fs-xs); color: var(--text-muted); font-weight: 600;
+  select, input {
+    font: inherit; font-size: var(--fs-sm); font-weight: 400; color: var(--text-primary);
+    padding: 7px 9px; border-radius: var(--r-md);
+    border: 1px solid var(--border-strong); background: var(--bg-surface);
+  }
+}
+.uploadTitle { flex: 1 1 200px; input { width: 100%; } }
+.fileInput { flex: 1 1 240px; font-size: var(--fs-sm); }
+.uploadError { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--tone-danger); }
+.uploadHint { font-size: var(--fs-xs); color: var(--text-muted); }
+
+.docFilters { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  padding: 5px 11px; border-radius: 999px; font-size: var(--fs-xs); font-weight: 600;
+  border: 1px solid var(--border-strong); background: var(--bg-surface); color: var(--text-secondary); cursor: pointer;
+  &:hover { border-color: var(--color-brand-500); color: var(--text-primary); }
+}
+.chipOn { color: var(--color-brand-600); background: var(--color-brand-50); border-color: color-mix(in oklab, var(--color-brand-500) 40%, transparent); }
+
+.docList { list-style: none; display: grid; gap: 8px; }
+.docItem {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 10px 12px; border-radius: var(--r-md);
+  border: 1px solid var(--border-subtle); background: var(--bg-surface);
+}
+.docIcon {
+  flex: none; width: 34px; height: 34px; border-radius: var(--r-md);
+  display: grid; place-items: center; background: var(--bg-surface-2); color: var(--text-secondary);
+}
+.docBody { flex: 1 1 auto; min-width: 0; display: grid; gap: 3px; }
+.docTitleRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.docTitle { font-size: var(--fs-sm); font-weight: 600; color: var(--text-primary); }
+.docBadge {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  padding: 2px 8px; border-radius: 999px;
+  background: color-mix(in oklab, var(--color-brand-500) 14%, transparent); color: var(--color-brand-600);
+}
+.docCat { font-size: var(--fs-xs); color: var(--text-secondary); }
+.docSigned { display: inline-flex; align-items: center; gap: 3px; font-size: var(--fs-xs); font-weight: 600; color: var(--tone-success); }
+.docRO { font-size: 10.5px; font-style: italic; color: var(--text-muted); }
+.docMeta { display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--fs-xs); color: var(--text-muted); }
+.docActions { flex: none; display: flex; align-items: center; gap: 6px; }
+.docLink {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: var(--r-md);
+  color: var(--text-secondary); border: 1px solid var(--border-strong);
+  &:hover { color: var(--color-brand-600); border-color: var(--color-brand-500); }
+}
+.docNoFile { color: var(--text-muted); width: 30px; text-align: center; }
+.docDel {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: var(--r-md);
+  color: var(--text-muted); border: 1px solid transparent; cursor: pointer;
+  &:hover { color: var(--tone-danger); border-color: color-mix(in oklab, var(--tone-danger) 40%, transparent); }
+  &:disabled { opacity: .5; cursor: default; }
+}
+
+// ── Onglet Documents : disposition (contrats puis registre) ────────────
+.docTabLayout { display: flex; flex-direction: column; gap: var(--sp-4); }
+
+// ── Contrats : liste ───────────────────────────────────────────────────
+.ctList { list-style: none; display: grid; gap: 8px; }
+.ctItem {
+  display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+  padding: 10px 12px; border-radius: var(--r-md);
+  border: 1px solid var(--border-subtle); background: var(--bg-surface);
+}
+.ctMain { flex: 1 1 260px; min-width: 0; display: grid; gap: 3px; }
+.ctTitleRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ctTitle { font-size: var(--fs-sm); font-weight: 600; color: var(--text-primary); }
+.ctMeta { display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--fs-xs); color: var(--text-muted); }
+.ctStatus {
+  display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px;
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  background: var(--bg-surface-2); color: var(--text-secondary); border: 1px solid var(--border-subtle);
+  &[data-tone="success"] { color: var(--tone-success); background: color-mix(in oklab, var(--tone-success) 12%, transparent); border-color: color-mix(in oklab, var(--tone-success) 30%, transparent); }
+  &[data-tone="warning"] { color: var(--tone-warning); background: color-mix(in oklab, var(--tone-warning) 12%, transparent); border-color: color-mix(in oklab, var(--tone-warning) 30%, transparent); }
+  &[data-tone="danger"]  { color: var(--tone-danger);  background: color-mix(in oklab, var(--tone-danger) 12%, transparent);  border-color: color-mix(in oklab, var(--tone-danger) 30%, transparent); }
+  &[data-tone="info"]    { color: var(--tone-info);    background: color-mix(in oklab, var(--tone-info) 12%, transparent);    border-color: color-mix(in oklab, var(--tone-info) 30%, transparent); }
+  &[data-tone="muted"]   { color: var(--text-muted); }
+}
+.ctActions { flex: none; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ctStatusSelect {
+  font: inherit; font-size: var(--fs-xs); padding: 6px 8px; border-radius: var(--r-md);
+  border: 1px solid var(--border-strong); background: var(--bg-surface); color: var(--text-primary);
+}
+.ctBtn, .ctBtnDanger {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: var(--r-md); cursor: pointer;
+  border: 1px solid var(--border-strong); background: var(--bg-surface); color: var(--text-secondary);
+  &:hover { border-color: var(--color-brand-500); color: var(--color-brand-600); }
+  &:disabled { opacity: .5; cursor: default; }
+}
+.ctBtnDanger:hover { color: var(--tone-danger); border-color: color-mix(in oklab, var(--tone-danger) 40%, transparent); }
+
+// ── Contrats : formulaire dynamique ────────────────────────────────────
+.contractForm {
+  display: grid; gap: var(--sp-3);
+  padding: var(--sp-3); margin-bottom: var(--sp-2);
+  border: 1px solid var(--border-subtle); border-radius: var(--r-md); background: var(--bg-surface-2);
+}
+.cfTop { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: flex-end; }
+.cfSection { display: grid; gap: 6px; }
+.cfSectionTitle {
+  font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+  color: var(--color-brand-600);
+}
+.cfGrid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+@media (max-width: 640px) { .cfGrid { grid-template-columns: 1fr; } }
+.cfField {
+  display: grid; gap: 4px; font-size: var(--fs-xs); color: var(--text-muted); font-weight: 600; min-width: 0;
+  input, select, textarea {
+    font: inherit; font-size: var(--fs-sm); font-weight: 400; color: var(--text-primary);
+    padding: 7px 9px; border-radius: var(--r-md); border: 1px solid var(--border-strong); background: var(--bg-surface);
+    width: 100%;
+  }
+  textarea { resize: vertical; }
+}
+.cfFull { grid-column: 1 / -1; }
+.cfCheckgroup { display: flex; flex-wrap: wrap; gap: 6px; }
+.cfCheck {
+  display: inline-flex; align-items: center; gap: 6px; font-weight: 400;
+  padding: 5px 10px; border-radius: 999px;
+  border: 1px solid var(--border-strong); background: var(--bg-surface); color: var(--text-secondary);
+  font-size: var(--fs-xs); cursor: pointer;
+  input { width: 14px; height: 14px; accent-color: var(--color-brand-600); }
+}
+.cfCheckOn { color: var(--color-brand-600); background: var(--color-brand-50); border-color: color-mix(in oklab, var(--color-brand-500) 40%, transparent); }
+.cfFoot { display: flex; justify-content: flex-end; gap: var(--sp-2); }

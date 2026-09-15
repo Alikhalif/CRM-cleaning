@@ -31,6 +31,7 @@ type ClientRow = {
   vat_intra: string | null;
   source_lead_id: string | null;
   sectors: string[] | null;
+  activity_tags: string[] | null;
   note: string | null;
   created_at: string;
 };
@@ -68,6 +69,7 @@ function mapClient(row: ClientRow, sectorById: Map<string, Sector>): Client {
     sectors: (row.sectors ?? [])
       .map((id) => sectorById.get(id))
       .filter((s): s is Sector => s !== undefined),
+    activityTags: row.activity_tags ?? [],
     note: row.note ?? undefined,
     createdAt: row.created_at,
   };
@@ -91,7 +93,7 @@ function mapDoc(row: DocRow): CrmDocument {
 
 const CLIENT_SELECT =
   "id, type, source, name, contact_name, email, phone, address, " +
-  "siret, vat_intra, source_lead_id, sectors, note, created_at";
+  "siret, vat_intra, source_lead_id, sectors, activity_tags, note, created_at";
 
 const DOC_SELECT =
   "id, num, type, status, lead_id, total_ttc, issued_at, " +

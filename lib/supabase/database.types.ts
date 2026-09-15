@@ -187,8 +187,186 @@ export type Database = {
         }
         Relationships: []
       }
+      contract_counters: {
+        Row: { year: number; next_value: number }
+        Insert: { year: number; next_value?: number }
+        Update: { year?: number; next_value?: number }
+        Relationships: []
+      }
+      contract_templates: {
+        Row: { id: string; key: string; name: string; kind: string; category: string | null; schema: Json; clauses: Json; is_active: boolean; updated_at: string }
+        Insert: { id?: string; key: string; name: string; kind?: string; category?: string | null; schema?: Json; clauses?: Json; is_active?: boolean; updated_at?: string }
+        Update: { id?: string; key?: string; name?: string; kind?: string; category?: string | null; schema?: Json; clauses?: Json; is_active?: boolean; updated_at?: string }
+        Relationships: []
+      }
+      contracts: {
+        Row: {
+          id: string
+          ref: string | null
+          client_id: string
+          lead_id: string | null
+          template_key: string | null
+          category: string | null
+          title: string
+          status: string
+          start_date: string | null
+          end_date: string | null
+          signed_date: string | null
+          frequency: string | null
+          passages_per_year: number | null
+          passages_done: number
+          amount: number | null
+          billing_mode: string | null
+          entity_id: string | null
+          data: Json
+          pdf_path: string | null
+          signature_request_id: string | null
+          sent_to: string | null
+          sent_at: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+        }
+        Insert: {
+          id?: string
+          ref?: string | null
+          client_id: string
+          lead_id?: string | null
+          template_key?: string | null
+          category?: string | null
+          title: string
+          status?: string
+          start_date?: string | null
+          end_date?: string | null
+          signed_date?: string | null
+          frequency?: string | null
+          passages_per_year?: number | null
+          passages_done?: number
+          amount?: number | null
+          billing_mode?: string | null
+          entity_id?: string | null
+          data?: Json
+          pdf_path?: string | null
+          signature_request_id?: string | null
+          sent_to?: string | null
+          sent_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+        }
+        Update: {
+          id?: string
+          ref?: string | null
+          client_id?: string
+          lead_id?: string | null
+          template_key?: string | null
+          category?: string | null
+          title?: string
+          status?: string
+          start_date?: string | null
+          end_date?: string | null
+          signed_date?: string | null
+          frequency?: string | null
+          passages_per_year?: number | null
+          passages_done?: number
+          amount?: number | null
+          billing_mode?: string | null
+          entity_id?: string | null
+          data?: Json
+          pdf_path?: string | null
+          signature_request_id?: string | null
+          sent_to?: string | null
+          sent_at?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+        }
+        Relationships: []
+      }
+      client_documents: {
+        Row: {
+          id: string
+          client_id: string
+          contract_id: string | null
+          dossier_id: string | null
+          lead_id: string | null
+          kind: string
+          category: string | null
+          title: string
+          ref: string | null
+          storage_path: string | null
+          file_name: string | null
+          mime_type: string | null
+          size_bytes: number | null
+          signed: boolean
+          signed_at: string | null
+          status: string | null
+          source: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+        }
+        Insert: {
+          id?: string
+          client_id: string
+          contract_id?: string | null
+          dossier_id?: string | null
+          lead_id?: string | null
+          kind: string
+          category?: string | null
+          title: string
+          ref?: string | null
+          storage_path?: string | null
+          file_name?: string | null
+          mime_type?: string | null
+          size_bytes?: number | null
+          signed?: boolean
+          signed_at?: string | null
+          status?: string | null
+          source?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+        }
+        Update: {
+          id?: string
+          client_id?: string
+          contract_id?: string | null
+          dossier_id?: string | null
+          lead_id?: string | null
+          kind?: string
+          category?: string | null
+          title?: string
+          ref?: string | null
+          storage_path?: string | null
+          file_name?: string | null
+          mime_type?: string | null
+          size_bytes?: number | null
+          signed?: boolean
+          signed_at?: string | null
+          status?: string | null
+          source?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
+          activity_tags: string[]
           address: Json | null
           contact_name: string | null
           created_at: string
@@ -209,6 +387,7 @@ export type Database = {
           vat_intra: string | null
         }
         Insert: {
+          activity_tags?: string[]
           address?: Json | null
           contact_name?: string | null
           created_at?: string
@@ -229,6 +408,7 @@ export type Database = {
           vat_intra?: string | null
         }
         Update: {
+          activity_tags?: string[]
           address?: Json | null
           contact_name?: string | null
           created_at?: string
@@ -2305,6 +2485,7 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_planificateur: { Args: never; Returns: boolean }
       next_cert_hotte_num: { Args: { p_year: number }; Returns: string }
+      next_contract_num: { Args: { p_year: number }; Returns: number }
       next_devis_optimivv_num: { Args: { p_year: number }; Returns: string }
       next_doc_num: {
         Args: {

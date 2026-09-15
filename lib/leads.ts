@@ -516,6 +516,9 @@ export type Client = {
   vatIntra?: string;
   sourceLeadId?: string; // renseigné si origin=lead
   sectors: Sector[];     // activités historisées
+  // Tags « Activités / Contrats » (module Documents & Contrats). Vocabulaire
+  // dans lib/documents/tags.ts. Un client peut en cumuler plusieurs.
+  activityTags: string[];
   note?: string;
   createdAt: string;
 };

@@ -11,10 +11,24 @@ import {
   formatEUR,
 } from "@/lib/leads";
 import { getClientById, getClientStats } from "@/lib/clients-server";
+import { getClientDocuments } from "@/lib/documents/documents-server";
+import { getClientContracts, getContractTemplates, getContractPrefill } from "@/lib/documents/contracts-server";
 import { logEntityRead } from "@/lib/presence/read-log";
+import ClientActivityTags from "./ClientActivityTags";
+import ClientDocuments from "./ClientDocuments";
+import ContractsPanel from "./ContractsPanel";
 import styles from "./ClientDetail.module.scss";
 
-type PageProps = { params: Promise<{ id: string }> };
+const TABS = [
+  { key: "informations", label: "Informations" },
+  { key: "documents", label: "Documents & Contrats" },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
+
+type PageProps = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+};
 
 export async function generateMetadata({ params }: PageProps) {
   const { id } = await params;
@@ -28,14 +42,24 @@ const DATE = new Intl.DateTimeFormat("fr-FR", {
   year: "numeric",
 });
 
-export default async function ClientDetailPage({ params }: PageProps) {
+export default async function ClientDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params;
   const client = await getClientById(id);
   if (!client) notFound();
   // Présence & Actions : trace la consultation de la fiche client (throttlé).
   void logEntityRead("client", id);
 
-  const { documents, caEncaisse, caSigne, lastActivityAt } = await getClientStats(client);
+  const { tab: tabParam } = await searchParams;
+  const tab: TabKey = TABS.find((t) => t.key === tabParam)?.key ?? "informations";
+
+  const [stats, clientDocuments, contracts, contractTemplates, contractPrefill] = await Promise.all([
+    getClientStats(client),
+    getClientDocuments(client.id, client.sourceLeadId),
+    getClientContracts(client.id),
+    getContractTemplates(),
+    getContractPrefill(client.id),
+  ]);
+  const { documents, caEncaisse, caSigne, lastActivityAt } = stats;
 
   return (
     <div className={styles.page}>
@@ -83,140 +107,180 @@ export default async function ClientDetailPage({ params }: PageProps) {
         </div>
       </header>
 
-      <div className={styles.layout}>
-        <main className={styles.main}>
-          <section className={styles.card}>
-            <h2 className={styles.h2}>Coordonnées</h2>
-            <dl className={styles.dl}>
-              {client.type === "pro" && client.contactName && (
-                <div>
-                  <dt>Contact référent</dt>
-                  <dd>{client.contactName}</dd>
-                </div>
-              )}
-              <div>
-                <dt>Email</dt>
-                <dd>
-                  <a href={`mailto:${client.email}`} className={styles.link}>{client.email}</a>
-                </dd>
-              </div>
-              <div>
-                <dt>Téléphone</dt>
-                <dd>
-                  <a href={`tel:${client.phone.replace(/\s/g, "")}`} className={styles.link}>
-                    {client.phone}
-                  </a>
-                </dd>
-              </div>
-              <div>
-                <dt>Adresse</dt>
-                <dd>
-                  {client.address}
-                  <br />
-                  {client.postalCode} {client.city}
-                </dd>
-              </div>
-              {client.type === "pro" && client.siret && (
-                <div>
-                  <dt>SIRET</dt>
-                  <dd className={styles.mono}>{client.siret}</dd>
-                </div>
-              )}
-              {client.type === "pro" && client.vatIntra && (
-                <div>
-                  <dt>N° TVA intracom.</dt>
-                  <dd className={styles.mono}>{client.vatIntra}</dd>
-                </div>
-              )}
-            </dl>
-            {client.note && (
-              <p className={styles.note}>
-                <strong>Note : </strong>
-                {client.note}
-              </p>
-            )}
-          </section>
+      {/* ── Onglets ─────────────────────────────────────────────────── */}
+      <nav className={styles.tabs} aria-label="Sections du client">
+        {TABS.map((t) => {
+          const count = t.key === "documents" ? clientDocuments.length : null;
+          const active = t.key === tab;
+          return (
+            <Link
+              key={t.key}
+              href={`/clients/${client.id}?tab=${t.key}`}
+              scroll={false}
+              className={`${styles.tab} ${active ? styles.tabOn : ""}`}
+              aria-current={active ? "page" : undefined}
+            >
+              {t.label}
+              {count !== null && <span className={styles.tabCount}>{count}</span>}
+            </Link>
+          );
+        })}
+      </nav>
 
-          <section className={styles.card}>
-            <h2 className={styles.h2}>
-              Documents émis
-              <span className={styles.h2Count}>{documents.length}</span>
-            </h2>
-            {documents.length === 0 ? (
-              <p className={styles.empty}>
-                Aucun document n&apos;a été émis pour ce client.
-                {client.origin === "direct" && " Cliquez sur « Nouveau devis » pour démarrer."}
-              </p>
-            ) : (
-              <div className={styles.tableWrap}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th>Numéro</th>
-                      <th>Type</th>
-                      <th className={styles.tNum}>Total TTC</th>
-                      <th>Date</th>
-                      <th>Statut</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {documents.map((d) => (
-                      <tr key={d.id}>
-                        <td className={styles.mono}>
-                          <Link
-                            href={`${d.type === "devis" ? "/devis" : "/factures"}/${d.id}`}
-                            className={styles.link}
-                          >
-                            {d.num}
-                          </Link>
-                        </td>
-                        <td>{DOC_TYPE_LABEL[d.type]}</td>
-                        <td className={styles.tNum}>{formatEUR(d.totalTtc)}</td>
-                        <td>{DATE.format(new Date(d.issuedAt))}</td>
-                        <td>
-                          <span className={styles.docStatus} data-status={d.status}>
-                            {DOC_STATUS_LABEL[d.status]}
-                          </span>
-                        </td>
+      {tab === "informations" && (
+        <div className={styles.layout}>
+          <main className={styles.main}>
+            <section className={styles.card}>
+              <h2 className={styles.h2}>Coordonnées</h2>
+              <dl className={styles.dl}>
+                {client.type === "pro" && client.contactName && (
+                  <div>
+                    <dt>Contact référent</dt>
+                    <dd>{client.contactName}</dd>
+                  </div>
+                )}
+                <div>
+                  <dt>Email</dt>
+                  <dd>
+                    <a href={`mailto:${client.email}`} className={styles.link}>{client.email}</a>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Téléphone</dt>
+                  <dd>
+                    <a href={`tel:${client.phone.replace(/\s/g, "")}`} className={styles.link}>
+                      {client.phone}
+                    </a>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Adresse</dt>
+                  <dd>
+                    {client.address}
+                    <br />
+                    {client.postalCode} {client.city}
+                  </dd>
+                </div>
+                {client.type === "pro" && client.siret && (
+                  <div>
+                    <dt>SIRET</dt>
+                    <dd className={styles.mono}>{client.siret}</dd>
+                  </div>
+                )}
+                {client.type === "pro" && client.vatIntra && (
+                  <div>
+                    <dt>N° TVA intracom.</dt>
+                    <dd className={styles.mono}>{client.vatIntra}</dd>
+                  </div>
+                )}
+              </dl>
+              {client.note && (
+                <p className={styles.note}>
+                  <strong>Note : </strong>
+                  {client.note}
+                </p>
+              )}
+            </section>
+
+            <ClientActivityTags clientId={client.id} initialTags={client.activityTags} />
+
+            <section className={styles.card}>
+              <h2 className={styles.h2}>
+                Documents émis
+                <span className={styles.h2Count}>{documents.length}</span>
+              </h2>
+              {documents.length === 0 ? (
+                <p className={styles.empty}>
+                  Aucun document n&apos;a été émis pour ce client.
+                  {client.origin === "direct" && " Cliquez sur « Nouveau devis » pour démarrer."}
+                </p>
+              ) : (
+                <div className={styles.tableWrap}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Numéro</th>
+                        <th>Type</th>
+                        <th className={styles.tNum}>Total TTC</th>
+                        <th>Date</th>
+                        <th>Statut</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        </main>
+                    </thead>
+                    <tbody>
+                      {documents.map((d) => (
+                        <tr key={d.id}>
+                          <td className={styles.mono}>
+                            <Link
+                              href={`${d.type === "devis" ? "/devis" : "/factures"}/${d.id}`}
+                              className={styles.link}
+                            >
+                              {d.num}
+                            </Link>
+                          </td>
+                          <td>{DOC_TYPE_LABEL[d.type]}</td>
+                          <td className={styles.tNum}>{formatEUR(d.totalTtc)}</td>
+                          <td>{DATE.format(new Date(d.issuedAt))}</td>
+                          <td>
+                            <span className={styles.docStatus} data-status={d.status}>
+                              {DOC_STATUS_LABEL[d.status]}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </main>
 
-        <aside className={styles.aside}>
-          <section className={styles.card}>
-            <h2 className={styles.h2}>Aperçu</h2>
-            <dl className={styles.dl}>
-              <div>
-                <dt>CA encaissé</dt>
-                <dd className={styles.amount}>{formatEUR(caEncaisse)}</dd>
-              </div>
-              <div>
-                <dt>CA signé</dt>
-                <dd>{formatEUR(caSigne)}</dd>
-              </div>
-              <div>
-                <dt>Documents émis</dt>
-                <dd>{documents.length}</dd>
-              </div>
-              <div>
-                <dt>Client depuis</dt>
-                <dd>{DATE.format(new Date(client.createdAt))}</dd>
-              </div>
-              <div>
-                <dt>Dernière activité</dt>
-                <dd>
-                  <RelativeTime iso={lastActivityAt} />
-                </dd>
-              </div>
-            </dl>
-          </section>
-        </aside>
-      </div>
+          <aside className={styles.aside}>
+            <section className={styles.card}>
+              <h2 className={styles.h2}>Aperçu</h2>
+              <dl className={styles.dl}>
+                <div>
+                  <dt>CA encaissé</dt>
+                  <dd className={styles.amount}>{formatEUR(caEncaisse)}</dd>
+                </div>
+                <div>
+                  <dt>CA signé</dt>
+                  <dd>{formatEUR(caSigne)}</dd>
+                </div>
+                <div>
+                  <dt>Documents émis</dt>
+                  <dd>{documents.length}</dd>
+                </div>
+                <div>
+                  <dt>Documents & contrats</dt>
+                  <dd>{clientDocuments.length}</dd>
+                </div>
+                <div>
+                  <dt>Client depuis</dt>
+                  <dd>{DATE.format(new Date(client.createdAt))}</dd>
+                </div>
+                <div>
+                  <dt>Dernière activité</dt>
+                  <dd>
+                    <RelativeTime iso={lastActivityAt} />
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          </aside>
+        </div>
+      )}
+
+      {tab === "documents" && (
+        <div className={styles.docTabLayout}>
+          <ContractsPanel
+            clientId={client.id}
+            contracts={contracts}
+            templates={contractTemplates}
+            prefill={contractPrefill}
+          />
+          <ClientDocuments clientId={client.id} documents={clientDocuments} />
+        </div>
+      )}
     </div>
   );
 }
