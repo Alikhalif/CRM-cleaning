@@ -289,6 +289,51 @@ export type Database = {
         }
         Relationships: []
       }
+      contract_passages: {
+        Row: {
+          id: string
+          contract_id: string
+          index: number
+          status: string
+          target_label: string | null
+          planned_at: string | null
+          realized_at: string | null
+          dossier_id: string | null
+          cert_document_id: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          contract_id: string
+          index: number
+          status?: string
+          target_label?: string | null
+          planned_at?: string | null
+          realized_at?: string | null
+          dossier_id?: string | null
+          cert_document_id?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          contract_id?: string
+          index?: number
+          status?: string
+          target_label?: string | null
+          planned_at?: string | null
+          realized_at?: string | null
+          dossier_id?: string | null
+          cert_document_id?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       client_documents: {
         Row: {
           id: string

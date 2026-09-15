@@ -6,7 +6,7 @@ import { ContractPdf } from "@/lib/pdf/ContractPdf";
 import { PRESTATAIRE_CERT } from "@/lib/cert-hotte/types";
 import { CLIENT_DOCS_BUCKET } from "./documents-server";
 import type {
-  Contract, ContractClause, ContractStatus, ContractTemplate, FieldValue, TemplateSection,
+  Contract, ContractClause, ContractPassage, ContractStatus, ContractTemplate, FieldValue, PassageStatus, TemplateSection,
 } from "./contracts-types";
 
 // Couche données Contrats (Lot 2). Lecture des templates dynamiques + des
@@ -81,6 +81,26 @@ export async function getClientContracts(clientId: string): Promise<Contract[]> 
   const rows = data ?? [];
   if (rows.length === 0) return [];
 
+  // Passages de tous les contrats (une requête).
+  const contractIds = rows.map((r) => r.id);
+  const passagesByContract = new Map<string, ContractPassage[]>();
+  {
+    const { data: pData } = await sb
+      .from("contract_passages")
+      .select("id, contract_id, index, status, target_label, planned_at, realized_at, dossier_id, notes")
+      .in("contract_id", contractIds)
+      .order("index", { ascending: true })
+      .returns<{ id: string; contract_id: string; index: number; status: string; target_label: string | null; planned_at: string | null; realized_at: string | null; dossier_id: string | null; notes: string | null }[]>();
+    for (const p of pData ?? []) {
+      const arr = passagesByContract.get(p.contract_id) ?? [];
+      arr.push({
+        id: p.id, index: p.index, status: p.status as PassageStatus, targetLabel: p.target_label,
+        plannedAt: p.planned_at, realizedAt: p.realized_at, dossierId: p.dossier_id, notes: p.notes,
+      });
+      passagesByContract.set(p.contract_id, arr);
+    }
+  }
+
   // URLs signées + noms créateurs.
   const paths = rows.map((r) => r.pdf_path).filter(Boolean) as string[];
   const signed = new Map<string, string>();
@@ -122,6 +142,50 @@ export async function getClientContracts(clientId: string): Promise<Contract[]> 
     sentAt: r.sent_at,
     createdAt: r.created_at,
     createdByName: r.created_by ? nameById.get(r.created_by) ?? null : null,
+    passages: passagesByContract.get(r.id) ?? [],
+  }));
+}
+
+// ── Interventions du client (dossiers du lead source) + état du certificat ──
+// Sert au point d'entrée « Générer le certificat hotte » depuis la fiche (§4) :
+// le certificat existant est dossier-driven, on liste donc les dossiers.
+export type ClientIntervention = {
+  dossierId: string;
+  status: string;
+  plannedAt: string | null;
+  realizedAt: string | null;
+  technicianName: string | null;
+  hasCert: boolean;
+  certNumero: string | null;
+};
+
+export async function getClientInterventions(sourceLeadId?: string | null): Promise<ClientIntervention[]> {
+  if (!sourceLeadId) return [];
+  const sb = await supabaseServiceRole();
+  const { data: dossiers } = await sb
+    .from("dossiers")
+    .select("id, status, planned_at, realized_at, technician:technicians(name)")
+    .eq("lead_id", sourceLeadId)
+    .order("planned_at", { ascending: false })
+    .returns<{ id: string; status: string; planned_at: string | null; realized_at: string | null; technician: { name: string | null } | null }[]>();
+  const rows = dossiers ?? [];
+  if (rows.length === 0) return [];
+
+  const ids = rows.map((d) => d.id);
+  const certByDossier = new Map<string, string>();
+  const { data: certs } = await sb
+    .from("cert_hotte").select("dossier_id, numero").in("dossier_id", ids)
+    .returns<{ dossier_id: string | null; numero: string }[]>();
+  for (const c of certs ?? []) if (c.dossier_id) certByDossier.set(c.dossier_id, c.numero);
+
+  return rows.map((d) => ({
+    dossierId: d.id,
+    status: d.status,
+    plannedAt: d.planned_at,
+    realizedAt: d.realized_at,
+    technicianName: d.technician?.name ?? null,
+    hasCert: certByDossier.has(d.id),
+    certNumero: certByDossier.get(d.id) ?? null,
   }));
 }
 

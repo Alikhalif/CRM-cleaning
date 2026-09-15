@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon/Icon";
 import {
   CONTRACT_STATUS_LABEL, CONTRACT_STATUS_TONE, CONTRACT_STATUSES,
+  PASSAGE_STATUS_GLYPH, PASSAGE_STATUS_LABEL, PASSAGE_STATUSES,
   type Contract, type ContractTemplate,
 } from "@/lib/documents/contracts-types";
-import { setContractStatus, renewContract, deleteContract, sendContract } from "./contracts-actions";
+import { setContractStatus, renewContract, deleteContract, sendContract, updatePassage } from "./contracts-actions";
 import ContractForm from "./ContractForm";
 import styles from "./ClientDetail.module.scss";
 
@@ -77,6 +78,25 @@ export default function ContractsPanel({
                     {c.amount != null && <span>· {fmtEur(c.amount)}</span>}
                     {c.sentAt && <span>· envoyé</span>}
                   </div>
+
+                  {c.passages.length > 0 && (
+                    <div className={styles.passRow}>
+                      {c.passages.map((p) => (
+                        <div key={p.id} className={styles.passChip} data-status={p.status}>
+                          <span aria-hidden="true">{PASSAGE_STATUS_GLYPH[p.status]}</span>
+                          <span>Passage {p.index}</span>
+                          <select
+                            value={p.status}
+                            disabled={busy}
+                            onChange={(e) => run(c.id, () => updatePassage(p.id, { status: e.target.value }))}
+                            aria-label={`Statut du passage ${p.index}`}
+                          >
+                            {PASSAGE_STATUSES.map((s) => <option key={s} value={s}>{PASSAGE_STATUS_LABEL[s]}</option>)}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className={styles.ctActions}>

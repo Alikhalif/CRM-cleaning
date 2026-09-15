@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { evaluate } from "@/lib/presence/alerts-server";
 import { evaluateCommercialActions } from "@/lib/commercial-actions/engine-server";
+import { evaluateDocumentAlerts } from "@/lib/documents/alerts-server";
 import { isCurrentUserAdmin } from "@/lib/presence/guard";
 
 export const runtime = "nodejs";
@@ -27,7 +28,15 @@ async function run(request: Request) {
     console.error("[commercial-actions.evaluate] échec :", (e as Error).message);
     commercial = { ok: false, error: (e as Error).message };
   }
-  return NextResponse.json({ ...result, commercial });
+  // Couche « Documents & Contrats » : alertes push (contrats expirants), isolée.
+  let documents: unknown = { ok: false, skipped: true };
+  try {
+    documents = await evaluateDocumentAlerts();
+  } catch (e) {
+    console.error("[documents.evaluate] échec :", (e as Error).message);
+    documents = { ok: false, error: (e as Error).message };
+  }
+  return NextResponse.json({ ...result, commercial, documents });
 }
 
 export async function POST(request: Request) {

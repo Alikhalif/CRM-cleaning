@@ -471,6 +471,21 @@
   &[data-tone="info"]    { color: var(--tone-info);    background: color-mix(in oklab, var(--tone-info) 12%, transparent);    border-color: color-mix(in oklab, var(--tone-info) 30%, transparent); }
   &[data-tone="muted"]   { color: var(--text-muted); }
 }
+.passRow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.passChip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 8px 3px 10px; border-radius: 999px;
+  border: 1px solid var(--border-subtle); background: var(--bg-surface-2);
+  font-size: var(--fs-xs); color: var(--text-secondary);
+  select {
+    font: inherit; font-size: 11px; padding: 2px 4px; border-radius: var(--r-sm);
+    border: 1px solid var(--border-strong); background: var(--bg-surface); color: var(--text-primary);
+  }
+  &[data-status="realise"] { border-color: color-mix(in oklab, var(--tone-success) 40%, transparent); }
+  &[data-status="planifie"] { border-color: color-mix(in oklab, var(--tone-info) 40%, transparent); }
+  &[data-status="a_planifier"] { border-color: color-mix(in oklab, var(--tone-warning) 45%, transparent); }
+}
+
 .ctActions { flex: none; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .ctStatusSelect {
   font: inherit; font-size: var(--fs-xs); padding: 6px 8px; border-radius: var(--r-md);

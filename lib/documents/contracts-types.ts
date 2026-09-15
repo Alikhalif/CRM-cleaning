@@ -49,6 +49,35 @@ export type ContractTemplate = {
 // Valeur d'un champ : chaîne, nombre, ou liste (checkgroup).
 export type FieldValue = string | number | string[] | null;
 
+// ── Passages contractuels (§10) ─────────────────────────────────────────────
+export type PassageStatus = "a_planifier" | "planifie" | "realise" | "annule";
+
+export const PASSAGE_STATUS_LABEL: Record<PassageStatus, string> = {
+  a_planifier: "À planifier",
+  planifie: "Planifié",
+  realise: "Réalisé",
+  annule: "Annulé",
+};
+// Pictogramme visuel demandé (§10) : ✅ réalisé, 📅 planifié, ⚠️ à planifier.
+export const PASSAGE_STATUS_GLYPH: Record<PassageStatus, string> = {
+  a_planifier: "⚠️",
+  planifie: "📅",
+  realise: "✅",
+  annule: "⊘",
+};
+export const PASSAGE_STATUSES: PassageStatus[] = ["a_planifier", "planifie", "realise", "annule"];
+
+export type ContractPassage = {
+  id: string;
+  index: number;
+  status: PassageStatus;
+  targetLabel: string | null;
+  plannedAt: string | null;
+  realizedAt: string | null;
+  dossierId: string | null;
+  notes: string | null;
+};
+
 // ── Contrat (forme UI) ──────────────────────────────────────────────────────
 export type Contract = {
   id: string;
@@ -71,6 +100,7 @@ export type Contract = {
   sentAt: string | null;
   createdAt: string;
   createdByName: string | null;
+  passages: ContractPassage[];
 };
 
 // Déduit un nombre de passages/an à partir de la fréquence choisie.

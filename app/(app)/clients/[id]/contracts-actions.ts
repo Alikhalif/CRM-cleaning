@@ -93,9 +93,58 @@ export async function createContract(clientId: string, payload: CreateContractPa
     created_by: user.id,
   } as never);
 
+  // Génère le calendrier des passages (§10) si une fréquence récurrente est connue.
+  const n = passagesFromFrequency(payload.frequency);
+  if (n && n >= 1 && n <= 12) {
+    const rows = Array.from({ length: n }, (_, i) => ({
+      contract_id: inserted.id, index: i + 1, target_label: `Passage ${i + 1}`, status: "a_planifier",
+    }));
+    await supabase.from("contract_passages").insert(rows as never);
+  }
+
   revalidatePath(`/clients/${clientId}`);
-  await auditLog({ action: "client.contract.create", entityType: "client", entityId: clientId, after: { ref, template: template.key } });
+  await auditLog({ action: "client.contract.create", entityType: "client", entityId: clientId, after: { ref, template: template.key, passages: n ?? 0 } });
   return { ok: true, id: inserted.id };
+}
+
+// Met à jour un passage (statut/date/notes/dossier) et resynchronise le compteur
+// « passages réalisés » du contrat.
+export async function updatePassage(
+  passageId: string,
+  patch: { status?: string; plannedAt?: string | null; notes?: string; dossierId?: string | null },
+): Promise<Result> {
+  const supabase = await supabaseServer();
+  const { data: p } = await supabase
+    .from("contract_passages").select("id, contract_id, status").eq("id", passageId)
+    .maybeSingle<{ id: string; contract_id: string; status: string }>();
+  if (!p) return { ok: false, error: "Passage introuvable." };
+
+  const upd: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (patch.status !== undefined) {
+    upd.status = patch.status;
+    upd.realized_at = patch.status === "realise" ? new Date().toISOString() : null;
+  }
+  if (patch.plannedAt !== undefined) upd.planned_at = patch.plannedAt || null;
+  if (patch.notes !== undefined) upd.notes = patch.notes.trim() || null;
+  if (patch.dossierId !== undefined) upd.dossier_id = patch.dossierId || null;
+
+  const { error } = await supabase.from("contract_passages").update(upd as never).eq("id", passageId);
+  if (error) return { ok: false, error: `Échec : ${error.message}` };
+
+  // Resync du compteur « passages réalisés » du contrat.
+  const { count } = await supabase
+    .from("contract_passages").select("id", { count: "exact", head: true })
+    .eq("contract_id", p.contract_id).eq("status", "realise");
+  await supabase.from("contracts")
+    .update({ passages_done: count ?? 0, updated_at: new Date().toISOString() } as never)
+    .eq("id", p.contract_id);
+
+  const { data: c } = await supabase
+    .from("contracts").select("client_id").eq("id", p.contract_id)
+    .maybeSingle<{ client_id: string }>();
+  if (c) revalidatePath(`/clients/${c.client_id}`);
+  await auditLog({ action: "client.passage.update", entityType: "client", entityId: c?.client_id ?? null, after: { passageId, ...patch } });
+  return { ok: true };
 }
 
 // Change le statut (§8). « actif » pose la date de signature si absente.

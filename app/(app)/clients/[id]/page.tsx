@@ -12,10 +12,11 @@ import {
 } from "@/lib/leads";
 import { getClientById, getClientStats } from "@/lib/clients-server";
 import { getClientDocuments } from "@/lib/documents/documents-server";
-import { getClientContracts, getContractTemplates, getContractPrefill } from "@/lib/documents/contracts-server";
+import { getClientContracts, getContractTemplates, getContractPrefill, getClientInterventions } from "@/lib/documents/contracts-server";
 import { logEntityRead } from "@/lib/presence/read-log";
 import ClientActivityTags from "./ClientActivityTags";
 import ClientDocuments from "./ClientDocuments";
+import ClientInterventions from "./ClientInterventions";
 import ContractsPanel from "./ContractsPanel";
 import styles from "./ClientDetail.module.scss";
 
@@ -52,12 +53,13 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
   const { tab: tabParam } = await searchParams;
   const tab: TabKey = TABS.find((t) => t.key === tabParam)?.key ?? "informations";
 
-  const [stats, clientDocuments, contracts, contractTemplates, contractPrefill] = await Promise.all([
+  const [stats, clientDocuments, contracts, contractTemplates, contractPrefill, interventions] = await Promise.all([
     getClientStats(client),
     getClientDocuments(client.id, client.sourceLeadId),
     getClientContracts(client.id),
     getContractTemplates(),
     getContractPrefill(client.id),
+    getClientInterventions(client.sourceLeadId),
   ]);
   const { documents, caEncaisse, caSigne, lastActivityAt } = stats;
 
@@ -98,6 +100,9 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
             className={`${styles.btn} ${styles.btnPrimary}`}
           >
             Nouveau devis
+          </Link>
+          <Link href="/planification" className={styles.btn}>
+            Planifier une intervention
           </Link>
           {client.sourceLeadId && (
             <Link href={`/leads/${client.sourceLeadId}`} className={styles.btn}>
@@ -278,6 +283,7 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
             templates={contractTemplates}
             prefill={contractPrefill}
           />
+          <ClientInterventions interventions={interventions} />
           <ClientDocuments clientId={client.id} documents={clientDocuments} />
         </div>
       )}
