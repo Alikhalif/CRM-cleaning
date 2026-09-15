@@ -79,7 +79,7 @@ export default function LeadsTable({ leads, commerciaux, visibleSectors }: Props
       if (urgentOnly && !l.isUrgent) return false;
       if (bigSurfaceOnly && !(l.surfaceM2 != null && l.surfaceM2 > 100)) return false;
       if (q) {
-        const hay = `${l.shortId} ${l.client} ${l.city} ${l.email} ${l.phone}`.toLowerCase();
+        const hay = `${l.shortId} ${l.client} ${l.city} ${l.email} ${l.phone} ${l.sourceUrl ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -117,6 +117,7 @@ export default function LeadsTable({ leads, commerciaux, visibleSectors }: Props
       "Type de service",
       "Commercial",
       "Source",
+      "Lien source",
       "Montant TTC",
       "Statut",
       "Sous-statut envoi",
@@ -139,6 +140,7 @@ export default function LeadsTable({ leads, commerciaux, visibleSectors }: Props
       l.typeService ?? "",
       ownersById.get(l.ownerId)?.name ?? "",
       SOURCE_LABEL[l.source],
+      l.sourceUrl ?? "",
       String(l.amount),
       labelForStatus(l.status),
       l.subEnvoi ?? "",
@@ -408,7 +410,24 @@ export default function LeadsTable({ leads, commerciaux, visibleSectors }: Props
                       <span className={styles.muted}>—</span>
                     )}
                   </td>
-                  <td className={styles.colSource}>{SOURCE_LABEL[l.source]}</td>
+                  <td className={styles.colSource}>
+                    <span className={styles.sourceCell}>
+                      {SOURCE_LABEL[l.source]}
+                      {l.sourceUrl && (
+                        <a
+                          href={l.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.srcLink}
+                          title={`Ouvrir la page d'origine : ${l.sourceUrl}`}
+                          aria-label="Ouvrir la page d'origine du lead"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Icon name="external-link" size={13} />
+                        </a>
+                      )}
+                    </span>
+                  </td>
                   <td className={styles.amount} data-label="Montant">{formatEUR(l.amount)}</td>
                   <td data-label="Statut">
                     <span className={styles.statusPill} data-status={l.status}>

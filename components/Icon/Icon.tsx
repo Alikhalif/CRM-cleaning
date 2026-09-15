@@ -32,9 +32,17 @@ export type IconName =
   | "trending-up"
   | "trending-down"
   | "presence"
-  | "checklist";
+  | "checklist"
+  | "external-link";
 
 const PATHS: Record<IconName, React.ReactNode> = {
+  "external-link": (
+    <>
+      <path d="M14 4h6v6" />
+      <path d="M20 4l-9 9" />
+      <path d="M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6" />
+    </>
+  ),
   checklist: (
     <>
       <path d="M9 6h11" />

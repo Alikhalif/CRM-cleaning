@@ -207,6 +207,13 @@
   &:hover { text-decoration: underline; }
 }
 
+.sourceCell { display: inline-flex; align-items: center; gap: 6px; }
+.srcLink {
+  display: inline-flex; align-items: center; color: var(--text-muted);
+  border-radius: var(--r-sm); padding: 1px;
+  &:hover { color: var(--color-brand-600); }
+}
+
 .client {
   display: flex;
   align-items: center;
