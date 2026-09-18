@@ -179,17 +179,31 @@ export async function renewContract(contractId: string): Promise<Result> {
   if (!user) return { ok: false, error: "Session expirée." };
   const { data: c } = await supabase
     .from("contracts")
-    .select("client_id, template_key, category, title, frequency, passages_per_year, amount, billing_mode, data")
+    .select("client_id, template_key, category, title, frequency, passages_per_year, amount, billing_mode, data, start_date, end_date")
     .eq("id", contractId)
-    .maybeSingle<{ client_id: string; template_key: string | null; category: string | null; title: string; frequency: string | null; passages_per_year: number | null; amount: number | null; billing_mode: string | null; data: Record<string, FieldValue> }>();
+    .maybeSingle<{ client_id: string; template_key: string | null; category: string | null; title: string; frequency: string | null; passages_per_year: number | null; amount: number | null; billing_mode: string | null; data: Record<string, FieldValue>; start_date: string | null; end_date: string | null }>();
   if (!c) return { ok: false, error: "Contrat introuvable." };
   if (!c.template_key) return { ok: false, error: "Modèle du contrat inconnu — recréez-le manuellement." };
+
+  // Reconduit l'échéance : même durée que le contrat d'origine (repli 1 an) pour
+  // que l'alerte de renouvellement reparte sur le contrat renouvelé. Si l'origine
+  // n'avait pas de date de fin, on laisse ouvert (pas d'alerte, comme avant).
+  const today = new Date();
+  let endDate: string | undefined;
+  if (c.end_date) {
+    const oneYearMs = 365 * 24 * 3600 * 1000;
+    const termMs = c.start_date
+      ? Math.max(new Date(c.end_date).getTime() - new Date(c.start_date).getTime(), oneYearMs)
+      : oneYearMs;
+    endDate = new Date(today.getTime() + termMs).toISOString().slice(0, 10);
+  }
 
   const res = await createContract(c.client_id, {
     templateKey: c.template_key,
     title: c.title,
     frequency: c.frequency ?? undefined,
-    startDate: new Date().toISOString().slice(0, 10),
+    startDate: today.toISOString().slice(0, 10),
+    endDate,
     amount: c.amount,
     billingMode: c.billing_mode ?? undefined,
     values: c.data ?? {},

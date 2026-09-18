@@ -70,6 +70,8 @@ type DocumentRowJoined = {
   status: DocumentStatus;
   lead_id: string | null;
   total_ttc: number;
+  total_ht: number;
+  total_vat: number;
   issued_at: string;
   signed_at: string | null;
   paid_at: string | null;
@@ -88,6 +90,8 @@ function mapDocumentBase(row: DocumentRowJoined): CrmDocument {
     status: row.status,
     leadId: row.lead_id ?? "",
     totalTtc: Number(row.total_ttc),
+    totalHt: Number(row.total_ht),
+    totalVat: Number(row.total_vat),
     issuedAt: row.issued_at,
     signedAt: row.signed_at ?? undefined,
     paidAt: row.paid_at ?? undefined,
@@ -117,7 +121,7 @@ export async function getAllDocumentsWithContext(): Promise<DocumentWithContext[
     .from("documents")
     .select(
       `
-        id, num, type, status, lead_id, total_ttc, issued_at,
+        id, num, type, status, lead_id, total_ttc, total_ht, total_vat, issued_at,
         signed_at, paid_at, acompte_pct, acompte_amount, refusal_reason,
         entity:legal_entities(
           id, legal_name, legal_form, siret, ape_code, vat_number,
@@ -170,8 +174,13 @@ export async function getAllDocumentsWithContext(): Promise<DocumentWithContext[
     const baseDoc = mapDocumentBase(row);
     const uiLead = mapLead(row.lead);
     const uiEntity = mapEntity(row.entity);
-    const vatRate = VAT_BY_SECTOR[uiLead.sector];
-    const totalHt = Math.round((baseDoc.totalTtc / (1 + vatRate / 100)) * 100) / 100;
+    // HT réellement stocké sur le document (exact, y compris pour un devis à
+    // TVA mixte). Repli sur le strip TVA-secteur uniquement pour d'anciens
+    // documents sans total_ht stocké (données de démo héritées).
+    const totalHt =
+      baseDoc.totalHt && baseDoc.totalHt > 0
+        ? baseDoc.totalHt
+        : Math.round((baseDoc.totalTtc / (1 + VAT_BY_SECTOR[uiLead.sector] / 100)) * 100) / 100;
 
     const d = dossierByLead.get(row.lead.id);
     const dossier = d
@@ -206,8 +215,9 @@ export async function getAllEntities(): Promise<LegalEntity[]> {
   return (data as EntityRow[]).map(mapEntity);
 }
 
-// VAT per sector — the documents table only stores total_ttc, so total_ht is
-// derived by stripping the sector's default VAT rate.
+// VAT per sector — REPLI uniquement. Le HT/TVA exact est stocké sur le
+// document (total_ht/total_vat) et utilisé en priorité ; ce strip par TVA
+// secteur ne sert que d'estimation pour d'anciens documents sans total_ht.
 const VAT_BY_SECTOR: Record<Sector, number> = {
   debarras: 20,
   demenagement: 20,
@@ -373,7 +383,7 @@ export async function getDocumentById(id: string) {
     .from("documents")
     .select(
       `
-        id, num, type, status, lead_id, total_ttc, issued_at,
+        id, num, type, status, lead_id, total_ttc, total_ht, total_vat, issued_at,
         signed_at, paid_at, acompte_pct, acompte_amount, refusal_reason,
         entity:legal_entities(
           id, legal_name, legal_form, siret, ape_code, vat_number,

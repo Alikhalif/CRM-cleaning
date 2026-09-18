@@ -323,6 +323,8 @@ export type CrmDocument = {
   status: DocumentStatus;
   leadId: string;
   totalTtc: number;
+  totalHt?: number; // HT stocké (exact, TVA mixte incluse) — présent sur les docs récents
+  totalVat?: number; // TVA stockée
   issuedAt: string;
   signedAt?: string;
   paidAt?: string;

@@ -39,6 +39,10 @@ export default function ContractForm({
     return v;
   };
   const [title, setTitle] = useState<string>(template?.name ?? "");
+  // Échéance = attribut de premier plan du contrat (pas propre à un modèle) :
+  // c'est elle qui alimente le KPI « expirent bientôt » et l'alerte de
+  // renouvellement (sans date de fin, aucune alerte ne se déclenche).
+  const [endDate, setEndDate] = useState<string>("");
   const [values, setValues] = useState<Record<string, FieldValue>>(() => initialValues(template));
 
   const onTemplateChange = (key: string) => {
@@ -66,6 +70,7 @@ export default function ContractForm({
       title: title.trim() || template.name,
       frequency: strOf(values["frequency"]) || undefined,
       startDate: strOf(values["date_debut"]) || undefined,
+      endDate: endDate || undefined,
       amount: numOf(values["tarif"]),
       billingMode: strOf(values["reglement"]) || undefined,
       values,
@@ -126,6 +131,13 @@ export default function ContractForm({
         <label className={`${styles.uploadField} ${styles.uploadTitle}`}>
           <span>Intitulé</span>
           <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
+        </label>
+        <label
+          className={styles.uploadField}
+          title="Date de fin du contrat — déclenche l'alerte de renouvellement (J-7) et le KPI « expirent bientôt »."
+        >
+          <span>Échéance</span>
+          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </label>
       </div>
 
