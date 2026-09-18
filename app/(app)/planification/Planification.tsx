@@ -298,6 +298,12 @@ export default function Planification({ initialRows, technicians, intervenantTem
         setServerError(result.error);
         return;
       }
+      // Facture OPTIMIVV (hors table documents) : on ouvre le PDF archivé.
+      if (result.optimivvUrl) {
+        window.open(result.optimivvUrl, "_blank", "noopener");
+        router.refresh();
+        return;
+      }
       router.push(`/factures/${result.id}`);
     });
   };

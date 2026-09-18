@@ -5,6 +5,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
 import { sendBrevoEmail, PLANIF_SENDER } from "@/lib/brevo";
 import { getLeadMedia, type LeadMedia } from "@/lib/media-server";
+import { ensureOptimivvFactureForLead } from "@/lib/devis/facture-from-optimivv";
 import type { Database } from "@/lib/supabase/database.types";
 
 // Dossier mutations exposed to the Planification page. Each one is a small
@@ -157,7 +158,9 @@ export async function soldDossier(id: string): Promise<Result> {
 }
 
 export type GenerateFinaleResult =
-  | { ok: true; id: string; num: string }
+  // `optimivvUrl` présent = facture OPTIMIVV (hors `documents`) → l'UI ouvre le
+  // PDF archivé au lieu de router vers /factures/[id] (A09).
+  | { ok: true; id: string; num: string; optimivvUrl?: string }
   | { ok: false; error: string };
 
 // CDC §4.7: a facture finale is generated MANUALLY once the intervention is
@@ -212,6 +215,22 @@ export async function generateFactureFinale(dossierId: string): Promise<Generate
       payment_term_id: string | null;
     }>();
   if (devisErr || !devis) {
+    // A09 — Repli OPTIMIVV : pas de devis dans `documents`, mais peut-être un
+    // devis OPTIMIVV signé. On génère (ou renvoie) la facture via le moteur
+    // OPTIMIVV (numéro FAC-…, PDF archivé) plutôt que d'être en impasse.
+    const { data: { user } } = await supabase.auth.getUser();
+    const opt = await ensureOptimivvFactureForLead(dossier.lead_id, user?.id ?? null);
+    if (opt) {
+      revalidatePath("/planification");
+      revalidatePath(`/leads/${dossier.lead_id}`);
+      await auditLog({
+        action: "dossier.finale.create",
+        entityType: "dossier",
+        entityId: dossier.id,
+        after: { optimivv: true, numero: opt.numero },
+      });
+      return { ok: true, id: "", num: opt.numero, optimivvUrl: opt.url ?? undefined };
+    }
     return { ok: false, error: "Aucun devis signé trouvé pour ce dossier." };
   }
 
