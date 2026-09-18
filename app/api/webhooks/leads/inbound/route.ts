@@ -35,6 +35,16 @@ import { countryFromPhone, COUNTRIES, type Country } from "@/lib/leads";
 // }
 // (alias tolérés pour l'URL d'origine : page_url, form_url, referrer)
 //
+// Secteur DÉMÉNAGEMENT (formulaire site déménagement) — champs additionnels :
+//   "prenom","nom","telephone"  → alias de first_name/last_name/phone
+//   "prestation":"particulier"  → is_company (particulier|pro)
+//   "reference":"DXK3P9"        → external_id (idempotence)
+//   "page_origine":"/lp/rhone-69/" → source_url (chemin relatif accepté)
+//   "depart_ville","depart_cp","arrivee_ville","arrivee_cp",
+//   "volume":"30-50","date":"2026-10-15" (ou "date_demenagement")
+// Sans "lp" ni "activity_slug", la présence de ces champs déduit
+// activity_slug="demenagement" (+ source google_ads si gclid, sinon site_web).
+//
 // Idempotency: if `external_id` is supplied and matches an existing lead,
 // the endpoint returns 200 with the existing lead id and does NOT create a
 // duplicate. This is the deduplication contract n8n WF1 expects.
@@ -108,6 +118,18 @@ type LeadPayload = {
   // Optional override — used by n8n if a specific commercial is already known.
   // Routing rules still run first; this is only the fallback.
   assigned_to?: string;
+  // ── Alias formulaire (FR) + secteur DÉMÉNAGEMENT ──
+  prenom?: string;
+  nom?: string;
+  telephone?: string;
+  reference?: string;      // → external_id (idempotence)
+  prestation?: string;     // "particulier" | "pro"/"professionnel"/"entreprise"
+  page_origine?: string;   // → source_url (chemin de la LP, ex. "/lp/rhone-69/")
+  depart_ville?: string; depart_cp?: string;
+  arrivee_ville?: string; arrivee_cp?: string;
+  volume?: string;         // ex. "30-50" (m³)
+  date_demenagement?: string;
+  date?: string;           // alias de date_demenagement
 };
 
 const REPLAY_WINDOW_SEC = 300; // ±5 min
@@ -169,6 +191,8 @@ function sanitizeSourceUrl(...candidates: (string | undefined)[]): string | null
   for (const raw of candidates) {
     const v = (raw ?? "").trim();
     if (!v || v.length > 2048) continue;
+    // Chemin racine-relatif (ex. page_origine "/lp/rhone-69/") : conservé tel quel.
+    if (v.startsWith("/") && !v.startsWith("//")) return v;
     try {
       const u = new URL(v);
       if (u.protocol === "http:" || u.protocol === "https:") return u.toString();
@@ -177,6 +201,38 @@ function sanitizeSourceUrl(...candidates: (string | undefined)[]): string | null
     }
   }
   return null;
+}
+
+// Date au format ISO court AAAA-MM-JJ (sinon null).
+function validIsoDate(...candidates: (string | undefined)[]): string | null {
+  for (const c of candidates) {
+    const v = (c ?? "").trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  }
+  return null;
+}
+
+// Normalise les alias du formulaire déménagement (clés FR) vers le contrat WF1,
+// et déduit secteur/source quand aucune landing page n'est configurée. Additif :
+// n'écrase jamais une valeur déjà fournie.
+function applyMovingFormAliases(p: LeadPayload): void {
+  p.first_name = p.first_name ?? p.prenom;
+  p.last_name = p.last_name ?? p.nom;
+  p.phone = p.phone ?? p.telephone;
+  p.external_id = p.external_id ?? p.reference;
+
+  if (p.is_company === undefined && p.prestation) {
+    const t = p.prestation.trim().toLowerCase();
+    if (/pro|prof|entreprise|societe|société|company|b2b/.test(t)) p.is_company = true;
+    else if (/particulier|b2c/.test(t)) p.is_company = false;
+  }
+
+  // Formulaire déménagement sans LP : déduire secteur + source (sinon 400).
+  const hasMove = Boolean(p.depart_ville || p.arrivee_ville || p.volume || p.date_demenagement);
+  if (!normalize(p.lp ?? "") && hasMove) {
+    if (!p.activity_slug) p.activity_slug = "demenagement";
+    if (!p.source_slug) p.source_slug = p.gclid ? "google_ads" : "site_web";
+  }
 }
 
 function normalizePhone(phone: string): string {
@@ -203,6 +259,9 @@ export async function POST(request: Request) {
   } catch {
     return corsJson({ error: "invalid_json" }, 400);
   }
+
+  // Alias formulaire (FR) + secteur déménagement → contrat WF1.
+  applyMovingFormAliases(payload);
 
   // ── Validate required fields ──────────────────────────────────────
   const isCompany = payload.is_company === true;
@@ -380,7 +439,14 @@ export async function POST(request: Request) {
     utm_term: payload.utm_term ?? null,
     utm_medium: payload.utm_medium ?? null,
     utm_content: payload.utm_content ?? null,
-    source_url: sanitizeSourceUrl(payload.source_url, payload.page_url, payload.form_url, payload.referrer),
+    source_url: sanitizeSourceUrl(payload.source_url, payload.page_url, payload.form_url, payload.referrer, payload.page_origine),
+    // Secteur déménagement : départ / arrivée / volume / date souhaitée.
+    move_from_city: normalize(payload.depart_ville ?? "") || null,
+    move_from_postal: normalize(payload.depart_cp ?? "") || null,
+    move_to_city: normalize(payload.arrivee_ville ?? "") || null,
+    move_to_postal: normalize(payload.arrivee_cp ?? "") || null,
+    move_volume: normalize(payload.volume ?? "") || null,
+    move_date: validIsoDate(payload.date_demenagement, payload.date),
   };
 
   const { data: inserted, error } = await supabase

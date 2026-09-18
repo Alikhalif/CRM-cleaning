@@ -154,6 +154,14 @@ export type Lead = {
   // Free-text sub-qualifier within the sector (e.g. "longue distance",
   // "succession"). Captured from the LP form or entered manually.
   typeService?: string;
+  // Secteur déménagement (formulaire site déménagement) : départ / arrivée /
+  // volume / date souhaitée.
+  moveFromCity?: string;
+  moveFromPostal?: string;
+  moveToCity?: string;
+  moveToPostal?: string;
+  moveVolume?: string;
+  moveDate?: string;
   source: Source;
   amount: number; // estimated TTC, EUR
   surfaceM2?: number;

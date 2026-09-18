@@ -413,7 +413,7 @@ export default function LeadsTable({ leads, commerciaux, visibleSectors }: Props
                   <td className={styles.colSource}>
                     <span className={styles.sourceCell}>
                       {SOURCE_LABEL[l.source]}
-                      {l.sourceUrl && (
+                      {l.sourceUrl && /^https?:\/\//i.test(l.sourceUrl) && (
                         <a
                           href={l.sourceUrl}
                           target="_blank"

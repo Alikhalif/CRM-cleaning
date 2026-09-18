@@ -129,6 +129,12 @@ export type LeadRowJoined = {
   entity?: { legal_name: string } | null;
   landing_page?: { name: string } | null;
   source_url?: string | null;
+  move_from_city?: string | null;
+  move_from_postal?: string | null;
+  move_to_city?: string | null;
+  move_to_postal?: string | null;
+  move_volume?: string | null;
+  move_date?: string | null;
   // Découverte columns — optional so selects that don't fetch them still map.
   announced_price?: number | null;
   discovery_outcome?: string | null;
@@ -173,6 +179,12 @@ export function mapLead(row: LeadRowJoined, canImmob = false): Lead {
     entityName: row.entity?.legal_name ?? undefined,
     landingPage: row.landing_page?.name ?? undefined,
     sourceUrl: row.source_url ?? undefined,
+    moveFromCity: row.move_from_city ?? undefined,
+    moveFromPostal: row.move_from_postal ?? undefined,
+    moveToCity: row.move_to_city ?? undefined,
+    moveToPostal: row.move_to_postal ?? undefined,
+    moveVolume: row.move_volume ?? undefined,
+    moveDate: row.move_date ?? undefined,
     source: SOURCE_DB_TO_UI[row.source?.slug ?? ""] ?? "google-ads",
     amount: row.estimated_amount ?? 0,
     ownerId: row.owner_id ?? "",
@@ -264,6 +276,7 @@ export async function getAllLeads(): Promise<Lead[]> {
         is_urgent, surface_m2, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
         intervention_delay, intervention_delay_notes, notes, type_service, country,
         entity_id, entity:legal_entities(legal_name), landing_page:landing_pages(name), source_url,
+        move_from_city, move_from_postal, move_to_city, move_to_postal, move_volume, move_date,
         announced_price, discovery_outcome, discovery_done_at,
         photos_requested_at, delai_souhaite, price_range, reaction_prix,
         statut_client, etat_salete, contexte_intervention, acompte_negocie, discovery_details, is_extreme,
@@ -335,6 +348,7 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
         is_urgent, surface_m2, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
         intervention_delay, intervention_delay_notes, notes, type_service, country,
         entity_id, entity:legal_entities(legal_name), landing_page:landing_pages(name), source_url,
+        move_from_city, move_from_postal, move_to_city, move_to_postal, move_volume, move_date,
         announced_price, discovery_outcome, discovery_done_at,
         photos_requested_at, delai_souhaite, price_range, reaction_prix,
         statut_client, etat_salete, contexte_intervention, acompte_negocie, discovery_details, is_extreme,

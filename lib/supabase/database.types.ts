@@ -1531,6 +1531,12 @@ export type Database = {
           last_action_at: string | null
           last_action_label: string | null
           lost_reason: string | null
+          move_from_city: string | null
+          move_from_postal: string | null
+          move_to_city: string | null
+          move_to_postal: string | null
+          move_volume: string | null
+          move_date: string | null
           next_followup_at: string | null
           notes: string | null
           nrp_at: string | null
@@ -1595,6 +1601,12 @@ export type Database = {
           last_action_at?: string | null
           last_action_label?: string | null
           lost_reason?: string | null
+          move_from_city?: string | null
+          move_from_postal?: string | null
+          move_to_city?: string | null
+          move_to_postal?: string | null
+          move_volume?: string | null
+          move_date?: string | null
           next_followup_at?: string | null
           notes?: string | null
           nrp_at?: string | null
@@ -1659,6 +1671,12 @@ export type Database = {
           last_action_at?: string | null
           last_action_label?: string | null
           lost_reason?: string | null
+          move_from_city?: string | null
+          move_from_postal?: string | null
+          move_to_city?: string | null
+          move_to_postal?: string | null
+          move_volume?: string | null
+          move_date?: string | null
           next_followup_at?: string | null
           notes?: string | null
           nrp_at?: string | null
