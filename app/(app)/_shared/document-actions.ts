@@ -129,6 +129,12 @@ export async function markDocumentSigned(
   if (doc.status === "refuse") return { ok: false, error: "Un devis refusé ne peut pas être signé." };
 
   const now = new Date().toISOString();
+  // A08 — trace la NATURE de la signature dans l'audit : e-signature réelle
+  // (trusted = parcours public par token) vs marquage MANUEL (« Marquer signé »
+  // ou glisser vers « signé » dans le Kanban, sans artefact de signature), +
+  // le mode logiciel/planificateur. Non-bloquant : la traçabilité comble le
+  // trou signalé (cascade légale déclenchée sans preuve).
+  const signTrace = { mode: mode ?? null, manual: !trusted } as const;
 
   // ── 1. Devis status update (only if not already signed) ──────────────
   if (doc.status !== "signe") {
@@ -218,7 +224,7 @@ export async function markDocumentSigned(
         action: "document.signed",
         entityType: "document",
         entityId: id,
-        after: { num: doc.num, acompte_existing: existing.num },
+        after: { num: doc.num, acompte_existing: existing.num, ...signTrace },
       });
       return { ok: true, acompteId: existing.id, acompteNum: existing.num };
     }
@@ -312,7 +318,7 @@ export async function markDocumentSigned(
       action: "document.signed",
       entityType: "document",
       entityId: id,
-      after: { num: doc.num, acompte_num: ins.num, acompte_id: ins.id },
+      after: { num: doc.num, acompte_num: ins.num, acompte_id: ins.id, ...signTrace },
     });
     await auditLog({
       action: "document.acompte.auto_create",
@@ -331,7 +337,7 @@ export async function markDocumentSigned(
     action: "document.signed",
     entityType: "document",
     entityId: id,
-    after: { num: doc.num, acompte: null },
+    after: { num: doc.num, acompte: null, ...signTrace },
   });
   return { ok: true };
 }

@@ -7,6 +7,7 @@ import {
   RINGOVER_SMS_EVENT,
   RINGOVER_TOGGLE_EVENT,
   emitCallStatus,
+  emitSmsResult,
   type RingoverCallInfo,
   type RingoverSmsDetail,
 } from "@/lib/ringover-webphone";
@@ -88,11 +89,17 @@ export default function RingoverPhone() {
       if (!detail?.phone || !detail.content) return;
       if (!sdkRef.current) {
         notReady();
+        emitSmsResult(false); // A18 : le composeur ne journalisera pas un faux envoi
         return;
       }
       sdkRef.current.show();
       const ok = sdkRef.current.sendSMS(detail.phone, detail.content);
-      if (ok === false) notReady();
+      if (ok === false) {
+        notReady();
+        emitSmsResult(false);
+        return;
+      }
+      emitSmsResult(true);
     };
     const onToggle = () => {
       const sdk = sdkRef.current;

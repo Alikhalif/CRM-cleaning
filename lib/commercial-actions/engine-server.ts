@@ -277,6 +277,10 @@ async function reconcileAll(sb: Sb, desired: Desired[], now: number): Promise<nu
   return closed;
 }
 
+// Fenêtre de grâce après une clôture MANUELLE : on ne recrée pas la même action
+// (lead, type) pendant ce délai, même si son déclencheur persiste (A16).
+const MANUAL_DONE_COOLDOWN_MS = 3 * 24 * 3_600_000; // 3 jours
+
 // ── Réconciliation : ouvre les manquantes, ferme celles dont l'objectif est
 // atteint (l'action attendue a eu lieu → l'action désirée disparaît). ─────────
 async function reconcileWithCounts(sb: Sb, desired: Desired[], now: number): Promise<{ created: number; closed: number }> {
@@ -293,6 +297,19 @@ async function reconcileWithCounts(sb: Sb, desired: Desired[], now: number): Pro
   const key = (leadId: string, type: string) => `${leadId}|${type}`;
   const openBy = new Map((openRows ?? []).map((r) => [key(r.lead_id, r.type), r]));
 
+  // A16 — clôtures MANUELLES récentes (« fait ») : tant qu'elles sont dans la
+  // fenêtre de grâce, on ne recrée pas (et donc on ne renotifie pas) la même
+  // action, sinon un « fait » sans changement de signal réapparaît à chaque cycle.
+  const graceStart = new Date(now - MANUAL_DONE_COOLDOWN_MS).toISOString();
+  const { data: doneRows } = await sb
+    .from("commercial_actions")
+    .select("lead_id, type, closed_at")
+    .eq("status", "terminee")
+    .eq("closed_reason", "manuel")
+    .gte("closed_at", graceStart)
+    .returns<{ lead_id: string; type: string; closed_at: string }[]>();
+  const recentlyDone = new Set((doneRows ?? []).map((r) => key(r.lead_id, r.type)));
+
   for (const d of desired) {
     const k = key(d.leadId, d.type);
     const existing = openBy.get(k);
@@ -305,6 +322,8 @@ async function reconcileWithCounts(sb: Sb, desired: Desired[], now: number): Pro
       }
       continue;
     }
+    // A16 : respecte une clôture manuelle récente → pas de re-création/notif.
+    if (recentlyDone.has(k)) continue;
     // Création (dedup garanti par l'index unique partiel ; on ignore un conflit).
     const { data: ins, error } = await sb
       .from("commercial_actions")

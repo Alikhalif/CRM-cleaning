@@ -49,13 +49,19 @@ export default function SmsModal({ lead, templates, vars, initialBody, onClose }
     if (t) setBody(renderTemplate(t.body, vars));
   };
 
+  const [sending, setSending] = useState(false);
+
   const send = async () => {
     const content = body.trim();
     if (!content) return;
     if (!lead.phone) { alert("Ce lead n'a pas de numéro de téléphone."); return; }
-    sendSmsViaWebphone(lead.phone, content);
-    // Journalise l'envoi pour l'historique (date + heure). Le SMS lui-même part
-    // via le webphone Ringover côté client ; on enregistre la trace côté serveur.
+    setSending(true);
+    // On attend la CONFIRMATION du webphone avant de journaliser (A18) : si le
+    // webphone n'est pas prêt / l'envoi échoue, on ne trace pas un faux « SMS
+    // envoyé » et on laisse la modale ouverte pour réessayer (le widget a déjà
+    // affiché la raison).
+    const sent = await sendSmsViaWebphone(lead.phone, content);
+    if (!sent) { setSending(false); return; }
     await logLeadSms(lead.id, { recipient: lead.phone, body: content });
     router.refresh();
     onClose();
@@ -115,8 +121,8 @@ export default function SmsModal({ lead, templates, vars, initialBody, onClose }
           <button type="button" onClick={onClose} style={{ padding: "8px 16px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "transparent", color: "var(--text-primary)", cursor: "pointer" }}>
             Annuler
           </button>
-          <button type="button" onClick={send} disabled={!body.trim()} style={{ padding: "8px 16px", borderRadius: "var(--r-sm)", border: "none", background: "var(--color-brand-500)", color: "#fff", fontWeight: 600, cursor: body.trim() ? "pointer" : "default", opacity: body.trim() ? 1 : 0.6 }}>
-            <Icon name="check" size={14} /> Envoyer
+          <button type="button" onClick={send} disabled={!body.trim() || sending} style={{ padding: "8px 16px", borderRadius: "var(--r-sm)", border: "none", background: "var(--color-brand-500)", color: "#fff", fontWeight: 600, cursor: body.trim() && !sending ? "pointer" : "default", opacity: body.trim() && !sending ? 1 : 0.6 }}>
+            <Icon name="check" size={14} /> {sending ? "Envoi…" : "Envoyer"}
           </button>
         </div>
       </div>
