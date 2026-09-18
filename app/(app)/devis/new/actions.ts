@@ -111,27 +111,14 @@ export async function createDevis(draft: DraftInput, intent: CreateDevisIntent):
   const acompteAmount = draft.acomptePct > 0 ? round2((totals.totalTtc * draft.acomptePct) / 100) : null;
   const soldeDu = acompteAmount !== null ? round2(totals.totalTtc - acompteAmount) : null;
 
-  // ── 6. Allocate the document number via the gapless sequence. ────────
-  // The `as never` cast is the same workaround we use on .update() — the
-  // @supabase/ssr-bundled postgrest-js loses the generic on rpc() args so
-  // the call site reports `expected undefined`. The types file does have
-  // the correct Args shape; only the call-site inference is broken.
-  const year = new Date(draft.issuedAt).getFullYear();
-  const { data: numData, error: numErr } = await supabase.rpc(
-    "next_doc_num",
-    { p_type: "devis", p_year: year } as never,
-  );
-  if (numErr || !numData) {
-    return { ok: false, error: `Impossible d'allouer un numéro : ${numErr?.message ?? "inconnu"}.` };
-  }
-  const num = numData as string;
-
-  // ── 7. INSERT the document. The status check constraint pins the enum
-  // values per type, so an invalid intent → status mapping would fail loudly.
+  // ── 6-7. INSERT the document. Le numéro est alloué ATOMIQUEMENT par le
+  // trigger BEFORE INSERT `assign_doc_num` (num vide → numéro gapless dans la
+  // même transaction que l'INSERT ; A11). The status check constraint pins the
+  // enum values per type, so an invalid intent → status mapping fails loudly.
   const status = intent === "send" ? "envoye" : "brouillon";
   const docPayload: DocumentInsert = {
     type: "devis",
-    num,
+    num: "",
     status,
     lead_id: client.source_lead_id,
     client_id: client.id,
@@ -194,7 +181,7 @@ export async function createDevis(draft: DraftInput, intent: CreateDevisIntent):
       .update({
         status: "envoye",
         sub_envoi: "mano",
-        last_action_label: `Devis ${num} envoyé`,
+        last_action_label: `Devis ${inserted.num} envoyé`,
         last_action_at: new Date().toISOString(),
       } as never)
       .eq("id", client.source_lead_id)
@@ -249,10 +236,10 @@ export async function createDevis(draft: DraftInput, intent: CreateDevisIntent):
       const greeting = recipientName ? `Bonjour ${recipientName},` : "Bonjour,";
       const sendResult = await sendDocumentByEmail(inserted.id, {
         recipient: lead.client_email,
-        subject: `Devis ${num}`,
+        subject: `Devis ${inserted.num}`,
         message: `${greeting}
 
-Veuillez trouver ci-joint notre devis ${num}.
+Veuillez trouver ci-joint notre devis ${inserted.num}.
 
 N'hésitez pas à revenir vers nous pour toute question.
 

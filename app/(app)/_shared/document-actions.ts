@@ -229,17 +229,8 @@ export async function markDocumentSigned(
       return { ok: true, acompteId: existing.id, acompteNum: existing.num };
     }
 
-    // Allocate FA number via the gapless sequence.
-    const year = new Date(now).getFullYear();
-    const { data: numData, error: numErr } = await supabase.rpc(
-      "next_doc_num",
-      { p_type: "acompte", p_year: year } as never,
-    );
-    if (numErr || !numData) {
-      return { ok: false, error: `Allocation numéro acompte : ${numErr?.message ?? "inconnu"}.` };
-    }
-    const num = numData as string;
-
+    // Numéro FA alloué atomiquement par le trigger BEFORE INSERT (num vide →
+    // gapless dans la même transaction que l'INSERT ; A11).
     // The acompte VAT inherits the devis's effective VAT ratio so the FA
     // matches the devis's tax profile. For a single-VAT-rate devis this
     // produces the exact same rate; for a mixed-rate devis it produces the
@@ -252,7 +243,7 @@ export async function markDocumentSigned(
 
     const acomptePayload: DocumentInsert = {
       type: "acompte",
-      num,
+      num: "",
       status: "envoye",
       lead_id: doc.lead_id,
       client_id: doc.client_id,
@@ -492,20 +483,11 @@ export async function duplicateDocument(id: string): Promise<DuplicateResult> {
     }>();
   if (srcErr || !src) return { ok: false, error: "Document source introuvable." };
 
-  // Allocate a number for the same type.
-  const year = new Date().getFullYear();
-  const { data: numData, error: numErr } = await supabase.rpc(
-    "next_doc_num",
-    { p_type: src.type, p_year: year } as never,
-  );
-  if (numErr || !numData) {
-    return { ok: false, error: `Impossible d'allouer un numéro : ${numErr?.message ?? "inconnu"}.` };
-  }
-  const num = numData as string;
-
+  // Numéro alloué atomiquement par le trigger BEFORE INSERT (num vide → gapless
+  // dans la même transaction ; A11).
   const docPayload: DocumentInsert = {
     type: src.type,
-    num,
+    num: "",
     status: "brouillon",
     lead_id: src.lead_id,
     client_id: src.client_id,

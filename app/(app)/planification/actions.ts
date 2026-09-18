@@ -240,22 +240,13 @@ export async function generateFactureFinale(dossierId: string): Promise<Generate
   const finaleTotalHt = round2(Number(devis.total_ht) * proportionRemaining);
   const finaleTotalVat = round2(finaleTotalTtc - finaleTotalHt);
 
-  // 5. Allocate the document number.
-  const year = new Date().getFullYear();
-  const { data: numData, error: numErr } = await supabase.rpc(
-    "next_doc_num",
-    { p_type: "finale", p_year: year } as never,
-  );
-  if (numErr || !numData) {
-    return { ok: false, error: `Impossible d'allouer un numéro : ${numErr?.message ?? "inconnu"}.` };
-  }
-  const num = numData as string;
-
-  // 6. INSERT the finale document. status='brouillon' so the user can review
-  // and send from /factures/[id]; related_devis_id wires the lineage.
+  // 5-6. INSERT the finale document. Le numéro est alloué ATOMIQUEMENT par le
+  // trigger BEFORE INSERT `assign_doc_num` (num vide → numéro gapless dans la
+  // même transaction que l'INSERT ; A11). status='brouillon' so the user can
+  // review and send from /factures/[id]; related_devis_id wires the lineage.
   const docPayload: DocumentInsert = {
     type: "finale",
-    num,
+    num: "",
     status: "brouillon",
     lead_id: devis.lead_id,
     client_id: devis.client_id,
