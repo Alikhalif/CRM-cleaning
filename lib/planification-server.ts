@@ -191,6 +191,27 @@ export async function getAllDossiers(): Promise<DossierWithContext[]> {
   return out;
 }
 
+// Planning d'intervention d'un lead (dossier lié) — sert à pré-remplir les
+// variables {intervention.date}/{intervention.heure} des emails client de
+// confirmation depuis la fiche lead. RLS : le propriétaire du lead, l'admin et
+// la planification peuvent lire le dossier. Renvoie null si aucun dossier n'est
+// encore planifié (planned_at absent).
+export async function getLeadInterventionSchedule(
+  leadId: string,
+): Promise<{ plannedAt: string } | null> {
+  const supabase = await supabaseServer();
+  const { data, error } = await supabase
+    .from("dossiers")
+    .select("planned_at")
+    .eq("lead_id", leadId)
+    .not("planned_at", "is", null)
+    .order("planned_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ planned_at: string | null }>();
+  if (error || !data || !data.planned_at) return null;
+  return { plannedAt: data.planned_at };
+}
+
 export async function getAllTechnicians(): Promise<Technician[]> {
   const supabase = await supabaseServer();
   const [techRes, sectorMap] = await Promise.all([

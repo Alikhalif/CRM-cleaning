@@ -21,7 +21,7 @@ import NextActionCard from "./NextActionCard";
 import { getCurrentUserProfile } from "@/lib/users-server";
 import { getActiveSmsTemplates, getTemplatesForUser, getTemplateByName } from "@/lib/message-templates-server";
 import { getLeadMedia, getLeadConsultations } from "@/lib/media-server";
-import { getAllTechnicians } from "@/lib/planification-server";
+import { getAllTechnicians, getLeadInterventionSchedule } from "@/lib/planification-server";
 import { leadTemplateVars, renderTemplate } from "@/lib/message-templates-shared";
 import MediaTab from "./MediaTab";
 import { isN8nSequenceEnabled } from "@/lib/app-settings";
@@ -88,6 +88,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
     consultTpl,
     optimivvDevis,
     nextAction,
+    interventionSchedule,
   ] = await Promise.all([
     getLeadDetail(id),
     getAllCommerciaux(),
@@ -103,6 +104,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
     getTemplateByName("Intervenant — Envoi photos/vidéos pour chiffrage"),
     getLeadOptimivvDevisMeta(id),
     getNextActionForLead(id),
+    getLeadInterventionSchedule(id),
   ]);
   if (!detail) notFound();
 
@@ -155,6 +157,22 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
     devisForVars?.acompteAmount ??
     (totalTtc && acomptePctNum ? Math.round(totalTtc * acomptePctNum) / 100 : 0);
   const societePhone = lead.entityId ? await getLegalEntityPhone(lead.entityId) : "";
+  // Date/heure de l'intervention planifiée (dossier lié) — peuple
+  // {intervention.date}/{intervention.heure} des emails client de confirmation.
+  // Vide tant qu'aucun dossier n'est planifié (proposition de créneaux, etc.).
+  const interventionDate = interventionSchedule
+    ? new Intl.DateTimeFormat("fr-FR", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      }).format(new Date(interventionSchedule.plannedAt))
+    : "";
+  const interventionHeure = interventionSchedule
+    ? new Intl.DateTimeFormat("fr-FR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(interventionSchedule.plannedAt))
+    : "";
   const templateVars = leadTemplateVars(lead, {
     commercialName: me?.displayName ?? "",
     commercialEmail: me?.email ?? "",
@@ -165,6 +183,8 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
     montantTotal: totalTtc ? formatEUR(totalTtc) : "",
     montantAcompte: acompteAmt ? formatEUR(acompteAmt) : "",
     montantSolde: totalTtc && acompteAmt ? formatEUR(totalTtc - acompteAmt) : "",
+    interventionDate,
+    interventionHeure,
   });
 
   // Boutons NRP réservés au profil « Divers » (+ admin) : SMS + email de
@@ -395,15 +415,19 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
                   <div>
                     <dt>Site / formulaire d&apos;origine</dt>
                     <dd>
-                      <a
-                        href={lead.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.link}
-                        title={lead.sourceUrl}
-                      >
-                        {formatSourceUrl(lead.sourceUrl)}
-                      </a>
+                      {/^https?:\/\//i.test(lead.sourceUrl) ? (
+                        <a
+                          href={lead.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.link}
+                          title={lead.sourceUrl}
+                        >
+                          {formatSourceUrl(lead.sourceUrl)}
+                        </a>
+                      ) : (
+                        <span className={styles.mono} title={lead.sourceUrl}>{lead.sourceUrl}</span>
+                      )}
                     </dd>
                   </div>
                 )}
@@ -421,6 +445,30 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
                 )}
               </dl>
             </section>
+
+            {(lead.moveFromCity || lead.moveToCity || lead.moveVolume || lead.moveDate) && (
+              <section className={styles.card}>
+                <h2 className={styles.h2}>Déménagement</h2>
+                <dl className={styles.dl}>
+                  <div>
+                    <dt>Départ</dt>
+                    <dd>{[lead.moveFromPostal, lead.moveFromCity].filter(Boolean).join(" ") || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt>Arrivée</dt>
+                    <dd>{[lead.moveToPostal, lead.moveToCity].filter(Boolean).join(" ") || "—"}</dd>
+                  </div>
+                  <div>
+                    <dt>Volume estimé</dt>
+                    <dd>{lead.moveVolume ? `${lead.moveVolume} m³` : "—"}</dd>
+                  </div>
+                  <div>
+                    <dt>Date souhaitée</dt>
+                    <dd>{lead.moveDate ? dateFmt.format(new Date(lead.moveDate)) : "—"}</dd>
+                  </div>
+                </dl>
+              </section>
+            )}
           </main>
 
           <aside className={styles.aside}>

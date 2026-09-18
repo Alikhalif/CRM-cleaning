@@ -267,6 +267,21 @@ export async function markDocumentSigned(
       .select("id, num")
       .maybeSingle<{ id: string; num: string }>();
     if (insErr || !ins) {
+      // Une signature concurrente a pu créer l'acompte entre notre garde et cet
+      // INSERT (désormais bloqué par l'index unique partiel uq_one_acompte_per_devis).
+      // On traite la course comme un succès idempotent plutôt qu'une fausse erreur.
+      const { data: raced } = await supabase
+        .from("documents")
+        .select("id, num")
+        .eq("related_devis_id", id)
+        .eq("type", "acompte")
+        .maybeSingle<{ id: string; num: string }>();
+      if (raced) {
+        revalidatePath("/comptabilite");
+        revalidatePath(`/devis/${id}`);
+        if (doc.lead_id) revalidatePath(`/leads/${doc.lead_id}`);
+        return { ok: true, acompteId: raced.id, acompteNum: raced.num };
+      }
       return { ok: false, error: `Création FA : ${insErr?.message ?? "inconnu"}.` };
     }
 

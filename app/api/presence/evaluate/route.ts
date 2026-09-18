@@ -18,7 +18,16 @@ async function run(request: Request) {
   if (!authorized) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
-  const result = await evaluate();
+  // Passe présence (agrégat + 5 règles d'alerte). Isolée comme les deux autres :
+  // sous cron (toutes les 1–2 min), un échec ici ne doit PAS empêcher les passes
+  // « commercial » et « documents » de s'exécuter.
+  let result: Record<string, unknown> = { ok: false, skipped: true };
+  try {
+    result = (await evaluate()) as Record<string, unknown>;
+  } catch (e) {
+    console.error("[presence.evaluate] échec :", (e as Error).message);
+    result = { ok: false, error: (e as Error).message };
+  }
   // Couche complémentaire « Actions & Relances commerciales » : même cron, en
   // additif. Isolée : une erreur ici ne doit jamais faire échouer les alertes.
   let commercial: unknown = { ok: false, skipped: true };
