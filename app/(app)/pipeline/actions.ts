@@ -12,6 +12,7 @@ import { sendBrevoEmail, sendBrevoSms } from "@/lib/brevo";
 import { buildPhotoRequestEmail, buildPhotoRequestSms } from "@/lib/templates";
 import { countryFromPhone } from "@/lib/leads";
 import { currentUserHasImmobTravaux } from "@/lib/leads-server";
+import { isCurrentUserAdmin } from "@/lib/presence/guard";
 import type { Country, DiscoveryOutcome, LeadStatus, Sector, SubEnvoi, SubSignature } from "@/lib/leads";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -34,8 +35,36 @@ function transitionLabel(target: LeadStatus): string {
   }
 }
 
+// Rang du cycle pour la garde de monotonie serveur (A06). `perdu` = sortie
+// latérale (rang -1) : toujours autorisée comme cible.
+const STATUS_RANK: Record<LeadStatus, number> = {
+  lead: 0, envoye: 1, ouvert: 2, signe: 3, encaisse: 4, perdu: -1,
+};
+
 export async function updateLeadStatus(id: string, target: LeadStatus): Promise<Result> {
   const supabase = await supabaseServer();
+
+  // A06 — Garde de monotonie CÔTÉ SERVEUR (le garde navigateur du Kanban est
+  // contournable). On refuse un retour arrière depuis un statut avancé
+  // (signé/encaissé) pour protéger l'intégrité du cycle et l'analytique
+  // mano/auto ; l'admin garde la main pour corriger une vraie erreur, et le
+  // passage à « perdu » reste toujours possible.
+  if (target !== "perdu") {
+    const { data: current } = await supabase
+      .from("leads").select("status").eq("id", id)
+      .maybeSingle<{ status: LeadStatus }>();
+    if (current) {
+      const backward = STATUS_RANK[target] < STATUS_RANK[current.status];
+      const fromAdvanced = current.status === "signe" || current.status === "encaisse";
+      if (backward && fromAdvanced && !(await isCurrentUserAdmin())) {
+        return {
+          ok: false,
+          error: "Transition refusée : un devis signé ou encaissé ne peut pas être ramené en arrière (réservé à l'administrateur).",
+        };
+      }
+    }
+  }
+
   // Sub-statuses get cleared when they no longer apply.
   const updates: LeadUpdate = {
     status: target,
