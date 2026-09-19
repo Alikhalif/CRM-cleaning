@@ -115,7 +115,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   // La planificatrice a aussi l'appel + SMS Ringover (décision client 2026-08-05).
   const { canUseRingover } = profileCapabilities(me?.commercialProfiles ?? [], isAdmin, isPlanner);
 
-  const { lead, owner, documents, timeline, canImmobTravaux } = detail;
+  const { lead, owner, documents, timeline, canImmobTravaux, canSeeProvenance } = detail;
   // (optimivvDevis est déjà chargé dans la vague parallèle ci-dessus.)
   const statusLabel =
     PIPELINE_COLUMNS.find((c) => c.status === lead.status)?.label ?? lead.status;
@@ -268,7 +268,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
               {lead.entityName && (
                 <span className={styles.muted}>Société : {lead.entityName}</span>
               )}
-              {lead.landingPage && (
+              {canSeeProvenance && lead.landingPage && (
                 <span className={styles.muted}>LP : {lead.landingPage}</span>
               )}
               {lead.typeService && (
@@ -277,9 +277,11 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
               <span className={styles.heroLoc}>
                 <Icon name="leads" size={11} /> {lead.city}
               </span>
-              <span className={styles.muted}>
-                Source : {SOURCE_LABEL[lead.source]}
-              </span>
+              {canSeeProvenance && lead.source && (
+                <span className={styles.muted}>
+                  Source : {SOURCE_LABEL[lead.source]}
+                </span>
+              )}
               <span className={styles.muted}>
                 Créé <RelativeTime iso={lead.receivedAt} />
               </span>
@@ -320,11 +322,21 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
           label="Ancienneté"
           value={`${ageDays} jour${ageDays > 1 ? "s" : ""}`}
         />
-        <KpiCard
-          icon="search"
-          label="Source"
-          value={SOURCE_LABEL[lead.source]}
-        />
+        {/* Source = provenance (confidentiel). Pour un commercial, on garde la
+            grille à 4 cartes en affichant une info opérationnelle (Ville). */}
+        {canSeeProvenance ? (
+          <KpiCard
+            icon="search"
+            label="Source"
+            value={lead.source ? SOURCE_LABEL[lead.source] : "—"}
+          />
+        ) : (
+          <KpiCard
+            icon="leads"
+            label="Ville"
+            value={lead.city || "—"}
+          />
+        )}
         <KpiCard
           icon="commerciaux"
           label="Commercial"
@@ -407,29 +419,61 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
                     {lead.postalCode} {lead.city}
                   </dd>
                 </div>
-                <div>
-                  <dt>Source</dt>
-                  <dd>{SOURCE_LABEL[lead.source]}</dd>
-                </div>
-                {lead.sourceUrl && (
-                  <div>
-                    <dt>Site / formulaire d&apos;origine</dt>
-                    <dd>
-                      {/^https?:\/\//i.test(lead.sourceUrl) ? (
-                        <a
-                          href={lead.sourceUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={styles.link}
-                          title={lead.sourceUrl}
-                        >
-                          {formatSourceUrl(lead.sourceUrl)}
-                        </a>
-                      ) : (
-                        <span className={styles.mono} title={lead.sourceUrl}>{lead.sourceUrl}</span>
-                      )}
-                    </dd>
-                  </div>
+                {/* Provenance marketing — CONFIDENTIEL : bloc réservé au Super
+                    Admin / planificateur (jamais rendu ni envoyé au commercial). */}
+                {canSeeProvenance && (
+                  <>
+                    {lead.source && (
+                      <div>
+                        <dt>Source</dt>
+                        <dd>{SOURCE_LABEL[lead.source]}</dd>
+                      </div>
+                    )}
+                    {lead.landingPage && (
+                      <div>
+                        <dt>Landing page</dt>
+                        <dd>{lead.landingPage}</dd>
+                      </div>
+                    )}
+                    {lead.sourceUrl && (
+                      <div>
+                        <dt>Site / formulaire d&apos;origine</dt>
+                        <dd>
+                          {/^https?:\/\//i.test(lead.sourceUrl) ? (
+                            <a
+                              href={lead.sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={styles.link}
+                              title={lead.sourceUrl}
+                            >
+                              {formatSourceUrl(lead.sourceUrl)}
+                            </a>
+                          ) : (
+                            <span className={styles.mono} title={lead.sourceUrl}>{lead.sourceUrl}</span>
+                          )}
+                        </dd>
+                      </div>
+                    )}
+                    {lead.utmSource && (
+                      <div><dt>utm_source</dt><dd className={styles.mono}>{lead.utmSource}</dd></div>
+                    )}
+                    {lead.utmMedium && (
+                      <div><dt>utm_medium</dt><dd className={styles.mono}>{lead.utmMedium}</dd></div>
+                    )}
+                    {lead.utmCampaign && (
+                      <div><dt>utm_campaign</dt><dd className={styles.mono}>{lead.utmCampaign}</dd></div>
+                    )}
+                    {lead.utmTerm && (
+                      <div><dt>utm_term</dt><dd className={styles.mono}>{lead.utmTerm}</dd></div>
+                    )}
+                    {lead.utmContent && (
+                      <div><dt>utm_content</dt><dd className={styles.mono}>{lead.utmContent}</dd></div>
+                    )}
+                    {lead.gclid && (
+                      <div><dt>gclid</dt><dd className={styles.mono}>{lead.gclid}</dd></div>
+                    )}
+                  </>
                 )}
                 {lead.isCompany && lead.siret && (
                   <div>

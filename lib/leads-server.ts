@@ -30,6 +30,9 @@ export type LeadDetail = {
   timeline: TimelineEvent[];
   // Le lecteur détient-il la permission confidentielle immob_travaux (CDC §3.5) ?
   canImmobTravaux: boolean;
+  // Le lecteur a-t-il le droit de voir la provenance marketing (Super Admin /
+  // planificateur) ? Pilote l'affichage du bloc provenance sur la fiche.
+  canSeeProvenance: boolean;
 };
 
 // Le champ immob_travaux (annotation Immobilier/Travaux) est confidentiel : il
@@ -58,6 +61,27 @@ export async function currentUserHasImmobTravaux(): Promise<boolean> {
   ]);
   if (permRes.data) return true;
   return (rolesRes.data ?? []).some((r) => r.roles?.slug === "admin");
+}
+
+// La provenance marketing (canal `source`, nom de LP, URL d'origine, UTM, gclid)
+// est CONFIDENTIELLE (chaîne d'arrivée §5-8) : elle n'est visible que par un
+// Super Admin ou un planificateur (back-office). Un commercial ne doit JAMAIS
+// la recevoir dans un payload — le mapper l'omet quand ce flag est faux. Résolu
+// côté serveur via les rôles (service-role, scopé à auth.uid()), jamais un flag
+// hardcodé côté page.
+export async function currentUserCanSeeProvenance(): Promise<boolean> {
+  const supabase = await supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  const admin = await supabaseServiceRole();
+  const { data } = await admin
+    .from("user_roles")
+    .select("roles(slug)")
+    .eq("user_id", user.id)
+    .returns<{ roles: { slug: string } | null }[]>();
+  return (data ?? []).some(
+    (r) => r.roles?.slug === "admin" || r.roles?.slug === "planification",
+  );
 }
 
 // DB source slugs use snake_case (google_ads); UI uses kebab-case (google-ads).
@@ -130,6 +154,15 @@ export type LeadRowJoined = {
   entity?: { legal_name: string } | null;
   landing_page?: { name: string } | null;
   source_url?: string | null;
+  // Provenance marketing confidentielle (chiffrée au repos, A14). Sélectionnée
+  // uniquement par getLeadDetail (panneau Super Admin) — absente des autres
+  // SELECT, d'où l'optionalité.
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+  utm_term?: string | null;
+  utm_content?: string | null;
+  gclid?: string | null;
   move_from_city?: string | null;
   move_from_postal?: string | null;
   move_to_city?: string | null;
@@ -155,7 +188,11 @@ export type LeadRowJoined = {
   owner: OwnerRow | null;
 };
 
-export function mapLead(row: LeadRowJoined, canImmob = false): Lead {
+// canProvenance : le lecteur a-t-il le droit de voir la provenance marketing
+// (Super Admin / planificateur) ? Si faux (= commercial), tous les champs de
+// provenance sont OMIS du payload — pas seulement masqués à l'écran, absents
+// de l'objet (non-cosmétique, chaîne d'arrivée §8).
+export function mapLead(row: LeadRowJoined, canImmob = false, canProvenance = false): Lead {
   const { address, postalCode, city } = parseAddress(row.client_address);
   const displayName = row.is_company
     ? row.client_company ?? "—"
@@ -178,15 +215,25 @@ export function mapLead(row: LeadRowJoined, canImmob = false): Lead {
     country: (row.country ?? undefined) as Lead["country"],
     entityId: row.entity_id ?? undefined,
     entityName: row.entity?.legal_name ?? undefined,
-    landingPage: row.landing_page?.name ?? undefined,
-    sourceUrl: row.source_url ?? undefined,
+    // Provenance marketing — CONFIDENTIEL : peuplée seulement si canProvenance.
+    // Champs libres (sourceUrl, utm*, gclid) chiffrés au repos (A14) → déchiffrés
+    // ici, côté serveur, uniquement pour un lecteur autorisé.
+    landingPage: canProvenance ? row.landing_page?.name ?? undefined : undefined,
+    sourceUrl: canProvenance && row.source_url ? decryptField(row.source_url) : undefined,
+    utmSource: canProvenance && row.utm_source ? decryptField(row.utm_source) : undefined,
+    utmMedium: canProvenance && row.utm_medium ? decryptField(row.utm_medium) : undefined,
+    utmCampaign: canProvenance && row.utm_campaign ? decryptField(row.utm_campaign) : undefined,
+    utmTerm: canProvenance && row.utm_term ? decryptField(row.utm_term) : undefined,
+    utmContent: canProvenance && row.utm_content ? decryptField(row.utm_content) : undefined,
+    gclid: canProvenance && row.gclid ? decryptField(row.gclid) : undefined,
     moveFromCity: row.move_from_city ?? undefined,
     moveFromPostal: row.move_from_postal ?? undefined,
     moveToCity: row.move_to_city ?? undefined,
     moveToPostal: row.move_to_postal ?? undefined,
     moveVolume: row.move_volume ?? undefined,
     moveDate: row.move_date ?? undefined,
-    source: SOURCE_DB_TO_UI[row.source?.slug ?? ""] ?? "google-ads",
+    // Canal d'acquisition — CONFIDENTIEL : omis pour un commercial (undefined).
+    source: canProvenance ? SOURCE_DB_TO_UI[row.source?.slug ?? ""] ?? "google-ads" : undefined,
     amount: row.estimated_amount ?? 0,
     ownerId: row.owner_id ?? "",
     status: row.status,
@@ -299,7 +346,10 @@ export async function getAllLeads(): Promise<Lead[]> {
   if (error) console.error("[getAllLeads] Supabase error:", error.message);
   if (error || !data) return [];
 
-  const leads = (data as unknown as LeadRowJoined[]).map((r) => mapLead(r));
+  // Confidentialité provenance (chaîne d'arrivée §5-8) : un commercial ne reçoit
+  // jamais source / landingPage / sourceUrl / utm* / gclid dans la liste.
+  const canProv = await currentUserCanSeeProvenance();
+  const leads = (data as unknown as LeadRowJoined[]).map((r) => mapLead(r, false, canProv));
 
   // Batch-fetch minimal docs per lead so the Kanban can bucket cards into
   // "Acompte encaissé" / "Encaissement final" without an N+1 round-trip.
@@ -358,6 +408,7 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
         is_urgent, surface_m2, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
         intervention_delay, intervention_delay_notes, notes, type_service, country,
         entity_id, entity:legal_entities(legal_name), landing_page:landing_pages(name), source_url,
+        utm_source, utm_medium, utm_campaign, utm_term, utm_content, gclid,
         move_from_city, move_from_postal, move_to_city, move_to_postal, move_volume, move_date,
         announced_price, discovery_outcome, discovery_done_at,
         photos_requested_at, delai_souhaite, price_range, reaction_prix,
@@ -381,8 +432,11 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
     .eq("lead_id", lead.id)
     .order("issued_at", { ascending: false });
 
-  const canImmob = await currentUserHasImmobTravaux();
-  const uiLead = mapLead(lead, canImmob);
+  const [canImmob, canProv] = await Promise.all([
+    currentUserHasImmobTravaux(),
+    currentUserCanSeeProvenance(),
+  ]);
+  const uiLead = mapLead(lead, canImmob, canProv);
   const uiDocs = (docs ?? []).map((d) => mapDocument(d as DocumentRow));
   const owner = lead.owner ? mapOwner(lead.owner) : undefined;
 
@@ -394,7 +448,7 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
   const auditEvents = await fetchLeadAuditEvents(lead.id);
   const timeline = buildTimeline(uiLead, uiDocs, auditEvents);
 
-  return { lead: uiLead, owner, documents: uiDocs, timeline, canImmobTravaux: canImmob };
+  return { lead: uiLead, owner, documents: uiDocs, timeline, canImmobTravaux: canImmob, canSeeProvenance: canProv };
 }
 
 // Contact phone of a legal entity — used to fill {societe.telephone} in the

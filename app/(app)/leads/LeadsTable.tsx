@@ -36,9 +36,13 @@ type Props = {
   commerciaux: Commercial[];
   // Secteurs que l'utilisateur a le droit de voir (restriction par activité).
   visibleSectors: Sector[];
+  // Le lecteur peut-il voir la provenance (canal/URL d'origine) ? Faux pour un
+  // commercial : colonne Source, filtre Source et colonnes CSV correspondantes
+  // sont alors totalement retirées (les données ne sont même pas dans le payload).
+  canProvenance: boolean;
 };
 
-export default function LeadsTable({ leads, commerciaux, visibleSectors }: Props) {
+export default function LeadsTable({ leads, commerciaux, visibleSectors, canProvenance }: Props) {
   const sectorSet = useMemo(() => new Set<string>(visibleSectors), [visibleSectors]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<Set<LeadStatus>>(new Set());
@@ -71,7 +75,7 @@ export default function LeadsTable({ leads, commerciaux, visibleSectors }: Props
       if (!showPerdu && l.status === "perdu") return false;
       if (nrpOnly && !l.isNrp) return false;
       if (statusFilter.size > 0 && !statusFilter.has(l.status)) return false;
-      if (sourceFilter.size > 0 && !sourceFilter.has(l.source)) return false;
+      if (sourceFilter.size > 0 && (!l.source || !sourceFilter.has(l.source))) return false;
       if (ownerFilter && l.ownerId !== ownerFilter) return false;
       if (countryFilter && l.country !== countryFilter) return false;
       if (societeFilter && l.entityName !== societeFilter) return false;
@@ -139,7 +143,7 @@ export default function LeadsTable({ leads, commerciaux, visibleSectors }: Props
       SECTOR_LABEL[l.sector],
       l.typeService ?? "",
       ownersById.get(l.ownerId)?.name ?? "",
-      SOURCE_LABEL[l.source],
+      l.source ? SOURCE_LABEL[l.source] : "",
       l.sourceUrl ?? "",
       String(l.amount),
       labelForStatus(l.status),
@@ -272,20 +276,23 @@ export default function LeadsTable({ leads, commerciaux, visibleSectors }: Props
           ))}
       </div>
 
-      <div className={styles.chipsRow}>
-        <span className={styles.chipsLabel}>Source</span>
-        {ALL_SOURCES.map((s) => (
-          <button
-            key={s}
-            type="button"
-            className={`${styles.chip} ${sourceFilter.has(s) ? styles.chipOn : ""}`}
-            onClick={() => setSourceFilter((cur) => toggleSet(cur, s))}
-            aria-pressed={sourceFilter.has(s)}
-          >
-            {SOURCE_LABEL[s]}
-          </button>
-        ))}
-      </div>
+      {/* Filtre Source (provenance) — masqué pour un commercial (confidentiel). */}
+      {canProvenance && (
+        <div className={styles.chipsRow}>
+          <span className={styles.chipsLabel}>Source</span>
+          {ALL_SOURCES.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className={`${styles.chip} ${sourceFilter.has(s) ? styles.chipOn : ""}`}
+              onClick={() => setSourceFilter((cur) => toggleSet(cur, s))}
+              aria-pressed={sourceFilter.has(s)}
+            >
+              {SOURCE_LABEL[s]}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className={styles.chipsRow}>
         <span className={styles.chipsLabel}>Filtre rapide</span>
@@ -335,7 +342,7 @@ export default function LeadsTable({ leads, commerciaux, visibleSectors }: Props
               <th>Secteur</th>
               <th>Type service</th>
               <th>Commercial</th>
-              <th className={styles.colSource}>Source</th>
+              {canProvenance && <th className={styles.colSource}>Source</th>}
               <SortableTh label="Montant"   col="amount"         sort={sort} setSort={setSortBy} align="right" />
               <th>Statut</th>
               <SortableTh label="Dernière action" col="lastActionAt"   sort={sort} setSort={setSortBy} />
@@ -410,24 +417,26 @@ export default function LeadsTable({ leads, commerciaux, visibleSectors }: Props
                       <span className={styles.muted}>—</span>
                     )}
                   </td>
-                  <td className={styles.colSource}>
-                    <span className={styles.sourceCell}>
-                      {SOURCE_LABEL[l.source]}
-                      {l.sourceUrl && /^https?:\/\//i.test(l.sourceUrl) && (
-                        <a
-                          href={l.sourceUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={styles.srcLink}
-                          title={`Ouvrir la page d'origine : ${l.sourceUrl}`}
-                          aria-label="Ouvrir la page d'origine du lead"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Icon name="external-link" size={13} />
-                        </a>
-                      )}
-                    </span>
-                  </td>
+                  {canProvenance && (
+                    <td className={styles.colSource}>
+                      <span className={styles.sourceCell}>
+                        {l.source ? SOURCE_LABEL[l.source] : "—"}
+                        {l.sourceUrl && /^https?:\/\//i.test(l.sourceUrl) && (
+                          <a
+                            href={l.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={styles.srcLink}
+                            title={`Ouvrir la page d'origine : ${l.sourceUrl}`}
+                            aria-label="Ouvrir la page d'origine du lead"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Icon name="external-link" size={13} />
+                          </a>
+                        )}
+                      </span>
+                    </td>
+                  )}
                   <td className={styles.amount} data-label="Montant">{formatEUR(l.amount)}</td>
                   <td data-label="Statut">
                     <span className={styles.statusPill} data-status={l.status}>

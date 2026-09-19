@@ -172,7 +172,9 @@ export async function getAllDocumentsWithContext(): Promise<DocumentWithContext[
   for (const row of data as unknown as DocumentRowJoined[]) {
     if (!row.entity || !row.lead) continue;
     const baseDoc = mapDocumentBase(row);
-    const uiLead = mapLead(row.lead);
+    // Comptabilité = surface admin/planificateur uniquement (matrice des rôles) :
+    // la provenance (canal « apporteur ») y reste visible pour le filtrage.
+    const uiLead = mapLead(row.lead, false, true);
     const uiEntity = mapEntity(row.entity);
     // HT réellement stocké sur le document (exact, y compris pour un devis à
     // TVA mixte). Repli sur le strip TVA-secteur uniquement pour d'anciens

@@ -1,9 +1,9 @@
 // Pure lead-related helpers shared between server fetchers and client
 // components. No data, no I/O, no "server-only" guard.
 
-import type { CrmDocument, Lead, TimelineEvent } from "./leads";
+import type { CrmDocument, Lead, Source, TimelineEvent } from "./leads";
 
-function sourceLabel(s: Lead["source"]): string {
+function sourceLabel(s: Source): string {
   return {
     "google-ads": "Google Ads",
     "meta-ads": "Meta Ads",
@@ -39,7 +39,9 @@ export function buildTimeline(
       kind: "received",
       at: lead.receivedAt,
       label: "Lead reçu",
-      sublabel: `via ${sourceLabel(lead.source)}`,
+      // Le canal d'acquisition est confidentiel : sous-libellé omis quand la
+      // provenance n'est pas fournie (payload d'un commercial).
+      sublabel: lead.source ? `via ${sourceLabel(lead.source)}` : undefined,
     },
   ];
 

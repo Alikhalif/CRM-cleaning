@@ -151,6 +151,17 @@ export type Lead = {
   landingPage?: string;
   // URL exacte du site / formulaire d'origine (renseignée par WF1).
   sourceUrl?: string;
+  // Provenance marketing stratégique — CONFIDENTIEL (chaîne d'arrivée §5-8) :
+  // ces champs (comme source / landingPage / sourceUrl) ne sont peuplés QUE
+  // pour un Super Admin / planificateur. Le mapper serveur les omet du payload
+  // d'un commercial (jamais envoyés à son navigateur). Champs libres chiffrés
+  // au repos (A14) et déchiffrés côté serveur seulement à la lecture autorisée.
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmTerm?: string;
+  utmContent?: string;
+  gclid?: string;
   // Free-text sub-qualifier within the sector (e.g. "longue distance",
   // "succession"). Captured from the LP form or entered manually.
   typeService?: string;
@@ -162,7 +173,9 @@ export type Lead = {
   moveToPostal?: string;
   moveVolume?: string;
   moveDate?: string;
-  source: Source;
+  // Canal d'acquisition — CONFIDENTIEL (provenance) : omis du payload d'un
+  // commercial (undefined). Présent seulement pour admin / planificateur.
+  source?: Source;
   amount: number; // estimated TTC, EUR
   surfaceM2?: number;
   ownerId: string;
