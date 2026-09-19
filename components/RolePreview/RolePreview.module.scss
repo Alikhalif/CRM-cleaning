@@ -1,0 +1,33 @@
+// Bandeau d'aperçu lecture seule (A15). Ton informatif, jamais alarmant.
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  background: color-mix(in oklab, var(--tone-info) 14%, var(--bg-elevated));
+  border-bottom: 1px solid color-mix(in oklab, var(--tone-info) 45%, var(--border-subtle));
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+
+  svg { color: var(--tone-info); flex-shrink: 0; }
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.exitBtn {
+  flex-shrink: 0;
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--tone-info);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--tone-info);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover { background: color-mix(in oklab, var(--tone-info) 16%, transparent); }
+}

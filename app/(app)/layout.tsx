@@ -4,6 +4,8 @@ import MobileTabBar from "@/components/MobileTabBar/MobileTabBar";
 import PresenceHeartbeat from "@/components/PresenceHeartbeat/PresenceHeartbeat";
 import RealtimeNotifications from "@/components/RealtimeNotifications/RealtimeNotifications";
 import RingoverPhone from "@/components/RingoverPhone/RingoverPhone";
+import RolePreviewBanner from "@/components/RolePreview/RolePreviewBanner";
+import RolePreviewMain from "@/components/RolePreview/RolePreviewMain";
 import Sidebar from "@/components/Sidebar/Sidebar";
 import Topbar from "@/components/Topbar/Topbar";
 import { getUnreadCount } from "@/lib/notifications";
@@ -38,7 +40,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Sidebar isAdmin={isAdmin} />
       <div className={styles.main}>
         <Topbar user={user} unreadCount={unreadCount} />
-        <main className={styles.content}>{children}</main>
+        <RolePreviewBanner />
+        <RolePreviewMain className={styles.content}>{children}</RolePreviewMain>
       </div>
       <CommandPalette isAdmin={isAdmin} />
       {user && <RealtimeNotifications userId={user.id} />}

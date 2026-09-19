@@ -6,7 +6,14 @@ import { useEffect, useRef, useState } from "react";
 import Icon from "../Icon/Icon";
 import { OPEN_PALETTE_EVENT } from "../CommandPalette/CommandPalette";
 import { TOGGLE_MOBILE_NAV } from "../MobileTabBar/MobileTabBar";
-import { useClientValue } from "@/lib/client-store";
+import { useClientValue, useStoredValue, setStoredValue } from "@/lib/client-store";
+import {
+  ACTIVE_ROLE_KEY,
+  PREVIEW_ROLE_KEY,
+  PREVIEWABLE_ROLES,
+  previewRoleLabel,
+  roleHome,
+} from "@/lib/role-preview";
 import { profileCapabilities, SECTOR_LABEL, SECTORS, visibleSectorsForUser, type Sector } from "@/lib/leads";
 import { DASHBOARD_PERIODS, parsePeriod } from "@/lib/dashboard";
 import { toggleWebphone } from "@/lib/ringover-webphone";
@@ -78,6 +85,34 @@ export default function Topbar({ user, unreadCount }: Props) {
   // Le bouton webphone apparaît pour les profils qui téléphonent + la planificatrice.
   const isAdmin = (user?.roles ?? []).some((r) => r.slug === "admin");
   const isPlanificateur = (user?.roles ?? []).some((r) => r.slug === "planification");
+
+  // ── Sélecteur « Vue » (A15) ────────────────────────────────────────────
+  // activeRole = rôle actif choisi parmi les rôles détenus (étiquette + accueil,
+  // n'altère PAS les permissions) ; previewRole = aperçu lecture seule (admin).
+  // Valeurs "" au 1er rendu (SSR) → l'étiquette part de primaryRoleLabel, pas
+  // de décalage d'hydratation.
+  const previewRole = useStoredValue(PREVIEW_ROLE_KEY, "");
+  const activeRole = useStoredValue(ACTIVE_ROLE_KEY, "");
+  const heldSlugs = (user?.roles ?? []).map((r) => r.slug);
+  // Un admin peut prévisualiser les espaces « métier » qu'il ne détient pas.
+  const previewable = isAdmin
+    ? PREVIEWABLE_ROLES.filter((r) => !heldSlugs.includes(r.slug))
+    : [];
+  const activeHeldLabel =
+    user?.roles.find((r) => r.slug === activeRole)?.label ?? primaryRoleLabel;
+  const vueLabel = previewRole ? `Aperçu · ${previewRoleLabel(previewRole)}` : activeHeldLabel;
+
+  const selectHeldRole = (slug: string) => {
+    setStoredValue(ACTIVE_ROLE_KEY, slug);
+    setStoredValue(PREVIEW_ROLE_KEY, "");
+    setOpenMenu(null);
+    router.push(roleHome(slug));
+  };
+  const selectPreviewRole = (slug: string) => {
+    setStoredValue(PREVIEW_ROLE_KEY, slug);
+    setOpenMenu(null);
+    router.push(roleHome(slug));
+  };
   // Restriction commerciale par activité : secteurs que le user a le droit de voir.
   const visibleSectors = visibleSectorsForUser({ isAdmin, isPlanner: isPlanificateur, activities: user?.activities ?? [] });
   const activityRestricted = visibleSectors.length < SECTORS.length;
@@ -187,27 +222,54 @@ export default function Topbar({ user, unreadCount }: Props) {
             onClick={() => setOpenMenu((m) => (m === "vue" ? null : "vue"))}
           >
             <span className={styles.viewLabel}>Vue ·</span>
-            <span className={styles.viewRole}>{primaryRoleLabel}</span>
+            <span className={styles.viewRole}>{vueLabel}</span>
             <Icon name="chevron-down" size={14} />
           </button>
           {openMenu === "vue" && (
             <div className={styles.dropdown} role="menu">
               <div className={styles.dropdownLabel}>Mes rôles</div>
               {user && user.roles.length > 0 ? (
-                user.roles.map((r) => (
-                  <div key={r.slug} className={styles.dropdownItem}>
-                    <Icon name="check" size={14} /> {r.label}
-                  </div>
-                ))
+                user.roles.map((r) => {
+                  const isActive = !previewRole && r.slug === (activeRole || user.roles[0].slug);
+                  return (
+                    <button
+                      key={r.slug}
+                      type="button"
+                      role="menuitem"
+                      className={styles.dropdownItem}
+                      onClick={() => selectHeldRole(r.slug)}
+                    >
+                      <Icon name="check" size={14} />
+                      <span>{r.label}</span>
+                      {isActive && <span className={styles.roleTag}>actif</span>}
+                    </button>
+                  );
+                })
               ) : (
                 <div className={styles.dropdownEmpty}>
                   Aucun rôle attribué. Demandez à un admin de vous en assigner un dans Paramètres.
                 </div>
               )}
-              <div className={styles.dropdownHint}>
-                L&apos;aperçu en lecture seule des autres rôles arrivera plus tard
-                (CDC §3.6).
-              </div>
+
+              {previewable.length > 0 && (
+                <>
+                  <div className={styles.dropdownDivider} />
+                  <div className={styles.dropdownLabel}>Aperçu (lecture seule)</div>
+                  {previewable.map((r) => (
+                    <button
+                      key={r.slug}
+                      type="button"
+                      role="menuitem"
+                      className={styles.dropdownItem}
+                      onClick={() => selectPreviewRole(r.slug)}
+                    >
+                      <Icon name="external-link" size={14} />
+                      <span>{r.label}</span>
+                      {previewRole === r.slug && <span className={styles.roleTag}>en cours</span>}
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
           )}
         </div>
