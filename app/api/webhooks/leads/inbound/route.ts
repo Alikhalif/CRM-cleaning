@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 import { auditLog } from "@/lib/audit";
-import { notify } from "@/lib/notifications";
+import { notify, notifyRole } from "@/lib/notifications";
 import { resolveOwner } from "@/lib/routing";
-import { countryFromPhone, COUNTRIES, type Country } from "@/lib/leads";
+import { encryptField } from "@/lib/crypto/field-encryption";
+import { sendLeadCentralizationEmail } from "@/lib/leads-centralization";
+import { countryFromPhone, COUNTRIES, SECTOR_LABEL, type Country, type Sector } from "@/lib/leads";
 
 // WF1 — Lead capture webhook (CDC §2.3).
 //
@@ -297,6 +299,7 @@ export async function POST(request: Request) {
   // Configured once in the CRM; wins over the payload's own fields.
   type LpRow = {
     id: string;
+    name: string | null;
     country: string | null;
     lp_type: string | null;
     entity_id: string | null;
@@ -308,7 +311,7 @@ export async function POST(request: Request) {
   if (lpToken) {
     const { data } = await supabase
       .from("landing_pages")
-      .select("id, country, lp_type, entity_id, activity_id, source_id")
+      .select("id, name, country, lp_type, entity_id, activity_id, source_id")
       .eq("token", lpToken)
       .eq("is_active", true)
       .maybeSingle<LpRow>();
@@ -402,6 +405,12 @@ export async function POST(request: Request) {
   const lastN = maxRow ? parseInt(maxRow.short_id.replace(/^L-/, ""), 10) || 1000 : 1000;
   const shortId = `L-${lastN + 1}`;
 
+  // URL d'origine assainie — calculée une fois : chiffrée pour la base (A14),
+  // réutilisée EN CLAIR pour l'email de centralisation Super Admin.
+  const cleanSourceUrl = sanitizeSourceUrl(
+    payload.source_url, payload.page_url, payload.form_url, payload.referrer, payload.page_origine,
+  );
+
   // ── Insert the lead ───────────────────────────────────────────────
   const insertPayload = {
     short_id: shortId,
@@ -433,13 +442,18 @@ export async function POST(request: Request) {
     last_action_label: "Lead reçu via WF1",
     last_action_at: new Date().toISOString(),
     notes: normalize(payload.notes) || null,
-    gclid: payload.gclid ?? null,
-    utm_source: payload.utm_source ?? null,
-    utm_campaign: payload.utm_campaign ?? null,
-    utm_term: payload.utm_term ?? null,
-    utm_medium: payload.utm_medium ?? null,
-    utm_content: payload.utm_content ?? null,
-    source_url: sanitizeSourceUrl(payload.source_url, payload.page_url, payload.form_url, payload.referrer, payload.page_origine),
+    // Provenance marketing — CONFIDENTIELLE (chaîne d'arrivée §5-8) : chiffrée au
+    // repos (A14) pour qu'une lecture directe via la clé anon (un commercial lit
+    // ses propres lignes) ne révèle ni l'URL d'origine, ni la campagne, ni le
+    // gclid. Sans FIELD_ENCRYPTION_KEY, encryptField renvoie le texte clair
+    // (rétrocompatible) — rien ne casse.
+    gclid: payload.gclid ? encryptField(payload.gclid) : null,
+    utm_source: payload.utm_source ? encryptField(payload.utm_source) : null,
+    utm_campaign: payload.utm_campaign ? encryptField(payload.utm_campaign) : null,
+    utm_term: payload.utm_term ? encryptField(payload.utm_term) : null,
+    utm_medium: payload.utm_medium ? encryptField(payload.utm_medium) : null,
+    utm_content: payload.utm_content ? encryptField(payload.utm_content) : null,
+    source_url: cleanSourceUrl ? encryptField(cleanSourceUrl) : null,
     // Secteur déménagement : départ / arrivée / volume / date souhaitée.
     move_from_city: normalize(payload.depart_ville ?? "") || null,
     move_from_postal: normalize(payload.depart_cp ?? "") || null,
@@ -496,7 +510,13 @@ export async function POST(request: Request) {
     },
   });
 
-  // Only notify when the lead was actually assigned to someone.
+  const clientLabel = (isCompany
+    ? payload.company_name ?? ""
+    : `${payload.first_name ?? ""} ${payload.last_name ?? ""}`
+  ).trim() || "Prospect";
+
+  // §15 — Notification COMMERCIALE : uniquement au propriétaire, SANS aucune
+  // provenance (ni site, ni canal). Il reçoit de quoi traiter, rien de plus.
   if (ownerId) {
     await notify({
       userId: ownerId,
@@ -504,10 +524,61 @@ export async function POST(request: Request) {
       entityType: "lead",
       entityId: inserted.id,
       title: `Nouveau lead — ${inserted.short_id}`,
-      body: isCompany ? payload.company_name ?? "" : `${payload.first_name} ${payload.last_name}`,
+      body: clientLabel,
       href: `/leads/${inserted.id}`,
     });
   }
+
+  // §14 — Notification SUPER ADMIN : à l'arrivée de CHAQUE lead, AVEC la
+  // provenance (site/LP, canal). Distincte de la notif commerciale. Le contenu
+  // n'atteint que les admins (RLS notifications = user_id du destinataire), donc
+  // la provenance stratégique ne fuite pas vers un commercial. `excludeUserId`
+  // évite un doublon si le propriétaire est lui-même admin (il a déjà lead.assigned).
+  const activityLabel = SECTOR_LABEL[activitySlug as Sector] ?? activitySlug;
+  const provenanceLabel = lp?.name ?? payload.source_slug ?? "—";
+  await notifyRole(
+    "admin",
+    {
+      kind: "lead.incoming",
+      entityType: "lead",
+      entityId: inserted.id,
+      title: `Nouveau lead entrant — ${activityLabel}`,
+      body: `Provenance : ${provenanceLabel} · ${clientLabel}${country ? ` · ${country}` : ""}`,
+      href: `/leads/${inserted.id}`,
+    },
+    ownerId ?? undefined,
+  );
+
+  // §10-13 — Copie de centralisation vers la boîte de pilotage Super Admin
+  // (Nettoyage / Déménagement selon le secteur), avec la provenance complète.
+  // Best-effort : le lead est déjà enregistré, un échec d'email n'affecte pas
+  // la réponse WF1. Valeurs de provenance passées EN CLAIR (avant chiffrement DB).
+  await sendLeadCentralizationEmail({
+    leadId: inserted.id,
+    shortId: inserted.short_id,
+    sector: activitySlug,
+    provenance: provenanceLabel,
+    clientName: clientLabel,
+    isCompany,
+    company: payload.company_name ?? null,
+    phone: normalizePhone(normalize(payload.phone)),
+    email: normalize(payload.email).toLowerCase() || null,
+    address: normalize(payload.address_line) || null,
+    postalCode: normalize(payload.postal_code) || null,
+    city: normalize(payload.city) || null,
+    country,
+    typeService: normalize(payload.type_service ?? "") || null,
+    message: normalize(payload.notes) || null,
+    sourceSlug: payload.source_slug ?? null,
+    sourceUrl: cleanSourceUrl,
+    utmSource: payload.utm_source ?? null,
+    utmMedium: payload.utm_medium ?? null,
+    utmCampaign: payload.utm_campaign ?? null,
+    utmTerm: payload.utm_term ?? null,
+    utmContent: payload.utm_content ?? null,
+    gclid: payload.gclid ?? null,
+    receivedAt: insertPayload.received_at,
+  });
 
   return corsJson({
     ok: true,
