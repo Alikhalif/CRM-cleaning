@@ -1,12 +1,30 @@
 import Link from "next/link";
 import Icon from "@/components/Icon/Icon";
 import PageShell from "../_shared/PageShell";
+import { getCurrentUserProfile } from "@/lib/users-server";
 
 export const metadata = { title: "Paramètres" };
 
 // Most sub-sections are still placeholders (utilisateurs, entités, secteurs,
 // modèles, sources, intégrations). The audit log is the first real one.
-export default function SettingsPage() {
+//
+// Accès Super Admin uniquement : chaque sous-page se garde déjà elle-même, mais
+// l'index listait les liens à tout utilisateur authentifié (divulgation de la
+// structure). On garde la page côté serveur, comme /settings/audit.
+export default async function SettingsPage() {
+  const profile = await getCurrentUserProfile();
+  const isAdmin = profile?.roles.some((r) => r.slug === "admin") ?? false;
+
+  if (!isAdmin) {
+    return (
+      <PageShell
+        title="Paramètres"
+        subtitle="Configuration de la plateforme."
+        placeholder="Accès refusé — les paramètres sont réservés aux administrateurs."
+      />
+    );
+  }
+
   return (
     <>
       <PageShell

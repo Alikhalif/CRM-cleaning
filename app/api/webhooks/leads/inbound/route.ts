@@ -456,6 +456,24 @@ export async function POST(request: Request) {
     .maybeSingle<{ id: string; short_id: string }>();
 
   if (error || !inserted) {
+    // TOCTOU idempotence (A039) : une requête concurrente a pu insérer le même
+    // external_id entre notre vérification de dedup plus haut et cet INSERT.
+    // L'unicité DB rejette alors l'insert — on renvoie le lead existant en 200
+    // (no-op idempotent, contrat WF1) plutôt qu'un 500 trompeur qui ferait
+    // re-tenter n8n.
+    if (payload.external_id) {
+      const { data: raced } = await supabase
+        .from("leads")
+        .select("id, short_id")
+        .eq("external_id", payload.external_id)
+        .maybeSingle<{ id: string; short_id: string }>();
+      if (raced) {
+        return corsJson(
+          { ok: true, deduplicated: true, id: raced.id, short_id: raced.short_id },
+          200,
+        );
+      }
+    }
     return corsJson(
       { error: "insert_failed", detail: error?.message ?? "unknown" },
       500,
