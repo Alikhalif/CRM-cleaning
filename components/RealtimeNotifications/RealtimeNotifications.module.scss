@@ -1,0 +1,108 @@
+// Pile de toasts « nouveau lead » — ancrée en haut à droite, sous la topbar.
+// Alerte visuelle forte à l'arrivée d'un lead (chaîne d'arrivée §16). Tokens
+// uniquement (couleurs via var(--…)) pour rester compatible dark mode.
+
+.toastStack {
+  position: fixed;
+  top: calc(var(--topbar-h) + var(--sp-3));
+  right: var(--sp-4);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 340px;
+  max-width: calc(100vw - 2 * var(--sp-4));
+  pointer-events: none; // le conteneur laisse passer les clics ; les toasts les reprennent
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-1);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--tone-info);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: toastIn var(--dur-fast, 160ms) var(--ease-out, ease-out);
+}
+
+// Les leads entrants (vue Super Admin) tirent l'accent vers « succès » pour se
+// distinguer d'une simple attribution.
+.toast[data-kind="lead.incoming"] {
+  border-left-color: var(--tone-success, var(--tone-info));
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.toastBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover { background: var(--bg-surface-2); }
+}
+
+.toastIcon {
+  flex: none;
+  display: inline-flex;
+  color: var(--tone-info);
+  margin-top: 1px;
+}
+
+.toastText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.toastTitle {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.toastSub {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.toastClose {
+  flex: none;
+  width: 32px;
+  border: 0;
+  border-left: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+
+  &:hover { background: var(--bg-surface-2); color: var(--text-primary); }
+}
+
+@media (max-width: 768px) {
+  .toastStack {
+    left: var(--sp-3);
+    right: var(--sp-3);
+    width: auto;
+  }
+}

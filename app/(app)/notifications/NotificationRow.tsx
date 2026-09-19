@@ -75,6 +75,7 @@ function labelForKind(kind: string): string {
     "call.missed.outbound": "Appel non répondu",
     "call.inbound": "Appel entrant",
     "lead.assigned": "Lead attribué",
+    "lead.incoming": "Nouveau lead",
     "lead.lost": "Lead perdu",
   }[kind] ?? kind;
 }

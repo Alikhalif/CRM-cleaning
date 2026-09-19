@@ -2,6 +2,7 @@ import Icon from "@/components/Icon/Icon";
 import { getRecentNotifications } from "@/lib/notifications";
 import { markAllRead } from "./actions";
 import NotificationRow from "./NotificationRow";
+import NotifSoundToggle from "./NotifSoundToggle";
 import styles from "./Notifications.module.scss";
 
 export const metadata = { title: "Notifications" };
@@ -30,13 +31,16 @@ export default async function NotificationsPage() {
             {notifications.length} récente{notifications.length > 1 ? "s" : ""}
           </p>
         </div>
-        {unreadCount > 0 && (
-          <form action={markAllReadFormAction}>
-            <button type="submit" className={styles.markAllBtn}>
-              <Icon name="check" size={14} /> Tout marquer comme lu
-            </button>
-          </form>
-        )}
+        <div style={{ display: "flex", gap: "var(--sp-2)", alignItems: "center" }}>
+          <NotifSoundToggle />
+          {unreadCount > 0 && (
+            <form action={markAllReadFormAction}>
+              <button type="submit" className={styles.markAllBtn}>
+                <Icon name="check" size={14} /> Tout marquer comme lu
+              </button>
+            </form>
+          )}
+        </div>
       </header>
 
       <ul className={styles.list}>
