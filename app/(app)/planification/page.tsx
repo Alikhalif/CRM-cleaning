@@ -33,10 +33,13 @@ export default async function PlanificationPage() {
     myCountries = data?.countries ?? [];
   }
 
-  // Planificateur (non-admin) with a country scope → restrict to those countries.
+  // A17 — sécurité par défaut : un planificateur (non-admin) est TOUJOURS scopé
+  // à ses pays (CDC §11). Un scope vide ne signifie plus « voit tout » mais
+  // « ne voit rien » — il faut lui affecter des pays dans Réglages. Les admins
+  // conservent la vision globale.
   const scoped =
-    isPlanif && !isAdmin && myCountries.length > 0
-      ? rows.filter((r) => r.lead.country && myCountries.includes(r.lead.country))
+    isPlanif && !isAdmin
+      ? rows.filter((r) => r.lead.country != null && myCountries.includes(r.lead.country))
       : rows;
 
   return (

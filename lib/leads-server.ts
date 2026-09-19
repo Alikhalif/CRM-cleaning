@@ -287,6 +287,11 @@ export async function getAllLeads(): Promise<Lead[]> {
     )
     .order("last_action_at", { ascending: false, nullsFirst: false });
 
+  // A01 — ne pas masquer silencieusement l'erreur : si une colonne référencée
+  // (source_url, move_*, …) n'existe pas encore en base parce que les migrations
+  // ne sont pas poussées, Supabase renvoie une erreur et la liste apparaît vide
+  // sans explication (« où sont mes leads »). On la trace côté serveur.
+  if (error) console.error("[getAllLeads] Supabase error:", error.message);
   if (error || !data) return [];
 
   const leads = (data as unknown as LeadRowJoined[]).map((r) => mapLead(r));

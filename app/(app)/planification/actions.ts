@@ -142,10 +142,40 @@ export async function finalizeDossier(id: string): Promise<Result> {
   return { ok: true };
 }
 
-// Close the dossier — sets status + payment_status to solde. Caller is
-// expected to have already verified the final invoice is paid.
+// Close the dossier — sets status + payment_status to solde.
+//
+// A17 — contrôle de paiement avant clôture : on refuse de solder un dossier
+// dont la facture finale a été ÉMISE mais n'est pas encore encaissée (`paye`).
+// Solder = déclarer le dossier réglé ; le faire alors qu'une finale est impayée
+// serait un mensonge comptable. On ne bloque PAS les dossiers sans facture dans
+// `documents` (paiement comptant, ou facture OPTIMIVV hors `documents`) pour ne
+// casser aucun flux existant — on ne gate que le cas incohérent « finale émise
+// et impayée ».
 export async function soldDossier(id: string): Promise<Result> {
   const supabase = await supabaseServer();
+
+  const { data: dossier } = await supabase
+    .from("dossiers")
+    .select("lead_id")
+    .eq("id", id)
+    .maybeSingle<{ lead_id: string }>();
+  if (!dossier) return { ok: false, error: "Dossier introuvable." };
+
+  const { data: finale } = await supabase
+    .from("documents")
+    .select("num, status")
+    .eq("lead_id", dossier.lead_id)
+    .eq("type", "finale")
+    .order("issued_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ num: string; status: string }>();
+  if (finale && finale.status !== "paye") {
+    return {
+      ok: false,
+      error: `Facture finale ${finale.num} non encaissée (statut : ${finale.status}). Encaissez-la avant de solder le dossier.`,
+    };
+  }
+
   const updates: DossierUpdate = {
     status: "solde",
     payment_status: "solde",
