@@ -8,6 +8,7 @@ import {
 } from "./dashboard";
 import type { Sector } from "./leads";
 import { currentUserHasImmobTravaux } from "./leads-server";
+import { decryptField } from "./crypto/field-encryption";
 
 // Fetches raw leads + documents from Supabase and buckets them into the
 // DailyMetric[] shape the Dashboard's existing aggregators consume.
@@ -159,7 +160,7 @@ export async function getImmobAnnotations(): Promise<ImmobAnnotation[]> {
       shortId: r.short_id,
       client: composed || "Sans nom",
       segment: normalisedSeg,
-      annotation: r.immob_travaux_annotation ?? "",
+      annotation: r.immob_travaux_annotation ? decryptField(r.immob_travaux_annotation) : "",
       ownerName,
       ownerInitials: initials,
       ownerColor: r.owner?.color ?? null,

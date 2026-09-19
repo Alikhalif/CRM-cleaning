@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseServer } from "./supabase/server";
 import { buildTimeline, type AuditTimelineEvent } from "./leads-shared";
 import { supabaseServiceRole } from "./supabase/service";
+import { decryptField } from "./crypto/field-encryption";
 import type {
   Commercial,
   CrmDocument,
@@ -201,8 +202,12 @@ export function mapLead(row: LeadRowJoined, canImmob = false): Lead {
     isNrp: row.is_nrp,
     nrpAt: row.nrp_at ?? undefined,
     lostReason: row.lost_reason ?? undefined,
-    // Confidentiel (CDC §3.5) : omis du payload si le lecteur n'a pas la permission.
-    immobTravauxAnnotation: canImmob ? (row.immob_travaux_annotation ?? undefined) : undefined,
+    // Confidentiel (CDC §3.5) : omis du payload si le lecteur n'a pas la
+    // permission, et déchiffré (A14) seulement à ce moment-là côté serveur.
+    immobTravauxAnnotation:
+      canImmob && row.immob_travaux_annotation
+        ? decryptField(row.immob_travaux_annotation)
+        : undefined,
     interventionDelay: (row.intervention_delay ?? undefined) as Lead["interventionDelay"],
     interventionDelayNotes: row.intervention_delay_notes ?? undefined,
     notes: row.notes ?? undefined,

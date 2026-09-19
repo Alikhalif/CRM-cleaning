@@ -12,6 +12,7 @@ import { sendBrevoEmail, sendBrevoSms } from "@/lib/brevo";
 import { buildPhotoRequestEmail, buildPhotoRequestSms } from "@/lib/templates";
 import { countryFromPhone } from "@/lib/leads";
 import { currentUserHasImmobTravaux } from "@/lib/leads-server";
+import { encryptField } from "@/lib/crypto/field-encryption";
 import { isCurrentUserAdmin } from "@/lib/presence/guard";
 import type { Country, DiscoveryOutcome, LeadStatus, Sector, SubEnvoi, SubSignature } from "@/lib/leads";
 import type { Database } from "@/lib/supabase/database.types";
@@ -1128,8 +1129,11 @@ export async function updateImmobTravauxAnnotation(
     return { ok: false, error: "Accès refusé : permission immob_travaux requise." };
   }
   const supabase = await supabaseServer();
+  // A14 — chiffrement applicatif au repos : la colonne ne contient jamais le
+  // texte confidentiel en clair (illisible même via la clé anon).
+  const trimmed = annotation.trim();
   const updates: LeadUpdate = {
-    immob_travaux_annotation: annotation.trim() || null,
+    immob_travaux_annotation: trimmed ? encryptField(trimmed) : null,
   };
   const { error } = await supabase.from("leads").update(updates as never).eq("id", id);
   if (error) return { ok: false, error: error.message };
