@@ -142,6 +142,11 @@ function buildHtml(input: CentralizationInput, activityLabel: string): string {
 }
 
 export async function sendLeadCentralizationEmail(input: CentralizationInput): Promise<void> {
+  // Désactivé par défaut : la centralisation email est assurée par n8n (WF1),
+  // qui route déjà par secteur (Déménagement → lead.dem360, sinon leadnettoyage360).
+  // Pour que le CRM en devienne la source à la place de n8n, définir
+  // LEAD_CENTRAL_EMAIL_ENABLED=true ET retirer le nœud email de WF1 (sinon doublon).
+  if (process.env.LEAD_CENTRAL_EMAIL_ENABLED !== "true") return;
   try {
     const to = centralAddressFor(input.sector);
     if (!to) return; // secteur hors périmètre de centralisation

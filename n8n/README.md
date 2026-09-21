@@ -37,7 +37,7 @@ n8n → *Workflows* → *Import from File* → `WF1.json`.
 |---|---|
 | **Signer (HMAC SHA256)** → champ *Secret* | remplacer `REMPLACER_PAR_LEADS_INBOUND_SECRET` par la valeur exacte de `LEADS_INBOUND_SECRET` (celle du `.env.local` et de Vercel) |
 | **M'envoyer un email** → *Credential* | créer/choisir une credential **Header Auth** nommée `Brevo API key` — Name `api-key`, Value = clé Brevo v3 *(la même que WF2 : elle se réutilise)* |
-| **M'envoyer un email** → *JSON Body* | remplacer les deux `REMPLACER…@ton-domaine.fr` : expéditeur **vérifié dans Brevo** + adresse de réception |
+| **M'envoyer un email** → *JSON Body* | l'expéditeur est `tech@cgkoptimum.com` (le remplacer si ton expéditeur **vérifié dans Brevo** diffère). Le **destinataire est automatique selon le secteur** : `demenagement` → `lead.dem360@gmail.com`, sinon → `leadnettoyage360@gmail.com` |
 
 > Le secret **doit être identique des deux côtés** : n8n signe le corps en HMAC-SHA256 (hex), le CRM recalcule et compare. Secret différent ⇒ `401 invalid_signature`.
 
