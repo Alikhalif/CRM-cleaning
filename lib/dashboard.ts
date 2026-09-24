@@ -68,13 +68,15 @@ export type DailyMetric = {
 
 const SECTORS: Sector[] = ["urgence", "nettoyage", "nettoyage_difficile", "enr", "renovation", "debarras", "demenagement", "diogene"];
 
-// "Today" pinned at module load so filterSeries is deterministic within a
-// page render.
-const TODAY = (() => {
+// « Aujourd'hui » à minuit UTC — recalculé À CHAQUE APPEL (recette 2026-09-24).
+// Auparavant figé au chargement du module (mis en cache pour toute la vie du
+// process serveur) : après minuit, toutes les périodes du dashboard restaient
+// ancrées sur la date de démarrage jusqu'au redémarrage du serveur.
+function todayUtc(): Date {
   const d = new Date();
   d.setUTCHours(0, 0, 0, 0);
   return d;
-})();
+}
 
 // ── Period boundaries ─────────────────────────────────────────────────
 export type PeriodWindow = { startIso: string; endIso: string; lengthDays: number };
@@ -83,7 +85,7 @@ export type PeriodWindow = { startIso: string; endIso: string; lengthDays: numbe
 // on TODAY. `end` is always TODAY (inclusive). `lengthDays` is what we
 // shift backwards to derive the previous-period comparison window.
 export function periodWindow(p: Period): PeriodWindow {
-  const end = TODAY;
+  const end = todayUtc();
   let start = new Date(end);
   switch (p) {
     case "7d":  start.setUTCDate(end.getUTCDate() - 6); break;
@@ -293,7 +295,11 @@ export function computeKpis(filtered: DailyMetric[]): Kpis {
     caEncaisseFinale,
     encaisseAcompteCount: sumBy(filtered, "encaisseAcompteCount"),
     caRestant: Math.max(0, caSigned - caEncaisse),
-    conversionRate: leads === 0 ? 0 : devisSigned / leads,
+    // Borné à 100 % : `leads` est compté sur received_at et `devisSigned` sur
+    // signed_at ; dans une même fenêtre, des signatures de leads reçus AVANT
+    // pouvaient faire dépasser 100 % (recette 2026-09-24). Le plafond évite un
+    // affichage absurde ; la base de dates reste une approximation.
+    conversionRate: leads === 0 ? 0 : Math.min(1, devisSigned / leads),
     averageBasket: devisSigned === 0 ? 0 : caSigned / devisSigned,
   };
 }
@@ -489,16 +495,16 @@ export function topCommerciaux(
     };
   });
 
-  // Score = team-relative CA position on 0..100. 50 = at the team median.
-  // The top performer caps at 100 unless the spread is degenerate.
-  const sortedCa = [...intermediate.map((c) => c.caSigned)].sort((a, b) => a - b);
-  const max = sortedCa.at(-1) ?? 0;
-  const min = sortedCa[0] ?? 0;
-  const span = max - min || 1;
+  // Score d'équipe 0..100 = position du CA signé RELATIVE au meilleur commercial
+  // de la période (100 = meilleur ; proportionnel). Ce n'est PAS une médiane ni
+  // un percentile (recette 2026-09-24). L'ancienne formule min-max était
+  // étiquetée « médiane » à tort et forçait TOUJOURS le dernier à 0, quel que
+  // soit son CA réel.
+  const maxCa = intermediate.reduce((m, c) => Math.max(m, c.caSigned), 0);
   return intermediate
     .map((c) => ({
       ...c,
-      score: max === 0 ? 0 : Math.round(((c.caSigned - min) / span) * 100),
+      score: maxCa === 0 ? 0 : Math.round((c.caSigned / maxCa) * 100),
     }))
     .sort((a, b) => b.caSigned - a.caSigned);
 }

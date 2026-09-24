@@ -14,6 +14,11 @@ export type ClientStats = {
 // The CA figures only count paid acomptes/finales (encaisse) and signed
 // devis (signe); unpaid invoices and unsigned devis are excluded by design
 // because they don't represent committed revenue.
+//
+// NB (recette 2026-09-24) : ces montants sont en TTC (l'UI les étiquette « (TTC) »).
+// La Comptabilité, elle, exprime le CA en HT. Unifier sur HT demanderait de
+// charger total_ht + un repli « strip TVA par secteur » (comme documents-server)
+// car total_ht est souvent absent en base sur d'anciens documents.
 export function computeClientStats(client: Client, leadDocs: CrmDocument[]): ClientStats {
   if (!client.sourceLeadId) {
     return {

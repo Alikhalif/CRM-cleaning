@@ -118,7 +118,7 @@ export default function ClientsList({ rows }: Props) {
               <th>Téléphone</th>
               <th>Ville</th>
               <th>Secteurs</th>
-              <th className={styles.tNum}>CA encaissé</th>
+              <th className={styles.tNum}>CA encaissé (TTC)</th>
               <th>Dernière activité</th>
             </tr>
           </thead>

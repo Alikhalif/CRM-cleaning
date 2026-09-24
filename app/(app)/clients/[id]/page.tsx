@@ -244,11 +244,11 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
               <h2 className={styles.h2}>Aperçu</h2>
               <dl className={styles.dl}>
                 <div>
-                  <dt>CA encaissé</dt>
+                  <dt>CA encaissé (TTC)</dt>
                   <dd className={styles.amount}>{formatEUR(caEncaisse)}</dd>
                 </div>
                 <div>
-                  <dt>CA signé</dt>
+                  <dt>CA signé (TTC)</dt>
                   <dd>{formatEUR(caSigne)}</dd>
                 </div>
                 <div>
