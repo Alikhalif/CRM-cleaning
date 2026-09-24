@@ -12,18 +12,18 @@ export default async function SignerDevisPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const leadId = verifySignToken(token);
-  if (!leadId) {
+  const verified = verifySignToken(token);
+  if (!verified) {
     return (
       <State
         emoji="🔒"
-        title="Lien invalide"
-        text="Ce lien de signature est introuvable ou a été révoqué."
+        title="Lien invalide ou expiré"
+        text="Ce lien de signature est introuvable, expiré ou a été révoqué."
       />
     );
   }
 
-  const ctx = await getDevisForSigning(leadId);
+  const ctx = await getDevisForSigning(verified.leadId, verified.numero);
   if (!ctx) {
     return (
       <State

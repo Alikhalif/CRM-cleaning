@@ -14,8 +14,8 @@ export async function submitDevisSignature(
   token: string,
   input: { nom: string; imageDataUrl?: string },
 ): Promise<SignResult> {
-  const leadId = verifySignToken(token);
-  if (!leadId) return { ok: false, error: "Lien de signature invalide." };
+  const verified = verifySignToken(token);
+  if (!verified) return { ok: false, error: "Lien de signature invalide ou expiré." };
   if (!input.nom || !input.nom.trim()) {
     return { ok: false, error: "Merci d'indiquer votre nom." };
   }
@@ -25,7 +25,7 @@ export async function submitDevisSignature(
     h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || null;
   const ua = h.get("user-agent") || null;
 
-  return recordDevisSignature(leadId, {
+  return recordDevisSignature(verified.leadId, verified.numero, {
     nom: input.nom.trim(),
     imageDataUrl: input.imageDataUrl,
     ip,

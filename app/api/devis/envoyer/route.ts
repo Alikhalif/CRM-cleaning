@@ -96,7 +96,8 @@ export async function POST(request: Request) {
   if (docType === "devis" && body.affaire) {
     trackPixelUrl = `${sectorBase}/api/devis/track/${signOpenToken(body.affaire)}.gif`;
     // Lien de signature en ligne → à la signature, le lead passe à « Signé ».
-    signUrl = `${sectorBase}/devis-signer/${signSignToken(body.affaire)}`;
+    // Le jeton est lié au DEVIS précis (numero) + horodaté (P1-5).
+    signUrl = `${sectorBase}/devis-signer/${signSignToken(body.affaire, numero)}`;
   }
 
   // Bannière de signature e-mail selon le secteur (déménagement / nettoyage).

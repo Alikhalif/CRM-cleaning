@@ -33,6 +33,27 @@ async function latestDevisRow(leadId: string, client?: Sb): Promise<Row | null> 
   return data ?? null;
 }
 
+// Devis OPTIMIVV PRÉCIS (par numéro) d'un lead — recette 2026-09-24 (P1-5).
+// La signature vise désormais le devis embarqué dans le jeton, plus « le
+// dernier » du lead : fin de la mésattribution intra-lead. Le prédicat
+// (lead_id + numero) garantit aussi que le numéro appartient bien au lead.
+async function devisRowByNumero(leadId: string, numero: string, client?: Sb): Promise<Row | null> {
+  const sb = client ?? (await supabaseServiceRole());
+  const { data } = await sb
+    .from("devis_optimivv")
+    .select("numero, data, pdf_path")
+    .eq("lead_id", leadId)
+    .eq("numero", numero)
+    .eq("doc_type", "devis")
+    .maybeSingle<Row>();
+  return data ?? null;
+}
+
+// Le devis a-t-il déjà été signé ? (méta écrite à la signature.)
+function isDevisSigned(row: Row): boolean {
+  return Boolean((row.data as { _signature_meta?: unknown } | null)?._signature_meta);
+}
+
 // Méta du dernier devis OPTIMIVV d'un lead (bouton « Voir le devis signé » sur
 // la fiche). `signed` = le pdf_path pointe sur la version signée.
 export async function getLeadOptimivvDevisMeta(
@@ -54,17 +75,18 @@ export type SignContext = {
 // (URL signée temporaire) + un drapeau « déjà signé ».
 export async function getDevisForSigning(
   leadId: string,
+  numero: string,
 ): Promise<SignContext | null> {
-  // Un seul client, devis + statut lus en parallèle.
+  // Un seul client, devis (par numéro) + statut lus en parallèle.
   const sb = await supabaseServiceRole();
   const [row, leadRes] = await Promise.all([
-    latestDevisRow(leadId, sb),
+    devisRowByNumero(leadId, numero, sb),
     sb.from("leads").select("status").eq("id", leadId).maybeSingle<{ status: string }>(),
   ]);
   if (!row) return null;
   const devis = row.data as Devis;
   const status = leadRes.data?.status;
-  const alreadySigned = status === "signe" || status === "encaisse";
+  const alreadySigned = isDevisSigned(row) || status === "signe" || status === "encaisse";
 
   return {
     numero: row.numero,
@@ -79,10 +101,15 @@ export async function getDevisForSigning(
 // « Signé ». Idempotent (markLeadDevisSigne ne signe pas deux fois).
 export async function recordDevisSignature(
   leadId: string,
+  numero: string,
   input: { nom: string; imageDataUrl?: string; ip?: string | null; ua?: string | null },
 ): Promise<{ ok: true; numero: string } | { ok: false; error: string }> {
-  const row = await latestDevisRow(leadId);
+  const row = await devisRowByNumero(leadId, numero);
   if (!row) return { ok: false, error: "Devis introuvable." };
+  // Garde d'idempotence (P1-5) : si CE devis est déjà signé, on ne re-génère pas
+  // le PDF, on n'écrase pas la méta (date/IP/UA) et on ne renvoie pas d'e-mail.
+  // Un jeton rejoué (ou un POST direct répété) n'a donc aucun effet destructeur.
+  if (isDevisSigned(row)) return { ok: true, numero: row.numero };
   const devis = row.data as Devis;
 
   const signedDevis: Devis = {
