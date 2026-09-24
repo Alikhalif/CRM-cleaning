@@ -105,6 +105,51 @@ export async function updateLeadStatus(id: string, target: LeadStatus): Promise<
     if (devis?.id) {
       const { markDocumentSigned } = await import("@/app/(app)/_shared/document-actions");
       await markDocumentSigned(devis.id);
+    } else {
+      // Recette 2026-09-24 · Correctif P2 — pas de devis dans `documents` →
+      // affaire OPTIMIVV (nettoyage / déménagement). Le drag manuel a déjà passé
+      // le lead à « signe » ci-dessus, donc markLeadDevisSigne no-opperait (garde
+      // de monotonie). On reproduit son handoff MINIMAL pour que l'affaire
+      // n'échappe pas à la planification : sub_signature (selon l'acompte du
+      // devis) + création idempotente du dossier `a_planifier`. Aucune vraie
+      // signature ici → pas de PDF « signé » ni d'e-mail.
+      const { data: opt } = await supabase
+        .from("devis_optimivv")
+        .select("data")
+        .eq("lead_id", id)
+        .eq("doc_type", "devis")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle<{ data: { acompte_pct?: number } | null }>();
+      if (opt?.data) {
+        const acomptePct = opt.data.acompte_pct ?? 0;
+        await supabase
+          .from("leads")
+          .update({ sub_signature: (acomptePct > 0 ? "avec" : "sans") as SubSignature } as never)
+          .eq("id", id);
+        // Dossier via service-role (RLS dossiers = admin/planif ; un commercial
+        // doit pouvoir déclencher le handoff). Idempotent + protégé par l'index
+        // unique uq_dossiers_lead.
+        const svc = await supabaseServiceRole();
+        const { data: existingDossier } = await svc
+          .from("dossiers")
+          .select("id")
+          .eq("lead_id", id)
+          .maybeSingle<{ id: string }>();
+        if (!existingDossier) {
+          const { data: leadRow } = await svc
+            .from("leads")
+            .select("client_address")
+            .eq("id", id)
+            .maybeSingle<{ client_address: unknown }>();
+          await svc.from("dossiers").insert({
+            lead_id: id,
+            status: "a_planifier",
+            payment_status: "en_attente",
+            address: (leadRow?.client_address ?? null) as never,
+          } as never);
+        }
+      }
     }
   }
 
