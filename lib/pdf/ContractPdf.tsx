@@ -19,6 +19,10 @@ export type ContractPdfProps = {
   sections: ContractTemplate["sections"];
   values: Record<string, FieldValue>;
   clauses: ContractClause[];
+  // Nature du document (contrat | attestation | rapport). Une « attestation »
+  // porte un en-tête « ATTESTATION » et une signature à une seule partie
+  // (l'émetteur atteste) — pas de case « Le client ».
+  kind?: string;
 };
 
 const C = { ink: "#1a1a1a", muted: "#666", line: "#d0d0d0", brand: "#0b6e58", soft: "#f4f6f5" };
@@ -55,7 +59,9 @@ function fmt(v: FieldValue): string {
   return String(v);
 }
 
-export function ContractPdf({ emitter, ref, title, dateFr, sections, values, clauses }: ContractPdfProps) {
+export function ContractPdf({ emitter, ref, title, dateFr, sections, values, clauses, kind }: ContractPdfProps) {
+  const isAttestation = kind === "attestation";
+  const docLabel = isAttestation ? "ATTESTATION" : kind === "rapport" ? "RAPPORT" : "CONTRAT";
   return (
     <Document>
       <Page size="A4" style={s.page}>
@@ -67,7 +73,7 @@ export function ContractPdf({ emitter, ref, title, dateFr, sections, values, cla
             <Text style={s.small}>{emitter.telephone} · {emitter.email}</Text>
           </View>
           <View style={s.docBox}>
-            <Text style={s.docTitle}>CONTRAT</Text>
+            <Text style={s.docTitle}>{docLabel}</Text>
             <Text style={s.ref}>{ref}</Text>
             <Text style={s.ref}>Le {dateFr}</Text>
           </View>
@@ -102,16 +108,26 @@ export function ContractPdf({ emitter, ref, title, dateFr, sections, values, cla
           </View>
         )}
 
-        <View style={s.signRow}>
-          <View style={s.signBox}>
-            <Text style={s.signLabel}>Le client (lu et approuvé)</Text>
-            <View style={s.signLine} />
+        {isAttestation ? (
+          // Attestation = une seule partie : l'émetteur atteste (pas de case client).
+          <View style={[s.signRow, { justifyContent: "flex-end" }]}>
+            <View style={s.signBox}>
+              <Text style={s.signLabel}>Fait pour servir et valoir ce que de droit — {emitter.enseigne}</Text>
+              <View style={s.signLine} />
+            </View>
           </View>
-          <View style={s.signBox}>
-            <Text style={s.signLabel}>{emitter.enseigne}</Text>
-            <View style={s.signLine} />
+        ) : (
+          <View style={s.signRow}>
+            <View style={s.signBox}>
+              <Text style={s.signLabel}>Le client (lu et approuvé)</Text>
+              <View style={s.signLine} />
+            </View>
+            <View style={s.signBox}>
+              <Text style={s.signLabel}>{emitter.enseigne}</Text>
+              <View style={s.signLine} />
+            </View>
           </View>
-        </View>
+        )}
 
         <Text style={s.footer} fixed>
           {emitter.raisonSociale} — {emitter.adresse}, {emitter.ville} — {emitter.site}

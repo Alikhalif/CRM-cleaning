@@ -210,6 +210,7 @@ export async function renderAndUploadContractPdf(params: {
       sections: params.template.sections,
       values: params.values,
       clauses: params.template.clauses,
+      kind: params.template.kind,
     }),
   );
   const path = `contracts/${params.clientId}/${params.ref}.pdf`;
