@@ -34,9 +34,18 @@ export type IconName =
   | "presence"
   | "checklist"
   | "folder"
+  | "subcontractor"
   | "external-link";
 
 const PATHS: Record<IconName, React.ReactNode> = {
+  subcontractor: (
+    <>
+      <path d="M4 17h16" />
+      <path d="M5 17a7 7 0 0 1 14 0" />
+      <path d="M10 5.5h4V10" />
+      <path d="M9.5 10V6.6A1.6 1.6 0 0 1 11 5" />
+    </>
+  ),
   folder: (
     <>
       <path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
