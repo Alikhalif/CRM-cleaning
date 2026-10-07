@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { supabaseServer } from "./supabase/server";
 
 // Current-user lookup for the Topbar (user menu + Vue selector). Returns
@@ -158,7 +159,10 @@ export async function getAllActivities(): Promise<ActivityOption[]> {
   return data ?? [];
 }
 
-export async function getCurrentUserProfile(): Promise<CurrentUserProfile | null> {
+// Mémoïsé par requête (React `cache()`) : le layout, les gardes de module
+// (lib/access-server.ts) et les pages l'appellent tous — sans cela chaque appel
+// relancerait 4 requêtes Supabase.
+export const getCurrentUserProfile = cache(async function getCurrentUserProfile(): Promise<CurrentUserProfile | null> {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
@@ -207,4 +211,4 @@ export async function getCurrentUserProfile(): Promise<CurrentUserProfile | null
       .map((a) => a.activity?.slug)
       .filter((s): s is string => !!s),
   };
-}
+});

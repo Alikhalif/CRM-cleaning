@@ -6,6 +6,7 @@ import { archiveCertHotte, downloadCertHottePdf } from "@/lib/cert-hotte/archive
 import { allocateCertHotteNumero } from "@/lib/cert-hotte/numero";
 import { envoyerCertHotteEmail } from "@/lib/cert-hotte/send";
 import { buildCert, type CertHotte, type CertHotteInput } from "@/lib/cert-hotte/types";
+import { hasScope } from "@/lib/access-server";
 
 export const runtime = "nodejs";
 
@@ -28,6 +29,12 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+
+  // Perimetre : le certificat est un document POST-INTERVENTION, hors du
+  // perimetre commercial (cf. lib/access-shared.ts). Back-office uniquement.
+  if (!(await hasScope("backOffice"))) {
+    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 
   let body: Body;

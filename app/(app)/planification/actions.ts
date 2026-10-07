@@ -7,6 +7,7 @@ import { sendBrevoEmail, PLANIF_SENDER } from "@/lib/brevo";
 import { getLeadMedia, type LeadMedia } from "@/lib/media-server";
 import { ensureOptimivvFactureForLead } from "@/lib/devis/facture-from-optimivv";
 import type { Database } from "@/lib/supabase/database.types";
+import { assertBackOffice } from "@/lib/access-server";
 
 // Dossier mutations exposed to the Planification page. Each one is a small
 // status transition; the heavier "Planifier l'intervention" + "Modifier le
@@ -26,6 +27,8 @@ export type Result = { ok: true } | { ok: false; error: string };
 export async function loadDossierMedia(
   leadId: string,
 ): Promise<{ ok: true; media: LeadMedia[] } | { ok: false; error: string }> {
+  const access = await assertBackOffice();
+  if (!access.ok) return access;
   try {
     const media = await getLeadMedia(leadId);
     return { ok: true, media };
@@ -53,6 +56,8 @@ export type EditDossierInput = {
 // Use planifyDossier to transition a_planifier → planifie; use this once
 // the dossier is already in motion and you need to reassign / annotate.
 export async function editDossier(id: string, input: EditDossierInput): Promise<Result> {
+  const access = await assertBackOffice();
+  if (!access.ok) return access;
   if (input.durationHours !== null && (input.durationHours <= 0 || input.durationHours > 999)) {
     return { ok: false, error: "Durée invalide (0–999 h)." };
   }
@@ -86,6 +91,8 @@ export async function editDossier(id: string, input: EditDossierInput): Promise<
 // transitions from a_planifier → planifie. The modal builds plannedAt as a
 // proper ISO timestamp (Europe/Paris → UTC) before calling this.
 export async function planifyDossier(id: string, input: PlanifyInput): Promise<Result> {
+  const access = await assertBackOffice();
+  if (!access.ok) return access;
   if (!input.plannedAt) return { ok: false, error: "Date d'intervention requise." };
   if (input.durationHours !== null && (input.durationHours <= 0 || input.durationHours > 999)) {
     return { ok: false, error: "Durée invalide (0–999 h)." };
@@ -118,6 +125,8 @@ export async function planifyDossier(id: string, input: PlanifyInput): Promise<R
 // bascule en finalise. Si le client n'est PAS présent, on reprogramme plutôt
 // (planifyDossier avec une nouvelle date) sans passer par cet état.
 export async function startDossierRealisation(id: string): Promise<Result> {
+  const access = await assertBackOffice();
+  if (!access.ok) return access;
   const supabase = await supabaseServer();
   const updates: DossierUpdate = { status: "en_cours" };
   const { error } = await supabase.from("dossiers").update(updates as never).eq("id", id);
@@ -130,6 +139,8 @@ export async function startDossierRealisation(id: string): Promise<Result> {
 // Mark the intervention as realised. CDC §4.6: a finalised dossier triggers
 // the *manual* generation of a facture finale (separate action — not auto).
 export async function finalizeDossier(id: string): Promise<Result> {
+  const access = await assertBackOffice();
+  if (!access.ok) return access;
   const supabase = await supabaseServer();
   const updates: DossierUpdate = {
     status: "finalise",
@@ -152,6 +163,8 @@ export async function finalizeDossier(id: string): Promise<Result> {
 // casser aucun flux existant — on ne gate que le cas incohérent « finale émise
 // et impayée ».
 export async function soldDossier(id: string): Promise<Result> {
+  const access = await assertBackOffice();
+  if (!access.ok) return access;
   const supabase = await supabaseServer();
 
   const { data: dossier } = await supabase
@@ -204,6 +217,8 @@ export type GenerateFinaleResult =
 // double-click or stale tab could race past the UI guard, so we re-check
 // here against the database.
 export async function generateFactureFinale(dossierId: string): Promise<GenerateFinaleResult> {
+  const access = await assertBackOffice();
+  if (!access.ok) return access;
   const supabase = await supabaseServer();
 
   // 1. Load the dossier + lead id to know which devis to base the finale on.
@@ -374,6 +389,8 @@ export async function markAcomptePaid(
   documentId: string,
   dossierId: string,
 ): Promise<Result> {
+  const access = await assertBackOffice();
+  if (!access.ok) return access;
   const supabase = await supabaseServer();
 
   const docUpdate: DocumentUpdate = {
@@ -419,6 +436,8 @@ export async function sendInterventionConfirmation(
   dossierId: string,
   input: ConfirmInterventionInput,
 ): Promise<Result> {
+  const access = await assertBackOffice();
+  if (!access.ok) return access;
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.recipient)) {
     return { ok: false, error: "Email destinataire invalide." };
   }
@@ -455,6 +474,8 @@ export async function sendIntervenantEmail(
   dossierId: string,
   input: { recipient: string; subject: string; message: string },
 ): Promise<Result> {
+  const access = await assertBackOffice();
+  if (!access.ok) return access;
   const recipient = input.recipient.trim();
   const subject = input.subject.trim();
   const message = input.message.trim();

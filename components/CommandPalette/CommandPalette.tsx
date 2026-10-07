@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon, { type IconName } from "@/components/Icon/Icon";
 import { NAV_GROUPS } from "@/lib/nav";
+import { canAccessPath } from "@/lib/access-shared";
 import type { PaletteEntity } from "@/lib/palette-server";
 import { setStoredValue, useClientValue, useStoredValue } from "@/lib/client-store";
 import styles from "./CommandPalette.module.scss";
@@ -47,7 +48,10 @@ const KIND_TO_ICON: Record<PaletteEntity["kind"], IconName> = {
   document: "comptabilite",
 };
 
-export default function CommandPalette({ isAdmin = false }: { isAdmin?: boolean }) {
+// `roles` = slugs des rôles détenus. Sert à retirer de l'index tout résultat
+// pointant vers un module hors périmètre (un commercial ne doit pas pouvoir
+// atteindre /planification ou /comptabilite via ⌘K).
+export default function CommandPalette({ roles = [] }: { roles?: string[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -142,7 +146,6 @@ export default function CommandPalette({ isAdmin = false }: { isAdmin?: boolean 
     // Pages
     for (const group of NAV_GROUPS) {
       for (const item of group.items) {
-        if (item.superAdminOnly && !isAdmin) continue;
         results.push({
           id: `page-${item.href}`,
           group: "page",
@@ -210,8 +213,11 @@ export default function CommandPalette({ isAdmin = false }: { isAdmin?: boolean 
       });
     }
 
-    return results;
-  }, [theme, entities, isAdmin]);
+    // Filtre de périmètre, appliqué à TOUT résultat navigable (entrées de nav,
+    // pages en dur, entités indexées) : si la route est hors du périmètre du
+    // rôle, elle ne doit pas apparaître dans la palette.
+    return results.filter((r) => !r.href || canAccessPath(roles, r.href));
+  }, [theme, entities, roles]);
 
   // ── Filter + group ───────────────────────────────────────────────────
   const filtered = useMemo(() => {

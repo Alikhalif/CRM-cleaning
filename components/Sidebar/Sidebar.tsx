@@ -7,13 +7,17 @@ import Icon from "../Icon/Icon";
 import { logout } from "@/app/(auth)/actions";
 import { TOGGLE_MOBILE_NAV } from "@/components/MobileTabBar/MobileTabBar";
 import { NAV_GROUPS } from "@/lib/nav";
+import { canAccessPath } from "@/lib/access-shared";
 import { setStoredValue, useStoredValue } from "@/lib/client-store";
 import styles from "./Sidebar.module.scss";
 
 const COLLAPSED_KEY = "cgk-sidebar-collapsed";
 const THEME_KEY = "cgk-theme";
 
-export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
+// `roles` = slugs des rôles réellement détenus. Les entrées hors périmètre du
+// rôle ne sont pas désactivées : elles ne sont PAS rendues (décision client —
+// l'interface d'un commercial ne doit montrer que son métier).
+export default function Sidebar({ roles = [] }: { roles?: string[] }) {
   const pathname = usePathname();
   const collapsed = useStoredValue(COLLAPSED_KEY, "0") === "1";
 
@@ -58,7 +62,7 @@ export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
 
       <nav className={styles.nav}>
         {NAV_GROUPS.map((group) => {
-          const items = group.items.filter((item) => !item.superAdminOnly || isAdmin);
+          const items = group.items.filter((item) => canAccessPath(roles, item.href));
           if (items.length === 0) return null;
           return (
           <div key={group.id} className={styles.group}>

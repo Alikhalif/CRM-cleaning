@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { sendBrevoEmail, PLANIF_SENDER } from "@/lib/brevo";
 import { auditLog } from "@/lib/audit";
+import { assertBackOffice } from "@/lib/access-server";
 
 export type Result = { ok: true } | { ok: false; error: string };
 
@@ -12,6 +13,8 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 // Relance d'un intervenant en un clic : renvoie le mail « Relance de chiffrage »
 // et incrémente le compteur de relances.
 export async function relanceConsultation(id: string): Promise<Result> {
+  const access = await assertBackOffice();
+  if (!access.ok) return access;
   const supabase = await supabaseServer();
   const { data: c } = await supabase
     .from("intervenant_consultations")
@@ -50,6 +53,8 @@ export async function relanceConsultation(id: string): Promise<Result> {
 // Attribue la mission à l'intervenant retenu : statut « retenue » + date, et
 // assigne l'intervenant au dossier du lead.
 export async function attributeConsultation(id: string): Promise<Result> {
+  const access = await assertBackOffice();
+  if (!access.ok) return access;
   const supabase = await supabaseServer();
   const { data: c } = await supabase
     .from("intervenant_consultations")
@@ -77,6 +82,8 @@ export async function attributeConsultation(id: string): Promise<Result> {
 
 // Clôture / change le statut d'une consultation (refusée, expirée…).
 export async function closeConsultation(id: string, status: string): Promise<Result> {
+  const access = await assertBackOffice();
+  if (!access.ok) return access;
   const supabase = await supabaseServer();
   const { error } = await supabase
     .from("intervenant_consultations")

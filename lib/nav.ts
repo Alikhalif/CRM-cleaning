@@ -7,10 +7,12 @@ export type NavItem = {
   icon: NavIcon;
   // For the leads counter badge etc.
   badge?: "leadsUntreated";
-  // Visible uniquement par le Super Admin (rôle slug "admin"). Filtré dans la
-  // Sidebar et la palette ⌘K.
-  superAdminOnly?: boolean;
 };
+
+// La VISIBILITÉ d'une entrée n'est pas déclarée ici : elle est dérivée de son
+// `href` via `scopeForPath()` (lib/access-shared.ts), qui est aussi ce qui garde
+// les routes côté serveur. Une seule source de vérité → la sidebar, la palette
+// ⌘K et les gardes de module ne peuvent pas diverger.
 
 export type NavGroup = {
   id: "pilotage" | "configuration";
@@ -53,7 +55,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/comptabilite",   label: "Comptabilité",  icon: "comptabilite" },
       { href: "/documents",      label: "Documents & Contrats", icon: "folder" },
       { href: "/signatures",     label: "Signatures",    icon: "document" },
-      { href: "/presence",       label: "Présence & Actions", icon: "presence", superAdminOnly: true },
+      { href: "/presence",       label: "Présence & Actions", icon: "presence" },
     ],
   },
   {

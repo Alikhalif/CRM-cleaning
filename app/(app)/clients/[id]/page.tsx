@@ -14,6 +14,7 @@ import { getClientById, getClientStats } from "@/lib/clients-server";
 import { getClientDocuments } from "@/lib/documents/documents-server";
 import { getClientContracts, getContractTemplates, getContractPrefill, getClientInterventions } from "@/lib/documents/contracts-server";
 import { logEntityRead } from "@/lib/presence/read-log";
+import { getAccessContext } from "@/lib/access-server";
 import ClientActivityTags from "./ClientActivityTags";
 import ClientDocuments from "./ClientDocuments";
 import ClientInterventions from "./ClientInterventions";
@@ -50,16 +51,25 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
   // Présence & Actions : trace la consultation de la fiche client (throttlé).
   void logEntityRead("client", id);
 
+  // Périmètre : l'onglet « Documents & Contrats » est le registre documentaire
+  // INTERNE (contrats, passages, certificats post-intervention). Il relève du
+  // back-office — le commercial s'arrête à la signature (cf. lib/access-shared.ts).
+  // Ses lectures passent par le SERVICE-ROLE (hors RLS), donc on ne les déclenche
+  // même pas pour un commercial : l'onglet n'existe pas pour lui.
+  const { isBackOffice } = await getAccessContext();
+
   const { tab: tabParam } = await searchParams;
-  const tab: TabKey = TABS.find((t) => t.key === tabParam)?.key ?? "informations";
+  const visibleTabs = TABS.filter((t) => t.key !== "documents" || isBackOffice);
+  // Un `?tab=documents` forcé par un commercial retombe sur « Informations ».
+  const tab: TabKey = visibleTabs.find((t) => t.key === tabParam)?.key ?? "informations";
 
   const [stats, clientDocuments, contracts, contractTemplates, contractPrefill, interventions] = await Promise.all([
     getClientStats(client),
     getClientDocuments(client.id, client.sourceLeadId),
-    getClientContracts(client.id),
-    getContractTemplates(),
-    getContractPrefill(client.id),
-    getClientInterventions(client.sourceLeadId),
+    isBackOffice ? getClientContracts(client.id) : Promise.resolve([]),
+    isBackOffice ? getContractTemplates() : Promise.resolve([]),
+    isBackOffice ? getContractPrefill(client.id) : Promise.resolve({}),
+    isBackOffice ? getClientInterventions(client.sourceLeadId) : Promise.resolve([]),
   ]);
   const { documents, caEncaisse, caSigne, lastActivityAt } = stats;
 
@@ -114,7 +124,7 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
 
       {/* ── Onglets ─────────────────────────────────────────────────── */}
       <nav className={styles.tabs} aria-label="Sections du client">
-        {TABS.map((t) => {
+        {visibleTabs.map((t) => {
           const count = t.key === "documents" ? clientDocuments.length : null;
           const active = t.key === tab;
           return (

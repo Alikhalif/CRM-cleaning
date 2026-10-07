@@ -10,6 +10,7 @@ import Sidebar from "@/components/Sidebar/Sidebar";
 import Topbar from "@/components/Topbar/Topbar";
 import { getUnreadCount } from "@/lib/notifications";
 import { getCurrentUserProfile } from "@/lib/users-server";
+import { isAdminRole, isPlannerRole } from "@/lib/access-shared";
 import { profileCapabilities } from "@/lib/leads";
 import styles from "./layout.module.scss";
 
@@ -26,8 +27,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // (mêmes capacités que le bouton « Appeler »). Exceptions : le profil « Divers »
   // a aussi accès au bouton « SMS NRP », et la planificatrice a accès à l'appel +
   // SMS Ringover (décisions client 2026-08-02 / 2026-08-05).
-  const isAdmin = (user?.roles ?? []).some((r) => r.slug === "admin");
-  const isPlanificateur = (user?.roles ?? []).some((r) => r.slug === "planification");
+  // Slugs des rôles détenus — pilotent le périmètre visible (sidebar + ⌘K),
+  // voir lib/access-shared.ts. Les gardes de route vivent dans les layout.tsx
+  // de chaque module hors périmètre commercial.
+  const roleSlugs = (user?.roles ?? []).map((r) => r.slug);
+  const isAdmin = isAdminRole(roleSlugs);
+  const isPlanificateur = isPlannerRole(roleSlugs);
   const { canUseRingover } = profileCapabilities(user?.commercialProfiles ?? [], isAdmin, isPlanificateur);
   const isDivers = (user?.commercialProfiles ?? []).includes("divers");
   const showWebphone = canUseRingover || isDivers;
@@ -37,13 +42,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className={styles.shell}>
-      <Sidebar isAdmin={isAdmin} />
+      <Sidebar roles={roleSlugs} />
       <div className={styles.main}>
         <Topbar user={user} unreadCount={unreadCount} />
         <RolePreviewBanner />
         <RolePreviewMain className={styles.content}>{children}</RolePreviewMain>
       </div>
-      <CommandPalette isAdmin={isAdmin} />
+      <CommandPalette roles={roleSlugs} />
       {user && <RealtimeNotifications userId={user.id} />}
       {user && <PresenceHeartbeat userId={user.id} />}
       {user && <MobileTabBar role={mobileRole} />}
