@@ -181,7 +181,7 @@ export async function createUserWithPassword(
 
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes("@")) return { ok: false, error: "Email invalide." };
-  if (password.length < 12) return { ok: false, error: "Mot de passe : 12 caractères minimum." };
+  if (password.length < 10) return { ok: false, error: "Mot de passe : 10 caractères minimum." };
 
   const admin = await supabaseServiceRole();
   const { data, error } = await admin.auth.admin.createUser({

@@ -1,10 +1,11 @@
 import "server-only";
 import crypto from "node:crypto";
 
-// Password policy (CDC §8): 12-char minimum + a HaveIBeenPwned "Pwned
-// Passwords" check so users can't pick a password known from a breach.
+// Password policy: 10-char minimum (assoupli depuis le minimum CDC §8 de 12,
+// décision client 2026-10-06) + a HaveIBeenPwned "Pwned Passwords" check so
+// users can't pick a password known from a breach.
 
-export const MIN_PASSWORD_LENGTH = 12;
+export const MIN_PASSWORD_LENGTH = 10;
 
 export function passwordLengthError(password: string): string | null {
   if (password.length < MIN_PASSWORD_LENGTH) {

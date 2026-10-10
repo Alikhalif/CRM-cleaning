@@ -70,12 +70,12 @@ export default async function SignupPage({ searchParams }: PageProps) {
         </label>
 
         <label className={styles.field}>
-          <span className={styles.fieldLabel}>Mot de passe (12 caractères min.)</span>
+          <span className={styles.fieldLabel}>Mot de passe (10 caractères min.)</span>
           <input
             type="password"
             name="password"
             required
-            minLength={12}
+            minLength={10}
             autoComplete="new-password"
             className={styles.input}
             placeholder="••••••••"

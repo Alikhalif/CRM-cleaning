@@ -76,7 +76,7 @@ export default function AddCommercialButton({ entities }: Props) {
   const submit = () => {
     const em = email.trim();
     if (!em || !em.includes("@")) { setError("Email invalide."); return; }
-    if (password.length < 12) { setError("Mot de passe : 12 caractères minimum."); return; }
+    if (password.length < 10) { setError("Mot de passe : 10 caractères minimum."); return; }
     setError(null); setOkMsg(null); setBusy(true);
     startTransition(async () => {
       const r = await createUserWithPassword(em, first, last, password, {
@@ -147,7 +147,7 @@ export default function AddCommercialButton({ entities }: Props) {
                   </label>
                 </div>
                 <label>
-                  <span style={lbl}>Mot de passe (12 caractères min.)</span>
+                  <span style={lbl}>Mot de passe (10 caractères min.)</span>
                   <div style={{ display: "flex", gap: 8 }}>
                     <input style={inp} type="text" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mot de passe" autoComplete="new-password" />
                     <button type="button" onClick={() => setPassword(genPassword())} style={{ flexShrink: 0, padding: "0 12px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "transparent", color: "var(--text-primary)", cursor: "pointer", fontSize: "0.8125rem" }}>
@@ -193,7 +193,7 @@ export default function AddCommercialButton({ entities }: Props) {
                   <button type="button" onClick={close} disabled={busy} style={{ padding: "8px 16px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "transparent", color: "var(--text-primary)", cursor: "pointer" }}>
                     Annuler
                   </button>
-                  <button type="button" onClick={submit} disabled={busy || !email.trim() || password.length < 12} style={{ padding: "8px 16px", borderRadius: "var(--r-sm)", border: "none", background: "var(--color-brand-500)", color: "#fff", fontWeight: 600, cursor: "pointer", opacity: !email.trim() || password.length < 12 ? 0.6 : 1 }}>
+                  <button type="button" onClick={submit} disabled={busy || !email.trim() || password.length < 10} style={{ padding: "8px 16px", borderRadius: "var(--r-sm)", border: "none", background: "var(--color-brand-500)", color: "#fff", fontWeight: 600, cursor: "pointer", opacity: !email.trim() || password.length < 10 ? 0.6 : 1 }}>
                     {busy ? "Création…" : "Créer le compte"}
                   </button>
                 </div>

@@ -39,11 +39,11 @@ export default async function ResetPasswordPage({ searchParams }: PageProps) {
         <form action={updatePassword} className={styles.form}>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Nouveau mot de passe</span>
-            <PasswordInput name="password" autoComplete="new-password" minLength={12} placeholder="••••••••••••" />
+            <PasswordInput name="password" autoComplete="new-password" minLength={10} placeholder="••••••••••" />
           </label>
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Confirmer le mot de passe</span>
-            <PasswordInput name="confirm" autoComplete="new-password" minLength={12} placeholder="••••••••••••" />
+            <PasswordInput name="confirm" autoComplete="new-password" minLength={10} placeholder="••••••••••" />
           </label>
 
           <button type="submit" className={styles.btnPrimary}>Mettre à jour</button>

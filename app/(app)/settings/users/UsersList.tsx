@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon/Icon";
 import {
@@ -40,6 +40,22 @@ export default function UsersList({ users, roles, entities, activities }: Props)
   const [inviteLast, setInviteLast] = useState("");
   const [invitePassword, setInvitePassword] = useState("");
   const [inviting, setInviting] = useState(false);
+
+  // Filtres : profil commercial / activité (secteur visible) / pays.
+  const [filterProfile, setFilterProfile] = useState("");
+  const [filterActivity, setFilterActivity] = useState("");
+  const [filterCountry, setFilterCountry] = useState("");
+  const filteredUsers = useMemo(
+    () =>
+      users.filter(
+        (u) =>
+          (!filterProfile || u.commercialProfiles.includes(filterProfile)) &&
+          (!filterActivity || u.activityIds.includes(filterActivity)) &&
+          (!filterCountry || u.countries.includes(filterCountry)),
+      ),
+    [users, filterProfile, filterActivity, filterCountry],
+  );
+  const hasFilter = Boolean(filterProfile || filterActivity || filterCountry);
 
   const run = (key: string, fn: () => Promise<Result>) => {
     setError(null);
@@ -82,7 +98,7 @@ export default function UsersList({ users, roles, entities, activities }: Props)
   // commercial se connecte tout de suite, sans email d'invitation.
   const onCreate = () => {
     const em = inviteEmail.trim();
-    if (!em || invitePassword.length < 12) return;
+    if (!em || invitePassword.length < 10) return;
     setError(null);
     setOkMsg(null);
     setInviting(true);
@@ -104,6 +120,7 @@ export default function UsersList({ users, roles, entities, activities }: Props)
 
   const th: React.CSSProperties = { padding: "8px 10px", textAlign: "left", color: "var(--text-muted)", fontSize: "0.8125rem" };
   const td: React.CSSProperties = { padding: "10px", borderTop: "1px solid var(--border-subtle)", verticalAlign: "middle" };
+  const sel: React.CSSProperties = { padding: "6px 10px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-primary)", fontSize: "0.8125rem" };
 
   return (
     <div
@@ -154,7 +171,7 @@ export default function UsersList({ users, roles, entities, activities }: Props)
           type="text"
           value={invitePassword}
           onChange={(e) => setInvitePassword(e.target.value)}
-          placeholder="Mot de passe (12+ car.)"
+          placeholder="Mot de passe (10+ car.)"
           aria-label="Mot de passe (accès direct)"
           autoComplete="new-password"
           style={{ flex: "1 1 180px", padding: "8px 10px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "var(--bg-surface)", color: "var(--text-primary)" }}
@@ -162,9 +179,9 @@ export default function UsersList({ users, roles, entities, activities }: Props)
         <button
           type="button"
           onClick={onCreate}
-          disabled={inviting || !inviteEmail.trim() || invitePassword.length < 12}
+          disabled={inviting || !inviteEmail.trim() || invitePassword.length < 10}
           title="Crée le compte avec ce mot de passe (accès immédiat, sans email)"
-          style={{ padding: "8px 16px", borderRadius: "var(--r-sm)", border: "none", background: "var(--color-brand-500)", color: "#fff", fontWeight: 600, cursor: "pointer", opacity: !inviteEmail.trim() || invitePassword.length < 12 ? 0.6 : 1 }}
+          style={{ padding: "8px 16px", borderRadius: "var(--r-sm)", border: "none", background: "var(--color-brand-500)", color: "#fff", fontWeight: 600, cursor: "pointer", opacity: !inviteEmail.trim() || invitePassword.length < 10 ? 0.6 : 1 }}
         >
           {inviting ? "…" : "Créer (accès direct)"}
         </button>
@@ -192,6 +209,39 @@ export default function UsersList({ users, roles, entities, activities }: Props)
           <Icon name="alert" size={14} /> {error}
         </p>
       )}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "10px 12px", borderBottom: "1px solid var(--border-subtle)" }}>
+        <span style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>Filtrer :</span>
+        <select value={filterProfile} onChange={(e) => setFilterProfile(e.target.value)} aria-label="Filtrer par profil commercial" style={sel}>
+          <option value="">Profils commerciaux — tous</option>
+          {COMMERCIAL_PROFILES.map((p) => (
+            <option key={p} value={p}>{COMMERCIAL_PROFILE_LABEL[p]}</option>
+          ))}
+        </select>
+        <select value={filterActivity} onChange={(e) => setFilterActivity(e.target.value)} aria-label="Filtrer par activité (secteur visible)" style={sel}>
+          <option value="">Activités (secteurs) — toutes</option>
+          {activities.map((a) => (
+            <option key={a.id} value={a.id}>{a.label}</option>
+          ))}
+        </select>
+        <select value={filterCountry} onChange={(e) => setFilterCountry(e.target.value)} aria-label="Filtrer par pays" style={sel}>
+          <option value="">Pays — tous</option>
+          {COUNTRIES.map((c) => (
+            <option key={c} value={c}>{COUNTRY_LABEL[c]}</option>
+          ))}
+        </select>
+        {hasFilter && (
+          <button
+            type="button"
+            onClick={() => { setFilterProfile(""); setFilterActivity(""); setFilterCountry(""); }}
+            style={{ padding: "6px 12px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "transparent", color: "var(--text-muted)", fontSize: "0.8125rem", cursor: "pointer" }}
+          >
+            Réinitialiser
+          </button>
+        )}
+        <span style={{ marginLeft: "auto", fontSize: "0.8125rem", color: "var(--text-muted)" }}>
+          {filteredUsers.length} / {users.length} utilisateur{users.length > 1 ? "s" : ""}
+        </span>
+      </div>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9375rem" }}>
           <thead>
@@ -208,7 +258,7 @@ export default function UsersList({ users, roles, entities, activities }: Props)
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
+            {filteredUsers.map((u) => (
               <tr key={u.id}>
                 <td style={td}>
                   <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>{u.displayName}</div>
@@ -408,10 +458,10 @@ export default function UsersList({ users, roles, entities, activities }: Props)
                 </td>
               </tr>
             ))}
-            {users.length === 0 && (
+            {filteredUsers.length === 0 && (
               <tr>
                 <td colSpan={9} style={{ ...td, color: "var(--text-muted)" }}>
-                  Aucun utilisateur.
+                  {hasFilter ? "Aucun utilisateur ne correspond à ces filtres." : "Aucun utilisateur."}
                 </td>
               </tr>
             )}
