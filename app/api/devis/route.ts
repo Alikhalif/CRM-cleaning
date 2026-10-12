@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { genererDevisBuffer } from "@/lib/devis/render";
 import { buildDevis, type DevisInput, type DocType } from "@/lib/devis/types";
-import { allocateNumero } from "@/lib/devis/numero";
+import { allocateNumero, peekNumero } from "@/lib/devis/numero";
 import { archiveDevis } from "@/lib/devis/archive";
 
 // pdfkit + fontkit + fs (polices/images) → runtime Node obligatoire (pas Edge).
@@ -47,7 +47,12 @@ export async function POST(request: Request) {
     body.docType === "facture" || input.docType === "facture" ? "facture" : "devis";
 
   if (mode === "preview") {
-    const devis = buildDevis({ ...input, docType }, input.numero || "APERÇU");
+    // L'aperçu affiche le PROCHAIN numéro de la série, lu sans l'incrémenter :
+    // le commercial voit le numéro que portera le document, et la séquence
+    // n'est pas brûlée par les régénérations à chaque frappe. Si la lecture
+    // échoue, on retombe sur l'ancien libellé plutôt que de casser l'aperçu.
+    const numeroApercu = input.numero || (await peekNumero(docType)) || "APERÇU";
+    const devis = buildDevis({ ...input, docType }, numeroApercu);
     const pdf = await genererDevisBuffer(devis);
     return new NextResponse(new Uint8Array(pdf), {
       status: 200,
