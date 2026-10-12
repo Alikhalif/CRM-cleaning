@@ -31,13 +31,50 @@ Le CRM applique ensuite ses **règles de routing** (superficie, secteur, source,
 
 n8n → *Workflows* → *Import from File* → `WF1.json`.
 
+> ### ⚠️ Réimporter casse la capture des leads, à tous les coups
+>
+> Le fichier du dépôt contient le secret HMAC **en placeholder littéral** :
+> `"secret": "REMPLACER_PAR_LEADS_INBOUND_SECRET"`. Un réimport l'écrase par ce
+> texte. Le CRM vérifie la signature **avant toute validation** et renvoie alors
+> `401 invalid_signature` ; n8n répond `502` aux landing pages, et **les leads
+> envoyés pendant ce temps sont perdus** — rien n'est mis en file d'attente.
+>
+> Le symptôme est silencieux : le webhook reste « actif », n8n répond, le CRM
+> répond — mais plus aucun lead n'arrive.
+>
+> **Pour une simple modification d'un nœud, ne réimportez pas :** ouvrez le nœud
+> concerné directement dans l'interface n8n et éditez-le. Réservez l'import à
+> une première installation, et refaites alors l'étape 2 en entier.
+>
+> Vérification après coup : si le dernier lead reçu date d'avant votre import,
+> c'est ce problème.
+
 ### 2. Remplir 3 réglages dans l'UI
 
 | Nœud | Réglage |
 |---|---|
 | **Signer (HMAC SHA256)** → champ *Secret* | remplacer `REMPLACER_PAR_LEADS_INBOUND_SECRET` par la valeur exacte de `LEADS_INBOUND_SECRET` (celle du `.env.local` et de Vercel) |
 | **M'envoyer un email** → *Credential* | créer/choisir une credential **Header Auth** nommée `Brevo API key` — Name `api-key`, Value = clé Brevo v3 *(la même que WF2 : elle se réutilise)* |
-| **M'envoyer un email** → *JSON Body* | l'expéditeur est `tech@cgkoptimum.com` (le remplacer si ton expéditeur **vérifié dans Brevo** diffère). Le **destinataire est automatique selon le secteur** : `demenagement` → `lead.dem360@gmail.com`, sinon → `leadnettoyage360@gmail.com` |
+| **M'envoyer un email** → *JSON Body* | l'expéditeur est `tech@cgkoptimum.com` (le remplacer si ton expéditeur **vérifié dans Brevo** diffère). Le **destinataire est automatique selon le secteur**, voir le tableau ci-dessous |
+
+### Routage de l'email de notification
+
+Le destinataire est choisi dans l'expression du champ *JSON Body*, à partir du
+`activity_slug` normalisé par le nœud précédent.
+
+| Secteur du lead | Slug dans le payload | Destinataire |
+|---|---|---|
+| Déménagement | `demenagement` | `lead.dem360@gmail.com` |
+| **Dépannage** | **`urgence`** | **`leadofficiel360@gmail.com`** |
+| Tous les autres (nettoyage, nettoyage difficile, débarras, diogène, ENR, rénovation) | — | `leadnettoyage360@gmail.com` |
+
+> Attention au piège : l'activité s'appelle **Dépannage** dans le CRM mais son slug
+> est **`urgence`**. Une condition écrite sur `'depannage'` ne matcherait jamais.
+> La liste des slugs valides est en tête du nœud *Normaliser le formulaire*.
+
+Pour ajouter un secteur, dupliquer un maillon du ternaire dans le champ *JSON Body* :
+`… === '<slug>' ? '<email>' : …`, en laissant `leadnettoyage360@gmail.com` en dernier
+(c'est le cas par défaut).
 
 > Le secret **doit être identique des deux côtés** : n8n signe le corps en HMAC-SHA256 (hex), le CRM recalcule et compare. Secret différent ⇒ `401 invalid_signature`.
 
