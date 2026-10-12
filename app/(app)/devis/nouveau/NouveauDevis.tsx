@@ -61,8 +61,8 @@ const isoToFr = (iso: string): string => {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : "";
 };
 
-// Montants dérivés du formulaire — source unique partagée par formToInput,
-// buildProEmail et mergedVars.
+// Montants dérivés du formulaire — source unique partagée par formToInput
+// et mergedVars.
 function deriveMontants(f: Form): {
   montantHt: number | null;
   acomptePct: number | null;
@@ -94,55 +94,6 @@ function formToInput(f: Form): DevisInput {
     montant_ht: deriveMontants(f).montantHt,
     validite_jours: f.validite_jours ? Number(f.validite_jours) : undefined,
     acompte_pct: f.acompte_pct ? Number(f.acompte_pct) : undefined,
-  };
-}
-
-// E-mail professionnel composé à partir des DONNÉES DU DEVIS en cours (client,
-// lieu, date, prestation, montant, acompte, validité). Les champs vides sont
-// omis. Sert d'option par défaut dans le sélecteur de la modale d'envoi.
-const PRO_TEMPLATE_ID = "__pro__";
-
-function buildProEmail(
-  f: Form,
-  societe: string,
-  commercial: string,
-  docType: "devis" | "facture",
-): { subject: string; body: string } {
-  const kind = docType === "facture" ? "facture" : "devis";
-  const { montantHt, acomptePct, acompteAmt } = deriveMontants(f);
-
-  const lines: string[] = [];
-  lines.push(`Bonjour ${f.nom.trim() || "Madame, Monsieur"},`);
-  lines.push("");
-  lines.push(
-    `Suite à votre demande, veuillez trouver ci-joint votre ${kind} pour la prestation suivante :`,
-  );
-  lines.push("");
-  if (f.description.trim()) lines.push(`• Prestation : ${f.description.trim()}`);
-  if (f.lieu_intervention.trim())
-    lines.push(`• Lieu d'intervention : ${f.lieu_intervention.trim()}`);
-  if (f.date_prevue.trim()) lines.push(`• Date prévue : ${f.date_prevue.trim()}`);
-  if (montantHt != null) lines.push(`• Montant : ${formatEUR(montantHt)} HT`);
-  if (acomptePct)
-    lines.push(
-      `• Acompte à la commande : ${acomptePct} %` +
-        (acompteAmt != null ? ` (${formatEUR(acompteAmt)})` : ""),
-    );
-  lines.push(`• Validité de l'offre : ${f.validite_jours || "30"} jours`);
-  lines.push("");
-  lines.push(
-    "Pour l'accepter, il vous suffit de nous retourner le devis signé avec la mention « Bon pour accord », en réponse à cet e-mail.",
-  );
-  lines.push("");
-  lines.push("Nous restons à votre disposition pour toute question ou ajustement.");
-  lines.push("");
-  lines.push("Bien cordialement,");
-  if (commercial) lines.push(commercial);
-  lines.push(societe);
-
-  return {
-    subject: `Votre ${kind} déménagement — ${societe}`,
-    body: lines.join("\n"),
   };
 }
 
@@ -205,6 +156,13 @@ export default function NouveauDevis({ prefill, leadId, templates, vars, templat
   // retombent sur la baseline serveur (données du lead).
   const mergedVars = useMemo(() => {
     const v: Record<string, string> = { ...vars };
+    // Le numéro du document n'existe pas encore ici : il est alloué par le
+    // serveur au moment de l'émission. On RETIRE ces deux clés pour que
+    // renderTemplate laisse « {devis.numero} » intact dans le texte (une clé
+    // absente est laissée telle quelle, une clé présente mais vide serait
+    // effacée) — /api/devis/envoyer la remplace ensuite par le numéro réel.
+    delete v["devis.numero"];
+    delete v["facture.numero"];
     const setIf = (k: string, val: string) => {
       if (val) v[k] = val;
     };
@@ -235,17 +193,6 @@ export default function NouveauDevis({ prefill, leadId, templates, vars, templat
 
   const applyTemplate = (id: string) => {
     setTemplateId(id);
-    if (id === PRO_TEMPLATE_ID) {
-      const pro = buildProEmail(
-        form,
-        "OPTIMIVV Déménagement",
-        mergedVars["commercial.nom"] || "",
-        docType,
-      );
-      setEmailSubject(pro.subject);
-      setEmailBody(pro.body);
-      return;
-    }
     const t = templates.find((x) => x.id === id);
     if (!t) return;
     if (t.subject) setEmailSubject(renderTemplate(t.subject, mergedVars));
@@ -522,8 +469,10 @@ export default function NouveauDevis({ prefill, leadId, templates, vars, templat
               onClick={() => {
                 if (!form.nom.trim()) return setFlash({ tone: "err", msg: "Le nom du client est obligatoire." });
                 if (!form.email.trim()) return setFlash({ tone: "err", msg: "L'email du client est obligatoire pour l'envoi." });
-                // Pré-remplit l'e-mail professionnel avec les données du devis.
-                applyTemplate(PRO_TEMPLATE_ID);
+                // Pré-sélectionne le premier modèle disponible ; s'il n'y en a
+                // aucun, l'objet et le message restent à rédiger à la main.
+                const premier = groupedTemplates[0]?.list[0];
+                if (premier) applyTemplate(premier.id);
                 setConfirming(true);
               }}
               disabled={busy}
@@ -564,7 +513,7 @@ export default function NouveauDevis({ prefill, leadId, templates, vars, templat
             <label className={styles.field}>
               <span>Modèle e-mail</span>
               <select value={templateId} onChange={(e) => applyTemplate(e.target.value)}>
-                <option value={PRO_TEMPLATE_ID}>E-mail professionnel (devis)</option>
+                <option value="">— Aucun modèle (rédaction libre) —</option>
                 {groupedTemplates.map((g) => (
                   <optgroup key={g.cat} label={g.label}>
                     {g.list.map((t) => (

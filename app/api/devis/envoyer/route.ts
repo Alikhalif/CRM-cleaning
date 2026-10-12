@@ -85,8 +85,24 @@ export async function POST(request: Request) {
   ]);
   const sector: string | null = leadRes.data?.activity?.slug ?? null;
 
-  const sujet = typeof body.sujet === "string" && body.sujet.trim() ? body.sujet.trim() : undefined;
-  const corps = typeof body.corps === "string" && body.corps.trim() ? body.corps : undefined;
+  // Le numéro n'existe qu'ICI : il est alloué juste au-dessus, après que le
+  // commercial a composé son e-mail. Les variables {devis.numero} /
+  // {facture.numero} laissées dans l'objet et le corps sont donc remplacées
+  // côté serveur, au dernier moment, par le numéro RÉELLEMENT attribué au
+  // document joint. Une seule source : le PDF et l'e-mail portent le même.
+  const injecterNumero = (s: string): string =>
+    s
+      .replace(/\{\{?\s*devis\.numero\s*\}?\}/gi, numero)
+      .replace(/\{\{?\s*facture\.numero\s*\}?\}/gi, numero);
+
+  const sujet =
+    typeof body.sujet === "string" && body.sujet.trim()
+      ? injecterNumero(body.sujet.trim())
+      : undefined;
+  const corps =
+    typeof body.corps === "string" && body.corps.trim()
+      ? injecterNumero(body.corps)
+      : undefined;
 
   // Base des URL client selon le secteur (liens + bannière), calculée une fois.
   const sectorBase = domainForSector(sector) ?? (await baseUrl());
