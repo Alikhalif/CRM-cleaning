@@ -57,13 +57,26 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
   // Portée des modèles affichés dans EmailModal : "model" (tout sauf relances)
   // ou "relance" (suivi commercial + relances uniquement).
   const [emailScope, setEmailScope] = useState<"model" | "relance">("model");
-  const emailTemplatesForModal = useMemo(
-    () =>
-      emailScope === "relance"
-        ? emailTemplates.filter((t) => RELANCE_CATS.includes(t.category))
-        : emailTemplates.filter((t) => !RELANCE_CATS.includes(t.category)),
-    [emailTemplates, emailScope],
-  );
+  const emailTemplatesForModal = useMemo(() => {
+    // Deux filtres communs aux deux portées :
+    //
+    //  • recipient === "client" — le modal pré-remplit l'adresse DU CLIENT.
+    //    Les modèles « interne » (transmission du dossier à la planificatrice,
+    //    dossier complet/incomplet) y étaient proposés : un clic de trop et un
+    //    message de coordination partait chez le client.
+    //
+    //  • catégorie "devis" exclue — ces modèles servent à ACCOMPAGNER un devis,
+    //    et s'envoient depuis l'écran devis, qui seul attache le PDF et
+    //    renseigne {devis.numero}. Envoyés d'ici, ils partaient sans pièce
+    //    jointe et avec un numéro non résolu. La fiche lead garde donc les
+    //    messages de la phase contact : découverte, informations, photos.
+    const pourLeClient = emailTemplates.filter((t) => t.recipient === "client");
+    return emailScope === "relance"
+      ? pourLeClient.filter((t) => RELANCE_CATS.includes(t.category))
+      : pourLeClient.filter(
+          (t) => !RELANCE_CATS.includes(t.category) && t.category !== "devis",
+        );
+  }, [emailTemplates, emailScope]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [, startTransition] = useTransition();
 
@@ -205,26 +218,36 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
           <Icon name="edit" size={14} /> SMS
         </button>
       )}
-      {lead.email && (
-        <button
-          type="button"
-          className={styles.btn}
-          onClick={() => { setEmailInit(undefined); setEmailScope("model"); setEmailModalOpen(true); }}
-          title="Modèles e-mail (hors relances) via Brevo"
-        >
-          <Icon name="mail" size={14} /> Model email
-        </button>
-      )}
-      {lead.email && (
-        <button
-          type="button"
-          className={styles.btn}
-          onClick={() => { setEmailInit(undefined); setEmailScope("relance"); setEmailModalOpen(true); }}
-          title="Relances (suivi commercial + relances) via Brevo"
-        >
-          <Icon name="mail" size={14} /> Relance
-        </button>
-      )}
+      {/* Les deux boutons e-mail restent AFFICHÉS quand le lead n'a pas
+          d'adresse, mais désactivés : disparaissant, ils passaient pour un bug
+          alors que la cause est une fiche incomplète. L'infobulle dit quoi
+          faire. Rien ne change dès qu'une adresse existe. */}
+      <button
+        type="button"
+        className={styles.btn}
+        disabled={!lead.email}
+        onClick={() => { setEmailInit(undefined); setEmailScope("model"); setEmailModalOpen(true); }}
+        title={
+          lead.email
+            ? "Modèles e-mail (hors relances) via Brevo"
+            : "Ce lead n'a pas d'adresse e-mail — ajoutez-la via « Modifier le contact »."
+        }
+      >
+        <Icon name="mail" size={14} /> Email
+      </button>
+      <button
+        type="button"
+        className={styles.btn}
+        disabled={!lead.email}
+        onClick={() => { setEmailInit(undefined); setEmailScope("relance"); setEmailModalOpen(true); }}
+        title={
+          lead.email
+            ? "Relances (suivi commercial + relances) via Brevo"
+            : "Ce lead n'a pas d'adresse e-mail — ajoutez-la via « Modifier le contact »."
+        }
+      >
+        <Icon name="mail" size={14} /> Relance
+      </button>
       {showNrp && lead.phone && (
         <button
           type="button"
@@ -258,12 +281,10 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
           className={`${styles.btn} ${styles.btnPrimary}`}
           aria-disabled={busy !== null}
         >
-          <Icon name="check" size={14} />{" "}
-          {lead.sector === "demenagement"
-            ? "Devis déménagement"
-            : lead.sector === "nettoyage"
-              ? "Devis nettoyage"
-              : "Générer devis"}
+          {/* Libellé unique : le secteur est déjà affiché partout sur la fiche,
+              le répéter dans le bouton n'apprenait rien. Seule la destination
+              reste pilotée par le secteur (href ci-dessus). */}
+          <Icon name="check" size={14} /> Générer le devis
         </Link>
       )}
       {optimivvDevis && (

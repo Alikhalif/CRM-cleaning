@@ -149,8 +149,15 @@ export async function getDevisPageData(
 
   const l = detail.lead;
   // Ne garder que les modèles globaux ou ciblant le secteur du lead.
+  //
+  // La catégorie "photos" est écartée : réclamer des photos appartient à la
+  // phase CONTACT, sur la fiche lead. Ici on compose l'e-mail qui ACCOMPAGNE le
+  // devis — une demande de photos n'y a pas sa place. C'est le symétrique du
+  // filtre de la fiche lead, qui écarte à l'inverse les modèles "devis" :
+  // chaque écran ne propose que les modèles de son moment du cycle.
   const templates = emailTemplates.filter(
-    (t) => !t.activitySlug || t.activitySlug === l.sector,
+    (t) =>
+      (!t.activitySlug || t.activitySlug === l.sector) && t.category !== "photos",
   );
 
   // Baseline montants/acompte depuis le dernier devis du lead ; à défaut,
