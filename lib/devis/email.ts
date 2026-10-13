@@ -4,6 +4,7 @@ import { euro } from "./layout";
 import { PRESTATAIRE, type Devis } from "./types";
 import { sendBrevoEmail } from "@/lib/brevo";
 import { signatureBannerHtml } from "./sender";
+import { ribBuffer, RIB_FILENAME } from "./rib";
 
 // Envoi du devis PDF au client. Deux canaux :
 //   1. BREVO (par défaut si BREVO_API_KEY est présent) — cohérent avec le reste
@@ -107,6 +108,16 @@ export async function envoyerDevisEmail(
     });
   const forceSmtp = process.env.DEVIS_EMAIL_TRANSPORT === "smtp";
 
+  // Pièces jointes : le document d'abord, puis le RIB OPTIMIVV — le client
+  // reçoit de quoi payer sans avoir à le réclamer. Le RIB est optionnel par
+  // construction (ribBuffer() rend null si le fichier manque) : un e-mail de
+  // devis ne doit pas échouer pour une pièce annexe.
+  const pieces: { name: string; bytes: Buffer }[] = [
+    { name: `devis-${donnees.numero}.pdf`, bytes: pdf },
+  ];
+  const rib = ribBuffer();
+  if (rib) pieces.push({ name: RIB_FILENAME, bytes: rib });
+
   // Pixel de suivi d'ouverture (méthode maison, sans Brevo Pro) — chargé par le
   // client mail à l'ouverture → fait avancer le lead à « Devis ouvert ».
   const pixel = opts?.trackPixelUrl
@@ -140,7 +151,7 @@ export async function envoyerDevisEmail(
       htmlContent: bodyHtml,
       senderEmail: opts?.senderEmail || process.env.DEVIS_SENDER_EMAIL || undefined,
       senderName: fromName,
-      attachment: { name: `devis-${donnees.numero}.pdf`, bytes: pdf },
+      attachments: pieces,
     });
     if (!res.ok) {
       throw new Error("Brevo : " + res.error);
@@ -174,13 +185,11 @@ export async function envoyerDevisEmail(
     subject: sujet,
     text: texteBody,
     html: bodyHtml,
-    attachments: [
-      {
-        filename: `devis-${donnees.numero}.pdf`,
-        content: pdf,
-        contentType: "application/pdf",
-      },
-    ],
+    attachments: pieces.map((p) => ({
+      filename: p.name,
+      content: p.bytes,
+      contentType: "application/pdf",
+    })),
   });
   return dest;
 }

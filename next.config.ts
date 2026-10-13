@@ -18,7 +18,9 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/documents/**": ["./public/fonts/**"],
     // Générateur de devis OPTIMIVV (pdfkit) : polices Poppins/Chorus + logo/photo.
-    "/api/devis/**": ["./public/devis-assets/**"],
+    // assets/ porte le RIB joint aux e-mails de devis — hors public/ à dessein
+    // (IBAN non servi publiquement), donc à embarquer explicitement.
+    "/api/devis/**": ["./public/devis-assets/**", "./assets/**"],
   },
   experimental: {
     // Derrière le reverse-proxy (Traefik) : autorise les Server Actions depuis
