@@ -175,6 +175,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
     : "";
   const templateVars = leadTemplateVars(lead, {
     commercialName: me?.displayName ?? "",
+    commercialFirstName: me?.firstName ?? "",
     commercialEmail: me?.email ?? "",
     societeName: lead.entityName ?? undefined,
     societePhone,

@@ -299,6 +299,7 @@ export const TEMPLATE_VARIABLES: { key: string; label: string }[] = [
   { key: "lien.signature", label: "Lien de signature" },
   { key: "lien.paiement", label: "Lien de paiement" },
   { key: "commercial.nom", label: "Commercial" },
+  { key: "commercial.prenom", label: "Prénom du commercial" },
   { key: "commercial.email", label: "Email du commercial" },
   { key: "planificatrice.nom", label: "Planificatrice" },
   { key: "societe.nom", label: "Société" },
@@ -319,6 +320,7 @@ export function renderTemplate(text: string, vars: Record<string, string>): stri
 // une chaîne vide (le message reste éditable avant envoi).
 export type TemplateVarContext = {
   commercialName?: string;
+  commercialFirstName?: string;
   commercialEmail?: string;
   planificatriceName?: string;
   societeName?: string;
@@ -386,6 +388,10 @@ export function leadTemplateVars(
     "lien.signature": opts?.lienSignature ?? "",
     "lien.paiement": opts?.lienPaiement ?? "",
     "commercial.nom": opts?.commercialName ?? "",
+    // Prénom seul — les SMS signent du prénom, pas de l'identité complète.
+    // Repli sur le nom complet si l'appelant ne fournit pas le prénom :
+    // mieux vaut un SMS signé « David Dem 1 » qu'un SMS non signé.
+    "commercial.prenom": opts?.commercialFirstName || opts?.commercialName || "",
     "commercial.email": opts?.commercialEmail ?? "",
     "planificatrice.nom": opts?.planificatriceName ?? "",
     "societe.nom": opts?.societeName ?? lead.entityName ?? "",

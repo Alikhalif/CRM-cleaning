@@ -171,6 +171,7 @@ export async function getDevisPageData(
 
   const vars = leadTemplateVars(l, {
     commercialName: me?.displayName ?? "",
+    commercialFirstName: me?.firstName ?? "",
     commercialEmail: me?.email ?? "",
     societeName: l.entityName ?? undefined,
     societePhone,
