@@ -52,6 +52,19 @@ export default function RingoverPhone() {
             : document.querySelector<HTMLIFrameElement>("iframe[src*='ringover']");
         if (el) el.setAttribute("allow", "microphone; autoplay; camera; speaker-selection");
 
+        // Le widget démarre FERMÉ. generate() se termine par un show() interne
+        // au SDK : sans ce hide(), le webphone s'ouvre en grand à chaque
+        // chargement de page et masque l'écran. On le replie immédiatement
+        // (même tâche JS → aucune frame intermédiaire peinte, donc pas de
+        // clignotement malgré la transition CSS du SDK).
+        //
+        // Rien n'est perdu : hide() fait apparaître la pastille Ringover du SDK
+        // en bas à droite, qui rouvre le webphone au clic. Et il se rouvre tout
+        // seul dans les trois cas où c'est nécessaire — bouton Ringover du
+        // Topbar (toggle), « Appeler » / SMS depuis une fiche (show + dial),
+        // et APPEL ENTRANT (le SDK appelle show() lui-même sur ringingCall).
+        sdk.hide();
+
         // Re-emit the SDK call lifecycle so the screen-pop can reflect it.
         sdk.on("ringingCall", () => emitCallStatus({ state: "ringing" }));
         sdk.on("answeredCall", () => emitCallStatus({ state: "answered" }));
