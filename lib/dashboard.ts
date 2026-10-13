@@ -6,6 +6,7 @@ import type { Commercial, Sector } from "./leads";
 
 export type Channel = "mano" | "auto";
 export type Period =
+  | "1d"       // aujourd'hui
   | "7d"
   | "30d"
   | "90d"
@@ -23,6 +24,7 @@ export type DashboardFilter = {
 // Options de période — partagées entre le Dashboard et le filtre global de la
 // Topbar (source unique). L'ordre est celui affiché.
 export const DASHBOARD_PERIODS: { value: Period; label: string }[] = [
+  { value: "1d",  label: "Aujourd'hui" },
   { value: "7d",  label: "7 derniers jours"  },
   { value: "30d", label: "30 derniers jours" },
   { value: "90d", label: "90 derniers jours" },
@@ -88,6 +90,9 @@ export function periodWindow(p: Period): PeriodWindow {
   const end = todayUtc();
   let start = new Date(end);
   switch (p) {
+    // "1d" : start reste égal à end — la journée en cours, une seule date.
+    // La comparaison de previousWindow porte alors sur la veille.
+    case "1d":  break;
     case "7d":  start.setUTCDate(end.getUTCDate() - 6); break;
     case "30d": start.setUTCDate(end.getUTCDate() - 29); break;
     case "90d": start.setUTCDate(end.getUTCDate() - 89); break;
