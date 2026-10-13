@@ -199,11 +199,13 @@ export default function Dashboard({
               </span>
             }
           />
+          {/* Sans sous-titre : il énumérait les canaux d'acquisition
+              (Google · Meta · Site · Reco), une information de PROVENANCE
+              que le commercial ne doit jamais voir. */}
           <AcqCard
             accent="info"
             iconName="document"
             label="Leads formulaire"
-            sub="Google · Meta · Site · Reco"
             value={kpis.leadsForm}
             delta={pctDelta(kpis.leadsForm, kpisPrev.leadsForm)}
             footer={
@@ -471,7 +473,8 @@ function AcqCard({
   accent: Accent;
   iconName: React.ComponentProps<typeof Icon>["name"];
   label: string;
-  sub: string;
+  // Facultatif : une carte sans sous-titre n'affiche pas de <p> vide.
+  sub?: string;
   value: number;
   delta: number;
   footer?: React.ReactNode;
@@ -482,7 +485,7 @@ function AcqCard({
         <span className={styles.acqIcon}><Icon name={iconName} size={18} /></span>
         <div>
           <p className={styles.acqLabel}>{label}</p>
-          <p className={styles.acqSub}>{sub}</p>
+          {sub && <p className={styles.acqSub}>{sub}</p>}
         </div>
         <DeltaPill value={delta} />
       </div>
