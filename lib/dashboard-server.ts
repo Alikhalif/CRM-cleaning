@@ -39,10 +39,32 @@ type DocRow = {
   } | null;
 };
 
+// Devis émis par le générateur OPTIMIVV. Ils vivent dans `devis_optimivv`, PAS
+// dans `documents` : sans cette source, le dashboard ne voyait plus un seul
+// devis depuis le 21 juillet 2026 — date du dernier document créé par l'éditeur
+// générique. « Devis envoyés », « Devis signés », « CA signé » et le taux de
+// transformation affichaient donc 0 en permanence.
+type OptimivvRow = {
+  doc_type: "devis" | "facture" | null;
+  montant_ht: number | null;
+  sent_at: string | null;
+  created_at: string;
+  data: {
+    signature?: { nom?: string } | null;
+    _signature_meta?: { signedAt?: string } | null;
+  } | null;
+  lead: {
+    status: string;
+    owner_id: string | null;
+    sub_envoi: "mano" | "auto" | null;
+    activity: { slug: string } | null;
+  } | null;
+};
+
 export async function getDashboardSeries(): Promise<DailyMetric[]> {
   const supabase = await supabaseServer();
 
-  const [leadsRes, docsRes] = await Promise.all([
+  const [leadsRes, docsRes, optimivvRes] = await Promise.all([
     supabase
       .from("leads")
       .select(
@@ -58,6 +80,13 @@ export async function getDashboardSeries(): Promise<DailyMetric[]> {
          lead:leads(owner_id, sub_envoi, activity:activities(slug))`,
       )
       .returns<DocRow[]>(),
+    supabase
+      .from("devis_optimivv")
+      .select(
+        `doc_type, montant_ht, sent_at, created_at, data,
+         lead:leads(status, owner_id, sub_envoi, activity:activities(slug))`,
+      )
+      .returns<OptimivvRow[]>(),
   ]);
 
   const leads: RawLead[] = (leadsRes.data ?? [])
@@ -89,7 +118,51 @@ export async function getDashboardSeries(): Promise<DailyMetric[]> {
       ownerId: d.lead.owner_id,
     }));
 
-  return buildDailySeriesFromRows(leads, docs);
+  // Devis OPTIMIVV → même forme que les documents, pour passer dans les mêmes
+  // agrégats. Trois approximations assumées, faute de colonnes équivalentes :
+  //
+  //  • Le montant est le HT. Ces devis portent la mention « TVA non applicable,
+  //    art. 293 B » (franchise en base) : HT = TTC, le chiffre est juste. Il
+  //    cesserait de l'être le jour où une société facturerait avec TVA.
+  //
+  //  • « Ouvert » n'existe pas au niveau du document : le pixel de suivi fait
+  //    avancer le LEAD. On se rabat donc sur son statut. Un dossier portant
+  //    plusieurs devis les compte alors tous comme ouverts.
+  //
+  //  • Aucun encaissement n'est traçable ici — devis_optimivv ne porte pas de
+  //    date de paiement. « CA encaissé » ne compte donc que les factures de
+  //    l'éditeur générique.
+  //
+  // Un devis sans dossier (lead_id nul) est écarté : sans secteur, il ne peut
+  // être ventilé — même règle que pour les documents sans activité.
+  const devisOptimivv: RawDoc[] = (optimivvRes.data ?? [])
+    .filter(
+      (d): d is OptimivvRow & { lead: { status: string; owner_id: string | null; sub_envoi: "mano" | "auto" | null; activity: { slug: string } } } =>
+        d.lead?.activity != null,
+    )
+    .map((d) => {
+      const signe = Boolean(d.data?.signature);
+      // Repli sur la date d'envoi : les devis signés avant l'ajout de
+      // _signature_meta n'ont pas d'horodatage propre, et buildDailySeries
+      // ignore un « signé » sans date — ils disparaîtraient du CA signé.
+      const signedAt = signe
+        ? (d.data?._signature_meta?.signedAt ?? d.sent_at ?? d.created_at)
+        : null;
+      const ouvert = ["ouvert", "signe", "encaisse"].includes(d.lead.status);
+      return {
+        type: d.doc_type === "facture" ? ("finale" as const) : ("devis" as const),
+        status: signe ? "signe" : ouvert ? "ouvert" : "envoye",
+        issuedAt: d.sent_at ?? d.created_at,
+        signedAt,
+        paidAt: null,
+        totalTtc: Number(d.montant_ht ?? 0),
+        sector: d.lead.activity.slug as Sector,
+        channel: d.lead.sub_envoi,
+        ownerId: d.lead.owner_id,
+      };
+    });
+
+  return buildDailySeriesFromRows(leads, [...docs, ...devisOptimivv]);
 }
 
 // ── Immobilier / Travaux annotations (CDC §3.5 — admin-only) ──────────
