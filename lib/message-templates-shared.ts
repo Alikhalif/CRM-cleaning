@@ -393,3 +393,77 @@ export function leadTemplateVars(
     "societe.rib": opts?.societeRib ?? "",
   };
 }
+
+/* ── Regroupement du sélecteur de modèles PAR ACTIVITÉ ─────────────────
+   Présentation seule : aucun modèle n'est filtré, renommé ni modifié, seul
+   l'ordre d'affichage et les intertitres du menu déroulant changent.
+
+   L'activité d'un modèle est déterminée dans cet ordre :
+     1. son champ `activity_id` (exposé ici par activitySlug / activityLabel),
+        quand il est renseigné ;
+     2. à défaut, son NOM, qui porte l'activité par convention —
+        « Mail devis — virement (Débarras) 100% », « Déménagement — … ».
+
+   Aujourd'hui `activity_id` est vide sur la totalité des modèles : c'est donc
+   le nom qui tranche. Le champ `audiences` ne peut PAS servir ici : il mélange
+   profils commerciaux et activités, et les modèles Nettoyage y sont tagués
+   « divers ». Renseigner `activity_id` rendrait le classement indépendant du
+   libellé, sans aucune modification de code.
+
+   Les modèles qui ne visent aucune activité (Intervenant, Planif, relances
+   génériques…) sont rassemblés en fin de liste. */
+const ACTIVITE_PAR_NOM: { slug: string; label: string; motif: RegExp }[] = [
+  { slug: "demenagement", label: "DÉMÉNAGEMENT", motif: /d[ée]m[ée]nagement/i },
+  { slug: "debarras", label: "DÉBARRAS", motif: /d[ée]barras/i },
+  { slug: "nettoyage", label: "NETTOYAGE", motif: /nettoyage/i },
+];
+
+const GROUPE_SANS_ACTIVITE = "__general__";
+const LABEL_SANS_ACTIVITE = "TOUS SECTEURS";
+
+type ClassableTemplate = {
+  name: string;
+  activitySlug: string | null;
+  activityLabel: string | null;
+  sortOrder: number;
+};
+
+export type TemplateActivityGroup<T> = { key: string; label: string; list: T[] };
+
+export function groupTemplatesByActivity<T extends ClassableTemplate>(
+  templates: T[],
+): TemplateActivityGroup<T>[] {
+  const classer = (t: T): { key: string; label: string } => {
+    if (t.activitySlug) {
+      return { key: t.activitySlug, label: (t.activityLabel ?? t.activitySlug).toUpperCase() };
+    }
+    const trouve = ACTIVITE_PAR_NOM.find((a) => a.motif.test(t.name));
+    return trouve
+      ? { key: trouve.slug, label: trouve.label }
+      : { key: GROUPE_SANS_ACTIVITE, label: LABEL_SANS_ACTIVITE };
+  };
+
+  const groupes = new Map<string, TemplateActivityGroup<T>>();
+  for (const t of templates) {
+    const { key, label } = classer(t);
+    const g = groupes.get(key) ?? { key, label, list: [] };
+    g.list.push(t);
+    groupes.set(key, g);
+  }
+
+  // Ordre des groupes : les activités connues d'abord, dans l'ordre déclaré ;
+  // puis les autres activités par ordre alphabétique ; « TOUS SECTEURS » en
+  // dernier, car il ne correspond à aucun métier.
+  const rang = (key: string): number => {
+    if (key === GROUPE_SANS_ACTIVITE) return 1000;
+    const i = ACTIVITE_PAR_NOM.findIndex((a) => a.slug === key);
+    return i === -1 ? 500 : i;
+  };
+
+  return [...groupes.values()]
+    .sort((a, b) => rang(a.key) - rang(b.key) || a.label.localeCompare(b.label))
+    .map((g) => ({
+      ...g,
+      list: [...g.list].sort((x, y) => x.sortOrder - y.sortOrder || x.name.localeCompare(y.name)),
+    }));
+}

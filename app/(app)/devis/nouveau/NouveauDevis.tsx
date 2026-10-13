@@ -5,10 +5,8 @@ import styles from "./NouveauDevis.module.scss";
 import type { DevisPrefill } from "@/lib/devis/prefill";
 import type { DevisInput } from "@/lib/devis/types";
 import {
+  groupTemplatesByActivity,
   renderTemplate,
-  TEMPLATE_CATEGORIES,
-  TEMPLATE_CATEGORY_LABEL,
-  type TemplateCategory,
 } from "@/lib/message-templates-shared";
 import type { MessageTemplate } from "@/lib/message-templates-server";
 import { formatEUR } from "@/lib/leads";
@@ -128,27 +126,14 @@ export default function NouveauDevis({ prefill, leadId, templates, vars, templat
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
 
-  const groupedTemplates = useMemo(() => {
-    const order = (c: TemplateCategory) => {
-      const i = TEMPLATE_CATEGORIES.indexOf(c);
-      return i === -1 ? TEMPLATE_CATEGORIES.length : i;
-    };
-    const byCat = new Map<TemplateCategory, MessageTemplate[]>();
-    for (const t of templates) {
-      const arr = byCat.get(t.category) ?? [];
-      arr.push(t);
-      byCat.set(t.category, arr);
-    }
-    return [...byCat.entries()]
-      .sort((a, b) => order(a[0]) - order(b[0]))
-      .map(([cat, list]) => ({
-        cat,
-        label: TEMPLATE_CATEGORY_LABEL[cat],
-        list: [...list].sort(
-          (x, y) => x.sortOrder - y.sortOrder || x.name.localeCompare(y.name),
-        ),
-      }));
-  }, [templates]);
+  // Le sélecteur est regroupé PAR ACTIVITÉ (DÉMÉNAGEMENT, DÉBARRAS,
+  // NETTOYAGE…), et non plus par catégorie : un commercial cherche son modèle
+  // par métier. Le classement vit dans groupTemplatesByActivity — aucun modèle
+  // n'est filtré ni modifié, seuls l'ordre et les intertitres changent.
+  const groupedTemplates = useMemo(
+    () => groupTemplatesByActivity(templates),
+    [templates],
+  );
 
   // Variables réelles enrichies avec les DONNÉES DU FORMULAIRE en cours (nom,
   // téléphone, e-mail, adresse, montant, acompte) — pour que les modèles de
@@ -515,7 +500,7 @@ export default function NouveauDevis({ prefill, leadId, templates, vars, templat
               <select value={templateId} onChange={(e) => applyTemplate(e.target.value)}>
                 <option value="">— Aucun modèle (rédaction libre) —</option>
                 {groupedTemplates.map((g) => (
-                  <optgroup key={g.cat} label={g.label}>
+                  <optgroup key={g.key} label={g.label}>
                     {g.list.map((t) => (
                       <option key={t.id} value={t.id}>{t.name}</option>
                     ))}
