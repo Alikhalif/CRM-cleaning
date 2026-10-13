@@ -34,6 +34,10 @@ const ALL_SOURCES: Source[] = [
 type Props = {
   leads: Lead[];
   commerciaux: Commercial[];
+  // Admin ou planification. Un commercial ne voit que SES leads (RLS) :
+  // filtrer par commercial ou par pays ne lui propose que du vide ou sa
+  // propre ligne. Les deux sélecteurs lui sont donc masqués.
+  isBackOffice: boolean;
   // Secteurs que l'utilisateur a le droit de voir (restriction par activité).
   visibleSectors: Sector[];
   // Le lecteur peut-il voir la provenance (canal/URL d'origine) ? Faux pour un
@@ -42,7 +46,7 @@ type Props = {
   canProvenance: boolean;
 };
 
-export default function LeadsTable({ leads, commerciaux, visibleSectors, canProvenance }: Props) {
+export default function LeadsTable({ leads, commerciaux, visibleSectors, canProvenance, isBackOffice }: Props) {
   const sectorSet = useMemo(() => new Set<string>(visibleSectors), [visibleSectors]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<Set<LeadStatus>>(new Set());
@@ -189,29 +193,33 @@ export default function LeadsTable({ leads, commerciaux, visibleSectors, canProv
           />
         </div>
 
-        <select
-          value={ownerFilter}
-          onChange={(e) => setOwnerFilter(e.target.value)}
-          className={styles.select}
-          aria-label="Filtrer par commercial"
-        >
-          <option value="">Tous les commerciaux</option>
-          {commerciaux.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+        {isBackOffice && (
+          <select
+            value={ownerFilter}
+            onChange={(e) => setOwnerFilter(e.target.value)}
+            className={styles.select}
+            aria-label="Filtrer par commercial"
+          >
+            <option value="">Tous les commerciaux</option>
+            {commerciaux.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        )}
 
-        <select
-          value={countryFilter}
-          onChange={(e) => setCountryFilter(e.target.value)}
-          className={styles.select}
-          aria-label="Filtrer par pays"
-        >
-          <option value="">Tous les pays</option>
-          {COUNTRIES.map((c) => (
-            <option key={c} value={c}>{COUNTRY_LABEL[c]}</option>
-          ))}
-        </select>
+        {isBackOffice && (
+          <select
+            value={countryFilter}
+            onChange={(e) => setCountryFilter(e.target.value)}
+            className={styles.select}
+            aria-label="Filtrer par pays"
+          >
+            <option value="">Tous les pays</option>
+            {COUNTRIES.map((c) => (
+              <option key={c} value={c}>{COUNTRY_LABEL[c]}</option>
+            ))}
+          </select>
+        )}
 
         {societes.length > 0 && (
           <select

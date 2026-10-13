@@ -11,7 +11,12 @@ import {
   type Lead,
 } from "@/lib/leads";
 
-type Props = { leads: Lead[]; commerciaux: Commercial[] };
+// isBackOffice : admin ou planification. Un commercial ne voit que ses propres
+// leads (RLS), donc sa seule ligne — filtrer par commercial ou par pays ne
+// lui sert à rien. Le sélecteur de secteur lui est masqué aussi : il listait
+// les HUIT secteurs du CRM, y compris ceux qu'il ne traite pas.
+// Les trois sélecteurs sont donc réservés au back-office.
+type Props = { leads: Lead[]; commerciaux: Commercial[]; isBackOffice: boolean };
 
 const PERIODS = [
   { key: "30", label: "30 derniers jours" },
@@ -42,7 +47,7 @@ const th: React.CSSProperties = { padding: "8px 10px", textAlign: "left", color:
 const td: React.CSSProperties = { padding: "10px", borderTop: "1px solid var(--border-subtle)", whiteSpace: "nowrap" };
 const num: React.CSSProperties = { ...td, textAlign: "right", fontVariantNumeric: "tabular-nums" };
 
-export default function PerformanceClient({ leads, commerciaux }: Props) {
+export default function PerformanceClient({ leads, commerciaux, isBackOffice }: Props) {
   const [period, setPeriod] = useState("90");
   const [societe, setSociete] = useState("");
   const [country, setCountry] = useState("");
@@ -138,18 +143,24 @@ export default function PerformanceClient({ leads, commerciaux }: Props) {
             {societes.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         )}
-        <select value={country} onChange={(e) => setCountry(e.target.value)} style={sel} aria-label="Pays">
-          <option value="">Tous les pays</option>
-          {COUNTRIES.map((c) => <option key={c} value={c}>{COUNTRY_LABEL[c]}</option>)}
-        </select>
-        <select value={sector} onChange={(e) => setSector(e.target.value)} style={sel} aria-label="Secteur">
-          <option value="">Tous les secteurs</option>
-          {(Object.keys(SECTOR_LABEL) as (keyof typeof SECTOR_LABEL)[]).map((s) => <option key={s} value={s}>{SECTOR_LABEL[s]}</option>)}
-        </select>
-        <select value={ownerId} onChange={(e) => setOwnerId(e.target.value)} style={sel} aria-label="Commercial">
-          <option value="">Tous les commerciaux</option>
-          {commerciaux.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        {isBackOffice && (
+          <select value={country} onChange={(e) => setCountry(e.target.value)} style={sel} aria-label="Pays">
+            <option value="">Tous les pays</option>
+            {COUNTRIES.map((c) => <option key={c} value={c}>{COUNTRY_LABEL[c]}</option>)}
+          </select>
+        )}
+        {isBackOffice && (
+          <select value={sector} onChange={(e) => setSector(e.target.value)} style={sel} aria-label="Secteur">
+            <option value="">Tous les secteurs</option>
+            {(Object.keys(SECTOR_LABEL) as (keyof typeof SECTOR_LABEL)[]).map((s) => <option key={s} value={s}>{SECTOR_LABEL[s]}</option>)}
+          </select>
+        )}
+        {isBackOffice && (
+          <select value={ownerId} onChange={(e) => setOwnerId(e.target.value)} style={sel} aria-label="Commercial">
+            <option value="">Tous les commerciaux</option>
+            {commerciaux.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
         <button
           type="button"
           onClick={exportCsv}

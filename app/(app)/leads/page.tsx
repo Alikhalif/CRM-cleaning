@@ -30,7 +30,7 @@ export default async function LeadsPage() {
           </p>
         </div>
       </header>
-      <LeadsTable leads={leads} commerciaux={commerciaux} visibleSectors={visibleSectors} canProvenance={isAdmin || isPlanner} />
+      <LeadsTable leads={leads} commerciaux={commerciaux} visibleSectors={visibleSectors} canProvenance={isAdmin || isPlanner} isBackOffice={isAdmin || isPlanner} />
     </div>
   );
 }
