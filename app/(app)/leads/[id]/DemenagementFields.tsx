@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   EMBALLAGE, LOGEMENT_TYPE, OBJETS_SPECIFIQUES, OUI_NON, VOLUME_DEMENAGEMENT, type Option,
 } from "@/lib/discovery-metier";
@@ -41,15 +41,40 @@ function Num({ label, k, details, set }: { label: string; k: string; details: Re
 export default function DemenagementFields({ details, set }: Props) {
   const [distBusy, setDistBusy] = useState(false);
   const [distErr, setDistErr] = useState<string | null>(null);
+  // Dernier couple d'adresses effectivement calculé (voir calcDistance).
+  const dernierCouple = useRef<string>("");
+  // Verrou d'appel. Cliquer sur « Calculer » fait d'abord perdre le focus au
+  // champ adresse : sans ce verrou, le blur et le clic lanceraient DEUX requêtes
+  // simultanées vers Nominatim. Un ref, pas un state : il doit être à jour dans
+  // le même tick, avant tout re-rendu.
+  const enCours = useRef(false);
 
   const objets = arr(details, "objetsSpecifiques");
   const toggleObjet = (v: string) =>
     set("objetsSpecifiques", objets.includes(v) ? objets.filter((x) => x !== v) : [...objets, v]);
 
-  const calcDistance = async () => {
+  // Calcul de la distance. `auto` = déclenché en sortant d'un champ adresse,
+  // sans clic : le commercial oubliait le bouton et la distance manquait au
+  // devis. Deux garde-fous, parce que Nominatim/OSRM sont des services publics
+  // gratuits plafonnés (~1 req/s) :
+  //   • on ne part QUE sur sortie de champ, jamais à chaque frappe ;
+  //   • on mémorise le dernier couple d'adresses calculé, donc traverser les
+  //     champs sans rien modifier ne redéclenche rien.
+  // En mode auto on reste silencieux si les adresses sont incomplètes — c'est
+  // l'état normal pendant la saisie, pas une erreur à afficher. Le bouton
+  // « Calculer » reste la reprise manuelle (adresse corrigée, service tombé).
+  const calcDistance = async (auto = false) => {
     const from = str(details, "adresseDepart").trim();
     const to = str(details, "adresseArrivee").trim();
-    if (!from || !to) { setDistErr("Renseignez les deux adresses."); return; }
+    if (!from || !to) {
+      if (!auto) setDistErr("Renseignez les deux adresses.");
+      return;
+    }
+    const couple = `${from} » ${to}`;
+    if (auto && couple === dernierCouple.current) return;
+    if (enCours.current) return;
+    enCours.current = true;
+    dernierCouple.current = couple;
     setDistErr(null); setDistBusy(true);
     try {
       const r = await fetch(`/api/geo/distance?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
@@ -59,6 +84,7 @@ export default function DemenagementFields({ details, set }: Props) {
     } catch {
       setDistErr("Service de distance indisponible — saisissez la distance à la main.");
     } finally {
+      enCours.current = false;
       setDistBusy(false);
     }
   };
@@ -72,11 +98,11 @@ export default function DemenagementFields({ details, set }: Props) {
 
       <label>
         <span style={lbl}>Adresse de départ</span>
-        <input value={str(details, "adresseDepart")} onChange={(e) => set("adresseDepart", e.target.value)} placeholder="N°, rue, code postal, ville" style={field} />
+        <input value={str(details, "adresseDepart")} onChange={(e) => set("adresseDepart", e.target.value)} onBlur={() => { void calcDistance(true); }} placeholder="N°, rue, code postal, ville" style={field} />
       </label>
       <label>
         <span style={lbl}>Adresse d&apos;arrivée</span>
-        <input value={str(details, "adresseArrivee")} onChange={(e) => set("adresseArrivee", e.target.value)} placeholder="N°, rue, code postal, ville" style={field} />
+        <input value={str(details, "adresseArrivee")} onChange={(e) => set("adresseArrivee", e.target.value)} onBlur={() => { void calcDistance(true); }} placeholder="N°, rue, code postal, ville" style={field} />
       </label>
 
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
@@ -84,8 +110,8 @@ export default function DemenagementFields({ details, set }: Props) {
           <span style={lbl}>Distance (km)</span>
           <input type="number" min={0} step="0.1" value={str(details, "distanceKm")} onChange={(e) => set("distanceKm", e.target.value === "" ? "" : Number(e.target.value))} placeholder="—" style={field} />
         </label>
-        <button type="button" onClick={calcDistance} disabled={distBusy} style={{ flexShrink: 0, padding: "8px 12px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "transparent", color: "var(--text-primary)", cursor: "pointer", fontSize: "0.8125rem" }}>
-          {distBusy ? "Calcul…" : "Calculer"}
+        <button type="button" onClick={() => { void calcDistance(false); }} disabled={distBusy} style={{ flexShrink: 0, padding: "8px 12px", borderRadius: "var(--r-sm)", border: "1px solid var(--border-strong)", background: "transparent", color: "var(--text-primary)", cursor: "pointer", fontSize: "0.8125rem" }} title="La distance se calcule seule dès que les deux adresses sont saisies — ce bouton force un nouveau calcul.">
+          {distBusy ? "Calcul…" : "Recalculer"}
         </button>
       </div>
       {distErr && <p style={{ color: "var(--tone-danger)", fontSize: "0.8125rem", margin: 0 }}>{distErr}</p>}
