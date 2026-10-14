@@ -72,6 +72,8 @@ export const RESTRICTED_MODULES: { prefix: string; scope: Exclude<ModuleScope, "
   { prefix: "/settings", scope: "backOffice" }, // les pages internes gardent leur propre garde admin
   { prefix: "/commerciaux", scope: "admin" },
   { prefix: "/presence", scope: "admin" },
+  // Politique tarifaire : le client exige d'en être le seul décideur.
+  { prefix: "/grilles-tarifaires", scope: "admin" },
 ];
 
 // Scope requis pour une route. Compare sur segment entier : `/documents` et

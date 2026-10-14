@@ -24,8 +24,9 @@ import {
 } from "@/lib/leads";
 import DebarrasFields from "./DebarrasFields";
 import DemenagementFields from "./DemenagementFields";
-import { computeRange, type PricingParams } from "@/lib/pricing/compute";
-import { buildPricingInput } from "@/lib/pricing/discovery-input";
+import { computeGrid } from "@/lib/pricing/grid-compute";
+import { buildGridInput } from "@/lib/pricing/grid-discovery";
+import type { PricingGrid } from "@/lib/pricing/grid-types";
 import styles from "./LeadDetail.module.scss";
 
 // Fiche Découverte guidée qui S'ADAPTE au secteur : champs communs (surface,
@@ -35,9 +36,9 @@ import styles from "./LeadDetail.module.scss";
 
 type Props = {
   lead: Lead;
-  // Paramètres tarifaires de l'activité. null = non configurés par
-  // l'administrateur → aucune fourchette n'est proposée.
-  pricingParams: PricingParams | null;
+  // Grille tarifaire de l'activité. null, ou en brouillon, = aucune
+  // fourchette proposée. Le Super Admin seul décide de la publier.
+  pricingGrid: PricingGrid | null;
 };
 
 const field: React.CSSProperties = {
@@ -47,7 +48,7 @@ const field: React.CSSProperties = {
 };
 const lbl: React.CSSProperties = { display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: 4 };
 
-export default function DiscoveryCard({ lead, pricingParams }: Props) {
+export default function DiscoveryCard({ lead, pricingGrid }: Props) {
   const router = useRouter();
   const leadId = lead.id;
 
@@ -129,16 +130,15 @@ export default function DiscoveryCard({ lead, pricingParams }: Props) {
   // (c'est une dérivée de l'état, pas une étape à déclencher) : le commercial
   // la lit pendant son appel, sans cliquer sur quoi que ce soit.
   const pricing = useMemo(() => {
-    const { input, approx } = buildPricingInput({
+    const { input, approx, nonCaptes } = buildGridInput({
       sector: lead.sector,
       surfaceM2: surface.trim() ? Number(surface) : null,
       details,
       delaiSouhaite: delai || null,
       isUrgent: Boolean(lead.isUrgent),
-      isExtreme: Boolean(lead.isExtreme),
     });
-    return { result: computeRange(pricingParams, input), approx };
-  }, [pricingParams, lead.sector, lead.isUrgent, lead.isExtreme, surface, details, delai]);
+    return { result: computeGrid(pricingGrid, input), approx, nonCaptes };
+  }, [pricingGrid, lead.sector, lead.isUrgent, surface, details, delai]);
 
   const sectorLabel = isDebarras ? "Débarras" : isDemenagement ? "Déménagement" : "Nettoyage";
 
@@ -293,36 +293,57 @@ export default function DiscoveryCard({ lead, pricingParams }: Props) {
         </div>
       </div>
 
-      {/* ── Fourchette tarifaire recommandée ──────────────────────────── */}
+      {/* ── Fourchette tarifaire recommandée ──────────────────── */}
       <div className={styles.pricingBox} data-state={pricing.result.ok ? "ok" : "ko"}>
         <div className={styles.pricingTitle}>Fourchette tarifaire recommandée à annoncer au client</div>
         {pricing.result.ok ? (
           <>
             <div className={styles.pricingRange}>
               <span>{pricing.result.min.toLocaleString("fr-FR")} €</span>
-              <span className={styles.pricingDash}>—</span>
+              <span className={styles.pricingDash}>–</span>
               <span>{pricing.result.max.toLocaleString("fr-FR")} €</span>
+              <span className={styles.pricingVat}>
+                {pricing.result.vatRate != null ? `TTC (TVA ${pricing.result.vatRate} %)` : "HT"}
+              </span>
+            </div>
+            <div className={styles.pricingAdvised}>
+              Prix conseillé à annoncer{" "}
+              <strong>{pricing.result.conseille.toLocaleString("fr-FR")} €</strong>
             </div>
             <ul className={styles.pricingLines}>
               {pricing.result.lines.map((l, i) => (
-                <li key={i}><span>{l.label}</span><span>{Math.round(l.amount).toLocaleString("fr-FR")} €</span></li>
+                <li key={i}>
+                  <span>{l.label}</span>
+                  <span>{l.min.toLocaleString("fr-FR")} – {l.max.toLocaleString("fr-FR")} €</span>
+                </li>
+              ))}
+              {pricing.result.majorations.map((m, i) => (
+                <li key={`m${i}`}><span>{m.label}</span><span>+{m.minPct} % à +{m.maxPct} %</span></li>
               ))}
             </ul>
-            {(pricing.approx || pricing.result.assumptions.length > 0) && (
+            {(pricing.approx || pricing.result.assumptions.length > 0 || pricing.nonCaptes.length > 0) && (
               <p className={styles.pricingNote}>
-                {[...(pricing.approx ? ["volume donné en tranche — milieu retenu"] : []), ...pricing.result.assumptions].join(" · ")}
+                {[
+                  ...(pricing.approx ? ["volume donné en tranche"] : []),
+                  ...pricing.result.assumptions,
+                  ...(pricing.nonCaptes.length ? [`non pris en compte : ${pricing.nonCaptes.join(", ")}`] : []),
+                ].join(" · ")}
               </p>
             )}
-            <p className={styles.pricingNote}>Indicatif — ne vaut pas devis.</p>
+            <p className={styles.pricingNote}>
+              Estimation calculée selon les informations de la découverte commerciale — ne vaut pas devis.
+            </p>
           </>
-        ) : pricing.result.reason === "not_configured" ? (
-          <p className={styles.pricingNote}>
-            Aucun barème configuré pour {sectorLabel.toLowerCase()}. Un Super Admin doit
-            renseigner les paramètres tarifaires de cette activité (Paramètres › Tarifs).
-          </p>
         ) : (
           <p className={styles.pricingNote}>
-            Calcul impossible — il manque&nbsp;: {pricing.result.missing.join(", ")}.
+            {pricing.result.reason === "brouillon" &&
+              `La grille ${sectorLabel.toLowerCase()} n'est pas publiée. Le Super Admin doit la valider dans « Grilles tarifaires ».`}
+            {pricing.result.reason === "vide" &&
+              `Aucun barème ne s'applique à ce dossier pour ${sectorLabel.toLowerCase()}.`}
+            {pricing.result.reason === "manquant" &&
+              `Calcul impossible — il manque : ${pricing.result.missing.join(", ")}.`}
+            {pricing.result.reason === "validation" &&
+              `Validation tarifaire du super administrateur nécessaire : ${pricing.result.missing.join(", ")}.`}
           </p>
         )}
       </div>

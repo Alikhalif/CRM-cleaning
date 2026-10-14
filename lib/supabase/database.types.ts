@@ -2283,71 +2283,126 @@ export type Database = {
           },
         ]
       }
-      pricing_params: {
+      pricing_grid_history: {
         Row: {
           activity_id: string
-          base_price: number
-          difficulty_pct: number
-          enabled: boolean
-          included_km: number
-          min_price: number
-          options: Json
-          price_per_floor_no_lift: number
-          price_per_km: number
-          price_per_unit: number
-          range_high_pct: number
-          range_low_pct: number
-          unit: string
-          updated_at: string
-          updated_by: string | null
-          urgency_pct: number
+          changed_at: string
+          changed_by: string | null
+          grid: Json
+          id: string
+          note: string | null
+          status: string
+          version: number
         }
         Insert: {
           activity_id: string
-          base_price?: number
-          difficulty_pct?: number
-          enabled?: boolean
-          included_km?: number
-          min_price?: number
-          options?: Json
-          price_per_floor_no_lift?: number
-          price_per_km?: number
-          price_per_unit?: number
-          range_high_pct?: number
-          range_low_pct?: number
-          unit?: string
-          updated_at?: string
-          updated_by?: string | null
-          urgency_pct?: number
+          changed_at?: string
+          changed_by?: string | null
+          grid: Json
+          id?: string
+          note?: string | null
+          status: string
+          version: number
         }
         Update: {
           activity_id?: string
-          base_price?: number
-          difficulty_pct?: number
-          enabled?: boolean
-          included_km?: number
-          min_price?: number
-          options?: Json
-          price_per_floor_no_lift?: number
-          price_per_km?: number
-          price_per_unit?: number
-          range_high_pct?: number
-          range_low_pct?: number
-          unit?: string
-          updated_at?: string
-          updated_by?: string | null
-          urgency_pct?: number
+          changed_at?: string
+          changed_by?: string | null
+          grid?: Json
+          id?: string
+          note?: string | null
+          status?: string
+          version?: number
         }
         Relationships: [
           {
-            foreignKeyName: "pricing_params_activity_id_fkey"
+            foreignKeyName: "pricing_grid_history_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricing_grid_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pricing_grids: {
+        Row: {
+          activity_id: string
+          allow_commercial_override: boolean
+          floor_price: number
+          grid: Json
+          max_discount_pct: number
+          positioning_pct: number
+          published_at: string | null
+          published_by: string | null
+          rounding: number
+          status: string
+          updated_at: string
+          updated_by: string | null
+          vat_rate: number | null
+          version: number
+          visible_to_commercial: boolean
+          visible_to_subcontractor: boolean
+        }
+        Insert: {
+          activity_id: string
+          allow_commercial_override?: boolean
+          floor_price?: number
+          grid?: Json
+          max_discount_pct?: number
+          positioning_pct?: number
+          published_at?: string | null
+          published_by?: string | null
+          rounding?: number
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          vat_rate?: number | null
+          version?: number
+          visible_to_commercial?: boolean
+          visible_to_subcontractor?: boolean
+        }
+        Update: {
+          activity_id?: string
+          allow_commercial_override?: boolean
+          floor_price?: number
+          grid?: Json
+          max_discount_pct?: number
+          positioning_pct?: number
+          published_at?: string | null
+          published_by?: string | null
+          rounding?: number
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          vat_rate?: number | null
+          version?: number
+          visible_to_commercial?: boolean
+          visible_to_subcontractor?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_grids_activity_id_fkey"
             columns: ["activity_id"]
             isOneToOne: true
             referencedRelation: "activities"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "pricing_params_updated_by_fkey"
+            foreignKeyName: "pricing_grids_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pricing_grids_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "users"

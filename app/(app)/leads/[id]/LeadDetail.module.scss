@@ -1349,3 +1349,17 @@
   color: var(--text-primary);
   font-size: var(--fs-md);
 }
+
+// Prix conseillé + mention TVA (fourchette de la découverte).
+.pricingAdvised {
+  margin-top: 4px;
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+  strong { color: var(--color-brand-500); font-size: 1.15rem; }
+}
+.pricingVat {
+  font-size: var(--fs-xs);
+  font-weight: 400;
+  color: var(--text-muted);
+  align-self: center;
+}

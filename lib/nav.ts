@@ -56,6 +56,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/documents",      label: "Documents & Contrats", icon: "folder" },
       { href: "/signatures",     label: "Signatures",    icon: "document" },
       { href: "/presence",       label: "Présence & Actions", icon: "presence" },
+      { href: "/grilles-tarifaires", label: "Grilles tarifaires", icon: "comptabilite" },
     ],
   },
   {

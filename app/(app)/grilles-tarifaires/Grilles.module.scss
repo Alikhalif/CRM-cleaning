@@ -1,0 +1,43 @@
+.page { display: flex; flex-direction: column; gap: var(--sp-5); padding: var(--sp-5); }
+.header { display: flex; flex-direction: column; gap: var(--sp-1); }
+.title { font-size: var(--fs-2xl); font-weight: 700; color: var(--text-primary); }
+.subtitle { color: var(--text-muted); font-size: var(--fs-sm); max-width: 760px; line-height: 1.6; }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--sp-3); }
+.card {
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  padding: var(--sp-4); border-radius: var(--r-lg);
+  border: 1px solid var(--border-subtle); background: var(--bg-surface);
+}
+.cardHead { display: flex; align-items: center; gap: var(--sp-2); }
+.cardName { font-weight: 700; color: var(--text-primary); flex: 1; }
+.badge {
+  padding: 3px 10px; border-radius: 999px; font-size: var(--fs-xs); font-weight: 700; white-space: nowrap;
+  &[data-s="active"] { background: color-mix(in oklab, var(--tone-success) 16%, transparent); color: var(--tone-success); }
+  &[data-s="brouillon"] { background: color-mix(in oklab, var(--tone-warning) 18%, transparent); color: var(--tone-warning); }
+  &[data-s="inactive"] { background: var(--bg-surface-2); color: var(--text-muted); }
+}
+.meta { font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.7; }
+.actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-1); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 14px; min-height: 40px; border-radius: var(--r-md);
+  border: 1px solid var(--border-strong); background: var(--bg-surface);
+  color: var(--text-primary); font-size: var(--fs-xs); font-weight: 600;
+  text-decoration: none; cursor: pointer;
+  &:hover { background: var(--bg-surface-2); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+.btnPrimary {
+  background: var(--color-brand-500); border-color: var(--color-brand-500); color: var(--text-inverted);
+  &:hover { background: var(--color-brand-600); }
+}
+.err { color: var(--tone-danger); font-size: var(--fs-xs); }
+
+@media (max-width: 768px) {
+  .page { padding: var(--sp-4); gap: var(--sp-4); }
+  .cards { grid-template-columns: 1fr; }
+  // Cibles tactiles : ces boutons pilotent la politique tarifaire, on ne veut
+  // pas d'activation par erreur.
+  .btn { min-height: 44px; flex: 1; }
+}
