@@ -127,10 +127,17 @@ Docker multi-stage build ([Dockerfile](Dockerfile)) producing a `node:22-slim` r
 
 SCSS modules colocated with components (`*.module.scss`) plus globals in [app/globals.scss](app/globals.scss) and tokens in [app/styles/_tokens.scss](app/styles/_tokens.scss). Tokens are exposed as CSS custom properties so dark mode is a runtime swap on `[data-theme="dark"]` — never hardcode colors; always reference `var(--token)`. The 4-pt spacing scale (`--sp-1`..`--sp-12`) and radii (`--r-sm`..`--r-xl`) are intentional; reuse them.
 
+**Mobile is a release criterion, not a follow-up** (client instruction, 2026-10-13). A commercial must be able to run their whole day — leads, priorities, overdue relances, client fiches, calls, SMS, e-mails, photos, quotes, signatures, status changes — from an iPhone or a Galaxy, without a laptop. So every new feature or change ships responsive *in the same commit*; "I'll do mobile later" is not an acceptable state. One app, one database, one set of business rules — only the layout adapts. The same server-side authorization applies whatever the device; never relax a rule because a screen is small.
+
 **Responsive conventions** (desktop-first, ≥1025px is the untouched baseline):
 - ≤768px switches to the mobile shell — `<MobileTabBar>` plus the sidebar as a drawer.
-- Tables become cards at ≤1024px via `data-label` attributes on cells, with the rule scoped under `.table` so it can't leak.
+- Tables become cards at ≤1024px via `data-label` attributes on cells, with the rule scoped under `.table` so it can't leak. **Every `<td>` needs its `data-label`** — a cell without one renders as an unlabelled line in card mode.
 - 640–1024px uses a 2-column grid.
+- ≤768px: touch targets are **44px minimum** (Apple HIG / Material). Buttons that sit at 30px on desktop need an explicit `min-height` in the mobile block.
+- Horizontal scrolling is allowed **only inside a contained strip** (a tab bar, a filter row) via `overflow-x: auto` + hidden scrollbar. The page itself must never scroll sideways.
+- Phone landscape (`max-width: 920px and (orientation: landscape)`) is its own case: height is the scarce resource there, so collapse subtitles rather than columns.
+
+[SuiviCommercial.module.scss](<app/(app)/leads/SuiviCommercial.module.scss>) is the reference implementation of all six rules.
 
 **Icons.** [components/Icon/Icon.tsx](components/Icon/Icon.tsx) is an inline stroke-based set rendering `currentColor`. Add new glyphs to the `IconName` union and `PATHS` map — do not pull in an icon library.
 
