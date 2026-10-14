@@ -1,5 +1,6 @@
 .wrap {
   min-height: 100vh;
+  min-height: 100dvh; // iOS : la page de signature doit tenir à l'écran
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -117,4 +118,23 @@
   background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: 14px;
   padding: 24px; max-width: 400px; width: 100%; display: flex; flex-direction: column; gap: 14px;
   h2 { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); }
+}
+
+
+// ── Mobile ──────────────────────────────────────────────────────────────
+// Page client. La mise en page est déjà fluide (clamp, max-width, overflow sur
+// les étapes) ; restent les cibles tactiles et le paysage.
+@media (max-width: 768px) {
+  .btnPrimary, .btnGhost, .tab, .tabOn { min-height: 44px; }
+  // Deux boutons côte à côte sur 375 px donnent deux cibles trop étroites :
+  // on empile, action principale en bas, là où tombe le pouce.
+  .actions { flex-direction: column-reverse; align-items: stretch; }
+  .actions .btnPrimary, .actions .btnGhost { width: 100%; }
+  .consent input { width: 22px; height: 22px; }
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .pdf { height: 42vh; }
+  .canvas { height: 110px; }
+  .typedPreview { font-size: 1.5rem; min-height: 56px; padding: 12px; }
 }

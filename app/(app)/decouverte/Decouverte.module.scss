@@ -1,0 +1,85 @@
+// Tableaux de la page « Découverte ». Les styles étaient inline, donc
+// impossibles à adapter au mobile (une media query ne peut pas viser un
+// attribut style). Extraits ici pour appliquer la convention du CRM :
+// tableau → cartes sous 1024 px, via les data-label des cellules.
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+
+  th {
+    text-align: left;
+    padding: 8px 10px;
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+  }
+  td {
+    padding: 10px;
+    vertical-align: middle;
+  }
+  tbody tr {
+    border-top: 1px solid var(--border-subtle);
+  }
+}
+
+.client {
+  color: var(--color-brand-500);
+  font-weight: 600;
+  text-decoration: none;
+  &:hover { text-decoration: underline; }
+}
+.ref { font-size: var(--fs-xs); color: var(--text-muted); }
+.muted { color: var(--text-muted); }
+.right { text-align: right; }
+.open {
+  color: var(--color-brand-500);
+  text-decoration: none;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+.empty { padding: 16px 10px; color: var(--text-muted); }
+
+// ── Mobile : une ligne = une carte (convention CRM, scopée sous .table) ──
+@media (max-width: 1024px) {
+  .tableWrap { overflow-x: visible; }
+  .table {
+    thead { display: none; }
+    tbody, tr, td { display: block; width: 100%; }
+    tr {
+      border-top: 1px solid var(--border-subtle);
+      padding: var(--sp-2) 0;
+    }
+    td {
+      padding: 4px 2px;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: var(--sp-3);
+
+      &::before {
+        content: attr(data-label);
+        flex: 0 0 auto;
+        font-size: var(--fs-xs);
+        color: var(--text-muted);
+        text-transform: uppercase;
+      }
+    }
+    .right { text-align: left; }
+  }
+}
+
+@media (max-width: 768px) {
+  // 44 px sous le doigt : « Ouvrir » était un simple lien de 16 px de haut.
+  .open {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 4px;
+  }
+}

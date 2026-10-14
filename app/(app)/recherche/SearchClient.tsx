@@ -46,7 +46,12 @@ export default function SearchClient() {
   const row: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
+    // Les résultats portent 3 à 5 informations sur une ligne. Sans retour à la
+    // ligne, elles se chevauchent ou débordent sur un écran de 375 px.
+    flexWrap: "wrap",
     gap: 10,
+    // 44 px sous le doigt : chaque résultat est une cible tactile.
+    minHeight: 44,
     padding: "10px 14px",
     borderTop: "1px solid var(--border-subtle)",
     textDecoration: "none",
@@ -84,7 +89,7 @@ export default function SearchClient() {
               <span style={{ fontWeight: 600 }}>{l.client}</span>
               <span style={{ color: "var(--text-muted)" }}>{l.phone}</span>
               <span style={{ color: "var(--text-muted)" }}>{l.city}</span>
-              <span style={{ marginLeft: "auto", fontSize: "0.8125rem", color: "var(--text-muted)" }}>{SECTOR_LABEL[l.sector]}</span>
+              <span style={{ marginLeft: "auto", fontSize: "0.8125rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>{SECTOR_LABEL[l.sector]}</span>
             </Link>
           ))}
         </section>

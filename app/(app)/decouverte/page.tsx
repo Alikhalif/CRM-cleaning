@@ -1,4 +1,5 @@
 import Link from "next/link";
+import styles from "./Decouverte.module.scss";
 import { getAllLeads } from "@/lib/leads-server";
 import {
   DISCOVERY_OUTCOME_LABEL,
@@ -57,41 +58,39 @@ function SectorChip({ sector }: { sector: Lead["sector"] }) {
 
 function LeadRows({ rows }: { rows: Lead[] }) {
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9375rem" }}>
+    <div className={styles.tableWrap}>
+      <table className={styles.table}>
         <thead>
-          <tr style={{ textAlign: "left", color: "var(--text-muted)", fontSize: "0.8125rem" }}>
-            <th style={{ padding: "8px 10px" }}>Lead</th>
-            <th style={{ padding: "8px 10px" }}>Secteur</th>
-            <th style={{ padding: "8px 10px" }}>Ville</th>
-            <th style={{ padding: "8px 10px" }}>Reçu</th>
-            <th style={{ padding: "8px 10px" }}>Dernière action</th>
-            <th style={{ padding: "8px 10px" }} />
+          <tr>
+            <th>Lead</th>
+            <th>Secteur</th>
+            <th>Ville</th>
+            <th>Reçu</th>
+            <th>Dernière action</th>
+            <th />
           </tr>
         </thead>
         <tbody>
           {rows.map((l) => (
-            <tr key={l.id} style={{ borderTop: "1px solid var(--border-subtle)" }}>
-              <td style={{ padding: "10px" }}>
-                <Link href={`/leads/${l.id}`} style={{ color: "var(--color-brand-500)", fontWeight: 600, textDecoration: "none" }}>
-                  {l.client}
-                </Link>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{l.shortId}</div>
+            <tr key={l.id}>
+              <td data-label="Lead">
+                <span>
+                  <Link href={`/leads/${l.id}`} className={styles.client}>{l.client}</Link>
+                  <span className={styles.ref}> {l.shortId}</span>
+                </span>
               </td>
-              <td style={{ padding: "10px" }}><SectorChip sector={l.sector} /></td>
-              <td style={{ padding: "10px" }}>{l.city || "—"}</td>
-              <td style={{ padding: "10px" }}>{dateFmt.format(new Date(l.receivedAt))}</td>
-              <td style={{ padding: "10px", color: "var(--text-muted)" }}>{l.lastActionLabel || "—"}</td>
-              <td style={{ padding: "10px", textAlign: "right" }}>
-                <Link href={`/leads/${l.id}`} style={{ color: "var(--color-brand-500)", textDecoration: "none", fontSize: "0.8125rem" }}>
-                  Ouvrir →
-                </Link>
+              <td data-label="Secteur"><SectorChip sector={l.sector} /></td>
+              <td data-label="Ville">{l.city || "—"}</td>
+              <td data-label="Reçu">{dateFmt.format(new Date(l.receivedAt))}</td>
+              <td data-label="Dernière action" className={styles.muted}>{l.lastActionLabel || "—"}</td>
+              <td data-label="" className={styles.right}>
+                <Link href={`/leads/${l.id}`} className={styles.open}>Ouvrir →</Link>
               </td>
             </tr>
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={6} style={{ padding: "16px 10px", color: "var(--text-muted)" }}>
+              <td colSpan={6} className={styles.empty}>
                 Aucun lead ici. 🎉
               </td>
             </tr>

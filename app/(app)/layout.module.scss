@@ -2,6 +2,7 @@
   display: flex;
   align-items: stretch;
   min-height: 100vh;
+  min-height: 100dvh; // iOS : hauteur réellement visible (barre d'URL)
 }
 
 .main {

@@ -5,6 +5,7 @@
   flex-direction: column;
   width: var(--sidebar-w);
   height: 100vh;
+  height: 100dvh; // iOS : évite que le bas du menu passe sous la barre d'outils
   position: sticky;
   top: 0;
   background: var(--bg-surface);
