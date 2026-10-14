@@ -1,0 +1,300 @@
+// « Suivi commercial ». Tokens uniquement, aucune couleur en dur — le thème
+// sombre est un simple échange de variables (cf. app/styles/_tokens.scss).
+
+.wrap { display: flex; flex-direction: column; gap: var(--sp-4); }
+
+// ── Indicateurs ─────────────────────────────────────────────────────────
+.cards {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--sp-3);
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+
+  &:hover { border-color: var(--border-strong); background: var(--bg-surface-2); }
+  &[data-tone="retard"] { border-left: 3px solid var(--tone-danger); }
+  &[data-tone="relance"] { border-left: 3px solid var(--tone-warning); }
+  &[data-tone="ok"] { border-left: 3px solid var(--tone-success); }
+}
+.cardLabel { font-size: var(--fs-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.cardValue { font-size: 1.75rem; font-weight: 700; color: var(--text-primary); line-height: 1.1; }
+.cardSub { font-size: var(--fs-xs); color: var(--text-muted); }
+
+// ── Navigation ──────────────────────────────────────────────────────────
+.navRow { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.tabs { display: flex; gap: 2px; flex-wrap: wrap; }
+.tab {
+  padding: 7px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+
+  &:hover { background: var(--bg-surface-2); color: var(--text-primary); }
+}
+.tabActive {
+  background: var(--bg-surface);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+.prio {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover { background: var(--bg-surface-2); }
+}
+.prioOn {
+  background: var(--color-brand-500);
+  border-color: var(--color-brand-500);
+  color: var(--text-inverted);
+  &:hover { background: var(--color-brand-600); }
+}
+
+// ── Filtres ─────────────────────────────────────────────────────────────
+.filterRow { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.searchBox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  min-width: 240px;
+
+  input {
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: var(--fs-sm);
+    outline: none;
+    width: 100%;
+  }
+}
+.chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+
+  &:hover { background: var(--bg-surface-2); color: var(--text-primary); }
+}
+.chipOn {
+  background: var(--color-brand-500);
+  border-color: var(--color-brand-500);
+  color: var(--text-inverted);
+}
+.linkBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  &:hover { color: var(--text-primary); text-decoration: underline; }
+}
+.advanced {
+  display: flex;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: var(--sp-3);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+
+  label { display: flex; flex-direction: column; gap: 4px; }
+  .check { justify-content: flex-end; }
+  span { font-size: var(--fs-xs); color: var(--text-muted); }
+  select, input {
+    padding: 6px 10px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--border-strong);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font-size: var(--fs-sm);
+    min-width: 160px;
+  }
+}
+
+// ── Tableau ─────────────────────────────────────────────────────────────
+.tableWrap {
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+
+  th {
+    text-align: left;
+    padding: 10px var(--sp-3);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-subtle);
+    white-space: nowrap;
+  }
+  td {
+    padding: 10px var(--sp-3);
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    vertical-align: middle;
+  }
+  tbody tr:hover td { background: var(--bg-surface-2); }
+  tbody tr[data-overdue="1"] td:first-child { box-shadow: inset 3px 0 0 var(--tone-danger); }
+  td[data-due="retard"] { color: var(--tone-danger); font-weight: 600; }
+}
+.num { text-align: right; white-space: nowrap; }
+.right { text-align: right; }
+.client { color: var(--text-primary); font-weight: 600; text-decoration: none; &:hover { text-decoration: underline; } }
+.ref { display: block; font-size: var(--fs-xs); color: var(--text-muted); }
+.owner { color: var(--text-muted); white-space: nowrap; }
+.est { margin-left: 5px; font-size: var(--fs-xs); color: var(--text-muted); }
+.sector {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: baseline;
+}
+.badge {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+
+  &[data-kind="retard"] { background: color-mix(in oklab, var(--tone-danger) 15%, transparent); color: var(--tone-danger); }
+  &[data-kind="relance"] { background: color-mix(in oklab, var(--tone-warning) 18%, transparent); color: var(--tone-warning); }
+  &[data-kind="photos"] { background: color-mix(in oklab, var(--color-brand-500) 15%, transparent); color: var(--color-brand-500); }
+  &[data-kind="decouverte"] { background: var(--bg-surface-2); color: var(--text-muted); }
+  &[data-kind="signe"] { background: color-mix(in oklab, var(--tone-success) 15%, transparent); color: var(--tone-success); }
+}
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover { background: var(--bg-surface-2); }
+}
+.empty { padding: var(--sp-6); text-align: center; color: var(--text-muted); font-size: var(--fs-sm); }
+.count { font-size: var(--fs-xs); color: var(--text-muted); margin: 0; }
+
+// ── Responsive (conventions du CRM) ─────────────────────────────────────
+@media (max-width: 1024px) {
+  .cards { grid-template-columns: repeat(3, 1fr); }
+  .table {
+    thead { display: none; }
+    tbody, tr, td { display: block; width: 100%; }
+    tr { border-bottom: 1px solid var(--border-subtle); padding: var(--sp-2) 0; }
+    td {
+      border: 0;
+      padding: 4px var(--sp-3);
+      display: flex;
+      justify-content: space-between;
+      gap: var(--sp-3);
+      &::before {
+        content: attr(data-label);
+        font-size: var(--fs-xs);
+        color: var(--text-muted);
+        text-transform: uppercase;
+      }
+    }
+    .right, .num { text-align: left; }
+  }
+}
+@media (max-width: 768px) {
+  .wrap { gap: var(--sp-3); }
+  .cards { grid-template-columns: repeat(2, 1fr); gap: var(--sp-2); }
+  .card { padding: var(--sp-2) var(--sp-3); }
+  .cardValue { font-size: 1.375rem; }
+
+  // Onglets et filtres : défilement horizontal volontaire plutôt qu'un
+  // retour à la ligne qui pousserait le tableau hors de l'écran. Le
+  // débordement est CONTENU dans ces deux bandes, la page elle-même ne
+  // défile jamais latéralement.
+  .tabs, .filterRow {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    &::-webkit-scrollbar { display: none; }
+  }
+  .tabs { width: 100%; }
+  .tab, .chip, .linkBtn { flex: 0 0 auto; }
+  .navRow { flex-direction: column; align-items: stretch; }
+  .prio { margin-left: 0; width: 100%; justify-content: center; }
+  .searchBox { min-width: 100%; order: -1; }
+  .filterRow { gap: var(--sp-2); }
+
+  // Cibles tactiles : 44 px de haut minimum (recommandation Apple HIG et
+  // Material). En dessous, un doigt rate le bouton une fois sur trois.
+  .tab, .chip, .prio, .linkBtn, .action { min-height: 44px; }
+  .chip, .linkBtn { padding-top: 10px; padding-bottom: 10px; }
+  .action { width: 100%; justify-content: center; padding: 11px 14px; font-size: var(--fs-sm); }
+  .searchBox { padding: 10px; }
+
+  // Carte de dossier : l'action occupe toute la largeur, détachée du reste.
+  .table td[data-label="Action"] {
+    display: block;
+    padding-top: var(--sp-2);
+    &::before { display: none; }
+  }
+  .advanced {
+    flex-direction: column;
+    select, input { min-width: 100%; min-height: 44px; }
+  }
+}
+
+// Orientation paysage sur téléphone : la hauteur est la ressource rare.
+@media (max-width: 920px) and (orientation: landscape) {
+  .cards { grid-template-columns: repeat(6, 1fr); }
+  .cardValue { font-size: 1.25rem; }
+  .cardSub { display: none; }
+}

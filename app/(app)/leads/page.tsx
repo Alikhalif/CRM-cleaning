@@ -1,36 +1,34 @@
-import LeadsTable from "./LeadsTable";
+import SuiviCommercial from "./SuiviCommercial";
 import styles from "./Leads.module.scss";
-import { getAllCommerciaux, getAllLeads } from "@/lib/leads-server";
-import { getCurrentUserProfile } from "@/lib/users-server";
-import { visibleSectorsForUser } from "@/lib/leads";
+import { getSuiviData } from "@/lib/suivi-server";
 
-export const metadata = { title: "Leads & devis" };
+export const metadata = { title: "Suivi commercial" };
 
-export default async function LeadsPage() {
-  // Server-side fetch — runs once per request, ships rendered HTML to the
-  // client which then takes over for filter/sort/search interactions.
-  const [leads, commerciaux, me] = await Promise.all([
-    getAllLeads(),
-    getAllCommerciaux(),
-    getCurrentUserProfile(),
-  ]);
+// « Suivi commercial » — remplace l'ancien tableau « Leads & devis ».
+//
+// La ROUTE reste /leads : des dizaines de liens pointent vers /leads/[id]
+// (pipeline, palette ⌘K, notifications, e-mails internes). Changer l'URL les
+// aurait tous cassés pour un gain nul — c'est l'onglet et l'interface qui
+// changent, pas l'adresse.
+//
+// Tout le filtrage (propriétaire + activités autorisées) est fait côté serveur
+// dans getSuiviData : les dossiers hors périmètre ne sont pas envoyés au
+// navigateur. Voir l'avertissement en tête de lib/suivi-server.ts.
 
-  // Restriction commerciale par activité : ne montrer que les secteurs affectés.
-  const isAdmin = (me?.roles ?? []).some((r) => r.slug === "admin");
-  const isPlanner = (me?.roles ?? []).some((r) => r.slug === "planification");
-  const visibleSectors = visibleSectorsForUser({ isAdmin, isPlanner, activities: me?.activities ?? [] });
+export default async function SuiviCommercialPage() {
+  const data = await getSuiviData();
 
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
-          <h1 className={styles.title}>Leads &amp; devis</h1>
+          <h1 className={styles.title}>Suivi commercial</h1>
           <p className={styles.subtitle}>
-            Vue tableau dense · recherche, tri, filtres statut/commercial/source · export CSV
+            Un dossier, une situation, une prochaine action — du premier appel à la signature.
           </p>
         </div>
       </header>
-      <LeadsTable leads={leads} commerciaux={commerciaux} visibleSectors={visibleSectors} canProvenance={isAdmin || isPlanner} isBackOffice={isAdmin || isPlanner} />
+      <SuiviCommercial {...data} />
     </div>
   );
 }

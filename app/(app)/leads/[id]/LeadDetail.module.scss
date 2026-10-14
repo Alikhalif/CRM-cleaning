@@ -1248,6 +1248,9 @@
     width: 100%;
     justify-content: center;
     padding: 12px 10px;
+    // 44 px garantis sous le doigt : ces boutons (Appeler, SMS, Email, devis)
+    // sont les plus utilisés en mobilité. Le padding seul laissait ~42 px.
+    min-height: 44px;
     font-size: var(--fs-sm);
   }
   // Le CTA principal (ex. Appeler / Générer devis) prend toute la largeur.

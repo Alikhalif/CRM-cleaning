@@ -44,7 +44,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/ma-journee",     label: "Ma journée",    icon: "checklist" },
       { href: "/recherche",      label: "Recherche",     icon: "search" },
       { href: "/pipeline",       label: "Pipeline",      icon: "pipeline" },
-      { href: "/leads",          label: "Leads & devis", icon: "leads", badge: "leadsUntreated" },
+      { href: "/leads",          label: "Suivi commercial", icon: "leads", badge: "leadsUntreated" },
       { href: "/a-affecter",     label: "À affecter",    icon: "leads" },
       { href: "/decouverte",     label: "Découverte",    icon: "search" },
       { href: "/commerciaux",    label: "Commerciaux",   icon: "commerciaux" },
