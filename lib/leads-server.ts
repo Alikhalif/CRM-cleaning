@@ -175,6 +175,11 @@ export type LeadRowJoined = {
   discovery_done_at?: string | null;
   photos_requested_at?: string | null;
   delai_souhaite?: string | null;
+  wanted_date?: string | null;
+  wanted_slot?: string | null;
+  wanted_time_start?: string | null;
+  wanted_time_end?: string | null;
+  intervention_delay_date?: string | null;
   price_range?: string | null;
   reaction_prix?: string | null;
   statut_client?: string | null;
@@ -263,6 +268,12 @@ export function mapLead(row: LeadRowJoined, canImmob = false, canProvenance = fa
     discoveryDoneAt: row.discovery_done_at ?? undefined,
     photosRequestedAt: row.photos_requested_at ?? undefined,
     delaiSouhaite: (row.delai_souhaite ?? undefined) as Lead["delaiSouhaite"],
+    wantedDate: row.wanted_date ?? undefined,
+    wantedSlot: (row.wanted_slot ?? undefined) as Lead["wantedSlot"],
+    // Postgres rend "09:00:00" : on garde HH:MM pour les <input type="time">.
+    wantedTimeStart: row.wanted_time_start ? row.wanted_time_start.slice(0, 5) : undefined,
+    wantedTimeEnd: row.wanted_time_end ? row.wanted_time_end.slice(0, 5) : undefined,
+    interventionDelayDate: row.intervention_delay_date ?? undefined,
     priceRange: row.price_range ?? undefined,
     reactionPrix: (row.reaction_prix ?? undefined) as Lead["reactionPrix"],
     statutClient: (row.statut_client ?? undefined) as Lead["statutClient"],
@@ -313,10 +324,34 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // All leads, ordered by most recent activity. Used by the /leads list page.
 // Client-side filter/sort/search still happens in LeadsTable — for 16 leads
 // that's free. Once volumes grow past ~1k rows we'll want server-side
+
+// ── Colonnes « créneau souhaité » : lecture tolérante ───────────────────
+// Ces colonnes arrivent avec la migration 20261014000001. Si le code est
+// déployé AVANT que la migration soit passée, les demander ferait échouer
+// TOUTE la lecture des leads — pipeline et listes vides, comme observé le
+// 14/10. On les demande donc de façon optionnelle : au premier 42703
+// (« undefined column ») on bascule définitivement en mode dégradé pour la
+// vie du process, et le reste de la fiche continue de fonctionner.
+//
+// À supprimer une fois la migration appliquée partout, en réintégrant les
+// colonnes dans les SELECT.
+let wantedColsAvailable = true;
+// Pas de saut de ligne dans la chaîne : une liste de colonnes PostgREST
+// tolère les espaces, et un fragment vide laisse simplement une ligne vide.
+const WANTED_COLS = (): string =>
+  wantedColsAvailable
+    ? "wanted_date, wanted_slot, wanted_time_start, wanted_time_end, intervention_delay_date,"
+    : "";
+const isUndefinedColumn = (e: { code?: string; message?: string } | null | undefined): boolean =>
+  e?.code === "42703" || (e?.message ?? "").includes("wanted_");
+
 // pagination + filter pushdown.
 export async function getAllLeads(): Promise<Lead[]> {
   const supabase = await supabaseServer();
-  const { data, error } = await supabase
+  // Une seule définition de la requête, rejouée sans les colonnes optionnelles
+  // si la migration du créneau souhaité n'est pas encore passée (voir
+  // WANTED_COLS). Sans ce repli, toute la liste des leads tombe à vide.
+  const lancer = () => supabase
     .from("leads")
     .select(
       `
@@ -331,13 +366,22 @@ export async function getAllLeads(): Promise<Lead[]> {
         move_from_city, move_from_postal, move_to_city, move_to_postal, move_volume, move_date,
         announced_price, discovery_outcome, discovery_done_at,
         photos_requested_at, delai_souhaite, price_range, reaction_prix,
-        statut_client, etat_salete, contexte_intervention, acompte_negocie, discovery_details, is_extreme,
+${WANTED_COLS()}        statut_client, etat_salete, contexte_intervention, acompte_negocie, discovery_details, is_extreme,
         activity:activities(slug),
         source:lead_sources(slug),
         owner:users!leads_owner_id_fkey(id, first_name, last_name, color)
       `,
     )
     .order("last_action_at", { ascending: false, nullsFirst: false });
+
+  let { data, error } = await lancer();
+  if (error && isUndefinedColumn(error) && wantedColsAvailable) {
+    // Colonnes absentes : on bascule définitivement pour la vie du process et
+    // on rejoue. Le créneau souhaité sera simplement vide jusqu'à la migration.
+    console.warn("[getAllLeads] colonnes wanted_* absentes — migration 20261014000001 non appliquée. Lecture dégradée.");
+    wantedColsAvailable = false;
+    ({ data, error } = await lancer());
+  }
 
   // A01 — ne pas masquer silencieusement l'erreur : si une colonne référencée
   // (source_url, move_*, …) n'existe pas encore en base parce que les migrations
@@ -396,7 +440,9 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
     ? { id: idOrShortId }
     : { short_id: idOrShortId };
 
-  const { data: lead, error: leadErr } = await supabase
+  // Même repli que getAllLeads : sans lui, la fiche lead renvoie 404 tant que
+  // la migration du créneau souhaité n'est pas passée.
+  const lancerLead = () => supabase
     .from("leads")
     .select(
       `
@@ -412,7 +458,7 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
         move_from_city, move_from_postal, move_to_city, move_to_postal, move_volume, move_date,
         announced_price, discovery_outcome, discovery_done_at,
         photos_requested_at, delai_souhaite, price_range, reaction_prix,
-        statut_client, etat_salete, contexte_intervention, acompte_negocie, discovery_details, is_extreme,
+${WANTED_COLS()}        statut_client, etat_salete, contexte_intervention, acompte_negocie, discovery_details, is_extreme,
         activity:activities(slug),
         source:lead_sources(slug),
         owner:users!leads_owner_id_fkey(id, first_name, last_name, color)
@@ -421,6 +467,13 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
     .match(filter)
     .maybeSingle<LeadRowJoined>();
 
+  let { data: lead, error: leadErr } = await lancerLead();
+  if (leadErr && isUndefinedColumn(leadErr) && wantedColsAvailable) {
+    console.warn("[getLeadDetail] colonnes wanted_* absentes — migration 20261014000001 non appliquée. Lecture dégradée.");
+    wantedColsAvailable = false;
+    ({ data: lead, error: leadErr } = await lancerLead());
+  }
+  if (leadErr) console.error("[getLeadDetail] Supabase error:", leadErr.message);
   if (leadErr || !lead) return null;
 
   const { data: docs } = await supabase

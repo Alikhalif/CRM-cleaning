@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon/Icon";
 import RelativeTime from "@/components/RelativeTime/RelativeTime";
-import { recordDiscovery, requestPhotos, saveDiscovery, setLeadActivity } from "@/app/(app)/pipeline/actions";
+import { recordDiscovery, saveDiscovery, setLeadActivity } from "@/app/(app)/pipeline/actions";
 import {
   ACOMPTE_STEPS,
   DELAI_SOUHAITE,
@@ -16,11 +16,16 @@ import {
   REACTION_PRIX_LABEL,
   STATUTS_CLIENT,
   STATUT_CLIENT_LABEL,
+  WANTED_SLOTS,
+  WANTED_SLOT_LABEL,
+  type WantedSlot,
   type DiscoveryOutcome,
   type Lead,
 } from "@/lib/leads";
 import DebarrasFields from "./DebarrasFields";
 import DemenagementFields from "./DemenagementFields";
+import { computeRange, type PricingParams } from "@/lib/pricing/compute";
+import { buildPricingInput } from "@/lib/pricing/discovery-input";
 import styles from "./LeadDetail.module.scss";
 
 // Fiche Découverte guidée qui S'ADAPTE au secteur : champs communs (surface,
@@ -28,7 +33,12 @@ import styles from "./LeadDetail.module.scss";
 // à l'activité (nettoyage → statut/saleté ; débarras / déménagement → champs
 // techniques dédiés, stockés en JSONB). Jamais mélangés.
 
-type Props = { lead: Lead; hasEmail: boolean; hasPhone: boolean };
+type Props = {
+  lead: Lead;
+  // Paramètres tarifaires de l'activité. null = non configurés par
+  // l'administrateur → aucune fourchette n'est proposée.
+  pricingParams: PricingParams | null;
+};
 
 const field: React.CSSProperties = {
   width: "100%", padding: "8px 10px", borderRadius: "var(--r-sm)",
@@ -37,7 +47,7 @@ const field: React.CSSProperties = {
 };
 const lbl: React.CSSProperties = { display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: 4 };
 
-export default function DiscoveryCard({ lead, hasEmail, hasPhone }: Props) {
+export default function DiscoveryCard({ lead, pricingParams }: Props) {
   const router = useRouter();
   const leadId = lead.id;
 
@@ -54,6 +64,10 @@ export default function DiscoveryCard({ lead, hasEmail, hasPhone }: Props) {
   const [salete, setSalete] = useState<string>(lead.etatSalete ?? "");
   const [acompte, setAcompte] = useState<string>(lead.acompteNegocie != null ? String(lead.acompteNegocie) : "");
   const [contexte, setContexte] = useState(lead.contexteIntervention ?? "");
+  const [wantedDate, setWantedDate] = useState(lead.wantedDate ?? "");
+  const [wantedSlot, setWantedSlot] = useState<string>(lead.wantedSlot ?? "");
+  const [wantedStart, setWantedStart] = useState(lead.wantedTimeStart ?? "");
+  const [wantedEnd, setWantedEnd] = useState(lead.wantedTimeEnd ?? "");
   // Champs techniques métier (débarras / déménagement).
   const [details, setDetails] = useState<Record<string, unknown>>(lead.discoveryDetails ?? {});
   const setDetail = (k: string, v: unknown) => setDetails((d) => ({ ...d, [k]: v }));
@@ -90,6 +104,10 @@ export default function DiscoveryCard({ lead, hasEmail, hasPhone }: Props) {
         etatSalete: isNettoyage ? (salete || null) : null,
         contexteIntervention: contexte,
         acompteNegocie: acompte !== "" ? Number(acompte) : null,
+        wantedDate: wantedDate || null,
+        wantedSlot: wantedSlot || null,
+        wantedTimeStart: wantedStart || null,
+        wantedTimeEnd: wantedEnd || null,
         details: isNettoyage ? {} : details,
       }),
     );
@@ -106,7 +124,21 @@ export default function DiscoveryCard({ lead, hasEmail, hasPhone }: Props) {
     run(`outcome-${outcome}`, () => recordDiscovery(leadId, { announcedPrice, outcome, reason }));
   };
 
-  const onPhotos = (channel: "email" | "sms") => run(`photos-${channel}`, () => requestPhotos(leadId, channel));
+
+  // Fourchette recommandée. Recalculée à chaque modification de la découverte
+  // (c'est une dérivée de l'état, pas une étape à déclencher) : le commercial
+  // la lit pendant son appel, sans cliquer sur quoi que ce soit.
+  const pricing = useMemo(() => {
+    const { input, approx } = buildPricingInput({
+      sector: lead.sector,
+      surfaceM2: surface.trim() ? Number(surface) : null,
+      details,
+      delaiSouhaite: delai || null,
+      isUrgent: Boolean(lead.isUrgent),
+      isExtreme: Boolean(lead.isExtreme),
+    });
+    return { result: computeRange(pricingParams, input), approx };
+  }, [pricingParams, lead.sector, lead.isUrgent, lead.isExtreme, surface, details, delai]);
 
   const sectorLabel = isDebarras ? "Débarras" : isDemenagement ? "Déménagement" : "Nettoyage";
 
@@ -224,6 +256,77 @@ export default function DiscoveryCard({ lead, hasEmail, hasPhone }: Props) {
         />
       </label>
 
+      {/* ── Date et créneau SOUHAITÉS par le client ──────────────────────
+          Souhait, pas confirmation : la planification garde la main sur la
+          date réelle. Le libellé le dit explicitement pour qu'aucun
+          commercial ne promette un créneau au téléphone. */}
+      <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 12, marginBottom: 12 }}>
+        <div className={styles.muted} style={{ fontSize: "0.8125rem", marginBottom: 6 }}>
+          Souhait du client — à confirmer par la planification
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
+          <label>
+            <span style={lbl}>Date souhaitée</span>
+            <input type="date" value={wantedDate} onChange={(e) => setWantedDate(e.target.value)} style={field} />
+          </label>
+          <label>
+            <span style={lbl}>Créneau souhaité</span>
+            <select value={wantedSlot} onChange={(e) => setWantedSlot(e.target.value)} style={field}>
+              <option value="">—</option>
+              {WANTED_SLOTS.map((v) => (
+                <option key={v} value={v}>{WANTED_SLOT_LABEL[v as WantedSlot]}</option>
+              ))}
+            </select>
+          </label>
+          {(wantedSlot === "heure_precise" || wantedSlot === "personnalise") && (
+            <label>
+              <span style={lbl}>{wantedSlot === "personnalise" ? "De" : "À"}</span>
+              <input type="time" value={wantedStart} onChange={(e) => setWantedStart(e.target.value)} style={field} />
+            </label>
+          )}
+          {wantedSlot === "personnalise" && (
+            <label>
+              <span style={lbl}>À</span>
+              <input type="time" value={wantedEnd} onChange={(e) => setWantedEnd(e.target.value)} style={field} />
+            </label>
+          )}
+        </div>
+      </div>
+
+      {/* ── Fourchette tarifaire recommandée ──────────────────────────── */}
+      <div className={styles.pricingBox} data-state={pricing.result.ok ? "ok" : "ko"}>
+        <div className={styles.pricingTitle}>Fourchette tarifaire recommandée à annoncer au client</div>
+        {pricing.result.ok ? (
+          <>
+            <div className={styles.pricingRange}>
+              <span>{pricing.result.min.toLocaleString("fr-FR")} €</span>
+              <span className={styles.pricingDash}>—</span>
+              <span>{pricing.result.max.toLocaleString("fr-FR")} €</span>
+            </div>
+            <ul className={styles.pricingLines}>
+              {pricing.result.lines.map((l, i) => (
+                <li key={i}><span>{l.label}</span><span>{Math.round(l.amount).toLocaleString("fr-FR")} €</span></li>
+              ))}
+            </ul>
+            {(pricing.approx || pricing.result.assumptions.length > 0) && (
+              <p className={styles.pricingNote}>
+                {[...(pricing.approx ? ["volume donné en tranche — milieu retenu"] : []), ...pricing.result.assumptions].join(" · ")}
+              </p>
+            )}
+            <p className={styles.pricingNote}>Indicatif — ne vaut pas devis.</p>
+          </>
+        ) : pricing.result.reason === "not_configured" ? (
+          <p className={styles.pricingNote}>
+            Aucun barème configuré pour {sectorLabel.toLowerCase()}. Un Super Admin doit
+            renseigner les paramètres tarifaires de cette activité (Paramètres › Tarifs).
+          </p>
+        ) : (
+          <p className={styles.pricingNote}>
+            Calcul impossible — il manque&nbsp;: {pricing.result.missing.join(", ")}.
+          </p>
+        )}
+      </div>
+
       <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} disabled={busy !== null} onClick={onSave} style={{ width: "100%", justifyContent: "center", marginBottom: 12 }}>
         {busy === "save" ? "Enregistrement…" : "Enregistrer la découverte"}
       </button>
@@ -239,23 +342,6 @@ export default function DiscoveryCard({ lead, hasEmail, hasPhone }: Props) {
           </button>
           <button type="button" className={`${styles.btn} ${styles.btnDanger}`} disabled={busy !== null} onClick={() => onOutcome("refus")}>
             {busy === "outcome-refus" ? "…" : "Refus"}
-          </button>
-        </div>
-      </div>
-
-      <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 12 }}>
-        <div className={styles.muted} style={{ fontSize: "0.8125rem", marginBottom: 6 }}>
-          Demande de photos pour établir le devis
-          {lead.photosRequestedAt && (
-            <>{" · "}<Icon name="check" size={11} /> envoyée <RelativeTime iso={lead.photosRequestedAt} /></>
-          )}
-        </div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button type="button" className={styles.btn} disabled={busy !== null || !hasEmail} onClick={() => onPhotos("email")} title={hasEmail ? "Envoyer la demande par email" : "Aucun email"}>
-            {busy === "photos-email" ? "Envoi…" : "Email"}
-          </button>
-          <button type="button" className={styles.btn} disabled={busy !== null || !hasPhone} onClick={() => onPhotos("sms")} title={hasPhone ? "Envoyer la demande par SMS" : "Aucun téléphone"}>
-            {busy === "photos-sms" ? "Envoi…" : "SMS"}
           </button>
         </div>
       </div>

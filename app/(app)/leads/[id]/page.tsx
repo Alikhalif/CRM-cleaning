@@ -27,6 +27,7 @@ import MediaTab from "./MediaTab";
 import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import CallNotesCard from "./CallNotesCard";
 import DiscoveryCard from "./DiscoveryCard";
+import { getPricingParamsForActivity } from "@/lib/pricing/server";
 import FollowupCard from "./FollowupCard";
 import ImmobAnnotationCard from "./ImmobAnnotationCard";
 import InterventionDelayCard from "./InterventionDelayCard";
@@ -173,6 +174,10 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
         minute: "2-digit",
       }).format(new Date(interventionSchedule.plannedAt))
     : "";
+  // Barème de l'activité du lead — null si l'administrateur ne l'a pas encore
+  // configuré, auquel cas la découverte n'affiche aucune fourchette.
+  const pricingParams = await getPricingParamsForActivity(lead.sector);
+
   const templateVars = leadTemplateVars(lead, {
     commercialName: me?.displayName ?? "",
     commercialFirstName: me?.firstName ?? "",
@@ -376,11 +381,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
       {tab === "informations" && (
         <div className={styles.layout}>
           <main className={styles.main}>
-            <DiscoveryCard
-              lead={lead}
-              hasEmail={Boolean(lead.email)}
-              hasPhone={Boolean(lead.phone)}
-            />
+            <DiscoveryCard lead={lead} pricingParams={pricingParams} />
             <section className={styles.card}>
               <h2 className={styles.h2}>Coordonnées</h2>
               <dl className={styles.dl}>
@@ -532,6 +533,7 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
                 leadId={lead.id}
                 initialDelay={lead.interventionDelay}
                 initialNotes={lead.interventionDelayNotes ?? ""}
+                initialDate={lead.interventionDelayDate}
               />
             )}
             {canImmobTravaux && (

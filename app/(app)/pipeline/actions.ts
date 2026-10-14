@@ -511,6 +511,12 @@ export type DiscoveryInput = {
   etatSalete: string | null;
   contexteIntervention: string | null;
   acompteNegocie: number | null;
+  // Date et créneau SOUHAITÉS par le client (découverte). Souhait, pas
+  // confirmation : la planification garde la main sur la date réelle.
+  wantedDate?: string | null; // YYYY-MM-DD
+  wantedSlot?: string | null;
+  wantedTimeStart?: string | null; // HH:MM
+  wantedTimeEnd?: string | null;
   // Champs techniques propres au métier (débarras / déménagement).
   details?: Record<string, unknown> | null;
 };
@@ -545,6 +551,16 @@ export async function saveDiscovery(leadId: string, input: DiscoveryInput): Prom
 
   const updates = {
     surface_m2: input.surfaceM2,
+    // Créneau SOUHAITÉ par le client — jamais une intervention confirmée.
+    wanted_date: input.wantedDate || null,
+    wanted_slot: input.wantedSlot || null,
+    // Les heures ne valent que pour 'heure_precise' et 'personnalise' : on les
+    // efface sinon, pour ne pas laisser traîner une heure d'un choix abandonné.
+    wanted_time_start:
+      input.wantedSlot === "heure_precise" || input.wantedSlot === "personnalise"
+        ? input.wantedTimeStart || null
+        : null,
+    wanted_time_end: input.wantedSlot === "personnalise" ? input.wantedTimeEnd || null : null,
     announced_price: input.announcedPrice,
     price_range: input.priceRange || null,
     delai_souhaite: input.delaiSouhaite || null,
@@ -1060,11 +1076,21 @@ export async function updateInterventionDelay(
   id: string,
   delay: "sous_72h" | "1_semaine" | "15_jours" | "1_mois" | "personnalise" | null,
   notes: string,
+  // Date précise, utile au seul délai « personnalisé ».
+  date?: string | null,
 ): Promise<Result> {
   const supabase = await supabaseServer();
-  const updates: LeadUpdate = {
+  // Pas d'annotation LeadUpdate ici : database.types.ts est généré depuis la
+  // base et ne connaîtra intervention_delay_date qu'après la migration puis un
+  // `supabase gen types`. Même traitement que les RPC de numérotation : on
+  // caste au point de contact du SDK plutôt que de mentir sur le type.
+  const updates = {
     intervention_delay: delay,
     intervention_delay_notes: notes.trim() || null,
+    // La date est effacée dès que le délai n'est plus personnalisé : sinon une
+    // date abandonnée remonterait à la planification avec un délai qui la
+    // contredit.
+    intervention_delay_date: delay === "personnalise" ? date || null : null,
   };
   const { error } = await supabase.from("leads").update(updates as never).eq("id", id);
   if (error) return { ok: false, error: error.message };
@@ -1074,7 +1100,7 @@ export async function updateInterventionDelay(
     action: "lead.intervention_delay.update",
     entityType: "lead",
     entityId: id,
-    after: { delay, hasNotes: notes.trim().length > 0 },
+    after: { delay, hasNotes: notes.trim().length > 0, date: delay === "personnalise" ? date ?? null : null },
   });
   return { ok: true };
 }

@@ -210,6 +210,8 @@ export type Lead = {
   // Surfaces on the planificatrice's queue so urgent ones float.
   interventionDelay?: InterventionDelay;
   interventionDelayNotes?: string;
+  // Date précise quand interventionDelay vaut 'personnalise'.
+  interventionDelayDate?: string; // YYYY-MM-DD
   // ── Découverte (call 2026-07-11) — qualification before quoting.
   announcedPrice?: number; // prix annoncé au client pendant la découverte
   discoveryOutcome?: DiscoveryOutcome; // undefined = découverte pas encore faite
@@ -218,6 +220,13 @@ export type Lead = {
   // Fiche Découverte enrichie (Lot 1, 2026-07-30) — remplie par TOUS les
   // commerciaux ; suit le dossier jusqu'à la planification.
   delaiSouhaite?: DelaiSouhaite;
+  // Date et créneau SOUHAITÉS par le client (découverte 2026-10-14).
+  // ⚠️ Ce sont des souhaits, PAS une intervention confirmée : la planification
+  // garde seule la main sur la date réelle (voir dossiers).
+  wantedDate?: string; // YYYY-MM-DD
+  wantedSlot?: WantedSlot;
+  wantedTimeStart?: string; // HH:MM
+  wantedTimeEnd?: string; // HH:MM
   priceRange?: string; // ex. "500-700"
   reactionPrix?: ReactionPrix;
   statutClient?: StatutClient;
@@ -247,6 +256,41 @@ export type DelaiSouhaite =
 export const DELAI_SOUHAITE: DelaiSouhaite[] = [
   "aujourdhui", "24h", "48h", "semaine", "15j", "ce_mois", "plus_tard",
 ];
+// Créneau horaire souhaité par le client. 'flexible' est le défaut implicite :
+// pas de contrainte annoncée.
+export type WantedSlot =
+  | "matin" | "apres_midi" | "journee" | "heure_precise" | "personnalise" | "flexible";
+
+export const WANTED_SLOT_LABEL: Record<WantedSlot, string> = {
+  matin: "Matin",
+  apres_midi: "Après-midi",
+  journee: "Journée complète",
+  heure_precise: "Heure précise",
+  personnalise: "Créneau personnalisé",
+  flexible: "Flexible / à définir",
+};
+
+export const WANTED_SLOTS: WantedSlot[] = [
+  "matin", "apres_midi", "journee", "heure_precise", "personnalise", "flexible",
+];
+
+// Libellé lisible d'un souhait, pour la fiche lead et la planification.
+export function wantedSlotSummary(l: {
+  wantedDate?: string; wantedSlot?: WantedSlot;
+  wantedTimeStart?: string; wantedTimeEnd?: string;
+}): string | null {
+  if (!l.wantedDate && !l.wantedSlot) return null;
+  const parts: string[] = [];
+  if (l.wantedDate) {
+    const d = new Date(`${l.wantedDate}T00:00:00`);
+    parts.push(d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }));
+  }
+  if (l.wantedSlot === "heure_precise" && l.wantedTimeStart) parts.push(`à ${l.wantedTimeStart}`);
+  else if (l.wantedSlot === "personnalise" && l.wantedTimeStart && l.wantedTimeEnd) parts.push(`${l.wantedTimeStart} – ${l.wantedTimeEnd}`);
+  else if (l.wantedSlot) parts.push(WANTED_SLOT_LABEL[l.wantedSlot].toLowerCase());
+  return parts.join(" · ") || null;
+}
+
 export const DELAI_SOUHAITE_LABEL: Record<DelaiSouhaite, string> = {
   aujourdhui: "Aujourd'hui",
   "24h": "Sous 24 heures",

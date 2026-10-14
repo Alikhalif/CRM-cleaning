@@ -1263,3 +1263,89 @@
   // Cartes KPI : 2 colonnes au lieu de 4 sur petit écran.
   .kpiRow { grid-template-columns: 1fr 1fr; }
 }
+
+// ── Fourchette tarifaire recommandée (découverte) ───────────────────────
+// Encadré volontairement voyant : le commercial le lit pendant son appel.
+.pricingBox {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  background: var(--bg-surface-2);
+
+  &[data-state="ok"] { border-color: var(--color-brand-500); }
+}
+.pricingTitle {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  margin-bottom: var(--sp-2);
+}
+.pricingRange {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-brand-500);
+  flex-wrap: wrap;
+}
+.pricingDash { color: var(--text-muted); font-weight: 400; }
+.pricingLines {
+  list-style: none;
+  margin: var(--sp-2) 0 0;
+  padding: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding: 2px 0;
+  }
+}
+.pricingNote {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  // Saisie tactile : date, heure et créneau sont les champs les plus utilisés
+  // en mobilité, ils doivent se viser au doigt.
+  .pricingRange { font-size: 1.25rem; }
+}
+
+// ── Date du délai personnalisé (carte post-signature) ───────────────────
+.delayDate {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-top: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--color-brand-500);
+  border-radius: var(--r-md);
+  background: var(--bg-surface-2);
+}
+.delayDateLabel {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.delayDateInput {
+  flex: 1;
+  min-width: 160px;
+  min-height: 44px; // saisie tactile
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: var(--fs-md);
+}

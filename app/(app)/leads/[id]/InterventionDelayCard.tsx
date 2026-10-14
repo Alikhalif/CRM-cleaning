@@ -18,6 +18,7 @@ type Props = {
   leadId: string;
   initialDelay?: InterventionDelay;
   initialNotes: string;
+  initialDate?: string; // YYYY-MM-DD — utile au seul délai « personnalisé »
 };
 
 const DELAYS: InterventionDelay[] = [
@@ -34,15 +35,18 @@ export default function InterventionDelayCard({
   leadId,
   initialDelay,
   initialNotes,
+  initialDate,
 }: Props) {
   const [delay, setDelay] = useState<InterventionDelay | undefined>(initialDelay);
   const [notes, setNotes] = useState(initialNotes);
+  const [date, setDate] = useState(initialDate ?? "");
   const [state, setState] = useState<SaveState>("idle");
   const [error, setError] = useState<string | null>(null);
 
-  const lastSavedRef = useRef<{ delay?: InterventionDelay; notes: string }>({
+  const lastSavedRef = useRef<{ delay?: InterventionDelay; notes: string; date: string }>({
     delay: initialDelay,
     notes: initialNotes,
+    date: initialDate ?? "",
   });
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -51,21 +55,26 @@ export default function InterventionDelayCard({
   useEffect(() => {
     const changed =
       delay !== lastSavedRef.current.delay ||
-      notes !== lastSavedRef.current.notes;
+      notes !== lastSavedRef.current.notes ||
+      date !== lastSavedRef.current.date;
     if (!changed) return;
     if (timerRef.current) clearTimeout(timerRef.current);
     // Radio changes save fast (200ms); text changes slower (800ms) so the
     // user can type a sentence without 10 saves.
-    const debounceMs = delay !== lastSavedRef.current.delay ? 200 : 800;
+    // Le choix d'une date dans le calendrier est un clic, pas une frappe :
+    // même réactivité que les boutons radio.
+    const rapide =
+      delay !== lastSavedRef.current.delay || date !== lastSavedRef.current.date;
+    const debounceMs = rapide ? 200 : 800;
     timerRef.current = setTimeout(async () => {
       setState("saving");
-      const result = await updateInterventionDelay(leadId, delay ?? null, notes);
+      const result = await updateInterventionDelay(leadId, delay ?? null, notes, date || null);
       if (!result.ok) {
         setState("error");
         setError(result.error);
         return;
       }
-      lastSavedRef.current = { delay, notes };
+      lastSavedRef.current = { delay, notes, date };
       setState("saved");
       setError(null);
     }, debounceMs);
@@ -73,7 +82,7 @@ export default function InterventionDelayCard({
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [delay, notes, leadId]);
+  }, [delay, notes, date, leadId]);
 
   return (
     <section className={styles.card}>
@@ -121,11 +130,28 @@ export default function InterventionDelayCard({
         ))}
       </div>
 
+      {/* Le délai « personnalisé » n'a de sens qu'avec une date : le calendrier
+          n'apparaît qu'à ce moment-là, et la date est effacée côté serveur si
+          l'on repasse sur un autre délai. */}
+      {delay === "personnalise" && (
+        <label className={styles.delayDate}>
+          <span className={styles.delayDateLabel}>Date souhaitée</span>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className={styles.delayDateInput}
+            // Pas de date passée : une intervention ne se planifie pas hier.
+            min={new Date().toISOString().slice(0, 10)}
+          />
+        </label>
+      )}
+
       {delay && (
         <button
           type="button"
           className={styles.delayClear}
-          onClick={() => setDelay(undefined)}
+          onClick={() => { setDelay(undefined); setDate(""); }}
         >
           Effacer la sélection
         </button>
