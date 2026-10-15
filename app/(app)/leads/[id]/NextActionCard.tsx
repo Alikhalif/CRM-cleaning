@@ -7,7 +7,7 @@ import styles from "./NextActionCard.module.scss";
 // Purement indicatif : rappelle au commercial la prochaine action à mener sur
 // ce lead. La gestion (terminer / reporter) se fait dans « Ma journée ».
 
-const TYPE_ICON = { decouverte: "phone", photos: "image", devis: "document", relance: "mail" } as const;
+const TYPE_ICON = { prise_en_charge: "phone", decouverte: "phone", photos: "image", devis: "document", relance: "mail" } as const;
 
 // Isolé hors du corps du composant : Date.now() dans un composant serveur est
 // ré-évalué à chaque requête (comportement voulu ici), le helper contourne la

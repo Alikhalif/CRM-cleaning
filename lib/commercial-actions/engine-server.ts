@@ -26,6 +26,7 @@ const LIVE_STATUSES = ["lead", "envoye", "ouvert"];
 const num = (v: unknown, d: number): number => (typeof v === "number" && Number.isFinite(v) ? v : d);
 
 type Cfg = {
+  priseEnChargeMinutes: number;
   decouverteMinutes: number;
   devisHours: number;
   relanceFirstDays: number;
@@ -40,17 +41,22 @@ async function loadConfig(sb: Sb): Promise<Cfg> {
     .select("key, enabled, config")
     .returns<{ key: string; enabled: boolean; config: Record<string, unknown> }[]>();
   const by = new Map((data ?? []).map((r) => [r.key, r]));
+  const pec = by.get("prise_en_charge");
   const dec = by.get("decouverte");
   const dev = by.get("devis");
   const rel = by.get("relance");
   const pho = by.get("photos");
   return {
+    priseEnChargeMinutes: num(pec?.config?.after_minutes, 30),
     decouverteMinutes: num(dec?.config?.after_minutes, 10),
     devisHours: num(dev?.config?.after_hours, 24),
     relanceFirstDays: num(rel?.config?.first_after_days, 2),
     relanceEveryDays: num(rel?.config?.every_days, 3),
     photosFirstHours: num(pho?.config?.first_after_hours, 24),
     enabled: {
+      // Par défaut ACTIVE : une règle absente de la table ne doit pas faire
+      // disparaître silencieusement les leads non traités.
+      prise_en_charge: pec?.enabled !== false,
       decouverte: dec?.enabled !== false,
       photos: pho?.enabled !== false,
       devis: dev?.enabled !== false,
@@ -88,6 +94,7 @@ type LeadAgg = {
   sentAt: number; // passage à « envoyé »
   lastRelanceAt: number;
   updatedAt: number;
+  receivedAt: number; // leads.received_at — socle de la règle de prise en charge
   photosRequestedAt: number; // leads.photos_requested_at
   lastMediaAt: number; // dernière photo/vidéo rattachée (lead_media)
   lastClientReplyAt: number; // dernière réponse e-mail du client (lead.email.reply)
@@ -122,13 +129,13 @@ export async function evaluateCommercialActions(): Promise<{ ok: true; open: num
   // 1) Leads « en vie » touchés récemment (borné).
   const { data: leadRows } = await sb
     .from("leads")
-    .select("id, short_id, owner_id, status, updated_at, photos_requested_at, is_company, client_company, client_first_name, client_last_name")
+    .select("id, short_id, owner_id, status, updated_at, received_at, photos_requested_at, is_company, client_company, client_first_name, client_last_name")
     .in("status", LIVE_STATUSES as never[])
     .is("deleted_at", null)
     .gte("updated_at", cutoffIso)
     .returns<
       {
-        id: string; short_id: string | null; owner_id: string | null; status: string; updated_at: string; photos_requested_at: string | null;
+        id: string; short_id: string | null; owner_id: string | null; status: string; updated_at: string; received_at: string; photos_requested_at: string | null;
         is_company: boolean | null; client_company: string | null; client_first_name: string | null; client_last_name: string | null;
       }[]
     >();
@@ -154,6 +161,7 @@ export async function evaluateCommercialActions(): Promise<{ ok: true; open: num
       sentAt: 0,
       lastRelanceAt: 0,
       updatedAt: new Date(l.updated_at).getTime(),
+      receivedAt: new Date(l.received_at).getTime(),
       photosRequestedAt: l.photos_requested_at ? new Date(l.photos_requested_at).getTime() : 0,
       lastMediaAt: 0,
       lastClientReplyAt: 0,
@@ -202,6 +210,26 @@ export async function evaluateCommercialActions(): Promise<{ ok: true; open: num
   // 3) Actions désirées, par lead et par type.
   const desired: Desired[] = [];
   for (const g of agg.values()) {
+    // ── Scénario 0 : lead non pris en charge ──
+    // Corrige l'anomalie de l'audit du 15/10 : un lead qui arrive et que
+    // personne ne touche ne générait AUCUNE action — le scénario 1 ci-dessous
+    // exige qu'un appel ait déjà été passé. 437 dossiers étaient dans ce cas.
+    //
+    // « Pris en charge » se lit sur des FAITS : un appel, une découverte, ou
+    // simplement un statut qui a avancé. L'action se referme donc d'elle-même
+    // dès que le commercial agit, par la réconciliation habituelle.
+    if (cfg.enabled.prise_en_charge && g.status === "lead" && g.lastCallAt === 0 && g.lastDiscoveryAt === 0) {
+      const due = g.receivedAt + cfg.priseEnChargeMinutes * 60_000;
+      if (now >= due) {
+        desired.push({
+          leadId: g.id, ownerId: g.ownerId, type: "prise_en_charge",
+          title: `Appeler le prospect — ${g.ref ?? g.name ?? "lead"}`,
+          reason: `Lead reçu, aucune prise en charge après ${cfg.priseEnChargeMinutes} min.`,
+          dueAt: due, originEvent: "lead.create",
+        });
+      }
+    }
+
     // ── Scénario 1 : découverte après un appel ──
     if (cfg.enabled.decouverte && g.status === "lead" && g.lastCallAt > 0 && g.lastDiscoveryAt < g.lastCallAt) {
       const due = g.lastCallAt + cfg.decouverteMinutes * 60_000;

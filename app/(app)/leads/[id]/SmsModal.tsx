@@ -62,7 +62,12 @@ export default function SmsModal({ lead, templates, vars, initialBody, onClose }
     // affiché la raison).
     const sent = await sendSmsViaWebphone(lead.phone, content);
     if (!sent) { setSending(false); return; }
-    await logLeadSms(lead.id, { recipient: lead.phone, body: content });
+    const modele = eligible.find((x) => x.id === templateId);
+    await logLeadSms(lead.id, {
+      recipient: lead.phone,
+      body: content,
+      isPhotoRequest: modele?.category === "photos",
+    });
     router.refresh();
     onClose();
   };

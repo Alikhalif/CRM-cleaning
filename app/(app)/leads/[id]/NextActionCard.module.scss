@@ -8,6 +8,8 @@
   flex-direction: column;
   gap: 8px;
 }
+// Prise en charge : rouge, c'est un lead que personne n'a touché.
+.t_prise_en_charge { border-left-color: var(--tone-danger); }
 .t_decouverte { border-left-color: var(--color-brand-500); }
 .t_photos { border-left-color: #0e8a6e; }
 .t_devis { border-left-color: #6d5ae0; }

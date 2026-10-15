@@ -29,6 +29,7 @@ type Props = {
 type Tab = ActionBucket | "photos" | "equipe";
 
 const TYPE_ICON: Record<ActionType, "phone" | "image" | "document" | "mail"> = {
+  prise_en_charge: "phone",
   decouverte: "phone",
   photos: "image",
   devis: "document",
@@ -341,7 +342,7 @@ function ManagerView({ data, now, isAdmin, rules }: { data: ManagerData; now: nu
         <div className={styles.panel}>
           <h2 className={styles.panelTitle}>Par type · délai moyen de traitement</h2>
           <ul className={styles.typeList}>
-            {(["decouverte", "photos", "devis", "relance"] as ActionType[]).map((t) => (
+            {(["prise_en_charge", "decouverte", "photos", "devis", "relance"] as ActionType[]).map((t) => (
               <li key={t}>
                 <span className={`${styles.badge} ${styles[`badge_${t}`]}`}>{TYPE_LABEL[t]}</span>
                 <span className={styles.typeCounts}>{data.byType[t].open} actives · {data.byType[t].en_retard} en retard</span>

@@ -165,3 +165,6 @@
   .card { flex-wrap: wrap; }
   .cardActions { flex-basis: 100%; justify-content: flex-end; margin-top: 4px; }
 }
+
+// Prise en charge : rouge — un lead que personne n'a touché.
+.badge_prise_en_charge { background: color-mix(in oklab, var(--tone-danger) 15%, transparent); color: var(--tone-danger); }

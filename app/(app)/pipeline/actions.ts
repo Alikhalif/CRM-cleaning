@@ -1119,7 +1119,13 @@ function escapeHtml(s: string): string {
 
 export async function sendLeadRelanceEmail(
   leadId: string,
-  input: { recipient?: string; subject: string; message: string },
+  // `isPhotoRequest` : le modèle choisi appartient à la rubrique « photos ».
+  // Rebranché à l'audit du 15/10 — le bloc dédié de la fiche lead a été retiré
+  // le 14/10 à la demande du client, et c'était le SEUL code qui posait
+  // photos_requested_at. Sans ce champ, la détection « photos attendues » du
+  // moteur, l'onglet Photos de Ma journée et le compteur du dashboard
+  // n'étaient plus alimentés.
+  input: { recipient?: string; subject: string; message: string; isPhotoRequest?: boolean },
 ): Promise<Result> {
   const subject = input.subject.trim();
   const message = input.message.trim();
@@ -1145,17 +1151,21 @@ export async function sendLeadRelanceEmail(
   const res = await sendBrevoEmail({ to: recipient, toName, subject, htmlContent });
   if (!res.ok) return { ok: false, error: `Envoi email : ${res.error}` };
 
+  const maintenant = new Date().toISOString();
   await supabase
     .from("leads")
     .update({
-      last_action_label: "Relance email envoyée",
-      last_action_at: new Date().toISOString(),
+      last_action_label: input.isPhotoRequest ? "Demande de photos envoyée" : "Relance email envoyée",
+      last_action_at: maintenant,
+      // On n'écrase PAS une demande antérieure encore en attente : la première
+      // date fait foi pour le délai de relance.
+      ...(input.isPhotoRequest ? { photos_requested_at: maintenant } : {}),
     } as never)
     .eq("id", leadId);
 
   revalidatePath(`/leads/${leadId}`);
   await auditLog({
-    action: "lead.relance.email",
+    action: input.isPhotoRequest ? "lead.photos.request" : "lead.relance.email",
     entityType: "lead",
     entityId: leadId,
     after: { recipient, subject },
@@ -1168,21 +1178,25 @@ export async function sendLeadRelanceEmail(
 // timeline — action lead.sms.sent, surfaced by mapAuditRowToTimeline).
 export async function logLeadSms(
   leadId: string,
-  input: { recipient: string; body: string },
+  input: { recipient: string; body: string; isPhotoRequest?: boolean },
 ): Promise<Result> {
   const body = input.body.trim();
   if (!body) return { ok: false, error: "Message vide." };
   const supabase = await supabaseServer();
+  const maintenant = new Date().toISOString();
   await supabase
     .from("leads")
     .update({
-      last_action_label: "SMS envoyé",
-      last_action_at: new Date().toISOString(),
+      last_action_label: input.isPhotoRequest ? "Demande de photos envoyée (SMS)" : "SMS envoyé",
+      last_action_at: maintenant,
+      ...(input.isPhotoRequest ? { photos_requested_at: maintenant } : {}),
     } as never)
     .eq("id", leadId);
   revalidatePath(`/leads/${leadId}`);
   await auditLog({
-    action: "lead.sms.sent",
+    // Le SMS reste tracé comme SMS ; c'est son CONTENU qui en fait une demande
+    // de photos, et photos_requested_at ci-dessus le matérialise.
+    action: input.isPhotoRequest ? "lead.photos.request" : "lead.sms.sent",
     entityType: "lead",
     entityId: leadId,
     after: { recipient: input.recipient, preview: body.slice(0, 120) },

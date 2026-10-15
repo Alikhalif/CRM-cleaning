@@ -117,7 +117,7 @@ export type ManagerData = {
   totals: { a_faire: number; en_retard: number; urgent: number; termineesToday: number };
   byType: Record<ActionType, { open: number; en_retard: number }>;
   byOwner: { ownerId: string | null; ownerName: string; open: number; en_retard: number; urgent: number }[];
-  avgDelays: { decouverte: number | null; photos: number | null; devis: number | null; relance: number | null }; // heures moyennes de traitement (manuel)
+  avgDelays: Record<ActionType, number | null>; // heures moyennes de traitement (manuel)
   actions: CommercialAction[]; // actives, pour le tableau
 };
 
@@ -136,6 +136,7 @@ export async function getManagerData(): Promise<ManagerData> {
 
   const totals = { a_faire: 0, en_retard: 0, urgent: 0, termineesToday: doneTodayRes.count ?? 0 };
   const byType: Record<ActionType, { open: number; en_retard: number }> = {
+    prise_en_charge: { open: 0, en_retard: 0 },
     decouverte: { open: 0, en_retard: 0 }, photos: { open: 0, en_retard: 0 }, devis: { open: 0, en_retard: 0 }, relance: { open: 0, en_retard: 0 },
   };
   const ownerMap = new Map<string, { ownerId: string | null; ownerName: string; open: number; en_retard: number; urgent: number }>();
@@ -173,7 +174,10 @@ export async function getManagerData(): Promise<ManagerData> {
     totals,
     byType,
     byOwner: [...ownerMap.values()].sort((a, b) => b.en_retard - a.en_retard || b.open - a.open),
-    avgDelays: { decouverte: avg("decouverte"), photos: avg("photos"), devis: avg("devis"), relance: avg("relance") },
+    avgDelays: {
+      prise_en_charge: avg("prise_en_charge"), decouverte: avg("decouverte"),
+      photos: avg("photos"), devis: avg("devis"), relance: avg("relance"),
+    },
     actions,
   };
 }

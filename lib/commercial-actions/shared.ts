@@ -2,7 +2,7 @@
 // Importable depuis des composants client. Le module observe le pipeline
 // existant et matérialise des actions à mener ; il ne crée aucun événement métier.
 
-export type ActionType = "decouverte" | "photos" | "devis" | "relance";
+export type ActionType = "prise_en_charge" | "decouverte" | "photos" | "devis" | "relance";
 export type ActionStatus = "a_faire" | "reportee" | "terminee";
 // Sous-type (photos) : 'attente' = aucune photo reçue ; 'a_verifier' = le client
 // a répondu mais rien n'est rattaché au dossier (rattachement à vérifier).
@@ -33,6 +33,7 @@ export type CommercialAction = {
 };
 
 export const TYPE_LABEL: Record<ActionType, string> = {
+  prise_en_charge: "Prise en charge",
   decouverte: "Découverte",
   photos: "Photos",
   devis: "Devis",
@@ -40,6 +41,7 @@ export const TYPE_LABEL: Record<ActionType, string> = {
 };
 
 export const TYPE_VERB: Record<ActionType, string> = {
+  prise_en_charge: "Appeler le prospect",
   decouverte: "Compléter la découverte",
   photos: "Relancer le client pour obtenir les photos",
   devis: "Envoyer le devis",

@@ -89,10 +89,16 @@ export default function EmailModal({ lead, templates, vars, initialSubject, init
     if (!subject.trim() || !body.trim()) return;
     setError(null);
     setSending(true);
+    // Rubrique « photos » → le serveur posera photos_requested_at, qui alimente
+    // la détection « photos attendues » du moteur d'actions. On se fie à la
+    // CATÉGORIE du modèle, pas à son texte : un commercial qui réécrit le corps
+    // ne doit pas casser le suivi.
+    const modele = eligible.find((x) => x.id === templateId);
     const res = await sendLeadRelanceEmail(lead.id, {
       recipient: recipient.trim(),
       subject: subject.trim(),
       message: body,
+      isPhotoRequest: modele?.category === "photos",
     });
     setSending(false);
     if (!res.ok) {
