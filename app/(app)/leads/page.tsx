@@ -1,23 +1,60 @@
+import { Suspense } from "react";
 import SuiviCommercial from "./SuiviCommercial";
+import Supervision from "./Supervision";
 import styles from "./Leads.module.scss";
 import { getSuiviData } from "@/lib/suivi-server";
+import { getSupervisionData, getSupervisionScope, type Periode } from "@/lib/supervision-server";
 
 export const metadata = { title: "Suivi commercial" };
 
-// « Suivi commercial » — remplace l'ancien tableau « Leads & devis ».
+// Deux interfaces, un seul module — elles ne s'adressent pas aux mêmes gens.
 //
-// La ROUTE reste /leads : des dizaines de liens pointent vers /leads/[id]
-// (pipeline, palette ⌘K, notifications, e-mails internes). Changer l'URL les
-// aurait tous cassés pour un gain nul — c'est l'onglet et l'interface qui
-// changent, pas l'adresse.
+//   • Commercial  → espace de TRAVAIL : ses dossiers, classés par étape, avec
+//     les actions pour avancer jusqu'à la signature.
+//   • Super Admin / Superviseur → COCKPIT de supervision : indicateurs, alertes,
+//     performances par commercial, pays et activité. On y lit une situation,
+//     on n'y traite pas de dossier.
 //
-// Tout le filtrage (propriétaire + activités autorisées) est fait côté serveur
-// dans getSuiviData : les dossiers hors périmètre ne sont pas envoyés au
-// navigateur. Voir l'avertissement en tête de lib/suivi-server.ts.
+// La route reste /leads : des dizaines de liens pointent vers /leads/[id].
+//
+// Tout le filtrage (propriétaire, activités, périmètre du superviseur) est fait
+// côté serveur — les lignes hors périmètre ne sont pas envoyées au navigateur.
 
-export default async function SuiviCommercialPage() {
+const PERIODES_VALIDES = ["today", "yesterday", "7d", "30d", "mtd"];
+
+export default async function SuiviCommercialPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ periode?: string }>;
+}) {
+  // Un superviseur (ou le Super Admin) reçoit le cockpit ; tout autre rôle
+  // reçoit son espace de travail.
+  const scope = await getSupervisionScope();
+
+  if (scope) {
+    const { periode: brut } = await searchParams;
+    const periode = (PERIODES_VALIDES.includes(brut ?? "") ? brut : "30d") as Periode;
+    const data = await getSupervisionData(periode);
+    return (
+      <div className={styles.page}>
+        <header className={styles.header}>
+          <div>
+            <h1 className={styles.title}>Supervision commerciale</h1>
+            <p className={styles.subtitle}>
+              Comprendre la situation sans ouvrir un dossier — indicateurs, anomalies, performances.
+            </p>
+          </div>
+        </header>
+        {data && (
+          <Suspense fallback={null}>
+            <Supervision data={data} />
+          </Suspense>
+        )}
+      </div>
+    );
+  }
+
   const data = await getSuiviData();
-
   return (
     <div className={styles.page}>
       <header className={styles.header}>

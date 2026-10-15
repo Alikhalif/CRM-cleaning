@@ -1,0 +1,104 @@
+// Cockpit de supervision — fond clair, cartes synthétiques, couleurs rares.
+// Rouge = anomalie · bleu = en cours · vert = résultat · gris = neutre.
+// Jamais de bloc entièrement coloré : un liseré ou un chiffre suffit.
+
+.wrap { display: flex; flex-direction: column; gap: var(--sp-4); }
+
+.filtres {
+  display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center;
+  select {
+    padding: 8px 10px; min-height: 40px; border-radius: var(--r-md);
+    border: 1px solid var(--border-strong); background: var(--bg-surface);
+    color: var(--text-primary); font-size: var(--fs-sm);
+  }
+}
+.reset {
+  padding: 8px 12px; min-height: 40px; border: 0; background: transparent;
+  color: var(--text-muted); font-size: var(--fs-xs); cursor: pointer;
+  &:hover { color: var(--text-primary); text-decoration: underline; }
+}
+
+// ── Bandeau d'indicateurs ───────────────────────────────────────────────
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: var(--sp-2); }
+.kpi {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: var(--sp-3); border-radius: var(--r-md);
+  border: 1px solid var(--border-subtle); background: var(--bg-surface);
+
+  &[data-tone="vert"] .kpiValue { color: var(--tone-success); }
+  &[data-tone="rouge"] .kpiValue { color: var(--tone-danger); }
+}
+.kpiLabel { font-size: var(--fs-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.02em; }
+.kpiValue { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); line-height: 1.15; }
+.kpiHint { font-size: 0.6875rem; color: var(--text-muted); line-height: 1.3; }
+
+// ── Blocs ───────────────────────────────────────────────────────────────
+.bloc {
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  padding: var(--sp-4); border-radius: var(--r-lg);
+  border: 1px solid var(--border-subtle); background: var(--bg-surface);
+}
+.h2 { font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); }
+.rien { color: var(--text-muted); font-size: var(--fs-sm); }
+.deux { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); align-items: start; }
+
+// ── Alertes ─────────────────────────────────────────────────────────────
+.alertes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.alerte {
+  display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap;
+  padding: 9px 12px; border-radius: var(--r-md);
+  border: 1px solid var(--border-subtle); border-left-width: 3px;
+  background: var(--bg-surface-2);
+
+  &[data-p="1"] { border-left-color: var(--tone-danger); }
+  &[data-p="2"] { border-left-color: var(--tone-warning); }
+  &[data-p="3"] { border-left-color: var(--border-strong); }
+}
+.alerteTitre { font-weight: 600; color: var(--text-primary); font-size: var(--fs-sm); }
+.alerteDetail { color: var(--text-muted); font-size: var(--fs-xs); flex: 1; }
+.alerteLien { color: var(--color-brand-500); font-size: var(--fs-xs); font-weight: 600; text-decoration: none; }
+
+// ── Cartes de performance ───────────────────────────────────────────────
+.cartes { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: var(--sp-2); }
+.carte {
+  display: flex; flex-direction: column; gap: 3px; text-align: left;
+  padding: 10px 12px; border-radius: var(--r-md);
+  border: 1px solid var(--border-subtle); border-left-width: 3px;
+  border-left-color: var(--border-strong);
+  background: var(--bg-surface); cursor: pointer;
+
+  &[data-statut="attention"] { border-left-color: var(--tone-warning); }
+  &[data-statut="urgent"] { border-left-color: var(--tone-danger); }
+  &:hover { background: var(--bg-surface-2); }
+}
+.carteOn { border-color: var(--color-brand-500); background: var(--bg-surface-2); }
+.carteNom { font-weight: 700; color: var(--text-primary); font-size: var(--fs-sm); }
+.carteChiffres { font-size: var(--fs-xs); color: var(--text-muted); b { color: var(--text-primary); } }
+.carteBas { font-size: var(--fs-xs); color: var(--tone-success); font-weight: 600; }
+.retard { color: var(--tone-danger); }
+
+// ── Flux ────────────────────────────────────────────────────────────────
+.flux {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 320px; overflow-y: auto;
+
+  li { display: flex; align-items: baseline; gap: var(--sp-2); font-size: var(--fs-xs); padding: 3px 0; }
+}
+.fluxHeure { color: var(--text-muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.fluxQuoi { color: var(--text-primary); flex: 1; }
+.fluxQui { color: var(--text-muted); }
+
+@media (max-width: 1024px) {
+  .deux { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  // Priorité d'affichage demandée : KPI, puis alertes, puis performances.
+  // L'ordre du DOM la respecte déjà, on ne fait que resserrer.
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+  .kpiValue { font-size: 1.25rem; }
+  .cartes { grid-template-columns: 1fr; }
+  .filtres select, .reset { min-height: 44px; flex: 1 1 140px; }
+  .carte { min-height: 44px; }
+  .bloc { padding: var(--sp-3); }
+}
