@@ -48,17 +48,25 @@ type ActionRow = {
 
 // Montant à afficher : celui du dernier devis émis, à défaut l'estimation du
 // lead. 0 ou absent → null, pour afficher « — » et jamais « 0 € » (§16).
-async function devisAmounts(leadIds: string[]): Promise<Map<string, number>> {
+async function devisAmounts(leadIds: string[]): Promise<{
+  amounts: Map<string, number>;
+  brouillons: Set<string>;
+  envois: Map<string, string>;
+  signatures: Map<string, string>;
+}> {
   const out = new Map<string, number>();
-  if (leadIds.length === 0) return out;
+  const brouillons = new Set<string>();
+  const envois = new Map<string, string>();
+  const signatures = new Map<string, string>();
+  if (leadIds.length === 0) return { amounts: out, brouillons, envois, signatures };
   const sb = await supabaseServer();
   const [docsRes, optRes] = await Promise.all([
-    sb.from("documents").select("lead_id, total_ttc, issued_at, type")
+    sb.from("documents").select("lead_id, total_ttc, issued_at, signed_at, type, status")
       .in("lead_id", leadIds).eq("type", "devis")
-      .returns<{ lead_id: string | null; total_ttc: number | null; issued_at: string }[]>(),
-    sb.from("devis_optimivv").select("lead_id, montant_ht, created_at")
+      .returns<{ lead_id: string | null; total_ttc: number | null; issued_at: string; signed_at: string | null; status: string }[]>(),
+    sb.from("devis_optimivv").select("lead_id, montant_ht, created_at, sent_at, data")
       .in("lead_id", leadIds)
-      .returns<{ lead_id: string | null; montant_ht: number | null; created_at: string }[]>(),
+      .returns<{ lead_id: string | null; montant_ht: number | null; created_at: string; sent_at: string | null; data: { _signature_meta?: { signedAt?: string } } | null }[]>(),
   ]);
   const seen = new Map<string, string>(); // leadId -> date du montant retenu
   const put = (leadId: string | null, amount: number | null, date: string) => {
@@ -68,18 +76,59 @@ async function devisAmounts(leadIds: string[]): Promise<Map<string, number>> {
     seen.set(leadId, date);
     out.set(leadId, Number(amount));
   };
-  for (const d of docsRes.data ?? []) put(d.lead_id, d.total_ttc, d.issued_at);
-  for (const d of optRes.data ?? []) put(d.lead_id, d.montant_ht, d.created_at);
+  // Le plus récent gagne : un dossier peut porter plusieurs devis.
+  const garder = (m: Map<string, string>, id: string | null, d: string | null) => {
+    if (!id || !d) return;
+    const prec = m.get(id);
+    if (!prec || prec < d) m.set(id, d);
+  };
+  for (const d of docsRes.data ?? []) {
+    put(d.lead_id, d.total_ttc, d.issued_at);
+    // Un devis en brouillon = travail commencé, rien n'est parti chez le
+    // client. C'est l'étape « Devis en préparation ».
+    if (d.lead_id && d.status === "brouillon") brouillons.add(d.lead_id);
+    else garder(envois, d.lead_id, d.issued_at);
+    garder(signatures, d.lead_id, d.signed_at);
+  }
+  for (const d of optRes.data ?? []) {
+    put(d.lead_id, d.montant_ht, d.created_at);
+    garder(envois, d.lead_id, d.sent_at ?? d.created_at);
+    garder(signatures, d.lead_id, d.data?._signature_meta?.signedAt ?? null);
+  }
+  return { amounts: out, brouillons, envois, signatures };
+}
+
+
+// Appel entrant vs formulaire, lu DIRECTEMENT en base.
+//
+// On ne peut pas le déduire de `lead.source` côté client : le mapper retire ce
+// champ du payload d'un commercial (confidentialité de la provenance), et on
+// étiquetterait alors tous ses dossiers « formulaire ». On relit donc le seul
+// slug, côté serveur, pour en sortir un BINAIRE — sans jamais renvoyer le
+// canal lui-même au navigateur.
+async function originByLead(leadIds: string[]): Promise<Map<string, "phone" | "form">> {
+  const out = new Map<string, "phone" | "form">();
+  if (leadIds.length === 0) return out;
+  const sb = await supabaseServer();
+  const { data } = await sb
+    .from("leads")
+    .select("id, source:lead_sources(slug)")
+    .in("id", leadIds)
+    .returns<{ id: string; source: { slug: string } | null }[]>();
+  for (const r of data ?? []) {
+    out.set(r.id, r.source?.slug === "telephone" ? "phone" : "form");
+  }
   return out;
 }
 
 // Situation RÉELLE du dossier, lue depuis le lead. Aucun statut dupliqué.
-function situationOf(lead: Lead, photoPending: boolean): Situation {
+function situationOf(lead: Lead, photoPending: boolean, devisBrouillon: boolean): Situation {
   if (lead.status === "perdu") return "perdu";
   if (lead.status === "signe" || lead.status === "encaisse") return "signe";
   if (lead.status === "ouvert") return "devis_ouvert";
   if (lead.status === "envoye") return "devis_envoye";
   // Statut « lead » : l'avancement se lit dans la découverte.
+  if (devisBrouillon) return "devis_preparation";
   if (photoPending) return "attente_client";
   if (lead.discoveryDoneAt) return "decouverte_faite";
   const commencee =
@@ -141,11 +190,14 @@ export async function getSuiviData(): Promise<SuiviData> {
   }
 
   const now = Date.now();
-  const amounts = await devisAmounts(ids);
+  const [{ amounts, brouillons, envois, signatures }, origines] = await Promise.all([
+    devisAmounts(ids),
+    originByLead(ids),
+  ]);
 
   const rows: SuiviRow[] = visibles.map((l) => {
     const action = actionsByLead.get(l.id) ?? null;
-    const situation = situationOf(l, photoPendingLeads.has(l.id));
+    const situation = situationOf(l, photoPendingLeads.has(l.id), brouillons.has(l.id));
     const due = action ? new Date(effectiveDue(action)).toISOString() : null;
     const overdue = action ? effectiveDue(action) < now : false;
     const devis = amounts.get(l.id) ?? null;
@@ -166,14 +218,24 @@ export async function getSuiviData(): Promise<SuiviData> {
       actionType: action?.type ?? null,
       ownerId: l.ownerId ?? null,
       ownerName: l.ownerId ? nomParId.get(l.ownerId) ?? null : null,
+      lastActionLabel: l.lastActionLabel || "",
+      lastActionAt: l.lastActionAt,
+      devisSentAt: envois.get(l.id) ?? null,
+      signedAt: signatures.get(l.id) ?? null,
       isUrgent: Boolean(l.isUrgent),
       isNrp: Boolean(l.isNrp),
       societe: l.entityName ?? null,
       receivedAt: l.receivedAt,
-      // Provenance : `lead.source` est déjà absent du payload d'un commercial
-      // (mapper serveur). On ne la recalcule donc PAS ici — sinon on
-      // reconstituerait l'information que la confidentialité retire.
-      origin: isBackOffice ? (l.source === "telephone" ? ("phone" as const) : ("form" as const)) : null,
+      // Appel entrant vs formulaire — visible par TOUS, y compris le
+      // commercial (demande client du 14/10, répétée trois fois).
+      //
+      // ⚠️ On n'expose que ce BINAIRE, jamais le canal lui-même : un
+      // commercial apprend qu'un lead vient d'un formulaire, pas s'il vient de
+      // Google Ads, de Meta ou du site. Le slug `source`, l'URL d'origine, la
+      // landing page et les UTM restent retirés de son payload et chiffrés au
+      // repos. C'est le minimum nécessaire pour qu'il traite un appel entrant
+      // autrement qu'un formulaire.
+      origin: origines.get(l.id) ?? "form",
     };
     return { ...base, alert: alertFor(base) };
   });

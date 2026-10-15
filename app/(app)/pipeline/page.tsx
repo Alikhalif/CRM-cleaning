@@ -1,5 +1,7 @@
 import NewLeadButton from "./NewLeadButton";
 import PipelineBoard from "./PipelineBoard";
+import PipelineShell from "./PipelineShell";
+import { getSuiviData } from "@/lib/suivi-server";
 import styles from "./Pipeline.module.scss";
 import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import { getAllCommerciaux, getAllLeads } from "@/lib/leads-server";
@@ -9,11 +11,14 @@ import { profileCapabilities, visibleSectorsForUser } from "@/lib/leads";
 export const metadata = { title: "Pipeline" };
 
 export default async function PipelinePage() {
-  const [leads, commerciaux, n8nEnabled, user] = await Promise.all([
+  const [leads, commerciaux, n8nEnabled, user, suivi] = await Promise.all([
     getAllLeads(),
     getAllCommerciaux(),
     isN8nSequenceEnabled(),
     getCurrentUserProfile(),
+    // MÊME source que le Suivi commercial : un seul système de statuts, donc
+    // aucune désynchronisation possible entre les deux modules.
+    getSuiviData(),
   ]);
 
   // Droit de créer un lead — dérivé du profil (auto). Le profil « Divers »
@@ -31,14 +36,19 @@ export default async function PipelinePage() {
         <div>
           <h1 className={styles.title}>Pipeline commercial</h1>
           <p className={styles.subtitle}>
-            7 colonnes · glisser-déposer entre étapes · sous-statuts Mano/Auto et Sans/Avec acompte
+            Vue rapide de l&apos;avancement. Le travail commercial se fait dans le Suivi commercial.
           </p>
         </div>
         {canAddLead && (
           <NewLeadButton commerciaux={commerciaux} currentUserId={user?.id ?? ""} visibleSectors={visibleSectors} />
         )}
       </header>
-      <PipelineBoard initialLeads={leads} commerciaux={commerciaux} n8nEnabled={n8nEnabled} visibleSectors={visibleSectors} />
+      <PipelineShell
+        rows={suivi.rows}
+        kanban={
+          <PipelineBoard initialLeads={leads} commerciaux={commerciaux} n8nEnabled={n8nEnabled} visibleSectors={visibleSectors} />
+        }
+      />
     </div>
   );
 }

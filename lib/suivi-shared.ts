@@ -13,6 +13,7 @@ export type Situation =
   | "decouverte_encours"
   | "decouverte_faite"
   | "attente_client"
+  | "devis_preparation"
   | "devis_envoye"
   | "devis_ouvert"
   | "signe"
@@ -23,6 +24,7 @@ export const SITUATION_LABEL: Record<Situation, string> = {
   decouverte_encours: "Découverte en cours",
   decouverte_faite: "Découverte terminée",
   attente_client: "En attente client",
+  devis_preparation: "Devis en préparation",
   devis_envoye: "Devis envoyé",
   devis_ouvert: "Devis ouvert",
   signe: "Devis signé",
@@ -51,6 +53,7 @@ export const SUGGESTED_ACTION: Record<Situation, string> = {
   decouverte_encours: "Compléter la découverte",
   decouverte_faite: "Préparer le devis",
   attente_client: "Relancer les photos",
+  devis_preparation: "Finaliser et envoyer le devis",
   devis_envoye: "Relancer le client",
   devis_ouvert: "Relancer le client",
   signe: "Transmettre à la planification",
@@ -70,7 +73,8 @@ export const ROW_ACTION_LABEL: Record<RowActionKind, string> = {
 export function rowActionFor(situation: Situation): RowActionKind {
   switch (situation) {
     case "nouveau": return "appeler";
-    case "decouverte_faite": return "devis";
+    case "decouverte_faite":
+    case "devis_preparation": return "devis";
     case "attente_client":
     case "devis_envoye":
     case "devis_ouvert": return "relancer";
@@ -102,6 +106,15 @@ export type SuiviRow = {
   alert: AlertKind;
   ownerId: string | null;
   ownerName: string | null;
+  // Dernière action enregistrée sur le dossier — demandée sur la carte du
+  // Suivi : le commercial doit savoir ce qu'il a déjà fait avant de décider
+  // de la suite.
+  lastActionLabel: string;
+  lastActionAt: string;
+  // Date d'envoi du devis, et date de signature. Affichées dans les cases
+  // correspondantes du Pipeline.
+  devisSentAt: string | null;
+  signedAt: string | null;
   isUrgent: boolean;
   // NRP = « ne répond pas ». Conservé depuis l'ancienne interface : c'est le
   // CAS 7 du moteur (client injoignable).
@@ -131,7 +144,7 @@ export function matchesTab(row: SuiviRow, tab: Tab): boolean {
   switch (tab) {
     case "tous": return row.situation !== "perdu";
     case "nouveaux": return row.situation === "nouveau" || row.situation === "decouverte_encours";
-    case "devis": return ["decouverte_faite", "devis_envoye", "devis_ouvert"].includes(row.situation);
+    case "devis": return ["decouverte_faite", "devis_preparation", "devis_envoye", "devis_ouvert"].includes(row.situation);
     case "relances": return isRelancable(row);
     case "signes": return row.situation === "signe";
     case "perdus": return row.situation === "perdu";
@@ -186,7 +199,7 @@ export function priorityRank(row: SuiviRow): number {
   if (row.overdue) return 1;
   if (row.situation === "nouveau") return 2;
   if (isRelancable(row)) return 3;
-  if (row.situation === "decouverte_faite") return 4;
+  if (row.situation === "decouverte_faite" || row.situation === "devis_preparation") return 4;
   if (row.situation === "attente_client") return 5;
   if (row.situation === "decouverte_encours") return 6;
   return 50;
@@ -221,6 +234,7 @@ export function alertFor(row: Omit<SuiviRow, "alert">): AlertKind {
   if (row.overdue) return "retard";
   if (row.situation === "attente_client") return "photos";
   if (row.situation === "devis_envoye" || row.situation === "devis_ouvert") return "relance";
+  if (row.situation === "devis_preparation") return "decouverte";
   if (row.situation === "decouverte_encours") return "decouverte";
   return null;
 }
@@ -229,4 +243,75 @@ export function alertFor(row: Omit<SuiviRow, "alert">): AlertKind {
 export function nextActionLabel(situation: Situation, action: CommercialAction | null): string {
   if (!action) return SUGGESTED_ACTION[situation];
   return action.title || SUGGESTED_ACTION[situation];
+}
+
+
+// ── Étapes commerciales (Suivi commercial) ──────────────────────────────
+// Ordre de parcours d'un dossier, de l'arrivée à la signature. Sert à GROUPER
+// les cartes : le commercial lit son travail par étape, pas par colonne de
+// tableau.
+export const ETAPES: Situation[] = [
+  "nouveau",
+  "decouverte_encours",
+  "attente_client",
+  "decouverte_faite",
+  "devis_preparation",
+  "devis_envoye",
+  "devis_ouvert",
+  "signe",
+  "perdu",
+];
+
+// Trois couleurs seulement (consigne client) : rouge = nouveau non traité,
+// bleu = dossier en cours, vert = signé, gris = clos. Les étapes se
+// distinguent par leur LIBELLÉ, pas par une quatrième teinte.
+export type Tone = "rouge" | "bleu" | "vert" | "gris";
+
+export const SITUATION_TONE: Record<Situation, Tone> = {
+  nouveau: "rouge",
+  decouverte_encours: "bleu",
+  attente_client: "bleu",
+  decouverte_faite: "bleu",
+  devis_preparation: "bleu",
+  devis_envoye: "bleu",
+  devis_ouvert: "bleu",
+  signe: "vert",
+  perdu: "gris",
+};
+
+// ── Catégories du Pipeline ──────────────────────────────────────────────
+// Le Pipeline ne montre que QUATRE cases : c'est une vue de lecture rapide,
+// pas un second outil de gestion. Plusieurs étapes du Suivi y sont regroupées.
+export type PipelineCat = "nouveaux" | "decouverte" | "devis_envoyes" | "signes";
+
+export const PIPELINE_CAT_LABEL: Record<PipelineCat, string> = {
+  nouveaux: "Nouveaux",
+  decouverte: "Découverte",
+  devis_envoyes: "Devis envoyés",
+  signes: "Signés",
+};
+
+export const PIPELINE_CATS: PipelineCat[] = ["nouveaux", "decouverte", "devis_envoyes", "signes"];
+
+export const PIPELINE_CAT_TONE: Record<PipelineCat, Tone> = {
+  nouveaux: "rouge",
+  decouverte: "bleu",
+  devis_envoyes: "bleu",
+  signes: "vert",
+};
+
+// Un dossier perdu n'appartient à aucune des quatre cases : il sort du
+// Pipeline, qui ne montre que ce qui avance.
+export function pipelineCatOf(situation: Situation): PipelineCat | null {
+  switch (situation) {
+    case "nouveau": return "nouveaux";
+    case "decouverte_encours":
+    case "attente_client":
+    case "decouverte_faite":
+    case "devis_preparation": return "decouverte";
+    case "devis_envoye":
+    case "devis_ouvert": return "devis_envoyes";
+    case "signe": return "signes";
+    case "perdu": return null;
+  }
 }

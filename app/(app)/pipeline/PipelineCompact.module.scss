@@ -1,0 +1,99 @@
+// Pipeline compact — blanc, sobre, trois teintes seulement (rouge / bleu /
+// vert, gris pour les dossiers clos). La couleur ne remplit jamais une carte :
+// elle se pose en bordure latérale ou en pastille.
+
+.wrap { display: flex; flex-direction: column; gap: var(--sp-4); }
+
+.counters { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-3); }
+.counter {
+  display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+  padding: var(--sp-3) var(--sp-4); border-radius: var(--r-lg);
+  border: 1px solid var(--border-subtle); border-left-width: 3px;
+  background: var(--bg-surface); cursor: pointer; text-align: left;
+  transition: border-color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+
+  &[data-tone="rouge"] { border-left-color: var(--tone-danger); }
+  &[data-tone="bleu"]  { border-left-color: var(--color-brand-500); }
+  &[data-tone="vert"]  { border-left-color: var(--tone-success); }
+  &:hover { background: var(--bg-surface-2); }
+}
+.counterOn { border-color: var(--text-primary); }
+.counterValue { font-size: 1.75rem; font-weight: 700; color: var(--text-primary); line-height: 1.1; }
+.counterLabel { font-size: var(--fs-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+
+.filters { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.search {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 10px; min-width: 240px;
+  border-radius: var(--r-md); border: 1px solid var(--border-strong);
+  background: var(--bg-surface); color: var(--text-muted);
+  input { border: 0; background: transparent; color: var(--text-primary); font-size: var(--fs-sm); outline: none; width: 100%; }
+}
+.chip {
+  padding: 7px 12px; border-radius: 999px;
+  border: 1px solid var(--border-strong); background: transparent;
+  color: var(--text-muted); font-size: var(--fs-xs); cursor: pointer;
+  &:hover { color: var(--text-primary); }
+}
+.chipOn { background: var(--color-brand-500); border-color: var(--color-brand-500); color: var(--text-inverted); }
+
+.cols { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-3); align-items: start; }
+.cols[data-single="1"] { grid-template-columns: 1fr; }
+.col { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
+.colHead {
+  display: flex; align-items: center; gap: 8px;
+  font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  color: var(--text-muted); padding-bottom: 6px; border-bottom: 2px solid var(--border-subtle);
+
+  &[data-tone="rouge"] { border-bottom-color: var(--tone-danger); }
+  &[data-tone="bleu"]  { border-bottom-color: var(--color-brand-500); }
+  &[data-tone="vert"]  { border-bottom-color: var(--tone-success); }
+}
+.colCount {
+  margin-left: auto; padding: 1px 8px; border-radius: 999px;
+  background: var(--bg-surface-2); color: var(--text-primary); font-size: var(--fs-xs);
+}
+.empty { color: var(--text-muted); font-size: var(--fs-sm); padding: var(--sp-2) 0; }
+
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.card {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 10px 12px; border-radius: var(--r-md);
+  border: 1px solid var(--border-subtle); border-left-width: 3px;
+  background: var(--bg-surface);
+
+  &[data-tone="rouge"] { border-left-color: var(--tone-danger); }
+  &[data-tone="bleu"]  { border-left-color: var(--color-brand-500); }
+  &[data-tone="vert"]  { border-left-color: var(--tone-success); }
+  &[data-tone="gris"]  { border-left-color: var(--border-strong); }
+  &:hover { background: var(--bg-surface-2); }
+}
+.cardTop { display: flex; align-items: center; gap: 6px; }
+.name { font-weight: 600; color: var(--text-primary); font-size: var(--fs-sm); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.origin { font-size: var(--fs-sm); flex-shrink: 0; }
+.meta { font-size: var(--fs-xs); color: var(--text-muted); line-height: 1.5; }
+.open {
+  margin-top: 2px; font-size: var(--fs-xs); font-weight: 600;
+  color: var(--color-brand-500); text-decoration: none;
+  &:hover { text-decoration: underline; }
+}
+
+@media (max-width: 1024px) {
+  .counters { grid-template-columns: repeat(2, 1fr); }
+  // Sous 1024 px, les quatre colonnes deviennent quatre sections empilées :
+  // pas de défilement horizontal, consigne explicite.
+  .cols { grid-template-columns: 1fr; gap: var(--sp-4); }
+}
+@media (max-width: 768px) {
+  .counter { padding: var(--sp-2) var(--sp-3); min-height: 64px; }
+  .counterValue { font-size: 1.375rem; }
+  .search { min-width: 100%; padding: 10px; }
+  .chip { min-height: 44px; }
+  // La carte entière devient la cible : plus facile au doigt qu'un lien de
+  // 12 px en bas de carte.
+  .open { display: block; min-height: 44px; line-height: 44px; }
+}
+
+// « Non traité » : la seule mention en rouge du Pipeline, sur les nouveaux
+// leads. Ailleurs, la teinte suffit.
+.untreated { color: var(--tone-danger); font-weight: 700; }

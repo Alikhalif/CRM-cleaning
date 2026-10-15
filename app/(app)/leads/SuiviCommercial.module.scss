@@ -298,3 +298,76 @@
   .cardValue { font-size: 1.25rem; }
   .cardSub { display: none; }
 }
+
+// ── Dossiers classés par étape (remplace le tableau) ────────────────────
+// Design blanc et sobre : trois teintes seulement, posées en bordure latérale
+// ou en liseré sous le titre d'étape. Jamais de carte entièrement colorée.
+.etape { display: flex; flex-direction: column; gap: var(--sp-2); }
+.etapeHead {
+  display: flex; align-items: center; gap: 8px;
+  font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  color: var(--text-muted); padding-bottom: 6px; border-bottom: 2px solid var(--border-subtle);
+
+  &[data-tone="rouge"] { border-bottom-color: var(--tone-danger); color: var(--tone-danger); }
+  &[data-tone="bleu"]  { border-bottom-color: var(--color-brand-500); }
+  &[data-tone="vert"]  { border-bottom-color: var(--tone-success); color: var(--tone-success); }
+  &[data-tone="gris"]  { border-bottom-color: var(--border-strong); }
+}
+.etapeCount {
+  margin-left: auto; padding: 1px 8px; border-radius: 999px;
+  background: var(--bg-surface-2); color: var(--text-primary); font-size: var(--fs-xs);
+}
+
+.dossiers {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: var(--sp-2);
+}
+.dossier {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 11px 13px; border-radius: var(--r-md);
+  border: 1px solid var(--border-subtle); border-left-width: 3px;
+  background: var(--bg-surface);
+
+  &[data-tone="rouge"] { border-left-color: var(--tone-danger); }
+  &[data-tone="bleu"]  { border-left-color: var(--color-brand-500); }
+  &[data-tone="vert"]  { border-left-color: var(--tone-success); }
+  &[data-tone="gris"]  { border-left-color: var(--border-strong); }
+  &:hover { background: var(--bg-surface-2); }
+}
+.dossierTop { display: flex; align-items: center; gap: 6px; }
+.origin { flex-shrink: 0; font-size: var(--fs-sm); }
+.dossierMeta { font-size: var(--fs-xs); color: var(--text-muted); }
+.dossierNext {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2);
+  font-size: var(--fs-sm); color: var(--text-primary);
+}
+.nextLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.due { font-size: var(--fs-xs); color: var(--text-muted); white-space: nowrap; }
+.due[data-due="retard"] { color: var(--tone-danger); font-weight: 700; }
+
+@media (max-width: 768px) {
+  .dossiers { grid-template-columns: 1fr; }
+  .dossier .action { width: 100%; justify-content: center; min-height: 44px; }
+}
+
+// Dernière action + double bouton de l'étape « Nouveau lead ».
+.lastAction {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.actionGhost {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 6px 12px; border-radius: var(--r-md);
+  border: 1px dashed var(--border-strong); background: transparent;
+  color: var(--text-muted); font-size: var(--fs-xs); font-weight: 600;
+  text-decoration: none; white-space: nowrap;
+  &:hover { color: var(--text-primary); border-style: solid; }
+}
+@media (max-width: 768px) {
+  .actions { flex-direction: column; }
+  .actionGhost { width: 100%; min-height: 44px; }
+}

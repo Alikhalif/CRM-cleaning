@@ -4,10 +4,11 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import Icon from "@/components/Icon/Icon";
 import { startCall } from "@/lib/ringover-webphone";
-import { SECTOR_VAR } from "@/lib/leads";
 import type { SuiviData } from "@/lib/suivi-server";
 import {
   ALERT_LABEL,
+  ETAPES,
+  SITUATION_TONE,
   QUICK_FILTERS,
   QUICK_LABEL,
   ROW_ACTION_LABEL,
@@ -21,6 +22,7 @@ import {
   matchesTab,
   rowActionFor,
   type QuickFilter,
+  type Situation,
   type SuiviRow,
   type Tab,
 } from "@/lib/suivi-shared";
@@ -32,6 +34,9 @@ import styles from "./SuiviCommercial.module.scss";
 // échéances et les relances viennent du moteur d'actions commerciales (lib/
 // commercial-actions), pas d'ici : cette vue LIT, elle ne crée aucune tâche.
 // « Ma journée » et le Pipeline restent inchangés et indépendants.
+
+const jourCourt = (iso: string) =>
+  new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
 
 const euro = (n: number) =>
   n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
@@ -111,6 +116,19 @@ export default function SuiviCommercial({
         });
     return out;
   }, [rows, tab, quick, priorites, search, fSector, fOwner, fSituation, fMin, fOrigin, fSociete, fNrp, now]);
+
+  // Classement par ÉTAPE commerciale : le commercial lit son travail par
+  // moment du cycle, pas par colonne de tableau. L'ordre interne de chaque
+  // étape reste celui calculé plus haut (retards d'abord, puis échéance).
+  const parEtape = useMemo(() => {
+    const map = new Map<Situation, SuiviRow[]>();
+    for (const r of filtered) {
+      const list = map.get(r.situation) ?? [];
+      list.push(r);
+      map.set(r.situation, list);
+    }
+    return ETAPES.filter((e) => (map.get(e)?.length ?? 0) > 0).map((e) => ({ etape: e, list: map.get(e)! }));
+  }, [filtered]);
 
   const onCard = (t: Tab, q: QuickFilter | null, situation?: string) => {
     setPriorites(false);
@@ -282,33 +300,24 @@ export default function SuiviCommercial({
         </div>
       )}
 
-      {/* ── 4. Tableau ─────────────────────────────────────────────── */}
-      <div className={styles.tableWrap}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Client</th>
-              <th>Activité</th>
-              <th className={styles.num}>Montant</th>
-              <th>Situation</th>
-              <th>Prochaine action</th>
-              <th>Échéance</th>
-              {isBackOffice && <th>Commercial</th>}
-              <th className={styles.right}>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((r) => (
-              <Row key={r.leadId} row={r} isBackOffice={isBackOffice} canCall={canUseRingover} now={now} />
-            ))}
-          </tbody>
-        </table>
-        {filtered.length === 0 && (
-          <p className={styles.empty}>
-            Aucun dossier ne correspond. {meName && <>Vue de {meName}.</>}
-          </p>
-        )}
-      </div>
+      {/* ── 4. Dossiers, classés par étape commerciale ─────────────── */}
+      {parEtape.length === 0 ? (
+        <p className={styles.empty}>Aucun dossier ne correspond. {meName && <>Vue de {meName}.</>}</p>
+      ) : (
+        parEtape.map(({ etape, list }) => (
+          <section key={etape} className={styles.etape}>
+            <h2 className={styles.etapeHead} data-tone={SITUATION_TONE[etape]}>
+              {SITUATION_LABEL[etape]}
+              <span className={styles.etapeCount}>{list.length}</span>
+            </h2>
+            <ul className={styles.dossiers}>
+              {list.map((r) => (
+                <DossierCard key={r.leadId} row={r} isBackOffice={isBackOffice} canCall={canUseRingover} now={now} />
+              ))}
+            </ul>
+          </section>
+        ))
+      )}
 
       <p className={styles.count}>
         {filtered.length} dossier{filtered.length > 1 ? "s" : ""} affiché{filtered.length > 1 ? "s" : ""}
@@ -318,7 +327,7 @@ export default function SuiviCommercial({
   );
 }
 
-function Row({ row, isBackOffice, canCall, now }: { row: SuiviRow; isBackOffice: boolean; canCall: boolean; now: number }) {
+function DossierCard({ row, isBackOffice, canCall, now }: { row: SuiviRow; isBackOffice: boolean; canCall: boolean; now: number }) {
   const kind = rowActionFor(row.situation);
   const href =
     kind === "devis"
@@ -332,27 +341,33 @@ function Row({ row, isBackOffice, canCall, now }: { row: SuiviRow; isBackOffice:
   const callable = kind === "appeler" && canCall && !!row.phone;
 
   return (
-    <tr data-overdue={row.overdue ? "1" : undefined}>
-      <td data-label="Client">
+    <li className={styles.dossier} data-tone={SITUATION_TONE[row.situation]} data-overdue={row.overdue ? "1" : undefined}>
+      <div className={styles.dossierTop}>
         <Link href={`/leads/${row.leadId}`} className={styles.client}>{row.client}</Link>
-        <span className={styles.ref}>{row.shortId}</span>
-      </td>
-      <td data-label="Activité">
-        <span className={styles.sector} style={{ background: `var(${SECTOR_VAR[row.sector as keyof typeof SECTOR_VAR] ?? "--border-strong"})` }} />
-        {row.sectorLabel}
-      </td>
-      <td data-label="Montant" className={styles.num}>
-        {row.amount == null ? "—" : euro(row.amount)}
-        {row.amountIsEstimate && row.amount != null && <span className={styles.est} title="Montant estimé — aucun devis émis">est.</span>}
-      </td>
-      <td data-label="Situation">{SITUATION_LABEL[row.situation]}</td>
-      <td data-label="Prochaine action">
-        {row.nextAction}
+        <span className={styles.origin} title={row.origin === "phone" ? "Appel entrant" : "Formulaire"}>
+          {row.origin === "phone" ? "📞" : "📋"}
+        </span>
         {row.alert && <span className={styles.badge} data-kind={row.alert}>{ALERT_LABEL[row.alert]}</span>}
-      </td>
-      <td data-label="Échéance" data-due={row.overdue ? "retard" : undefined}>{dueLabel(row, now)}</td>
-      {isBackOffice && <td data-label="Commercial" className={styles.owner}>{row.ownerName ?? "—"}</td>}
-      <td data-label="Action" className={styles.right}>
+      </div>
+
+      <div className={styles.dossierMeta}>
+        {row.sectorLabel} · {row.shortId}
+        {row.amount != null && <> · {euro(row.amount)}{row.amountIsEstimate && " est."}</>}
+        {isBackOffice && row.ownerName && <> · {row.ownerName}</>}
+      </div>
+
+      {row.lastActionLabel && (
+        <div className={styles.lastAction}>
+          Dernière action : {row.lastActionLabel} · {jourCourt(row.lastActionAt)}
+        </div>
+      )}
+
+      <div className={styles.dossierNext}>
+        <span className={styles.nextLabel}>{row.nextAction}</span>
+        <span className={styles.due} data-due={row.overdue ? "retard" : undefined}>{dueLabel(row, now)}</span>
+      </div>
+
+      <div className={styles.actions}>
         {callable ? (
           <button
             type="button"
@@ -366,7 +381,14 @@ function Row({ row, isBackOffice, canCall, now }: { row: SuiviRow; isBackOffice:
             {ROW_ACTION_LABEL[kind === "appeler" ? "ouvrir" : kind]}
           </Link>
         )}
-      </td>
-    </tr>
+        {/* Étape 1 : le cahier des charges demande DEUX boutons — appeler, puis
+            entrer dans la découverte. Les deux mènent à des gestes différents. */}
+        {row.situation === "nouveau" && (
+          <Link href={`/leads/${row.leadId}#decouverte`} className={styles.actionGhost}>
+            Commencer la découverte
+          </Link>
+        )}
+      </div>
+    </li>
   );
 }
