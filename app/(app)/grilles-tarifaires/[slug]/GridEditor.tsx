@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import {
-  BAND_SECTIONS, SECTION_LABEL, SECTIONS, STATUS_LABEL,
+  BAND_SECTIONS, SECTION_LABEL, STATUS_LABEL, sectionsFor,
   type Grid, type GridLine, type GridSection, type PricingGrid,
 } from "@/lib/pricing/grid-types";
 import { computeGrid, type GridInput } from "@/lib/pricing/grid-compute";
@@ -136,7 +136,7 @@ export default function GridEditor({ initial }: { initial: PricingGrid }) {
       </section>
 
       {/* ── Sections de la grille ─────────────────────────────────────── */}
-      {SECTIONS.map((section) => (
+      {sectionsFor(initial.activitySlug).map((section) => (
         <section key={section} className={styles.block}>
           <div className={styles.blockHead}>
             <h2 className={styles.h2}>{SECTION_LABEL[section]}</h2>
@@ -194,6 +194,8 @@ export default function GridEditor({ initial }: { initial: PricingGrid }) {
 // l'effet d'un changement avant de le sauver.
 function Simulateur({ grid, settings, base }: { grid: Grid; settings: GridSettings; base: PricingGrid }) {
   const [quantity, setQuantity] = useState(25);
+  const [pieces, setPieces] = useState(3);
+  const [exterieur, setExterieur] = useState(0);
   const [distanceKm, setDistanceKm] = useState(120);
   const [fd, setFd] = useState(3);
   const [fa, setFa] = useState(0);
@@ -204,13 +206,19 @@ function Simulateur({ grid, settings, base }: { grid: Grid; settings: GridSettin
     set(arr.includes(k) ? arr.filter((x) => x !== k) : [...arr, k]);
 
   const res = useMemo(() => {
-    const input: GridInput = { quantity, distanceKm, floorsDepart: fd, floorsArrivee: fa, options: opts, majorations: majs };
+    const input: GridInput = {
+      quantity, pieces, exteriorQuantity: exterieur, distanceKm,
+      floorsDepart: fd, floorsArrivee: fa, options: opts, majorations: majs,
+    };
     // On force le statut « active » : le simulateur sert justement à tester une
     // grille en brouillon. La publication reste un geste séparé.
     return computeGrid({ ...base, ...settings, grid, status: "active" }, input);
-  }, [grid, settings, base, quantity, distanceKm, fd, fa, opts, majs]);
+  }, [grid, settings, base, quantity, pieces, exterieur, distanceKm, fd, fa, opts, majs]);
 
-  const optionSections: GridSection[] = ["access", "heavy", "demontage", "emballage", "materiel"];
+  const optionSections: GridSection[] = [
+    "access", "heavy", "demontage", "emballage", "materiel",
+    "postes", "exterieur_options", "complements",
+  ];
 
   return (
     <section className={styles.block} id="simulateur">
@@ -221,6 +229,8 @@ function Simulateur({ grid, settings, base }: { grid: Grid; settings: GridSettin
 
       <div className={styles.simInputs}>
         <Num label="Volume / surface" value={quantity} onChange={setQuantity} />
+        {(grid.pieces ?? []).length > 0 && <Num label="Nombre de pièces" value={pieces} onChange={setPieces} />}
+        {(grid.exterieur ?? []).length > 0 && <Num label="Surface extérieure (m²)" value={exterieur} onChange={setExterieur} />}
         <Num label="Distance (km)" value={distanceKm} onChange={setDistanceKm} />
         <Num label="Étages départ" value={fd} onChange={setFd} />
         <Num label="Étages arrivée" value={fa} onChange={setFa} />

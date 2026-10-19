@@ -1,0 +1,222 @@
+// Assistant commercial de closing.
+//
+// Lecture en quelques secondes, pendant un appel : titres courts, blocs aérés,
+// aucun tableau. Sur téléphone la fenêtre devient une feuille ancrée en bas —
+// le pouce atteint la fermeture sans changer de main.
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+  background: rgba(15, 18, 38, 0.45);
+  backdrop-filter: blur(2px);
+}
+[data-theme="dark"] .overlay { background: rgba(0, 0, 0, 0.6); }
+
+.sheet {
+  width: 100%;
+  max-width: 560px;
+  // dvh et non vh : sur iOS la barre d'adresse mange 100vh et la fenêtre
+  // dépasse de l'écran.
+  max-height: 88dvh;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-lg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+// ── En-tête : le prix, toujours visible ────────────────────────────────
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface-2);
+}
+.headPrix { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kicker {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.prix {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--color-brand-500);
+}
+.fourchette { font-size: var(--fs-sm); color: var(--text-muted); }
+
+.close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+
+  &:hover { background: var(--bg-surface); color: var(--text-primary); }
+}
+
+// ── Corps ──────────────────────────────────────────────────────────────
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  // Une adresse ou un libellé long ne doit jamais élargir la fenêtre.
+  overflow-wrap: anywhere;
+}
+.bloc { display: flex; flex-direction: column; gap: var(--sp-2); }
+.h3 {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.args {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  li {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding-left: 20px;
+    position: relative;
+    font-size: var(--fs-sm);
+    line-height: 1.45;
+
+    &::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: var(--tone-success);
+      font-weight: 700;
+    }
+    strong { color: var(--text-primary); font-weight: 600; }
+    span { color: var(--text-muted); font-size: var(--fs-xs); }
+  }
+}
+.autres {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.vide { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); }
+
+// Ce que le commercial lit à voix haute : détaché du reste, sans effort de
+// repérage.
+.script {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 3px solid var(--color-brand-500);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--bg-surface-2);
+  font-size: var(--fs-sm);
+  line-height: 1.55;
+  color: var(--text-primary);
+}
+.closing { border-left-color: var(--tone-success); }
+
+.objections {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+
+  li { display: flex; flex-direction: column; gap: 5px; }
+}
+.objTitre { font-size: var(--fs-sm); font-weight: 700; color: var(--text-primary); }
+.precision {
+  margin: 0;
+  padding-left: var(--sp-3);
+  font-size: var(--fs-xs);
+  font-style: italic;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.reserves {
+  margin: 0;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+// ── Pied ───────────────────────────────────────────────────────────────
+.foot {
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  justify-content: flex-end;
+}
+.fermer {
+  min-height: 36px;
+  padding: 8px 18px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover { background: var(--bg-surface-2); }
+}
+
+// ── Téléphone ──────────────────────────────────────────────────────────
+@media (max-width: 768px) {
+  .overlay { padding: 0; align-items: flex-end; }
+  .sheet {
+    max-width: none;
+    max-height: 92dvh;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    border-bottom: 0;
+  }
+  .head { padding: var(--sp-3); }
+  .prix { font-size: 1.75rem; }
+  // Cibles tactiles : 44 px minimum (Apple HIG / Material).
+  .close { width: 44px; height: 44px; }
+  .body { padding: var(--sp-3); gap: var(--sp-3); }
+  .foot { padding: var(--sp-2) var(--sp-3) calc(var(--sp-3) + env(safe-area-inset-bottom)); }
+  .fermer { width: 100%; min-height: 44px; }
+}
+
+// Téléphone à l'horizontale : la hauteur est la ressource rare, on rend la
+// feuille plein écran plutôt que de rogner le contenu.
+@media (max-width: 920px) and (orientation: landscape) {
+  .sheet { max-height: 100dvh; border-radius: 0; }
+  .prix { font-size: 1.5rem; }
+}

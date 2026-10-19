@@ -16,6 +16,12 @@ import type { Grid, GridLine, GridSection, PricingGrid } from "./grid-types";
 export type GridInput = {
   // Valeur de la tranche volume/surface (m³ ou m²).
   quantity: number | null;
+  // Nombre de pièces (nettoyage). null = non renseigné : on le signale,
+  // on ne bloque pas le chiffrage pour autant.
+  pieces: number | null;
+  // Surface EXTÉRIEURE en m², chiffrée à part. Le tarif intérieur ne
+  // s'applique jamais à une terrasse (consigne client).
+  exteriorQuantity: number | null;
   distanceKm: number | null;
   // Étages SANS ascenseur, départ et arrivée comptés séparément : le CDC
   // demande explicitement de tenir compte des deux.
@@ -27,7 +33,10 @@ export type GridInput = {
   majorations: string[];
 };
 
-export type GridResultLine = { section: GridSection; label: string; min: number; max: number };
+// `key` : la clé de la ligne de grille retenue. Elle permet à l'argumentaire
+// commercial de relier une justification à un élément RÉELLEMENT chiffré, et
+// d'éviter de le répéter s'il est aussi présent dans la découverte.
+export type GridResultLine = { section: GridSection; key: string; label: string; min: number; max: number };
 
 export type GridResult =
   | {
@@ -39,7 +48,7 @@ export type GridResult =
       lines: GridResultLine[];
       // Majorations appliquées, en % — affichées à part car elles portent sur
       // le sous-total et non sur une ligne.
-      majorations: { label: string; minPct: number; maxPct: number }[];
+      majorations: { key: string; label: string; minPct: number; maxPct: number }[];
       // Données absentes qui dégradent la fiabilité sans bloquer.
       assumptions: string[];
       vatRate: number | null;
@@ -79,7 +88,33 @@ export function computeGrid(g: PricingGrid | null, input: GridInput): GridResult
       const l = band(volumeLines, input.quantity);
       if (!l) missing.push("une tranche de volume couvrant cette valeur");
       else if (l.custom) custom.push(l.label);
-      else lines.push({ section: "volume", label: l.label, min: l.min ?? 0, max: l.max ?? 0 });
+      else lines.push({ section: "volume", key: l.key, label: l.label, min: l.min ?? 0, max: l.max ?? 0 });
+    }
+  }
+
+  // ── Nombre de pièces ─────────────────────────────────────
+  const pieceLines = grid.pieces ?? [];
+  if (pieceLines.length > 0) {
+    if (input.pieces == null || input.pieces <= 0) {
+      assumptions.push("nombre de pièces non renseigné");
+    } else {
+      const l = band(pieceLines, input.pieces);
+      if (l?.custom) custom.push(l.label);
+      else if (l && ((l.min ?? 0) > 0 || (l.max ?? 0) > 0)) {
+        lines.push({ section: "pieces", key: l.key, label: l.label, min: l.min ?? 0, max: l.max ?? 0 });
+      }
+    }
+  }
+
+  // ── Surface extérieure : TOUJOURS séparée de l'intérieur ───────────
+  // Absence de terrasse = absence de ligne, pas une information manquante.
+  const extLines = grid.exterieur ?? [];
+  if (extLines.length > 0 && input.exteriorQuantity != null && input.exteriorQuantity > 0) {
+    const l = band(extLines, input.exteriorQuantity);
+    if (!l) assumptions.push("aucune tranche extérieure ne couvre cette surface");
+    else if (l.custom) custom.push(l.label);
+    else if ((l.min ?? 0) > 0 || (l.max ?? 0) > 0) {
+      lines.push({ section: "exterieur", key: l.key, label: l.label, min: l.min ?? 0, max: l.max ?? 0 });
     }
   }
 
@@ -92,7 +127,7 @@ export function computeGrid(g: PricingGrid | null, input: GridInput): GridResult
       const l = band(distLines, input.distanceKm);
       if (l?.custom) custom.push(l.label);
       else if (l && ((l.min ?? 0) > 0 || (l.max ?? 0) > 0)) {
-        lines.push({ section: "distance", label: l.label, min: l.min ?? 0, max: l.max ?? 0 });
+        lines.push({ section: "distance", key: l.key, label: l.label, min: l.min ?? 0, max: l.max ?? 0 });
       }
     }
   }
@@ -104,7 +139,7 @@ export function computeGrid(g: PricingGrid | null, input: GridInput): GridResult
       const l = band(floorLines, etage);
       if (l?.custom) custom.push(`${l.label} (${ou})`);
       else if (l && ((l.min ?? 0) > 0 || (l.max ?? 0) > 0)) {
-        lines.push({ section: "floors", label: `${l.label} (${ou})`, min: l.min ?? 0, max: l.max ?? 0 });
+        lines.push({ section: "floors", key: `${l.key}-${ou}`, label: `${l.label} (${ou})`, min: l.min ?? 0, max: l.max ?? 0 });
       }
     }
   }
@@ -112,13 +147,16 @@ export function computeGrid(g: PricingGrid | null, input: GridInput): GridResult
   // ── Options cumulables ────────────────────────────────────────────────
   // Un Set : une même clé cochée deux fois ne compte qu'une fois.
   const choisies = new Set(input.options);
-  const sectionsOptions: GridSection[] = ["access", "heavy", "demontage", "emballage", "materiel"];
+  const sectionsOptions: GridSection[] = [
+    "access", "heavy", "demontage", "emballage", "materiel",
+    "postes", "exterieur_options", "complements",
+  ];
   for (const section of sectionsOptions) {
     for (const l of grid[section] ?? []) {
       if (!choisies.has(l.key)) continue;
       if (l.custom) { custom.push(l.label); continue; }
       if ((l.min ?? 0) > 0 || (l.max ?? 0) > 0) {
-        lines.push({ section, label: l.label, min: l.min ?? 0, max: l.max ?? 0 });
+        lines.push({ section, key: l.key, label: l.label, min: l.min ?? 0, max: l.max ?? 0 });
       }
     }
   }
@@ -133,7 +171,7 @@ export function computeGrid(g: PricingGrid | null, input: GridInput): GridResult
 
   // ── Majorations, en % du sous-total, chacune une seule fois ───────────
   const majChoisies = new Set(input.majorations);
-  const majApplied: { label: string; minPct: number; maxPct: number }[] = [];
+  const majApplied: { key: string; label: string; minPct: number; maxPct: number }[] = [];
   let minPctTotal = 0;
   let maxPctTotal = 0;
   for (const l of grid.majorations ?? []) {
@@ -141,7 +179,7 @@ export function computeGrid(g: PricingGrid | null, input: GridInput): GridResult
     const a = l.minPct ?? 0;
     const b = l.maxPct ?? 0;
     if (a === 0 && b === 0) continue;
-    majApplied.push({ label: l.label, minPct: a, maxPct: b });
+    majApplied.push({ key: l.key, label: l.label, minPct: a, maxPct: b });
     minPctTotal += a;
     maxPctTotal += b;
   }

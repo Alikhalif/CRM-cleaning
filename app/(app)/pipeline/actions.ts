@@ -7,7 +7,7 @@ import { auditLog } from "@/lib/audit";
 import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import { notify } from "@/lib/notifications";
 import { initiateCall } from "@/lib/ringover";
-import { resolveOwner } from "@/lib/routing";
+import { resolveByProfile, resolveOwner } from "@/lib/routing";
 import { sendBrevoEmail, sendBrevoSms } from "@/lib/brevo";
 import { buildPhotoRequestEmail, buildPhotoRequestSms } from "@/lib/templates";
 import { countryFromPhone } from "@/lib/leads";
@@ -542,6 +542,120 @@ export async function setLeadActivity(leadId: string, slug: string): Promise<Res
   revalidatePath("/pipeline");
   revalidatePath("/leads");
   await auditLog({ action: "lead.activity.set", entityType: "lead", entityId: leadId, after: { slug } });
+  return { ok: true };
+}
+
+// Enregistrement AUTOMATIQUE de la découverte (brouillon).
+//
+// Trois différences volontaires avec saveDiscovery, et chacune compte :
+//   • `discovery_done_at` n'est PAS touché. Ce champ signifie « la découverte
+//     est terminée » et fait passer le dossier à l'étape « Découverte
+//     terminée » dans le Suivi commercial. L'écrire à la première frappe
+//     ferait avancer tous les dossiers tout seuls.
+//   • aucune écriture dans le journal d'audit : une sauvegarde de brouillon
+//     n'est pas un événement métier, et le moteur d'actions commerciales se
+//     reconstruit à partir de ce journal.
+//   • aucun revalidatePath : la page ne doit pas se rafraîchir sous les
+//     doigts du commercial pendant qu'il saisit.
+export async function autosaveDiscovery(leadId: string, input: DiscoveryInput): Promise<Result> {
+  const supabase = await supabaseServer();
+  const updates = {
+    surface_m2: input.surfaceM2,
+    wanted_date: input.wantedDate || null,
+    wanted_slot: input.wantedSlot || null,
+    wanted_time_start:
+      input.wantedSlot === "heure_precise" || input.wantedSlot === "personnalise"
+        ? input.wantedTimeStart || null
+        : null,
+    wanted_time_end: input.wantedSlot === "personnalise" ? input.wantedTimeEnd || null : null,
+    announced_price: input.announcedPrice,
+    price_range: input.priceRange || null,
+    delai_souhaite: input.delaiSouhaite || null,
+    reaction_prix: input.reactionPrix || null,
+    statut_client: input.statutClient || null,
+    etat_salete: input.etatSalete || null,
+    contexte_intervention: input.contexteIntervention?.trim() || null,
+    acompte_negocie: input.acompteNegocie,
+    discovery_details: input.details ?? {},
+  };
+  const { error } = await supabase.from("leads").update(updates as never).eq("id", leadId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+// Bascule un dossier de la famille nettoyage vers l'activité DIOGÈNE.
+//
+// Le dossier n'est jamais dupliqué : c'est le MÊME lead qui change d'activité,
+// donc l'historique, les photos, les documents et l'identifiant sont conservés
+// par construction. Seul le propriétaire change, parce qu'un dossier Diogène
+// doit être traité par un commercial habilité.
+export async function switchToDiogene(leadId: string): Promise<Result> {
+  const supabase = await supabaseServer();
+
+  const { data: act } = await supabase
+    .from("activities")
+    .select("id")
+    .eq("slug", "diogene")
+    .maybeSingle<{ id: string }>();
+  if (!act) return { ok: false, error: "Activité Diogène introuvable." };
+
+  // CONTRÔLE D'ACCÈS : cette lecture passe par la session, donc par la RLS.
+  // Si elle ne renvoie rien, l'appelant n'a aucun droit sur ce dossier et la
+  // suite n'a pas lieu d'être. C'est ce test, et lui seul, qui autorise
+  // l'écriture en service_role juste après.
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("owner_id, surface_m2, country, is_urgent")
+    .eq("id", leadId)
+    .maybeSingle<{ owner_id: string | null; surface_m2: number | null; country: string | null; is_urgent: boolean | null }>();
+  if (!lead) return { ok: false, error: "Dossier introuvable ou hors de votre périmètre." };
+
+  // Réaffectation : pool « diogene », puis « en_attente » si personne n'est
+  // disponible — c'est la file d'attente dédiée demandée par le client, elle
+  // existe déjà dans le routage.
+  const decision = await resolveByProfile({
+    surfaceM2: lead?.surface_m2 ?? null,
+    sectorSlug: "diogene",
+    sourceSlug: "",
+    clientIsPremium: false,
+    estimatedAmount: null,
+    isExtreme: false,
+    isUrgent: Boolean(lead?.is_urgent),
+    country: lead?.country ?? null,
+    lpType: null,
+  });
+
+  const updates: Record<string, unknown> = { activity_id: act.id };
+  // Si aucun commercial Diogène n'est joignable, on NE retire pas le dossier à
+  // son propriétaire actuel : mieux vaut un dossier suivi par quelqu'un que
+  // personne. C'est la file d'attente « en_attente » qui joue ce rôle quand
+  // elle est alimentée.
+  if (decision?.ownerId) updates.owner_id = decision.ownerId;
+
+  // Écriture en service_role, à dessein : la policy RLS des leads impose
+  // `owner_id = auth.uid()` en WITH CHECK, donc un commercial ne PEUT pas
+  // céder son dossier à un collègue — c'est pourtant tout l'objet de ce
+  // transfert. Le droit d'agir a été vérifié ci-dessus par une lecture
+  // soumise à la RLS.
+  const admin = await supabaseServiceRole();
+  const { error } = await admin.from("leads").update(updates as never).eq("id", leadId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/leads");
+  revalidatePath("/pipeline");
+  revalidatePath("/ma-journee");
+  await auditLog({
+    action: "lead.activity.set",
+    entityType: "lead",
+    entityId: leadId,
+    before: { ownerId: lead?.owner_id ?? null },
+    after: {
+      slug: "diogene",
+      ownerId: decision?.ownerId ?? lead?.owner_id ?? null,
+      routage: decision?.reason ?? "aucun commercial Diogène disponible — propriétaire inchangé",
+    },
+  });
   return { ok: true };
 }
 

@@ -1281,31 +1281,39 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--text-muted);
-  margin-bottom: var(--sp-2);
+  margin-bottom: 2px;
+
+  // Le second intertitre (« fourchette ») respire sous le prix.
+  & + .pricingTitle { margin-top: var(--sp-3); }
+}
+// Le montant à annoncer : le plus gros élément de la carte, rien ne doit
+// entrer en concurrence avec lui.
+.pricingPrice {
+  font-size: 2.125rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--color-brand-500);
 }
 .pricingRange {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-2);
-  font-size: 1.5rem;
+  font-size: 1.125rem;
   font-weight: 700;
-  color: var(--color-brand-500);
-  flex-wrap: wrap;
+  color: var(--text-primary);
 }
-.pricingDash { color: var(--text-muted); font-weight: 400; }
-.pricingLines {
-  list-style: none;
-  margin: var(--sp-2) 0 0;
-  padding: 0;
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
+// Bouton unique : il n'y en a pas d'autre dans cet encadré.
+.pricingCta {
+  margin-top: var(--sp-3);
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--color-brand-500);
+  background: var(--color-brand-500);
+  color: #fff;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  cursor: pointer;
 
-  li {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--sp-3);
-    padding: 2px 0;
-  }
+  &:hover { filter: brightness(1.06); }
 }
 .pricingNote {
   margin: var(--sp-2) 0 0;
@@ -1315,9 +1323,10 @@
 }
 
 @media (max-width: 768px) {
-  // Saisie tactile : date, heure et créneau sont les champs les plus utilisés
-  // en mobilité, ils doivent se viser au doigt.
-  .pricingRange { font-size: 1.25rem; }
+  .pricingPrice { font-size: 1.875rem; }
+  .pricingRange { font-size: 1.0625rem; }
+  // Cible tactile : 44 px minimum.
+  .pricingCta { min-height: 44px; }
 }
 
 // ── Date du délai personnalisé (carte post-signature) ───────────────────
@@ -1348,18 +1357,4 @@
   background: var(--bg-surface);
   color: var(--text-primary);
   font-size: var(--fs-md);
-}
-
-// Prix conseillé + mention TVA (fourchette de la découverte).
-.pricingAdvised {
-  margin-top: 4px;
-  font-size: var(--fs-md);
-  color: var(--text-primary);
-  strong { color: var(--color-brand-500); font-size: 1.15rem; }
-}
-.pricingVat {
-  font-size: var(--fs-xs);
-  font-weight: 400;
-  color: var(--text-muted);
-  align-self: center;
 }

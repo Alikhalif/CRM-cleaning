@@ -8,6 +8,8 @@
 // heures, passages) et le Super Admin doit pouvoir ajouter une ligne sans
 // migration.
 
+import { estFamilleNettoyage } from "@/lib/discovery-nettoyage";
+
 export type GridLine = {
   key: string;
   label: string;
@@ -25,12 +27,14 @@ export type GridLine = {
 };
 
 export type GridSection =
-  | "volume" | "distance" | "floors"
+  | "volume" | "pieces" | "distance" | "floors"
   | "access" | "heavy" | "demontage" | "emballage" | "materiel"
+  | "postes" | "exterieur" | "exterieur_options" | "complements"
   | "majorations";
 
 export const SECTION_LABEL: Record<GridSection, string> = {
   volume: "Volume / surface",
+  pieces: "Nombre de pièces",
   distance: "Distance",
   floors: "Étages sans ascenseur",
   access: "Difficultés d'accès",
@@ -38,17 +42,40 @@ export const SECTION_LABEL: Record<GridSection, string> = {
   demontage: "Démontage / remontage",
   emballage: "Emballage et protection",
   materiel: "Matériel et moyens",
+  postes: "Postes de nettoyage (intérieur)",
+  exterieur: "Surface extérieure",
+  exterieur_options: "Extérieur — revêtement et état",
+  complements: "Prestations complémentaires",
   majorations: "Majorations (%)",
 };
 
 // Sections à TRANCHES : une seule ligne s'applique, celle qui contient la
 // valeur. Les autres sont des listes d'options cumulables.
-export const BAND_SECTIONS: GridSection[] = ["volume", "distance", "floors"];
+export const BAND_SECTIONS: GridSection[] = ["volume", "pieces", "distance", "floors", "exterieur"];
 
 export const SECTIONS: GridSection[] = [
+  "volume", "pieces", "distance", "floors", "access", "heavy",
+  "demontage", "emballage", "materiel",
+  "postes", "exterieur", "exterieur_options", "complements",
+  "majorations",
+];
+
+// Toutes les sections n'ont pas de sens pour toutes les activités : on ne
+// demande pas à l'administrateur de configurer un « emballage » pour du
+// nettoyage, ni des « plafonds » pour un déménagement. L'éditeur n'affiche
+// que les sections utiles à la famille de l'activité.
+const SECTIONS_NETTOYAGE: GridSection[] = [
+  "volume", "pieces", "postes", "exterieur", "exterieur_options",
+  "complements", "floors", "access", "majorations",
+];
+const SECTIONS_TRANSPORT: GridSection[] = [
   "volume", "distance", "floors", "access", "heavy",
   "demontage", "emballage", "materiel", "majorations",
 ];
+
+export function sectionsFor(activitySlug: string): GridSection[] {
+  return estFamilleNettoyage(activitySlug) ? SECTIONS_NETTOYAGE : SECTIONS_TRANSPORT;
+}
 
 export type Grid = Partial<Record<GridSection, GridLine[]>>;
 
