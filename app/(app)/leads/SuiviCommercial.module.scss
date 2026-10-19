@@ -336,6 +336,14 @@
 }
 .dossierTop { display: flex; align-items: center; gap: 6px; }
 .origin { flex-shrink: 0; font-size: var(--fs-sm); }
+// Le nom cède la place en premier : l'heure et le badge ne doivent jamais
+// passer à la ligne ni déborder de la carte.
+.dossierTop .client { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recu {
+  margin-left: auto; flex-shrink: 0;
+  font-size: var(--fs-xs); color: var(--text-muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
 .dossierMeta { font-size: var(--fs-xs); color: var(--text-muted); }
 .dossierNext {
   display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2);
@@ -348,6 +356,9 @@
 @media (max-width: 768px) {
   .dossiers { grid-template-columns: 1fr; }
   .dossier .action { width: 100%; justify-content: center; min-height: 44px; }
+  // « En retard · hier 14:32 » est plus long que l'ancien « En retard » :
+  // sur un téléphone il passe sous le libellé plutôt que de le rogner.
+  .dossierNext { flex-wrap: wrap; }
 }
 
 // Dernière action + double bouton de l'étape « Nouveau lead ».

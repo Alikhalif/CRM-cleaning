@@ -172,7 +172,10 @@ export default function Supervision({ data }: { data: SupervisionData }) {
             {data.flux.map((e, i) => (
               <li key={i}>
                 <span className={styles.fluxHeure}>
-                  {new Date(e.at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                  {/* Fuseau fixé : le serveur rend en UTC, le navigateur à Paris. */}
+                  {new Date(e.at).toLocaleTimeString("fr-FR", {
+                    hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris",
+                  })}
                 </span>
                 <span className={styles.fluxQuoi}>{e.libelle}</span>
                 {e.qui && <span className={styles.fluxQui}>{e.qui}</span>}

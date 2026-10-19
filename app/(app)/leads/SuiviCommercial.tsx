@@ -20,6 +20,8 @@ import {
   isRelancable,
   matchesQuick,
   matchesTab,
+  momentComplet,
+  momentCourt,
   rowActionFor,
   type QuickFilter,
   type Situation,
@@ -34,9 +36,6 @@ import styles from "./SuiviCommercial.module.scss";
 // échéances et les relances viennent du moteur d'actions commerciales (lib/
 // commercial-actions), pas d'ici : cette vue LIT, elle ne crée aucune tâche.
 // « Ma journée » et le Pipeline restent inchangés et indépendants.
-
-const jourCourt = (iso: string) =>
-  new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
 
 const euro = (n: number) =>
   n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
@@ -144,7 +143,9 @@ export default function SuiviCommercial({
   };
 
   const exportCsv = () => {
-    const head = ["Dossier", "Client", "Activité", "Montant", "Situation", "Prochaine action", "Échéance", "Commercial"];
+    // « Reçu le » est ajouté EN FIN de ligne : les colonnes existantes gardent
+    // leur position dans les tableurs déjà construits sur cet export.
+    const head = ["Dossier", "Client", "Activité", "Montant", "Situation", "Prochaine action", "Échéance", "Commercial", "Reçu le"];
     const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
     const lines = [head.map(esc).join(";")];
     for (const r of filtered) {
@@ -152,7 +153,7 @@ export default function SuiviCommercial({
         r.shortId, r.client, r.sectorLabel,
         r.amount != null ? String(r.amount) : "",
         SITUATION_LABEL[r.situation], r.nextAction, dueLabel(r, now),
-        r.ownerName ?? "",
+        r.ownerName ?? "", momentComplet(r.receivedAt),
       ].map((v) => esc(String(v))).join(";"));
     }
     const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -348,6 +349,15 @@ function DossierCard({ row, isBackOffice, canCall, now }: { row: SuiviRow; isBac
           {row.origin === "phone" ? "📞" : "📋"}
         </span>
         {row.alert && <span className={styles.badge} data-kind={row.alert}>{ALERT_LABEL[row.alert]}</span>}
+        {/* Heure d'arrivée du dossier. Sur un nouveau lead, c'est le chrono de
+            la prise en charge : le commercial doit le lire sans ouvrir la fiche. */}
+        <time
+          className={styles.recu}
+          dateTime={row.receivedAt}
+          title={`Reçu le ${momentComplet(row.receivedAt)}`}
+        >
+          {momentCourt(row.receivedAt, now)}
+        </time>
       </div>
 
       <div className={styles.dossierMeta}>
@@ -357,8 +367,8 @@ function DossierCard({ row, isBackOffice, canCall, now }: { row: SuiviRow; isBac
       </div>
 
       {row.lastActionLabel && (
-        <div className={styles.lastAction}>
-          Dernière action : {row.lastActionLabel} · {jourCourt(row.lastActionAt)}
+        <div className={styles.lastAction} title={momentComplet(row.lastActionAt)}>
+          Dernière action : {row.lastActionLabel} · {momentCourt(row.lastActionAt, now)}
         </div>
       )}
 

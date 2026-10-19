@@ -184,8 +184,38 @@ export function matchesQuick(row: SuiviRow, q: QuickFilter, now = Date.now()): b
   }
 }
 
+// ── Horodatage (Europe/Paris) ───────────────────────────────────────────
+// Le fuseau est FIXÉ, jamais celui de la machine : le serveur tourne en UTC
+// alors que le commercial est à Paris. Sans ce paramètre, le HTML rendu côté
+// serveur affiche une heure et l'hydratation une autre — et, à 1 h du matin,
+// un dossier « aujourd'hui » basculerait à « demain ».
+const F_HEURE = new Intl.DateTimeFormat("fr-FR", {
+  hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris",
+});
+const F_JOUR = new Intl.DateTimeFormat("fr-FR", {
+  day: "2-digit", month: "2-digit", timeZone: "Europe/Paris",
+});
+const F_COMPLET = new Intl.DateTimeFormat("fr-FR", {
+  dateStyle: "full", timeStyle: "short", timeZone: "Europe/Paris",
+});
+// « 2026-10-18 » — clé de comparaison de jour, à Paris.
+const F_CLE = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" });
+
 function sameDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  return F_CLE.format(a) === F_CLE.format(b);
+}
+
+/** « 14:32 » le jour même, « hier 14:32 », sinon « 18/10 14:32 ». */
+export function momentCourt(iso: string, now = Date.now()): string {
+  const d = new Date(iso);
+  if (sameDay(d, new Date(now))) return F_HEURE.format(d);
+  if (sameDay(d, new Date(now - 86_400_000))) return `hier ${F_HEURE.format(d)}`;
+  return `${F_JOUR.format(d)} ${F_HEURE.format(d)}`;
+}
+
+/** « samedi 18 octobre 2026 à 14:32 » — pour une infobulle ou un export. */
+export function momentComplet(iso: string): string {
+  return F_COMPLET.format(new Date(iso));
 }
 
 // ── « Mes priorités » (§11) ─────────────────────────────────────────────
@@ -219,12 +249,15 @@ export function comparePriority(a: SuiviRow, b: SuiviRow): number {
 export function dueLabel(row: SuiviRow, now = Date.now()): string {
   if (!row.dueAt) return "—";
   const d = new Date(row.dueAt);
-  if (row.overdue) return "En retard";
+  // L'HEURE compte autant que le jour : « à relancer aujourd'hui » n'oriente
+  // pas une journée, « aujourd'hui 16:00 » si.
+  const h = F_HEURE.format(d);
+  if (row.overdue) return `En retard · ${momentCourt(row.dueAt, now)}`;
   const today = new Date(now);
-  if (sameDay(d, today)) return "Aujourd'hui";
+  if (sameDay(d, today)) return `Aujourd'hui ${h}`;
   const tomorrow = new Date(now + 86_400_000);
-  if (sameDay(d, tomorrow)) return "Demain";
-  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+  if (sameDay(d, tomorrow)) return `Demain ${h}`;
+  return `${F_JOUR.format(d)} ${h}`;
 }
 
 // ── Alerte prioritaire d'une ligne ──────────────────────────────────────
