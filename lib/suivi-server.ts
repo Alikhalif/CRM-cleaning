@@ -2,6 +2,7 @@ import "server-only";
 import { supabaseServer } from "./supabase/server";
 import { supabaseServiceRole } from "./supabase/service";
 import { getAllCommerciaux, getAllLeads } from "./leads-server";
+import { selectEnLotsTolerant } from "./supabase/batch";
 import { getCurrentUserProfile } from "./users-server";
 import { profileCapabilities, SECTOR_LABEL, visibleSectorsForUser, type Lead, type Sector } from "./leads";
 import { effectiveDue, type ActionType, type CommercialAction } from "./commercial-actions/shared";
@@ -60,13 +61,24 @@ async function devisAmounts(leadIds: string[]): Promise<{
   const signatures = new Map<string, string>();
   if (leadIds.length === 0) return { amounts: out, brouillons, envois, signatures };
   const sb = await supabaseServer();
+  // Deux lectures indépendantes, chacune découpée en lots (cf. batch.ts).
+  // Tolérantes : sans montant, la ligne de suivi reste exacte sur l'essentiel
+  // — la situation et la prochaine action.
   const [docsRes, optRes] = await Promise.all([
-    sb.from("documents").select("lead_id, total_ttc, issued_at, signed_at, type, status")
-      .in("lead_id", leadIds).eq("type", "devis")
-      .returns<{ lead_id: string | null; total_ttc: number | null; issued_at: string; signed_at: string | null; status: string }[]>(),
-    sb.from("devis_optimivv").select("lead_id, montant_ht, created_at, sent_at, data")
-      .in("lead_id", leadIds)
-      .returns<{ lead_id: string | null; montant_ht: number | null; created_at: string; sent_at: string | null; data: { _signature_meta?: { signedAt?: string } } | null }[]>(),
+    selectEnLotsTolerant(
+      leadIds,
+      (lot) => sb.from("documents").select("lead_id, total_ttc, issued_at, signed_at, type, status")
+        .in("lead_id", lot).eq("type", "devis")
+        .returns<{ lead_id: string | null; total_ttc: number | null; issued_at: string; signed_at: string | null; status: string }[]>(),
+      { table: "documents", filtre: "lead_id IN (…) AND type = devis" },
+    ),
+    selectEnLotsTolerant(
+      leadIds,
+      (lot) => sb.from("devis_optimivv").select("lead_id, montant_ht, created_at, sent_at, data")
+        .in("lead_id", lot)
+        .returns<{ lead_id: string | null; montant_ht: number | null; created_at: string; sent_at: string | null; data: { _signature_meta?: { signedAt?: string } } | null }[]>(),
+      { table: "devis_optimivv", filtre: "lead_id IN (…)" },
+    ),
   ]);
   const seen = new Map<string, string>(); // leadId -> date du montant retenu
   const put = (leadId: string | null, amount: number | null, date: string) => {
@@ -82,7 +94,7 @@ async function devisAmounts(leadIds: string[]): Promise<{
     const prec = m.get(id);
     if (!prec || prec < d) m.set(id, d);
   };
-  for (const d of docsRes.data ?? []) {
+  for (const d of docsRes.rows) {
     put(d.lead_id, d.total_ttc, d.issued_at);
     // Un devis en brouillon = travail commencé, rien n'est parti chez le
     // client. C'est l'étape « Devis en préparation ».
@@ -90,7 +102,7 @@ async function devisAmounts(leadIds: string[]): Promise<{
     else garder(envois, d.lead_id, d.issued_at);
     garder(signatures, d.lead_id, d.signed_at);
   }
-  for (const d of optRes.data ?? []) {
+  for (const d of optRes.rows) {
     put(d.lead_id, d.montant_ht, d.created_at);
     garder(envois, d.lead_id, d.sent_at ?? d.created_at);
     garder(signatures, d.lead_id, d.data?._signature_meta?.signedAt ?? null);
@@ -110,12 +122,16 @@ async function originByLead(leadIds: string[]): Promise<Map<string, "phone" | "f
   const out = new Map<string, "phone" | "form">();
   if (leadIds.length === 0) return out;
   const sb = await supabaseServer();
-  const { data } = await sb
-    .from("leads")
-    .select("id, source:lead_sources(slug)")
-    .in("id", leadIds)
-    .returns<{ id: string; source: { slug: string } | null }[]>();
-  for (const r of data ?? []) {
+  const { rows } = await selectEnLotsTolerant(
+    leadIds,
+    (lot) => sb
+      .from("leads")
+      .select("id, source:lead_sources(slug)")
+      .in("id", lot)
+      .returns<{ id: string; source: { slug: string } | null }[]>(),
+    { table: "leads", filtre: "id IN (…) — provenance" },
+  );
+  for (const r of rows) {
     out.set(r.id, r.source?.slug === "telephone" ? "phone" : "form");
   }
   return out;
@@ -167,14 +183,27 @@ export async function getSuiviData(): Promise<SuiviData> {
   const photoPendingLeads = new Set<string>();
   if (ids.length > 0) {
     const sb = await supabaseServiceRole();
-    const { data } = await sb
-      .from("commercial_actions")
-      .select("id, lead_id, owner_id, type, title, status, due_at, snoozed_until")
-      .in("lead_id", ids)
-      .neq("status", "terminee")
-      .order("due_at", { ascending: true })
-      .returns<ActionRow[]>();
-    for (const r of data ?? []) {
+    // ⚠️ Le tri doit être REFAIT après fusion : chaque lot est trié
+    // indépendamment, leur concaténation ne l'est pas. La boucle ci-dessous
+    // garde « la première rencontrée », donc l'ordre fait partie de la règle
+    // métier — sans ce comparateur, l'action affichée ne serait plus la plus
+    // urgente mais une action au hasard.
+    const { rows } = await selectEnLotsTolerant(
+      ids,
+      (lot) => sb
+        .from("commercial_actions")
+        .select("id, lead_id, owner_id, type, title, status, due_at, snoozed_until")
+        .in("lead_id", lot)
+        .neq("status", "terminee")
+        .order("due_at", { ascending: true })
+        .returns<ActionRow[]>(),
+      {
+        table: "commercial_actions",
+        filtre: "lead_id IN (…) AND status <> terminee",
+        trier: (a, b) => (a.due_at ?? "").localeCompare(b.due_at ?? ""),
+      },
+    );
+    for (const r of rows) {
       if (r.type === "photos") photoPendingLeads.add(r.lead_id);
       // La première rencontrée gagne : la requête est triée par échéance.
       if (actionsByLead.has(r.lead_id)) continue;

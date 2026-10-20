@@ -14,8 +14,33 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 // être chargeables par les clients mail non authentifiés, ex. le proxy Gmail).
 const PUBLIC_PATH = /^\/(login|signup|forgot-password|reset-password|auth\/callback|sign|devis-signer)(\/|$)|^\/(api|_next|email-signatures)\/|^\/favicon\.ico$/;
 
+// Chemins pour lesquels la validation du jeton n'apporte RIEN et coûte un
+// aller-retour réseau à chaque requête.
+//
+// Liste volontairement étroite, et strictement incluse dans PUBLIC_PATH :
+//   • `_next/` et `email-signatures/` : fichiers statiques.
+//   • `favicon.ico` : idem.
+//   • les extensions de fichiers servis depuis `public/` (polices, images,
+//     PDF…), que le matcher laisse passer aujourd'hui.
+//
+// Ce qui N'EST PAS dans cette liste, à dessein :
+//   • `/api/*` — son statut reste exactement celui d'aujourd'hui. Chaque route
+//     d'API porte sa propre authentification (HMAC, secret de cron, session) ;
+//     on ne touche pas à cet équilibre dans un correctif de performance.
+//   • `/login` et `/signup` — c'est justement `getUser()` qui y renvoie un
+//     utilisateur déjà connecté vers `/dashboard`.
+//   • `/sign/…` et `/devis-signer/…` — pages client, rares, laissées intactes.
+//
+// Aucune route PRIVÉE n'est concernée : le chemin non public suit exactement le
+// code d'avant, validation du jeton comprise.
+const STATIC_PATH = /^\/(_next|email-signatures)\/|^\/favicon\.ico$|\.(?:js|css|map|png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|eot|pdf|txt|xml|webmanifest)$/i;
+
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request });
+
+  // Sortie anticipée AVANT toute validation de jeton : un fichier statique ne
+  // dépend d'aucune session, et cet appel se payait sur chaque requête.
+  if (STATIC_PATH.test(request.nextUrl.pathname)) return response;
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

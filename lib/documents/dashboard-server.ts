@@ -1,3 +1,4 @@
+import { selectEnLotsTolerant } from "@/lib/supabase/batch";
 import "server-only";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 import type { ContractStatus } from "./contracts-types";
@@ -62,13 +63,21 @@ export async function getDocumentsDashboard(): Promise<DocumentsDashboard> {
   const clientByLead = new Map<string, { id: string; name: string; hotte: boolean }>();
   await Promise.all([
     clientIds.length
-      ? sb.from("clients").select("id, name").in("id", clientIds).then(({ data }) => {
-          for (const c of (data ?? []) as { id: string; name: string }[]) nameById.set(c.id, c.name);
+      ? selectEnLotsTolerant(
+          clientIds,
+          (lot) => sb.from("clients").select("id, name").in("id", lot),
+          { table: "clients", filtre: "id IN (…)" },
+        ).then(({ rows }) => {
+          for (const c of rows as { id: string; name: string }[]) nameById.set(c.id, c.name);
         })
       : Promise.resolve(),
     leadIds.length
-      ? sb.from("clients").select("id, name, source_lead_id, activity_tags").in("source_lead_id", leadIds).then(({ data }) => {
-          for (const c of (data ?? []) as { id: string; name: string; source_lead_id: string | null; activity_tags: string[] | null }[]) {
+      ? selectEnLotsTolerant(
+          leadIds,
+          (lot) => sb.from("clients").select("id, name, source_lead_id, activity_tags").in("source_lead_id", lot),
+          { table: "clients", filtre: "source_lead_id IN (…)" },
+        ).then(({ rows }) => {
+          for (const c of rows as { id: string; name: string; source_lead_id: string | null; activity_tags: string[] | null }[]) {
             if (c.source_lead_id) clientByLead.set(c.source_lead_id, { id: c.id, name: c.name, hotte: (c.activity_tags ?? []).includes("hotte") });
           }
         })

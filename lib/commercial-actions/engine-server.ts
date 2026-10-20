@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseServiceRole } from "@/lib/supabase/service";
+import { selectEnLots } from "@/lib/supabase/batch";
 import { notify } from "@/lib/notifications";
 import { TYPE_LABEL, type ActionType } from "./shared";
 
@@ -170,16 +171,30 @@ export async function evaluateCommercialActions(): Promise<{ ok: true; open: num
 
   // 2) Événements pertinents de ces leads (borné à la fenêtre + aux ids).
   const ids = [...agg.keys()];
-  const { data: auditRows } = await sb
-    .from("audit_logs")
-    .select("action, entity_id, after, created_at")
-    .eq("entity_type", "lead")
-    .in("entity_id", ids)
-    .gte("created_at", cutoffIso)
-    .order("created_at", { ascending: true })
-    .returns<{ action: string; entity_id: string | null; after: Record<string, unknown> | null; created_at: string }[]>();
+  // Lecture STRICTE : le moteur crée et ferme des actions réelles. Une lecture
+  // partielle produirait des décisions fausses — mieux vaut que la passe
+  // échoue bruyamment et soit rejouée à la minute suivante.
+  //
+  // Le tri par date croissante EST une règle métier ici : « premier passage à
+  // devis envoyé » en dépend. Il est donc refait après fusion des lots.
+  const auditRows = await selectEnLots(
+    ids,
+    (lot) => sb
+      .from("audit_logs")
+      .select("action, entity_id, after, created_at")
+      .eq("entity_type", "lead")
+      .in("entity_id", lot)
+      .gte("created_at", cutoffIso)
+      .order("created_at", { ascending: true })
+      .returns<{ action: string; entity_id: string | null; after: Record<string, unknown> | null; created_at: string }[]>(),
+    {
+      table: "audit_logs",
+      filtre: "entity_type = lead AND entity_id IN (…)",
+      trier: (a, b) => a.created_at.localeCompare(b.created_at),
+    },
+  );
 
-  for (const a of auditRows ?? []) {
+  for (const a of auditRows) {
     if (!a.entity_id) continue;
     const g = agg.get(a.entity_id);
     if (!g) continue;
@@ -195,13 +210,18 @@ export async function evaluateCommercialActions(): Promise<{ ok: true; open: num
 
   // 2b) Photos rattachées au dossier (lead_media) — source de vérité du
   // « rattachement ». On ne garde que la plus récente par lead (borné aux ids).
-  const { data: mediaRows } = await sb
-    .from("lead_media")
-    .select("lead_id, created_at")
-    .in("lead_id", ids)
-    .is("deleted_at", null)
-    .returns<{ lead_id: string; created_at: string }[]>();
-  for (const m of mediaRows ?? []) {
+  // Pas de tri : la boucle ne retient que le maximum par dossier.
+  const mediaRows = await selectEnLots(
+    ids,
+    (lot) => sb
+      .from("lead_media")
+      .select("lead_id, created_at")
+      .in("lead_id", lot)
+      .is("deleted_at", null)
+      .returns<{ lead_id: string; created_at: string }[]>(),
+    { table: "lead_media", filtre: "lead_id IN (…)" },
+  );
+  for (const m of mediaRows) {
     const g = agg.get(m.lead_id);
     if (!g) continue;
     g.lastMediaAt = Math.max(g.lastMediaAt, new Date(m.created_at).getTime());

@@ -1,3 +1,4 @@
+import { selectEnLotsTolerant } from "@/lib/supabase/batch";
 import "server-only";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 import { bucketOf, priorityOf, isActionable, type ActionType, type CommercialAction, type PhotoSubtype } from "./shared";
@@ -40,16 +41,24 @@ async function hydrate(sb: Sb, rows: ActionDbRow[]): Promise<CommercialAction[]>
 
   await Promise.all([
     leadIds.length
-      ? sb.from("leads").select("id, short_id, is_company, client_company, client_first_name, client_last_name").in("id", leadIds).then(({ data }) => {
-          for (const l of (data ?? []) as { id: string; short_id: string | null; is_company: boolean | null; client_company: string | null; client_first_name: string | null; client_last_name: string | null }[]) {
+      ? selectEnLotsTolerant(
+          leadIds,
+          (lot) => sb.from("leads").select("id, short_id, is_company, client_company, client_first_name, client_last_name").in("id", lot),
+          { table: "leads", filtre: "id IN (…) — libellés d'actions" },
+        ).then(({ rows }) => {
+          for (const l of rows as { id: string; short_id: string | null; is_company: boolean | null; client_company: string | null; client_first_name: string | null; client_last_name: string | null }[]) {
             const name = l.is_company ? (l.client_company?.trim() || null) : (`${l.client_first_name ?? ""} ${l.client_last_name ?? ""}`.trim() || null);
             leadBy.set(l.id, { ref: l.short_id, name });
           }
         })
       : Promise.resolve(),
     ownerIds.length
-      ? sb.from("users").select("id, first_name, last_name, email").in("id", ownerIds).then(({ data }) => {
-          for (const u of (data ?? []) as { id: string; first_name: string | null; last_name: string | null; email: string | null }[]) {
+      ? selectEnLotsTolerant(
+          ownerIds,
+          (lot) => sb.from("users").select("id, first_name, last_name, email").in("id", lot),
+          { table: "users", filtre: "id IN (…) — propriétaires d'actions" },
+        ).then(({ rows }) => {
+          for (const u of rows as { id: string; first_name: string | null; last_name: string | null; email: string | null }[]) {
             ownerBy.set(u.id, [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email || "Utilisateur");
           }
         })
@@ -234,24 +243,42 @@ export async function getPhotoWaiting(opts: { ownerId?: string } = {}): Promise<
 
   // 2) Médias rattachés (pour écarter ceux déjà reçus depuis la demande).
   const [mediaRes, auditRes, actionsRes, ownersRes] = await Promise.all([
-    sb.from("lead_media").select("lead_id, created_at").in("lead_id", ids).is("deleted_at", null).returns<{ lead_id: string; created_at: string }[]>(),
-    sb.from("audit_logs").select("action, entity_id, after, created_at").eq("entity_type", "lead").in("entity_id", ids).order("created_at", { ascending: true }).returns<{ action: string; entity_id: string | null; after: Record<string, unknown> | null; created_at: string }[]>(),
-    sb.from("commercial_actions").select("lead_id, due_at, snoozed_until").eq("type", "photos").neq("status", "terminee").in("lead_id", ids).returns<{ lead_id: string; due_at: string; snoozed_until: string | null }[]>(),
+    selectEnLotsTolerant(
+      ids,
+      (lot) => sb.from("lead_media").select("lead_id, created_at").in("lead_id", lot).is("deleted_at", null).returns<{ lead_id: string; created_at: string }[]>(),
+      { table: "lead_media", filtre: "lead_id IN (…)" },
+    ),
+    // ⚠️ L'ordre croissant EST une règle ici : la boucle garde le canal de la
+    // DERNIÈRE demande de photos. Il doit donc être refait après fusion.
+    selectEnLotsTolerant(
+      ids,
+      (lot) => sb.from("audit_logs").select("action, entity_id, after, created_at").eq("entity_type", "lead").in("entity_id", lot).order("created_at", { ascending: true }).returns<{ action: string; entity_id: string | null; after: Record<string, unknown> | null; created_at: string }[]>(),
+      { table: "audit_logs", filtre: "entity_id IN (…) — photos", trier: (a, b) => a.created_at.localeCompare(b.created_at) },
+    ),
+    selectEnLotsTolerant(
+      ids,
+      (lot) => sb.from("commercial_actions").select("lead_id, due_at, snoozed_until").eq("type", "photos").neq("status", "terminee").in("lead_id", lot).returns<{ lead_id: string; due_at: string; snoozed_until: string | null }[]>(),
+      { table: "commercial_actions", filtre: "lead_id IN (…) — photos" },
+    ),
     (async () => {
       const oids = [...new Set(leads.map((l) => l.owner_id).filter(Boolean) as string[])];
       if (!oids.length) return new Map<string, string>();
-      const { data } = await sb.from("users").select("id, first_name, last_name, email").in("id", oids);
-      return new Map(((data ?? []) as { id: string; first_name: string | null; last_name: string | null; email: string | null }[]).map((u) => [u.id, [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email || "Utilisateur"]));
+      const { rows } = await selectEnLotsTolerant(
+        oids,
+        (lot) => sb.from("users").select("id, first_name, last_name, email").in("id", lot),
+        { table: "users", filtre: "id IN (…) — photos" },
+      );
+      return new Map((rows as { id: string; first_name: string | null; last_name: string | null; email: string | null }[]).map((u) => [u.id, [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email || "Utilisateur"]));
     })(),
   ]);
 
   const lastMediaAt = new Map<string, number>();
-  for (const m of mediaRes.data ?? []) lastMediaAt.set(m.lead_id, Math.max(lastMediaAt.get(m.lead_id) ?? 0, new Date(m.created_at).getTime()));
+  for (const m of mediaRes.rows) lastMediaAt.set(m.lead_id, Math.max(lastMediaAt.get(m.lead_id) ?? 0, new Date(m.created_at).getTime()));
 
   const channelBy = new Map<string, "email" | "sms" | null>();
   const lastContactBy = new Map<string, number>();
   const repliedSince = new Map<string, boolean>();
-  for (const a of auditRes.data ?? []) {
+  for (const a of auditRes.rows) {
     if (!a.entity_id) continue;
     const t = new Date(a.created_at).getTime();
     if (a.action === "lead.photos.request") {
@@ -263,7 +290,7 @@ export async function getPhotoWaiting(opts: { ownerId?: string } = {}): Promise<
   }
 
   const nextRelanceBy = new Map<string, string>();
-  for (const ac of actionsRes.data ?? []) {
+  for (const ac of actionsRes.rows) {
     const due = ac.snoozed_until && new Date(ac.snoozed_until).getTime() > new Date(ac.due_at).getTime() ? ac.snoozed_until : ac.due_at;
     nextRelanceBy.set(ac.lead_id, due);
   }

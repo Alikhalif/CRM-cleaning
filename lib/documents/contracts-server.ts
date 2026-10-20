@@ -1,3 +1,4 @@
+import { selectEnLotsTolerant } from "@/lib/supabase/batch";
 import "server-only";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { supabaseServiceRole } from "@/lib/supabase/service";
@@ -85,13 +86,19 @@ export async function getClientContracts(clientId: string): Promise<Contract[]> 
   const contractIds = rows.map((r) => r.id);
   const passagesByContract = new Map<string, ContractPassage[]>();
   {
-    const { data: pData } = await sb
-      .from("contract_passages")
-      .select("id, contract_id, index, status, target_label, planned_at, realized_at, dossier_id, notes")
-      .in("contract_id", contractIds)
-      .order("index", { ascending: true })
-      .returns<{ id: string; contract_id: string; index: number; status: string; target_label: string | null; planned_at: string | null; realized_at: string | null; dossier_id: string | null; notes: string | null }[]>();
-    for (const p of pData ?? []) {
+    // L'ordre des passages est affiché tel quel : il doit être rétabli après
+    // fusion des lots.
+    const { rows: pData } = await selectEnLotsTolerant(
+      contractIds,
+      (lot) => sb
+        .from("contract_passages")
+        .select("id, contract_id, index, status, target_label, planned_at, realized_at, dossier_id, notes")
+        .in("contract_id", lot)
+        .order("index", { ascending: true })
+        .returns<{ id: string; contract_id: string; index: number; status: string; target_label: string | null; planned_at: string | null; realized_at: string | null; dossier_id: string | null; notes: string | null }[]>(),
+      { table: "contract_passages", filtre: "contract_id IN (…)", trier: (a, b) => a.index - b.index },
+    );
+    for (const p of pData) {
       const arr = passagesByContract.get(p.contract_id) ?? [];
       arr.push({
         id: p.id, index: p.index, status: p.status as PassageStatus, targetLabel: p.target_label,
@@ -113,7 +120,11 @@ export async function getClientContracts(clientId: string): Promise<Contract[]> 
         })
       : Promise.resolve(),
     userIds.length
-      ? sb.from("users").select("id, first_name, last_name, email").in("id", userIds).then(({ data: d }) => {
+      ? selectEnLotsTolerant(
+          userIds,
+          (lot) => sb.from("users").select("id, first_name, last_name, email").in("id", lot),
+          { table: "users", filtre: "id IN (…) — auteurs de contrats" },
+        ).then(({ rows: d }) => {
           for (const u of (d ?? []) as { id: string; first_name: string | null; last_name: string | null; email: string | null }[]) {
             nameById.set(u.id, [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email || "Utilisateur");
           }
@@ -174,7 +185,7 @@ export async function getClientInterventions(sourceLeadId?: string | null): Prom
   const ids = rows.map((d) => d.id);
   const certByDossier = new Map<string, string>();
   const { data: certs } = await sb
-    .from("cert_hotte").select("dossier_id, numero").in("dossier_id", ids)
+    .from("cert_hotte").select("dossier_id, numero").in("dossier_id", ids) /* borné : dossiers d'un seul client */
     .returns<{ dossier_id: string | null; numero: string }[]>();
   for (const c of certs ?? []) if (c.dossier_id) certByDossier.set(c.dossier_id, c.numero);
 

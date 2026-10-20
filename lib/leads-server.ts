@@ -1,4 +1,6 @@
 import "server-only";
+import { cache } from "react";
+import { selectEnLotsTolerant } from "./supabase/batch";
 import { supabaseServer } from "./supabase/server";
 import { buildTimeline, type AuditTimelineEvent } from "./leads-shared";
 import { supabaseServiceRole } from "./supabase/service";
@@ -69,7 +71,11 @@ export async function currentUserHasImmobTravaux(): Promise<boolean> {
 // la recevoir dans un payload — le mapper l'omet quand ce flag est faux. Résolu
 // côté serveur via les rôles (service-role, scopé à auth.uid()), jamais un flag
 // hardcodé côté page.
-export async function currentUserCanSeeProvenance(): Promise<boolean> {
+// cache() : la réponse ne change pas au cours d'une même requête HTTP, et
+// cette fonction coûte un aller-retour de validation de jeton PLUS une
+// requête user_roles. Elle était appelée une fois par getAllLeads(), donc
+// deux fois sur /pipeline.
+export const currentUserCanSeeProvenance = cache(async function currentUserCanSeeProvenance(): Promise<boolean> {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return false;
@@ -82,7 +88,7 @@ export async function currentUserCanSeeProvenance(): Promise<boolean> {
   return (data ?? []).some(
     (r) => r.roles?.slug === "admin" || r.roles?.slug === "planification",
   );
-}
+});
 
 // DB source slugs use snake_case (google_ads); UI uses kebab-case (google-ads).
 // The two diverged before the seed was finalised — bridge here until we
@@ -346,11 +352,22 @@ const isUndefinedColumn = (e: { code?: string; message?: string } | null | undef
   e?.code === "42703" || (e?.message ?? "").includes("wanted_");
 
 // pagination + filter pushdown.
-export async function getAllLeads(): Promise<Lead[]> {
+// cache() : /pipeline appelle getAllLeads() directement ET via getSuiviData(),
+// soit deux fois la même requête de 910 Ko par affichage. Mémoïsé par requête
+// HTTP, jamais entre deux requêtes ni entre deux utilisateurs — le périmètre
+// RLS ne peut donc pas fuiter d'un compte à l'autre.
+//
+// Sûr : vérifié qu'aucun appelant ne modifie le tableau rendu ni ses éléments
+// (les appelants filtrent et construisent de nouveaux tableaux).
+export const getAllLeads = cache(async function getAllLeads(): Promise<Lead[]> {
   const supabase = await supabaseServer();
   // Une seule définition de la requête, rejouée sans les colonnes optionnelles
   // si la migration du créneau souhaité n'est pas encore passée (voir
   // WANTED_COLS). Sans ce repli, toute la liste des leads tombe à vide.
+  // Colonnes VOLONTAIREMENT absentes de la liste : `notes` (65 Ko sur 530
+  // dossiers) et `intervention_delay_notes`. Aucune vue de liste ne les
+  // affiche — vérifié — et elles ne servent que sur la fiche, où
+  // getLeadDetail les charge toujours.
   const lancer = () => supabase
     .from("leads")
     .select(
@@ -361,7 +378,7 @@ export async function getAllLeads(): Promise<Lead[]> {
         estimated_amount, owner_id, status, sub_envoi, sub_signature, sub_signature_mode,
         received_at, last_action_label, last_action_at, next_followup_at,
         is_urgent, surface_m2, is_nrp, nrp_at, lost_reason, immob_travaux_annotation,
-        intervention_delay, intervention_delay_notes, notes, type_service, country,
+        intervention_delay, type_service, country,
         entity_id, entity:legal_entities(legal_name), landing_page:landing_pages(name), source_url,
         move_from_city, move_from_postal, move_to_city, move_to_postal, move_volume, move_date,
         announced_price, discovery_outcome, discovery_done_at,
@@ -373,6 +390,17 @@ ${WANTED_COLS()}        statut_client, etat_salete, contexte_intervention, acomp
       `,
     )
     .order("last_action_at", { ascending: false, nullsFirst: false });
+
+  // Le droit de voir la provenance ne dépend pas du résultat des leads : les
+  // deux partent ensemble au lieu de s'attendre. En cas d'échec, on MASQUE la
+  // provenance — le repli penche toujours du côté le plus fermé.
+  const provenancePromise = currentUserCanSeeProvenance().catch((e: unknown) => {
+    console.error(
+      "[getAllLeads] droit de provenance indisponible, provenance masquée :",
+      e instanceof Error ? e.message : String(e),
+    );
+    return false;
+  });
 
   let { data, error } = await lancer();
   if (error && isUndefinedColumn(error) && wantedColsAvailable) {
@@ -392,21 +420,33 @@ ${WANTED_COLS()}        statut_client, etat_salete, contexte_intervention, acomp
 
   // Confidentialité provenance (chaîne d'arrivée §5-8) : un commercial ne reçoit
   // jamais source / landingPage / sourceUrl / utm* / gclid dans la liste.
-  const canProv = await currentUserCanSeeProvenance();
+  const canProv = await provenancePromise;
   const leads = (data as unknown as LeadRowJoined[]).map((r) => mapLead(r, false, canProv));
 
-  // Batch-fetch minimal docs per lead so the Kanban can bucket cards into
-  // "Acompte encaissé" / "Encaissement final" without an N+1 round-trip.
-  // Cheap: same RLS as the leads query, single IN-list.
+  // Documents rattachés, pour que le Kanban range les cartes dans « Acompte
+  // encaissé » / « Encaissement final » sans requête par carte.
+  //
+  // Découpé en lots : au-delà d'environ 300 identifiants, la liste passée dans
+  // l'URL faisait échouer la requête après 8 secondes, SILENCIEUSEMENT (voir
+  // lib/supabase/batch.ts). Un Super Admin avec 530 dossiers n'avait donc
+  // jamais ses encarts d'encaissement, et la page attendait pour rien.
+  //
+  // Lecture TOLÉRANTE, à dessein : sans ses documents une carte reste juste,
+  // elle perd seulement un encart. Mieux vaut une liste complète qu'une page
+  // en erreur — mais l'incident est tracé, il n'est plus invisible.
   const leadIds = leads.map((l) => l.id);
   if (leadIds.length > 0) {
-    const { data: docs } = await supabase
-      .from("documents")
-      .select("id, type, status, lead_id")
-      .in("lead_id", leadIds)
-      .returns<{ id: string; type: "devis" | "acompte" | "finale"; status: string; lead_id: string }[]>();
+    const { rows: docs } = await selectEnLotsTolerant(
+      leadIds,
+      (lot) => supabase
+        .from("documents")
+        .select("id, type, status, lead_id")
+        .in("lead_id", lot)
+        .returns<{ id: string; type: "devis" | "acompte" | "finale"; status: string; lead_id: string }[]>(),
+      { table: "documents", filtre: "lead_id IN (…)" },
+    );
     const byLead = new Map<string, { id: string; type: "devis" | "acompte" | "finale"; status: string }[]>();
-    for (const d of docs ?? []) {
+    for (const d of docs) {
       const arr = byLead.get(d.lead_id) ?? [];
       arr.push({ id: d.id, type: d.type, status: d.status });
       byLead.set(d.lead_id, arr);
@@ -415,12 +455,12 @@ ${WANTED_COLS()}        statut_client, etat_salete, contexte_intervention, acomp
   }
 
   return leads;
-}
+});
 
 // All commerciaux for the filter dropdown + owner avatars. Until Supabase
 // Auth is wired and users have rows, this returns an empty list and the
 // dropdown collapses to just "Tous les commerciaux" — which is what we want.
-export async function getAllCommerciaux(): Promise<Commercial[]> {
+export const getAllCommerciaux = cache(async function getAllCommerciaux(): Promise<Commercial[]> {
   const supabase = await supabaseServer();
   const { data, error } = await supabase
     .from("users")
@@ -428,9 +468,12 @@ export async function getAllCommerciaux(): Promise<Commercial[]> {
     .eq("is_active", true)
     .order("first_name", { ascending: true });
 
+  // Une erreur ici vidait la liste des commerciaux sans rien dire : filtres
+  // vides, avatars manquants, et aucune trace pour comprendre.
+  if (error) console.error("[getAllCommerciaux] Supabase :", error.code, error.message);
   if (error || !data) return [];
   return (data as OwnerRow[]).map(mapOwner);
-}
+});
 
 export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | null> {
   const supabase = await supabaseServer();
@@ -537,6 +580,7 @@ async function fetchLeadAuditEvents(leadId: string): Promise<AuditTimelineEvent[
     .order("created_at", { ascending: false })
     .limit(50)
     .returns<AuditRow[]>();
+  if (error) console.error("[getLeadTimeline] Supabase :", error.code, error.message);
   if (error || !data) return [];
 
   const out: AuditTimelineEvent[] = [];

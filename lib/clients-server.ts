@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseServer } from "./supabase/server";
+import { selectEnLotsTolerant } from "@/lib/supabase/batch";
 import { computeClientStats } from "./clients-shared";
 import type {
   Client,
@@ -139,11 +140,12 @@ export async function getAllClientsForList(): Promise<ClientListRow[]> {
   );
   const docsByLead = new Map<string, CrmDocument[]>();
   if (sourceLeadIds.length > 0) {
-    const { data: docsData } = await supabase
-      .from("documents")
-      .select(DOC_SELECT)
-      .in("lead_id", sourceLeadIds);
-    for (const row of (docsData as DocRow[] | null) ?? []) {
+    const { rows: docsData } = await selectEnLotsTolerant(
+      sourceLeadIds,
+      (lot) => supabase.from("documents").select(DOC_SELECT).in("lead_id", lot),
+      { table: "documents", filtre: "lead_id IN (…) — clients" },
+    );
+    for (const row of docsData as DocRow[]) {
       const doc = mapDoc(row);
       const arr = docsByLead.get(doc.leadId) ?? [];
       arr.push(doc);

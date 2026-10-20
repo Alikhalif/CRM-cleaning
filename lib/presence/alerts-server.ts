@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseServiceRole } from "@/lib/supabase/service";
+import { selectEnLotsTolerant } from "@/lib/supabase/batch";
 import type { Json } from "@/lib/supabase/database.types";
 import { QUALIFYING_LEAD_ACTIONS, TREAT_ACTIONS, actionMeta, type AlertSeverity } from "./taxonomy";
 import { parisDayRange, todayParis, getThresholds, listPresenceUsers, invalidateThresholdsCache } from "./presence-server";
@@ -51,7 +52,11 @@ async function hydrateAlerts(sb: Sb, rows: AlertDbRow[]): Promise<AlertRow[]> {
   const leadIds = [...new Set(rows.filter((r) => r.entity_type === "lead" && r.entity_id).map((r) => r.entity_id!))];
   const refs = new Map<string, string>();
   if (leadIds.length) {
-    const { data } = await sb.from("leads").select("id, short_id").in("id", leadIds);
+    const { rows: data } = await selectEnLotsTolerant(
+      leadIds,
+      (lot) => sb.from("leads").select("id, short_id").in("id", lot),
+      { table: "leads", filtre: "id IN (…) — alertes présence" },
+    );
     for (const l of (data ?? []) as { id: string; short_id: string | null }[]) if (l.short_id) refs.set(l.id, l.short_id);
   }
   return rows.map((r) => ({
@@ -309,14 +314,18 @@ async function ruleLeadUntreated(sb: Sb, cfg: Record<string, unknown>): Promise<
   if (candidates.length === 0) return [];
 
   const ids = candidates.map((l) => l.id);
-  const { data: acts } = await sb
-    .from("audit_logs")
-    .select("entity_id")
-    .eq("entity_type", "lead")
-    .in("entity_id", ids)
-    .in("action", QUALIFYING_LEAD_ACTIONS)
-    .returns<{ entity_id: string | null }[]>();
-  const treated = new Set((acts ?? []).map((a) => a.entity_id).filter(Boolean) as string[]);
+  const { rows: acts } = await selectEnLotsTolerant(
+    ids,
+    (lot) => sb
+      .from("audit_logs")
+      .select("entity_id")
+      .eq("entity_type", "lead")
+      .in("entity_id", lot)
+      .in("action", QUALIFYING_LEAD_ACTIONS)
+      .returns<{ entity_id: string | null }[]>(),
+    { table: "audit_logs", filtre: "entity_id IN (…) — leads non traités" },
+  );
+  const treated = new Set(acts.map((a) => a.entity_id).filter(Boolean) as string[]);
 
   const out: Violation[] = [];
   for (const l of candidates) {

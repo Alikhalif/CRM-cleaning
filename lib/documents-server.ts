@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseServer } from "./supabase/server";
+import { selectEnLotsTolerant } from "@/lib/supabase/batch";
 import { mapLead, type LeadRowJoined } from "./leads-server";
 import type { DocumentWithContext } from "./documents-shared";
 import type {
@@ -160,12 +161,16 @@ export async function getAllDocumentsWithContext(): Promise<DocumentWithContext[
   };
   const dossierByLead = new Map<string, DossierJoined>();
   if (leadIds.length > 0) {
-    const { data: dossiers } = await supabase
-      .from("dossiers")
-      .select("lead_id, status, planned_at, technician:technicians(id, name, initials, color)")
-      .in("lead_id", leadIds)
-      .returns<DossierJoined[]>();
-    for (const d of dossiers ?? []) dossierByLead.set(d.lead_id, d);
+    const { rows: dossiers } = await selectEnLotsTolerant(
+      leadIds,
+      (lot) => supabase
+        .from("dossiers")
+        .select("lead_id, status, planned_at, technician:technicians(id, name, initials, color)")
+        .in("lead_id", lot)
+        .returns<DossierJoined[]>(),
+      { table: "dossiers", filtre: "lead_id IN (…)" },
+    );
+    for (const d of dossiers) dossierByLead.set(d.lead_id, d);
   }
 
   const rows: DocumentWithContext[] = [];
