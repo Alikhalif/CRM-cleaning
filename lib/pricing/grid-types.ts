@@ -187,6 +187,9 @@ export type PricingGrid = {
   rounding: number;
   updatedAt: string | null;
   publishedAt: string | null;
+  /** Grille lisible mais FERMÉE au rôle courant (cf. visibleToCommercial).
+   *  Posé par la couche d'accès, jamais stocké en base. */
+  nonDiffusee?: boolean;
 };
 
 // Nombre de lignes réellement chiffrées — sert au compteur « paramètres

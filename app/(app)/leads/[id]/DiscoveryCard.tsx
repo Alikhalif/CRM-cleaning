@@ -450,6 +450,9 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
               `La grille ${sectorLabel.toLowerCase()} n'est pas publiée. Le Super Admin doit la valider dans « Grilles tarifaires ».`}
             {pricing.result.reason === "vide" &&
               `Aucun barème ne s'applique à ce dossier pour ${sectorLabel.toLowerCase()}.`}
+            {pricing.result.reason === "diffusion" &&
+              `Le barème ${sectorLabel.toLowerCase()} existe et il est publié, mais il n'est pas `
+              + "ouvert à votre rôle. Le Super Admin doit activer « Fourchette visible par les commerciaux »."}
             {pricing.result.reason === "manquant" &&
               `Calcul impossible — il manque : ${pricing.result.missing.join(", ")}.`}
             {pricing.result.reason === "validation" &&

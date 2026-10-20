@@ -58,7 +58,14 @@ export type GridResult =
       assumptions: string[];
       vatRate: number | null;
     }
-  | { ok: false; reason: "brouillon" | "vide" | "manquant" | "validation"; missing: string[] };
+  | {
+      ok: false;
+      // `diffusion` : le barème existe et est publié, mais le Super Admin ne
+      // l'a pas ouvert à ce rôle. Distinct de « vide », qui signifie qu'aucune
+      // ligne ne s'applique — confondre les deux rend le diagnostic impossible.
+      reason: "brouillon" | "vide" | "manquant" | "validation" | "diffusion";
+      missing: string[];
+    };
 
 const band = (lines: GridLine[] | undefined, value: number): GridLine | null => {
   for (const l of lines ?? []) {
@@ -74,6 +81,8 @@ const arrondir = (n: number, pas: number): number => (pas > 0 ? Math.round(n / p
 
 export function computeGrid(g: PricingGrid | null, input: GridInput): GridResult {
   if (!g) return { ok: false, reason: "vide", missing: [] };
+  // Diffusion fermée : aucun calcul, et surtout aucun montant transmis.
+  if (g.nonDiffusee) return { ok: false, reason: "diffusion", missing: [] };
   // Une grille non publiée n'est JAMAIS utilisée, quelles que soient les autres
   // options : c'est la garantie demandée par le client.
   if (g.status !== "active") return { ok: false, reason: "brouillon", missing: [] };
@@ -225,6 +234,7 @@ export function computeGrid(g: PricingGrid | null, input: GridInput): GridResult
 
 export const REASON_LABEL: Record<Exclude<GridResult & { ok: false }, { ok: true }>["reason"], string> = {
   brouillon: "Grille en brouillon — non publiée par l'administrateur.",
+  diffusion: "Barème non diffusé à votre rôle — à ouvrir par le Super Admin.",
   vide: "Aucun barème configuré pour cette activité.",
   manquant: "Calcul impossible, il manque :",
   validation: "Validation tarifaire du super administrateur nécessaire :",

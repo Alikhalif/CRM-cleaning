@@ -170,7 +170,10 @@ export async function getGridBySlug(
   const me = await getCurrentUserProfile();
   const roles = (me?.roles ?? []).map((r) => r.slug);
   const backOffice = roles.includes("admin") || roles.includes("planification") || roles.includes("superviseur");
-  if (!backOffice && !g.visibleToCommercial) return null;
+  // Le drapeau est baissé pour ce rôle : on renvoie la grille marquée NON
+  // DIFFUSÉE plutôt que null. Le moteur refusera de chiffrer, mais la
+  // découverte pourra dire pourquoi au lieu d'annoncer « aucun barème ».
+  if (!backOffice && !g.visibleToCommercial) return { ...g, nonDiffusee: true };
 
   return g;
 }
