@@ -173,6 +173,26 @@
   &:hover { background: var(--color-brand-600); border-color: var(--color-brand-600); }
 }
 
+// Bouton « Enregistrer la découverte » une fois la sauvegarde confirmée.
+//
+// Le vert vient de --tone-success, mais assombri : le token (#14c890) est trop
+// clair pour porter du texte blanc — le contraste tomberait à 2,2:1, illisible.
+// On garde la teinte et on baisse la luminosité jusqu'à passer le seuil AA,
+// dans les deux thèmes (le token n'est pas redéfini en sombre).
+.btnSaved {
+  background: color-mix(in oklab, var(--tone-success) 62%, #0b0b0b);
+  border-color: color-mix(in oklab, var(--tone-success) 62%, #0b0b0b);
+  color: #fff;
+  font-weight: 600;
+
+  &:hover {
+    background: color-mix(in oklab, var(--tone-success) 70%, #0b0b0b);
+    border-color: color-mix(in oklab, var(--tone-success) 70%, #0b0b0b);
+  }
+  // Désactivé pendant une sauvegarde : on garde le vert lisible.
+  &:disabled { opacity: 0.75; }
+}
+
 .btnDanger {
   color: var(--tone-danger);
   border-color: color-mix(in oklab, var(--tone-danger) 40%, var(--border-strong));

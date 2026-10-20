@@ -47,6 +47,13 @@ type Props = {
   pricingGrid: PricingGrid | null;
 };
 
+// Heure d'enregistrement, fuseau FIXÉ : le serveur rend en UTC, le commercial
+// est à Paris. Sans ce paramètre, l'heure affichée saute à l'hydratation.
+const HEURE_PARIS = new Intl.DateTimeFormat("fr-FR", {
+  hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris",
+});
+const heureParis = (iso: string) => HEURE_PARIS.format(new Date(iso));
+
 const field: React.CSSProperties = {
   width: "100%", padding: "8px 10px", borderRadius: "var(--r-sm)",
   border: "1px solid var(--border-strong)", background: "var(--bg-surface)",
@@ -89,13 +96,20 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
   const [arguOpen, setArguOpen] = useState(false);
   const [, startTransition] = useTransition();
 
-  const run = (key: string, fn: () => Promise<{ ok: true } | { ok: false; error: string }>) => {
+  const run = (
+    key: string,
+    fn: () => Promise<{ ok: true } | { ok: false; error: string }>,
+    apresSucces?: () => void,
+  ) => {
     setError(null);
     setBusy(key);
     startTransition(async () => {
       const r = await fn();
       setBusy(null);
+      // Rien ne passe au vert si la sauvegarde a échoué : le message d'erreur
+      // s'affiche et la saisie reste intacte.
       if (!r.ok) { setError(r.error); return; }
+      apresSucces?.();
       router.refresh();
     });
   };
@@ -201,13 +215,21 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
       if (!ok) return;
     }
 
-    run("save", async () => {
-      const r = await saveDiscovery(leadId, payload);
-      if (!r.ok || !basculer) return r;
-      // La découverte est enregistrée AVANT la bascule : si la réaffectation
-      // échoue, la saisie du commercial est déjà en sécurité.
-      return switchToDiogene(leadId);
-    });
+    const instantane = payloadJson;
+    run(
+      "save",
+      async () => {
+        const r = await saveDiscovery(leadId, payload);
+        if (!r.ok || !basculer) return r;
+        // La découverte est enregistrée AVANT la bascule : si la réaffectation
+        // échoue, la saisie du commercial est déjà en sécurité.
+        return switchToDiogene(leadId);
+      },
+      () => {
+        setEnregistreA(new Date().toISOString());
+        setPayloadEnregistre(instantane);
+      },
+    );
   };
 
   // ── Enregistrement automatique ──────────────────────────────────────
@@ -218,6 +240,19 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
   const [autoEtat, setAutoEtat] = useState<"" | "encours" | "ok">("");
   const dernierEnvoi = useRef<string | null>(null);
   const payloadJson = JSON.stringify(buildPayload());
+
+  // ── Bouton « Enregistrer la découverte » ────────────────────────────
+  // Vert dès qu'une sauvegarde a réussi, et il le reste : la valeur initiale
+  // vient de la base (`discoveryDoneAt`), donc l'état survit à la fermeture de
+  // la fiche, à l'actualisation et à la reconnexion.
+  //
+  // Dès qu'un champ change, la charge utile diffère de celle enregistrée et le
+  // bouton redevient neutre — le commercial voit qu'il lui reste quelque chose
+  // à faire.
+  const [enregistreA, setEnregistreA] = useState<string | null>(lead.discoveryDoneAt ?? null);
+  const [payloadEnregistre, setPayloadEnregistre] = useState<string>(payloadJson);
+  const modifieDepuis = payloadEnregistre !== payloadJson;
+  const estEnregistre = enregistreA !== null && !modifieDepuis;
 
   useEffect(() => {
     if (dernierEnvoi.current === null) { dernierEnvoi.current = payloadJson; return; }
@@ -472,8 +507,20 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
         />
       )}
 
-      <button type="button" className={`${styles.btn} ${styles.btnPrimary}`} disabled={busy !== null} onClick={onSave} style={{ width: "100%", justifyContent: "center", marginBottom: 12 }}>
-        {busy === "save" ? "Enregistrement…" : "Enregistrer la découverte"}
+      {/* Le MÊME bouton change d'apparence : aucun libellé ni bouton ajouté. */}
+      <button
+        type="button"
+        className={`${styles.btn} ${estEnregistre ? styles.btnSaved : styles.btnPrimary}`}
+        disabled={busy !== null}
+        onClick={onSave}
+        style={{ width: "100%", justifyContent: "center", marginBottom: 12 }}
+        aria-live="polite"
+      >
+        {busy === "save"
+          ? "Enregistrement…"
+          : estEnregistre
+            ? `✓ Enregistré à ${heureParis(enregistreA!)}`
+            : "Enregistrer la découverte"}
       </button>
 
       <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 12, marginBottom: 12 }}>
