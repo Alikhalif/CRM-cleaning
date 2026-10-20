@@ -17,6 +17,8 @@ type Props = {
   // Modèles de relance e-mail (portée rôle/profil, filtrés au secteur du lead)
   // et variables réelles du lead pour l'interpolation.
   templates: MessageTemplate[];
+  /** Pourquoi aucun modèle n'est proposé. Null quand la liste n'est pas vide. */
+  motifSansModele?: "sans_profil" | "aucun_modele" | null;
   vars: Record<string, string>;
   // Modèle graphique du PDF (secteur du lead) : "nettoyage" → design OPTIMIVV
   // NETTOYAGE ; "demenagement" (défaut) → design déménagement.
@@ -95,7 +97,9 @@ function formToInput(f: Form): DevisInput {
   };
 }
 
-export default function NouveauDevis({ prefill, leadId, templates, vars, template = "demenagement" }: Props) {
+export default function NouveauDevis({
+  prefill, leadId, templates, vars, motifSansModele = null, template = "demenagement",
+}: Props) {
   const [form, setForm] = useState<Form>({
     nom: prefill?.client.nom ?? "",
     adresse: prefill?.client.adresse ?? "",
@@ -105,7 +109,10 @@ export default function NouveauDevis({ prefill, leadId, templates, vars, templat
     lieu_intervention: prefill?.lieu_intervention ?? "",
     date_prevue: "",
     description: prefill?.description ?? "",
-    montant_ht: "",
+    // Montant recommandé par la grille tarifaire, proposé et modifiable.
+    // Vide si le moteur n'a rien produit : on ne propose jamais un chiffre
+    // qu'on ne sait pas justifier.
+    montant_ht: prefill?.montant_ht != null ? String(prefill.montant_ht) : "",
     validite_jours: "30",
     acompte_pct: "30",
   });
@@ -510,9 +517,21 @@ export default function NouveauDevis({ prefill, leadId, templates, vars, templat
             </label>
             {templates.length === 0 && (
               <p className={styles.hint}>
-                Aucun modèle e-mail pour votre profil — rédigez l&apos;objet et le
-                message ci-dessous (ou créez des modèles dans Paramètres →
-                Templates).
+                {motifSansModele === "sans_profil" ? (
+                  <>
+                    Aucun modèle disponible : <strong>aucun profil commercial
+                    n&apos;est attribué à ce compte</strong>. Les modèles sont ciblés par
+                    profil — sans profil, aucun ne s&apos;affiche. Un Super Admin doit le
+                    renseigner dans Paramètres → Utilisateurs. En attendant, rédigez
+                    l&apos;objet et le message ci-dessous.
+                  </>
+                ) : (
+                  <>
+                    Aucun modèle e-mail ne correspond à votre profil pour cette étape —
+                    rédigez l&apos;objet et le message ci-dessous, ou créez des modèles
+                    dans Paramètres → Templates.
+                  </>
+                )}
               </p>
             )}
 

@@ -1,3 +1,6 @@
+import { getGridBySlug } from "@/lib/pricing/grid-server";
+import { computeGrid } from "@/lib/pricing/grid-compute";
+import { buildGridInput } from "@/lib/pricing/grid-discovery";
 import "server-only";
 import { getLeadDetail, getLegalEntityPhone, type LeadDetail } from "@/lib/leads-server";
 import { getTemplatesForUser, type MessageTemplate } from "@/lib/message-templates-server";
@@ -121,8 +124,41 @@ function buildPrefill(detail: LeadDetail): DevisPrefill {
     },
     lieu_intervention: dm.lieu || l.city || undefined,
     description: dm.description || l.typeService || undefined,
+    // Rempli par getDevisPageData, qui seul a accès à la grille tarifaire.
     montant_ht: null,
   };
+}
+
+/**
+ * Montant HT à proposer dans le devis.
+ *
+ * ⚠️ `announced_price` est VOLONTAIREMENT écarté : la découverte le saisit en
+ * TTC (cf. libellé du champ) alors que le devis se rédige en HT. Les mélanger
+ * produirait un devis faux de 20 %. Les deux sources retenues ci-dessous sont
+ * l'une et l'autre du HT, issues du même moteur.
+ *
+ * Ordre : recommandation FIGÉE à l'enregistrement de la découverte, puis
+ * recalcul courant. Rien n'est proposé si le moteur ne produit pas de prix —
+ * un devis à 0 € vaut mieux qu'un devis faux.
+ */
+async function montantRecommande(detail: LeadDetail): Promise<number | null> {
+  const l = detail.lead;
+  if (l.priceRecommended != null && l.priceRecommended > 0) return l.priceRecommended;
+
+  // getGridBySlug applique la règle de diffusion : un commercial à qui le
+  // barème n'est pas ouvert ne reçoit aucun montant, ici comme ailleurs.
+  const grille = await getGridBySlug(l.sector);
+  if (!grille) return null;
+  const { input } = buildGridInput({
+    sector: l.sector,
+    surfaceM2: l.surfaceM2 ?? null,
+    details: l.discoveryDetails ?? {},
+    delaiSouhaite: l.delaiSouhaite ?? null,
+    isUrgent: Boolean(l.isUrgent),
+    etatSalete: l.etatSalete ?? null,
+  });
+  const res = computeGrid(grille, input);
+  return res.ok && res.conseille > 0 ? res.conseille : null;
 }
 
 // Données complètes de la page « nouveau devis » : préremplissage + modèles de
@@ -131,17 +167,22 @@ function buildPrefill(detail: LeadDetail): DevisPrefill {
 export type DevisPageData = {
   prefill: DevisPrefill | null;
   templates: MessageTemplate[];
+  /** Pourquoi la liste de modeles est vide. Null si elle ne l est pas.
+   *  « sans_profil » : aucun profil commercial sur le compte, donc aucune
+   *  audience, donc aucun modele — cause de loin la plus frequente. */
+  motifSansModele: "sans_profil" | "aucun_modele" | null;
   vars: Record<string, string>;
 };
 
 export async function getDevisPageData(
   affaire?: string | null,
 ): Promise<DevisPageData> {
-  if (!affaire) return { prefill: null, templates: [], vars: {} };
+  if (!affaire) return { prefill: null, templates: [], motifSansModele: null, vars: {} };
   const detail = await getLeadDetail(affaire);
-  if (!detail) return { prefill: null, templates: [], vars: {} };
+  if (!detail) return { prefill: null, templates: [], motifSansModele: null, vars: {} };
 
   const prefill = buildPrefill(detail);
+  prefill.montant_ht = await montantRecommande(detail);
   const [emailTemplates, me] = await Promise.all([
     getTemplatesForUser("email"),
     getCurrentUserProfile(),
@@ -159,6 +200,17 @@ export async function getDevisPageData(
     (t) =>
       (!t.activitySlug || t.activitySlug === l.sector) && t.category !== "photos",
   );
+
+  // Pourquoi la liste est-elle vide ? Les modèles sont ciblés par AUDIENCE,
+  // elle-même dérivée du profil commercial. Sans profil attribué, l'utilisateur
+  // n'a aucune audience et aucun modèle ne passe — ce qui n'a rien à voir avec
+  // un manque de modèles. On distingue les deux pour que le message soit juste.
+  const motifSansModele: "sans_profil" | "aucun_modele" | null =
+    templates.length > 0
+      ? null
+      : (me?.commercialProfiles ?? []).length === 0
+        ? "sans_profil"
+        : "aucun_modele";
 
   // Baseline montants/acompte depuis le dernier devis du lead ; à défaut,
   // acompte négocié puis défaut secteur, et montant estimé du lead. Ces valeurs
@@ -189,5 +241,5 @@ export async function getDevisPageData(
     montantSolde: totalTtc && acompteAmt ? formatEUR(totalTtc - acompteAmt) : "",
   });
 
-  return { prefill, templates, vars };
+  return { prefill, templates, motifSansModele, vars };
 }

@@ -11,7 +11,7 @@ type PageProps = {
 
 export default async function NouveauDevisPage({ searchParams }: PageProps) {
   const { affaire } = await searchParams;
-  const { prefill, templates, vars } = await getDevisPageData(affaire ?? null);
+  const { prefill, templates, motifSansModele, vars } = await getDevisPageData(affaire ?? null);
   // Modèle graphique du PDF selon le secteur : nettoyage → design OPTIMIVV
   // NETTOYAGE ; tout le reste (déménagement, débarras…) → design déménagement.
   const template = prefill?.sector === "nettoyage" ? "nettoyage" : "demenagement";
@@ -20,6 +20,7 @@ export default async function NouveauDevisPage({ searchParams }: PageProps) {
       prefill={prefill}
       leadId={prefill?.leadId ?? null}
       templates={templates}
+      motifSansModele={motifSansModele}
       vars={vars}
       template={template}
     />
