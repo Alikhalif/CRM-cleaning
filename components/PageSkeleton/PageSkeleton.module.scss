@@ -1,0 +1,64 @@
+// Squelette de chargement. Volontairement sobre : il doit suggérer la forme
+// de la page, pas attirer l'œil.
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+}
+
+.entete { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+// Pulsation lente. `prefers-reduced-motion` la supprime : une animation
+// permanente est pénible pour qui y est sensible.
+.bloc {
+  border-radius: var(--r-md);
+  background: var(--bg-surface-2);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bloc { animation: none; opacity: 0.8; }
+}
+
+.titre { height: 26px; width: min(260px, 60%); }
+.sousTitre { height: 14px; width: min(420px, 85%); }
+
+.cartes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: var(--sp-3);
+}
+.carte { height: 82px; }
+
+.filtres { height: 40px; width: 100%; }
+
+.liste { display: flex; flex-direction: column; gap: var(--sp-2); }
+.ligne { height: 56px; }
+
+// Texte réservé aux lecteurs d'écran : eux aussi doivent savoir que la page
+// charge, l'animation ne leur dit rien.
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 768px) {
+  .page { padding: var(--sp-3); gap: var(--sp-3); }
+  .cartes { grid-template-columns: repeat(2, 1fr); }
+  .carte { height: 70px; }
+  .ligne { height: 72px; } // en mode carte, les lignes sont plus hautes
+}
