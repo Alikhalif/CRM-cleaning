@@ -100,54 +100,6 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
     });
   };
 
-  // Une seule construction de la charge utile : l'enregistrement manuel et
-  // l'enregistrement automatique écrivent exactement la même chose.
-  const buildPayload = () => ({
-    surfaceM2: surface.trim() ? Number(surface) : null,
-    announcedPrice: price.trim() ? Number(price) : null,
-    priceRange: priceRange || null,
-    delaiSouhaite: delai || null,
-    reactionPrix: reaction || null,
-    // Champs nettoyage uniquement — null pour les autres métiers.
-    statutClient: isNettoyage ? (statut || null) : null,
-    etatSalete: isNettoyage ? (salete || null) : null,
-    contexteIntervention: contexte,
-    acompteNegocie: acompte !== "" ? Number(acompte) : null,
-    wantedDate: wantedDate || null,
-    wantedSlot: wantedSlot || null,
-    wantedTimeStart: wantedStart || null,
-    wantedTimeEnd: wantedEnd || null,
-    // Le questionnaire nettoyage vit lui aussi dans `details` : il ne faut
-    // surtout plus l'effacer comme le faisait l'ancienne découverte.
-    details,
-  });
-
-  const onSave = () => {
-    const payload = buildPayload();
-    if (payload.surfaceM2 != null && Number.isNaN(payload.surfaceM2)) { setError("Surface invalide."); return; }
-    if (payload.announcedPrice != null && Number.isNaN(payload.announcedPrice)) { setError("Prix annoncé invalide."); return; }
-
-    // Bascule Diogène : le commercial perd le dossier au profit de l'équipe
-    // habilitée. C'est irréversible d'un clic, donc on demande confirmation.
-    const basculer = isFamilleNet && !dejaDiogene && details.diogene === true;
-    if (basculer) {
-      const ok = window.confirm(
-        "Classer ce dossier en activité Diogène ?\n\n"
-        + "Il sera confié à un commercial habilité Diogène. Les coordonnées, les photos, "
-        + "l'historique et le numéro de dossier sont conservés.",
-      );
-      if (!ok) return;
-    }
-
-    run("save", async () => {
-      const r = await saveDiscovery(leadId, payload);
-      if (!r.ok || !basculer) return r;
-      // La découverte est enregistrée AVANT la bascule : si la réaffectation
-      // échoue, la saisie du commercial est déjà en sécurité.
-      return switchToDiogene(leadId);
-    });
-  };
-
   const onOutcome = (outcome: DiscoveryOutcome) => {
     const announcedPrice = price.trim() ? Number(price) : null;
     let reason: string | undefined;
@@ -203,6 +155,60 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
       ],
     });
   }, [pricing, lead.sector, lead.isUrgent, details, salete, delai, reaction, wantedDate]);
+
+  // Une seule construction de la charge utile : l'enregistrement manuel et
+  // l'enregistrement automatique écrivent exactement la même chose.
+  const buildPayload = () => ({
+    surfaceM2: surface.trim() ? Number(surface) : null,
+    announcedPrice: price.trim() ? Number(price) : null,
+    priceRange: priceRange || null,
+    delaiSouhaite: delai || null,
+    reactionPrix: reaction || null,
+    // Champs nettoyage uniquement — null pour les autres métiers.
+    statutClient: isNettoyage ? (statut || null) : null,
+    etatSalete: isNettoyage ? (salete || null) : null,
+    contexteIntervention: contexte,
+    acompteNegocie: acompte !== "" ? Number(acompte) : null,
+    wantedDate: wantedDate || null,
+    wantedSlot: wantedSlot || null,
+    wantedTimeStart: wantedStart || null,
+    wantedTimeEnd: wantedEnd || null,
+    // Le questionnaire nettoyage vit lui aussi dans `details` : il ne faut
+    // surtout plus l'effacer comme le faisait l'ancienne découverte.
+    details,
+    // Recommandation du moteur au moment de l'enregistrement (A-07).
+    // Seul saveDiscovery la fige ; l'enregistrement automatique l'ignore.
+    priceRecommended: pricing.result.ok ? pricing.result.conseille : null,
+    priceRecommendedMin: pricing.result.ok ? pricing.result.min : null,
+    priceRecommendedMax: pricing.result.ok ? pricing.result.max : null,
+    pricingGridVersion: pricingGrid?.version ?? null,
+  });
+
+  const onSave = () => {
+    const payload = buildPayload();
+    if (payload.surfaceM2 != null && Number.isNaN(payload.surfaceM2)) { setError("Surface invalide."); return; }
+    if (payload.announcedPrice != null && Number.isNaN(payload.announcedPrice)) { setError("Prix annoncé invalide."); return; }
+
+    // Bascule Diogène : le commercial perd le dossier au profit de l'équipe
+    // habilitée. C'est irréversible d'un clic, donc on demande confirmation.
+    const basculer = isFamilleNet && !dejaDiogene && details.diogene === true;
+    if (basculer) {
+      const ok = window.confirm(
+        "Classer ce dossier en activité Diogène ?\n\n"
+        + "Il sera confié à un commercial habilité Diogène. Les coordonnées, les photos, "
+        + "l'historique et le numéro de dossier sont conservés.",
+      );
+      if (!ok) return;
+    }
+
+    run("save", async () => {
+      const r = await saveDiscovery(leadId, payload);
+      if (!r.ok || !basculer) return r;
+      // La découverte est enregistrée AVANT la bascule : si la réaffectation
+      // échoue, la saisie du commercial est déjà en sécurité.
+      return switchToDiogene(leadId);
+    });
+  };
 
   // ── Enregistrement automatique ──────────────────────────────────────
   // Deux secondes et demie après la dernière frappe. On compare la charge
@@ -423,6 +429,17 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
             <div className={styles.pricingRange}>
               {pricing.result.min.toLocaleString("fr-FR")} – {montantLabel(pricing.result.max, pricing.result.vatRate)}
             </div>
+            {/* A-07 — le barème a changé depuis le calcul enregistré. On le
+                DIT, au lieu de laisser un montant bouger en silence. */}
+            {lead.priceRecommended != null
+              && lead.priceRecommended !== pricing.result.conseille && (
+              <p className={styles.pricingNote}>
+                À l&apos;enregistrement de la découverte, le tarif recommandé était de{" "}
+                <strong>{lead.priceRecommended.toLocaleString("fr-FR")} €</strong>. Le barème a
+                changé depuis : vérifiez ce qui a été annoncé au client avant d&apos;utiliser
+                le nouveau montant.
+              </p>
+            )}
             <button type="button" className={styles.pricingCta} onClick={() => setArguOpen(true)}>
               💬 Argumentaire commercial
             </button>

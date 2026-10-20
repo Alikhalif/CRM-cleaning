@@ -214,6 +214,10 @@ export type Lead = {
   interventionDelayDate?: string; // YYYY-MM-DD
   // ── Découverte (call 2026-07-11) — qualification before quoting.
   announcedPrice?: number; // prix annoncé au client pendant la découverte
+  // Recommandation FIGÉE à l'enregistrement de la découverte (A-07) : elle
+  // distingue le tarif calculé ce jour-là du tarif applicable aujourd'hui.
+  priceRecommended?: number | null;
+  priceRecommendedAt?: string | null;
   discoveryOutcome?: DiscoveryOutcome; // undefined = découverte pas encore faite
   discoveryDoneAt?: string; // ISO — set when an outcome is recorded
   photosRequestedAt?: string; // ISO — set when a photo request is sent

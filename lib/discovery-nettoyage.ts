@@ -21,15 +21,44 @@ export const FAMILLE_NETTOYAGE = ["nettoyage", "nettoyage_difficile", "diogene",
 export const estFamilleNettoyage = (sector: string): boolean => FAMILLE_NETTOYAGE.includes(sector);
 
 // ── Bloc 1 — Type de nettoyage ─────────────────────────────────────────
+// Les valeurs correspondent une à une aux clés `type_*` du barème. Ajouter
+// une prestation ici sans tarif correspondant la rendrait silencieusement
+// incalculable — et inversement.
 export const TYPE_NETTOYAGE: Option[] = opt([
   ["classique", "Classique"],
   ["approfondi", "Approfondi"],
-  ["remise_etat", "Remise en état"],
-  ["fin_chantier", "Fin de chantier"],
   ["fin_bail", "Fin de bail"],
-  ["apres_sinistre", "Après sinistre"],
+  ["fin_bail_approfondi", "Fin de bail approfondi"],
+  ["avant_emmenagement", "Avant emménagement"],
+  ["avant_vente", "Avant vente"],
+  ["apres_demenagement", "Après déménagement"],
+  ["fin_chantier_leger", "Fin de chantier léger"],
+  ["fin_chantier", "Fin de chantier"],
+  ["fin_chantier_difficile", "Fin de chantier difficile"],
+  ["apres_renovation", "Après rénovation lourde"],
+  ["remise_etat", "Remise en état"],
+  ["tres_sale", "Logement très sale"],
   ["insalubre", "Insalubre"],
+  ["apres_squat", "Après squat"],
+  ["apres_sinistre", "Après sinistre"],
   ["autre", "Autre"],
+]);
+
+// Équipements facturés à l'unité, au forfait. Clés identiques au barème.
+export const EQUIPEMENTS: Option[] = opt([
+  ["opt_four", "Four"],
+  ["opt_frigo", "Réfrigérateur"],
+  ["opt_congelateur", "Congélateur"],
+  ["opt_hotte", "Hotte"],
+  ["opt_degraissage_cuisine", "Dégraissage renforcé cuisine"],
+  ["opt_detartrage_sdb", "Détartrage salle de bain"],
+  ["opt_wc_encrasses", "WC fortement encrassés"],
+]);
+
+// Traitements de sol facturés au m². Clés identiques au barème.
+export const TRAITEMENTS_SOL: Option[] = opt([
+  ["opt_sols_mecanise", "Nettoyage mécanisé"],
+  ["opt_decapage_sols", "Décapage"],
 ]);
 
 // ── Bloc 2 — Caractéristiques du logement ──────────────────────────────

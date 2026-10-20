@@ -501,6 +501,47 @@ export async function recordDiscovery(
 
 // Enregistre la fiche Découverte enrichie (Lot 1) — champs standardisés
 // remplis par tous les commerciaux. Additif : ne touche pas à discovery_outcome.
+// Contrôle du prix annoncé face à la recommandation du barème. Renvoie un
+// refus explicite, ou null si tout est conforme.
+async function verifierPlafondRemise(
+  leadId: string,
+  input: DiscoveryInput,
+): Promise<Result | null> {
+  const recommande = input.priceRecommended;
+  const annonce = input.announcedPrice;
+  if (recommande == null || recommande <= 0 || annonce == null || annonce <= 0) return null;
+  if (annonce >= recommande) return null; // au-dessus du barème : jamais bloqué
+
+  const sb = await supabaseServer();
+  const { data: lead } = await sb
+    .from("leads")
+    .select("activity_id")
+    .eq("id", leadId)
+    .maybeSingle<{ activity_id: string | null }>();
+  if (!lead?.activity_id) return null;
+
+  const { data: grille } = await sb
+    .from("pricing_grids")
+    .select("allow_commercial_override, max_discount_pct, status")
+    .eq("activity_id", lead.activity_id)
+    .maybeSingle<{ allow_commercial_override: boolean; max_discount_pct: number | null; status: string }>();
+  // Une grille non publiée ne fait pas autorité : on ne bloque rien sur elle.
+  if (!grille || grille.status !== "active") return null;
+
+  const remise = Math.round((1 - annonce / recommande) * 1000) / 10;
+  const plafond = grille.allow_commercial_override ? Number(grille.max_discount_pct ?? 0) : 0;
+  if (remise <= plafond) return null;
+
+  return {
+    ok: false,
+    error: plafond === 0
+      ? `Prix annoncé inférieur au tarif recommandé (${recommande.toLocaleString("fr-FR")} €). `
+        + "Aucune remise n'est autorisée sur cette activité — demandez une validation."
+      : `Remise de ${remise} % demandée, plafond autorisé ${plafond} % `
+        + `(tarif recommandé ${recommande.toLocaleString("fr-FR")} €).`,
+  };
+}
+
 export type DiscoveryInput = {
   surfaceM2: number | null;
   announcedPrice: number | null;
@@ -519,6 +560,13 @@ export type DiscoveryInput = {
   wantedTimeEnd?: string | null;
   // Champs techniques propres au métier (débarras / déménagement).
   details?: Record<string, unknown> | null;
+  // Recommandation du moteur AU MOMENT de l'enregistrement. Figée : une
+  // modification ultérieure du barème ne doit pas réécrire un montant déjà
+  // calculé, encore moins un montant déjà annoncé au client.
+  priceRecommended?: number | null;
+  priceRecommendedMin?: number | null;
+  priceRecommendedMax?: number | null;
+  pricingGridVersion?: number | null;
 };
 
 // Change le type de prestation d'un lead (ex. Débarras ↔ Déménagement) — le
@@ -663,6 +711,15 @@ export async function saveDiscovery(leadId: string, input: DiscoveryInput): Prom
   const supabase = await supabaseServer();
   const now = new Date().toISOString();
 
+  // A-02 — Plafond de remise, vérifié CÔTÉ SERVEUR.
+  //
+  // `allowCommercialOverride` et `maxDiscountPct` étaient enregistrés et
+  // éditables, mais lus nulle part : un commercial pouvait annoncer n'importe
+  // quel montant. La règle ne s'applique que si le moteur a produit une
+  // recommandation — sans référence, il n'y a rien à faire respecter.
+  const refus = await verifierPlafondRemise(leadId, input);
+  if (refus) return refus;
+
   const updates = {
     surface_m2: input.surfaceM2,
     // Créneau SOUHAITÉ par le client — jamais une intervention confirmée.
@@ -684,6 +741,17 @@ export async function saveDiscovery(leadId: string, input: DiscoveryInput): Prom
     contexte_intervention: input.contexteIntervention?.trim() || null,
     acompte_negocie: input.acompteNegocie,
     discovery_details: input.details ?? {},
+    // Recommandation figée (A-07). Null quand le moteur n'a rien produit :
+    // on n'écrase pas une recommandation antérieure avec du vide.
+    ...(input.priceRecommended != null
+      ? {
+          price_recommended: input.priceRecommended,
+          price_recommended_min: input.priceRecommendedMin ?? null,
+          price_recommended_max: input.priceRecommendedMax ?? null,
+          pricing_grid_version: input.pricingGridVersion ?? null,
+          price_recommended_at: now,
+        }
+      : {}),
     discovery_done_at: now,
     last_action_label: "Fiche découverte enregistrée",
     last_action_at: now,

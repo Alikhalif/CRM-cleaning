@@ -113,9 +113,15 @@ function nettoyageVersGrille(
   if (str(det.vitrerie) === "oui") {
     pousser(det.vitrerieQuantite);
     pousser(det.vitrerieAcces);
+    // Les deux lignes suivantes ne se déclenchent que si la quantité est
+    // saisie : le moteur refuse de chiffrer une unité qu'il ne connaît pas.
+    if (num(det.vitrerieM2) > 0) options.push("opt_vitrerie_m2");
+    if (num(det.nbVolets) > 0) options.push("opt_volets");
   }
 
   for (const sol of liste("sols")) pousser(sol);
+  for (const t of liste("traitementsSol")) pousser(t);
+  for (const e of liste("equipements")) pousser(e);
 
   // Murs : le lessivage est une prestation complémentaire, jamais incluse
   // d'office (consigne client).
@@ -326,6 +332,10 @@ export function buildGridInput(d: GridDiscovery): { input: GridInput; approx: bo
   const desinfM2 = num(det.desinfectionM2);
   if (desinfM2 > 0) quantites.desinfection = desinfM2;
   else if (quantity != null && quantity > 0) quantites.desinfection = quantity;
+  // Quantités à l'unité : sans elles, les lignes correspondantes ne sont pas
+  // chiffrées du tout (cf. anomalie A-08).
+  if (num(det.nbVolets) > 0) quantites.unites = num(det.nbVolets);
+  if (num(det.vitrerieM2) > 0) quantites.vitrerie = num(det.vitrerieM2);
 
   return {
     input: {

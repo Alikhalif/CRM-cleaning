@@ -14,7 +14,8 @@ import { estFamilleNettoyage } from "@/lib/discovery-nettoyage";
 // ne porte pas forcément sur la surface du logement : une terrasse se facture
 // sur SA surface, une désinfection partielle sur la sienne.
 export type QuantiteSource =
-  | "surface" | "volume" | "exterieur" | "distance" | "desinfection" | "etages";
+  | "surface" | "volume" | "exterieur" | "distance" | "desinfection" | "etages"
+  | "unites" | "heures" | "vitrerie";
 
 export const QUANTITE_LABEL: Record<QuantiteSource, string> = {
   surface: "Surface intérieure",
@@ -23,6 +24,9 @@ export const QUANTITE_LABEL: Record<QuantiteSource, string> = {
   distance: "Distance",
   desinfection: "Surface à désinfecter",
   etages: "Nombre d'étages",
+  unites: "Nombre d'unités (volets, pièces…)",
+  heures: "Nombre d'heures",
+  vitrerie: "Surface de vitrage",
 };
 
 export type Unite = "m2" | "m3" | "km" | "h" | "u";

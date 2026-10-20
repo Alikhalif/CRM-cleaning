@@ -177,6 +177,8 @@ export type LeadRowJoined = {
   move_date?: string | null;
   // Découverte columns — optional so selects that don't fetch them still map.
   announced_price?: number | null;
+  price_recommended?: number | null;
+  price_recommended_at?: string | null;
   discovery_outcome?: string | null;
   discovery_done_at?: string | null;
   photos_requested_at?: string | null;
@@ -270,6 +272,8 @@ export function mapLead(row: LeadRowJoined, canImmob = false, canProvenance = fa
     interventionDelayNotes: row.intervention_delay_notes ?? undefined,
     notes: row.notes ?? undefined,
     announcedPrice: row.announced_price ?? undefined,
+    priceRecommended: row.price_recommended ?? undefined,
+    priceRecommendedAt: row.price_recommended_at ?? undefined,
     discoveryOutcome: (row.discovery_outcome ?? undefined) as Lead["discoveryOutcome"],
     discoveryDoneAt: row.discovery_done_at ?? undefined,
     photosRequestedAt: row.photos_requested_at ?? undefined,
@@ -499,7 +503,8 @@ export async function getLeadDetail(idOrShortId: string): Promise<LeadDetail | n
         entity_id, entity:legal_entities(legal_name), landing_page:landing_pages(name), source_url,
         utm_source, utm_medium, utm_campaign, utm_term, utm_content, gclid,
         move_from_city, move_from_postal, move_to_city, move_to_postal, move_volume, move_date,
-        announced_price, discovery_outcome, discovery_done_at,
+        announced_price, price_recommended, price_recommended_at,
+        discovery_outcome, discovery_done_at,
         photos_requested_at, delai_souhaite, price_range, reaction_prix,
 ${WANTED_COLS()}        statut_client, etat_salete, contexte_intervention, acompte_negocie, discovery_details, is_extreme,
         activity:activities(slug),

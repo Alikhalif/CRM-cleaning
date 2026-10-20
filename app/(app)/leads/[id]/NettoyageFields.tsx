@@ -6,7 +6,7 @@ import {
   DIO_ACCESSIBILITE, DIO_DECHETS, DIO_ENCOMBREMENT, DIO_NUISIBLES, DIO_ODEURS,
   DIO_PRESTATIONS, DIO_VOLUME,
   ETAGE, ETAT_GENERAL, EXTERIEUR_ETAT, EXTERIEUR_REVETEMENT, EXTERIEUR_TYPE,
-  MURS, NOMBRE_0_3, OCCUPATION, PHOTOS_ETAT,
+  EQUIPEMENTS, MURS, NOMBRE_0_3, OCCUPATION, PHOTOS_ETAT, TRAITEMENTS_SOL,
   PLAFONDS_ETAT, PLAFONDS_TYPE, SOLS, STATIONNEMENT, SURFACE_CONCERNEE,
   TYPE_BIEN_NETTOYAGE, TYPE_NETTOYAGE, URGENCE, VITRERIE_ACCES, VITRERIE_QUANTITE,
 } from "@/lib/discovery-nettoyage";
@@ -172,10 +172,16 @@ export default function NettoyageFields(p: Props) {
           <div className={styles.conditionnel}>
             <Choix d={d} set={set} k="vitrerieQuantite" options={VITRERIE_QUANTITE} label="Quantité" />
             <Choix d={d} set={set} k="vitrerieAcces" options={VITRERIE_ACCES} label="Accessibilité" />
+            {/* Vitrage supplémentaire facturé au m² DE VITRE, jamais au m² de
+                logement : laisser vide si le barème à la quantité suffit. */}
+            <Nombre d={d} set={set} k="vitrerieM2" label="Surface de vitrage à facturer (m²) — optionnel" />
+            <Nombre d={d} set={set} k="nbVolets" label="Nombre de volets — optionnel" />
           </div>
         )}
 
         <Multi d={d} set={set} k="sols" options={SOLS} label="Revêtements de sol" />
+        <Multi d={d} set={set} k="traitementsSol" options={TRAITEMENTS_SOL} label="Traitement de sol (au m²)" />
+        <Multi d={d} set={set} k="equipements" options={EQUIPEMENTS} label="Équipements à nettoyer" />
 
         {/* Le lessivage est une prestation complémentaire : jamais incluse
             d'office dans le tarif (consigne client). */}

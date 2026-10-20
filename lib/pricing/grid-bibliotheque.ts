@@ -20,31 +20,48 @@
 // découverte et la pop-up d'argumentaire restent strictement inchangés.
 
 import type { GridInput, GridResult, GridResultLine } from "./grid-compute";
-import type { Grid, GridLine, PricingGrid, QuantiteSource } from "./grid-types";
+import type { Grid, GridLine, PricingGrid, QuantiteSource, Unite } from "./grid-types";
 
 // Arrondi à la dizaine SUPÉRIEURE (§10). Volontairement différent de l'arrondi
 // commercial du mode d'origine, qui arrondit au plus proche.
 export const arrondirSup = (n: number, pas: number): number =>
   pas > 0 ? Math.ceil(n / pas) * pas : Math.ceil(n);
 
-/** Quantité disponible pour une source donnée, ou null si non renseignée. */
-function quantite(input: GridInput, source: QuantiteSource | undefined): number | null {
+/**
+ * Quantité disponible pour une source donnée, ou null si non renseignée.
+ *
+ * `unite` sert de garde-fou : un tarif « 12 € l'unité » ou « 60 € l'heure » ne
+ * doit JAMAIS retomber sur la surface ou le volume faute de mieux. Sans ce
+ * test, douze euros par volet devenaient douze euros du mètre carré — soit
+ * 1 200 € pour un logement de 100 m². Mieux vaut ne rien chiffrer et le dire.
+ */
+function quantite(
+  input: GridInput,
+  source: QuantiteSource | undefined,
+  unite: Unite | undefined,
+): number | null {
   const q = input.quantites ?? {};
   switch (source) {
     case "exterieur": return input.exteriorQuantity ?? q.exterieur ?? null;
     case "distance": return input.distanceKm ?? null;
     case "desinfection": return q.desinfection ?? input.quantity ?? null;
     case "etages": return (input.floorsDepart ?? 0) + (input.floorsArrivee ?? 0) || null;
+    case "unites": return q.unites ?? null;
+    case "vitrerie": return q.vitrerie ?? null;
+    case "heures": return q.heures ?? null;
     case "volume":
-    case "surface":
-    default: return input.quantity ?? null;
+    case "surface": return input.quantity ?? null;
+    default:
+      // Aucune source déclarée : on n'accepte le repli que pour les unités de
+      // mesure qui correspondent effectivement à la quantité principale.
+      return unite === "u" || unite === "h" ? null : input.quantity ?? null;
   }
 }
 
 /** Montant d'une ligne : prix unitaire × quantité, ou montant fixe. */
 function montantLigne(l: GridLine, input: GridInput): { montant: number; manque: string | null } {
   if ((l.prixUnitaire ?? 0) > 0) {
-    const q = quantite(input, l.source);
+    const q = quantite(input, l.source, l.unite);
     if (q == null || q <= 0) return { montant: 0, manque: l.label };
     return { montant: l.prixUnitaire! * q, manque: null };
   }

@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseServer } from "../supabase/server";
+import { getCurrentUserProfile } from "../users-server";
 import {
   countConfigured, countLines,
   type Grid, type GridMode, type GridStatus, type PricingGrid,
@@ -122,7 +123,22 @@ export async function getAllGrids(): Promise<(PricingGrid & { configured: number
   });
 }
 
-export async function getGridBySlug(slug: string): Promise<PricingGrid | null> {
+/**
+ * Grille d'une activité, pour le CALCUL d'un prix dans une découverte.
+ *
+ * Applique la règle de diffusion décidée par le Super Admin : hors back-office,
+ * une grille dont la diffusion commerciale n'est pas activée ne produit AUCUN
+ * prix. Le contrôle est ici, côté serveur, et non dans l'interface — masquer un
+ * montant dans le navigateur n'est pas une permission.
+ *
+ * `pourAdministration` : l'écran « Grilles tarifaires » lit la grille pour
+ * l'éditer, pas pour chiffrer. Il n'est donc pas soumis à cette règle — son
+ * propre garde (requireAdmin) s'en charge.
+ */
+export async function getGridBySlug(
+  slug: string,
+  pourAdministration = false,
+): Promise<PricingGrid | null> {
   const sb = await supabaseServer();
   const { data: act } = await sb
     .from("activities").select("id, slug, label").eq("slug", slug)
@@ -145,5 +161,16 @@ export async function getGridBySlug(slug: string): Promise<PricingGrid | null> {
   }
   if (error) console.error("[getGridBySlug] Supabase :", error.code, error.message);
   if (error || !data) return null;
-  return map(data, act.slug, act.label);
+
+  const g = map(data, act.slug, act.label);
+  if (pourAdministration) return g;
+
+  // Back-office : admin, planification et supervision voient toujours le
+  // calcul, c'est leur métier. Pour tous les autres, le drapeau décide.
+  const me = await getCurrentUserProfile();
+  const roles = (me?.roles ?? []).map((r) => r.slug);
+  const backOffice = roles.includes("admin") || roles.includes("planification") || roles.includes("superviseur");
+  if (!backOffice && !g.visibleToCommercial) return null;
+
+  return g;
 }
