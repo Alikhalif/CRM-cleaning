@@ -1,6 +1,9 @@
 import "server-only";
 import { supabaseServer } from "../supabase/server";
-import { countConfigured, countLines, type Grid, type GridStatus, type PricingGrid } from "./grid-types";
+import {
+  countConfigured, countLines,
+  type Grid, type GridMode, type GridStatus, type PricingGrid,
+} from "./grid-types";
 
 // Accès aux grilles tarifaires.
 //
@@ -13,6 +16,9 @@ type Row = {
   activity_id: string;
   status: string;
   version: number;
+  mode_calcul?: string | null;
+  majoration_pct?: number | null;
+  fourchette_pct?: number | null;
   grid: Grid | null;
   visible_to_commercial: boolean;
   visible_to_subcontractor: boolean;
@@ -26,19 +32,42 @@ type Row = {
   published_at: string | null;
 };
 
-const SELECT =
-  "activity_id, status, version, grid, visible_to_commercial, visible_to_subcontractor, " +
+// Colonnes de la bibliothèque tarifaire. Elles sont lues à part : tant que la
+// migration 20261020000001 n'est pas poussée, elles n'existent pas, et les
+// réclamer ferait échouer TOUTE la lecture des grilles — donc plus aucun prix
+// nulle part, sans message. Même repli que pour les colonnes `wanted_*` des
+// leads, et pour la même raison : une migration en retard ne doit pas éteindre
+// une fonctionnalité entière.
+//
+// `mode_calcul` et non `mode` : PostgreSQL expose un agrégat `mode()`, et
+// PostgREST résout l'identifiant vers la fonction quand la colonne manque —
+// l'erreur renvoyée parle alors de « WITHIN GROUP », ce qui n'aide personne.
+let colonnesBiblioDisponibles = true;
+const COLS_BIBLIO = "mode_calcul, majoration_pct, fourchette_pct, ";
+
+const SELECT = () =>
+  "activity_id, status, version, " +
+  (colonnesBiblioDisponibles ? COLS_BIBLIO : "") +
+  "grid, visible_to_commercial, visible_to_subcontractor, " +
   "allow_commercial_override, max_discount_pct, floor_price, positioning_pct, vat_rate, " +
   "rounding, updated_at, published_at";
 
+const colonneAbsente = (e: { code?: string; message?: string } | null): boolean =>
+  !!e && (e.code === "42703" || e.code === "42809" || (e.message ?? "").includes("mode_calcul"));
+
 function map(r: Row, slug: string, label: string): PricingGrid {
-  const n = (v: number | null, d = 0) => (v == null ? d : Number(v));
+  // Les colonnes de la bibliotheque peuvent etre absentes (migration non
+  // poussee) : undefined est donc une valeur attendue, pas une anomalie.
+  const n = (v: number | null | undefined, d = 0) => (v == null ? d : Number(v));
   return {
     activityId: r.activity_id,
     activitySlug: slug,
     activityLabel: label,
     status: (["brouillon", "active", "inactive"].includes(r.status) ? r.status : "brouillon") as GridStatus,
     version: r.version ?? 1,
+    mode: (r.mode_calcul === "bibliotheque" ? "bibliotheque" : "fourchette") as GridMode,
+    majorationPct: n(r.majoration_pct, 25),
+    fourchettePct: n(r.fourchette_pct, 10),
     grid: r.grid ?? {},
     visibleToCommercial: Boolean(r.visible_to_commercial),
     visibleToSubcontractor: Boolean(r.visible_to_subcontractor),
@@ -56,11 +85,23 @@ function map(r: Row, slug: string, label: string): PricingGrid {
 // Toutes les grilles + métadonnées d'affichage, pour le module Super Admin.
 export async function getAllGrids(): Promise<(PricingGrid & { configured: number; total: number })[]> {
   const sb = await supabaseServer();
-  const [actsRes, gridsRes] = await Promise.all([
+  let gridsRes;
+  const [actsRes, premier] = await Promise.all([
     sb.from("activities").select("id, slug, label").order("label")
       .returns<{ id: string; slug: string; label: string }[]>(),
-    sb.from("pricing_grids").select(SELECT).returns<Row[]>(),
+    sb.from("pricing_grids").select(SELECT()).returns<Row[]>(),
   ]);
+  gridsRes = premier;
+
+  if (gridsRes.error && colonneAbsente(gridsRes.error) && colonnesBiblioDisponibles) {
+    console.warn(
+      "[getAllGrids] colonnes de la bibliothèque absentes — migration 20261020000001 non poussée. " +
+      "Lecture dégradée : toutes les grilles sont lues en mode « fourchette ».",
+    );
+    colonnesBiblioDisponibles = false;
+    gridsRes = await sb.from("pricing_grids").select(SELECT()).returns<Row[]>();
+  }
+  if (gridsRes.error) console.error("[getAllGrids] Supabase :", gridsRes.error.code, gridsRes.error.message);
   const byId = new Map((gridsRes.data ?? []).map((r) => [r.activity_id, r]));
   return (actsRes.data ?? []).map((a) => {
     const row = byId.get(a.id);
@@ -69,6 +110,7 @@ export async function getAllGrids(): Promise<(PricingGrid & { configured: number
       : map(
           {
             activity_id: a.id, status: "brouillon", version: 1, grid: {},
+            mode_calcul: "fourchette", majoration_pct: 25, fourchette_pct: 10,
             visible_to_commercial: false, visible_to_subcontractor: false,
             allow_commercial_override: false, max_discount_pct: 0, floor_price: 0,
             positioning_pct: 75, vat_rate: null, rounding: 50,
@@ -86,8 +128,22 @@ export async function getGridBySlug(slug: string): Promise<PricingGrid | null> {
     .from("activities").select("id, slug, label").eq("slug", slug)
     .maybeSingle<{ id: string; slug: string; label: string }>();
   if (!act) return null;
-  const { data, error } = await sb
-    .from("pricing_grids").select(SELECT).eq("activity_id", act.id).maybeSingle<Row>();
+  let { data, error } = await sb
+    .from("pricing_grids").select(SELECT()).eq("activity_id", act.id).maybeSingle<Row>();
+
+  // Repli : tant que la migration de la bibliothèque n'est pas poussée, les
+  // colonnes demandées n'existent pas. Sans ce rattrapage, la lecture échoue
+  // et la découverte affiche « aucun barème » alors que la grille est là.
+  if (error && colonneAbsente(error) && colonnesBiblioDisponibles) {
+    console.warn(
+      "[getGridBySlug] colonnes de la bibliothèque absentes — migration 20261020000001 " +
+      "non poussée. Lecture en mode « fourchette ».",
+    );
+    colonnesBiblioDisponibles = false;
+    ({ data, error } = await sb
+      .from("pricing_grids").select(SELECT()).eq("activity_id", act.id).maybeSingle<Row>());
+  }
+  if (error) console.error("[getGridBySlug] Supabase :", error.code, error.message);
   if (error || !data) return null;
   return map(data, act.slug, act.label);
 }

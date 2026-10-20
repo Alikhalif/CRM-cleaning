@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { getCurrentUserProfile } from "@/lib/users-server";
 import { auditLog } from "@/lib/audit";
-import type { Grid, GridStatus } from "@/lib/pricing/grid-types";
+import type { Grid, GridMode, GridStatus } from "@/lib/pricing/grid-types";
 
 // Les `as never` sur les écritures : database.types.ts est généré depuis la
 // base et ne connaîtra pricing_grids qu'après la migration puis un
@@ -24,6 +24,9 @@ async function requireAdminUser(): Promise<{ ok: true; id: string } | { ok: fals
 }
 
 export type GridSettings = {
+  mode: GridMode;
+  majorationPct: number;
+  fourchettePct: number;
   visibleToCommercial: boolean;
   visibleToSubcontractor: boolean;
   allowCommercialOverride: boolean;
@@ -49,6 +52,9 @@ export async function saveGrid(
     .from("pricing_grids")
     .update({
       grid,
+      mode_calcul: settings.mode,
+      majoration_pct: settings.majorationPct,
+      fourchette_pct: settings.fourchettePct,
       visible_to_commercial: settings.visibleToCommercial,
       visible_to_subcontractor: settings.visibleToSubcontractor,
       allow_commercial_override: settings.allowCommercialOverride,
@@ -68,7 +74,13 @@ export async function saveGrid(
     action: "pricing.grid.save",
     entityType: "user",
     entityId: activityId,
-    after: { visibleToCommercial: settings.visibleToCommercial, positioningPct: settings.positioningPct },
+    after: {
+      mode: settings.mode,
+      majorationPct: settings.majorationPct,
+      fourchettePct: settings.fourchettePct,
+      visibleToCommercial: settings.visibleToCommercial,
+      positioningPct: settings.positioningPct,
+    },
   });
   return { ok: true };
 }

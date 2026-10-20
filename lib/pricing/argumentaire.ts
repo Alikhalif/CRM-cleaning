@@ -69,6 +69,12 @@ const QUANTITE: Record<Famille, { libelle: string; unite: string; detail: string
 // reformulent un fait, elles ne promettent rien.
 const EXPLICATION: Record<GridSection, string> = {
   volume: "", // remplacé par QUANTITE[famille].detail
+  base: "", // idem : le socle est décrit par la quantité de la famille
+  minimums: "Forfait minimum de l'intervention.",
+  coefficients: "Niveau de difficulté constaté.",
+  ratios: "Volume estimé à partir de la surface et de l'encombrement.",
+  matrice_m3: "Volume à transporter et distance à parcourir.",
+  kilometrique: "Trajet et temps de route pris en compte.",
   pieces: "Nombre de pièces à traiter.",
   postes: "Prestation comprise dans l'intervention.",
   exterieur: "Surface extérieure, chiffrée séparément de l'intérieur.",
@@ -254,7 +260,7 @@ function faitsDecouverte(c: PitchContext, f: Famille, etagesChiffres: Set<string
 // au libellé de la tranche : « Surface : 95 m² » parle au client, « 80 à
 // 120 m² » parle à la grille.
 function titreLigne(l: GridResultLine, c: PitchContext, f: Famille): string {
-  if (l.section === "volume" && c.input.quantity != null) {
+  if ((l.section === "volume" || l.section === "base" || l.section === "matrice_m3") && c.input.quantity != null) {
     const q = QUANTITE[f];
     return `${q.libelle} : ${nombre(Math.round(c.input.quantity))} ${q.unite}`;
   }
@@ -286,7 +292,9 @@ export function buildPitch(c: PitchContext): Pitch {
       arg: {
         cle: l.key,
         titre: titreLigne(l, c, f),
-        detail: l.section === "volume" ? QUANTITE[f].detail : EXPLICATION[l.section],
+        detail: l.section === "volume" || l.section === "base"
+      ? QUANTITE[f].detail
+      : EXPLICATION[l.section],
       },
     })),
     ...c.majorations.map((m) => ({
@@ -297,7 +305,8 @@ export function buildPitch(c: PitchContext): Pitch {
   // Le SOCLE passe devant, toujours. C'est la surface (ou le volume) que le
   // client a en tête, et c'est par là qu'on annonce un prix — une poignée de
   // petites options cumulées pourraient autrement la reléguer en fin de liste.
-  const estSocle = (a: PitchArg) => c.lines.some((l) => l.section === "volume" && l.key === a.cle);
+  const estSocle = (a: PitchArg) =>
+    c.lines.some((l) => (l.section === "volume" || l.section === "base" || l.section === "matrice_m3") && l.key === a.cle);
   const args: PitchArg[] = pesees
     .sort((a, b) => b.poids - a.poids)
     .map((p) => p.arg)

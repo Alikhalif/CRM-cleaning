@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import {
-  BAND_SECTIONS, SECTION_LABEL, STATUS_LABEL, sectionsFor,
+  BAND_SECTIONS, MODE_LABEL, QUANTITE_LABEL, SECTION_LABEL, STATUS_LABEL,
+  UNITE_LABEL, sectionsFor,
+  type GridMode, type QuantiteSource, type Unite,
   type Grid, type GridLine, type GridSection, type PricingGrid,
 } from "@/lib/pricing/grid-types";
 import { computeGrid, type GridInput } from "@/lib/pricing/grid-compute";
@@ -20,6 +22,9 @@ export default function GridEditor({ initial }: { initial: PricingGrid }) {
   const router = useRouter();
   const [grid, setGrid] = useState<Grid>(initial.grid ?? {});
   const [s, setS] = useState<GridSettings>({
+    mode: initial.mode,
+    majorationPct: initial.majorationPct,
+    fourchettePct: initial.fourchettePct,
     visibleToCommercial: initial.visibleToCommercial,
     visibleToSubcontractor: initial.visibleToSubcontractor,
     allowCommercialOverride: initial.allowCommercialOverride,
@@ -109,6 +114,32 @@ export default function GridEditor({ initial }: { initial: PricingGrid }) {
       <section className={styles.block}>
         <h2 className={styles.h2}>Réglages</h2>
         <div className={styles.settings}>
+          {/* Mode de calcul : il change la lecture de TOUTE la grille. */}
+          <label className={styles.field}>
+            <span className={styles.lbl}>Mode de calcul</span>
+            <select
+              className={styles.inp}
+              value={s.mode}
+              onChange={(e) => setS({ ...s, mode: e.target.value as GridMode })}
+            >
+              {(Object.keys(MODE_LABEL) as GridMode[]).map((m) => (
+                <option key={m} value={m}>{MODE_LABEL[m]}</option>
+              ))}
+            </select>
+            <span className={styles.hint}>
+              Change les sections proposées ci-dessous et la façon dont le prix est calculé.
+            </span>
+          </label>
+          {s.mode === "bibliotheque" && (
+            <>
+              <Num label="Majoration commerciale (%)" value={s.majorationPct}
+                onChange={(v) => setS({ ...s, majorationPct: v })}
+                hint="Appliquée une seule fois, à la fin. 25 % par défaut." />
+              <Num label="Largeur de la fourchette (± %)" value={s.fourchettePct}
+                onChange={(v) => setS({ ...s, fourchettePct: v })}
+                hint="10 % = prix recommandé −10 % à +10 %." />
+            </>
+          )}
           <Toggle label="Fourchette visible par les commerciaux" value={s.visibleToCommercial}
             onChange={(v) => setS({ ...s, visibleToCommercial: v })}
             hint="Ils ne voient jamais la grille — seulement le résultat du calcul." />
@@ -136,7 +167,7 @@ export default function GridEditor({ initial }: { initial: PricingGrid }) {
       </section>
 
       {/* ── Sections de la grille ─────────────────────────────────────── */}
-      {sectionsFor(initial.activitySlug).map((section) => (
+      {sectionsFor(initial.activitySlug, s.mode).map((section) => (
         <section key={section} className={styles.block}>
           <div className={styles.blockHead}>
             <h2 className={styles.h2}>{SECTION_LABEL[section]}</h2>
@@ -164,6 +195,36 @@ export default function GridEditor({ initial }: { initial: PricingGrid }) {
                         onChange={(e) => setLine(section, i, { minPct: Number(e.target.value) })} />
                       <input type="number" className={styles.small} value={l.maxPct ?? 0} aria-label="% max"
                         onChange={(e) => setLine(section, i, { maxPct: Number(e.target.value) })} />
+                    </>
+                  ) : s.mode === "bibliotheque" && section === "coefficients" ? (
+                    <input type="number" step="0.01" className={styles.small} value={l.coef ?? 1} aria-label="Coefficient"
+                      onChange={(e) => setLine(section, i, { coef: Number(e.target.value) })} />
+                  ) : s.mode === "bibliotheque" && section === "minimums" ? (
+                    <input type="number" className={styles.small} value={l.forfaitMin ?? 0} aria-label="Forfait minimum (€)"
+                      onChange={(e) => setLine(section, i, { forfaitMin: Number(e.target.value) })} />
+                  ) : s.mode === "bibliotheque" && section === "ratios" ? (
+                    <input type="number" step="0.01" className={styles.small} value={l.ratio ?? 0} aria-label="Ratio"
+                      onChange={(e) => setLine(section, i, { ratio: Number(e.target.value) })} />
+                  ) : s.mode === "bibliotheque" ? (
+                    <>
+                      <input type="number" step="0.01" className={styles.small} value={l.prixUnitaire ?? 0} aria-label="Prix unitaire"
+                        onChange={(e) => setLine(section, i, { prixUnitaire: Number(e.target.value) })} />
+                      <select className={styles.small} value={l.unite ?? ""} aria-label="Unité"
+                        onChange={(e) => setLine(section, i, { unite: (e.target.value || undefined) as Unite })}>
+                        <option value="">montant fixe</option>
+                        {(Object.keys(UNITE_LABEL) as Unite[]).map((x) => (
+                          <option key={x} value={x}>{UNITE_LABEL[x]}</option>
+                        ))}
+                      </select>
+                      <select className={styles.small} value={l.source ?? ""} aria-label="Quantité"
+                        onChange={(e) => setLine(section, i, { source: (e.target.value || undefined) as QuantiteSource })}>
+                        <option value="">quantité par défaut</option>
+                        {(Object.keys(QUANTITE_LABEL) as QuantiteSource[]).map((x) => (
+                          <option key={x} value={x}>{QUANTITE_LABEL[x]}</option>
+                        ))}
+                      </select>
+                      <input type="number" className={styles.small} value={l.min ?? 0} aria-label="Montant fixe (€)"
+                        onChange={(e) => setLine(section, i, { min: Number(e.target.value), max: Number(e.target.value) })} />
                     </>
                   ) : (
                     <>

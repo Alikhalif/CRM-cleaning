@@ -233,6 +233,10 @@ export function buildGridInput(d: GridDiscovery): { input: GridInput; approx: bo
 
     if (str(det.monteMeubles) === "oui") options.push("monte_meubles");
 
+    // Etages sans ascenseur : la bibliotheque demenagement les facture au
+    // forfait par etage (75 EUR). Sans cette cle, ils n'etaient jamais comptes.
+    if (floorsDepart + floorsArrivee > 0) options.push("etage_sans_ascenseur");
+
     // La découverte dit « démontage : oui » sans dire de QUOI. La grille
     // tarifie au meuble : on ne devine pas, on le signale.
     if (str(det.demontage) === "oui") {
@@ -249,6 +253,9 @@ export function buildGridInput(d: GridDiscovery): { input: GridInput; approx: bo
     // La découverte ne capte pas la distance de portage ni les contraintes
     // d'accès détaillées : ce sont des lignes de grille sans source.
     nonCaptes.push("les difficultés d'accès (portage, stationnement, passage)");
+    // Ni la formule (économique / standard / confort) : le moteur retient
+    // « standard » et le signale, plutôt que de supposer un choix client.
+    nonCaptes.push("la formule de déménagement (économique / standard / confort)");
   } else if (estFamilleNettoyage(d.sector)) {
     const net = nettoyageVersGrille(det, options, majorations);
     pieces = net.pieces;
@@ -261,14 +268,69 @@ export function buildGridInput(d: GridDiscovery): { input: GridInput; approx: bo
     if (acces === "escaliers") floorsDepart = 1;
     if (acces === "plusieurs_etages") floorsDepart = 2;
     if (acces === "stationnement_difficile") options.push("sans_stationnement");
+
+    if (d.sector === "debarras") {
+      // Niveau d'encombrement → type de débarras de la bibliothèque. La
+      // découverte en propose cinq, le barème sept : on n'utilise que ceux
+      // qui ont un tarif publié, sans jamais en extrapoler un.
+      const parEncombrement: Record<string, string> = {
+        faible: "deb_leger",
+        moyen: "deb_classique",
+        important: "deb_encombre",
+        tres_important: "deb_tres_encombre",
+        extreme: "deb_insalubre",
+      };
+      const typeDeb = parEncombrement[str(det.encombrement)];
+      if (typeDeb) options.push(typeDeb);
+
+      // Type de bien → forfait minimum applicable.
+      const bien = str(det.typeBien);
+      if (bien) options.push(`typeBien_${bien}`);
+
+      // Ratio d'estimation du volume, pour la grille (§7.3).
+      const ratio: Record<string, string> = {
+        faible: "enc_faible",
+        moyen: "enc_modere",
+        important: "enc_important",
+        tres_important: "enc_tres_important",
+        extreme: "enc_extreme",
+      };
+      const r = ratio[str(det.encombrement)];
+      if (r) options.push(r);
+
+      if (acces === "stationnement_difficile") options.push("stationnement_difficile");
+      if (str(det.triDemande) === "oui") options.push("tri_complexe");
+
+      // Étages sans ascenseur : le barème débarras les exprime en pourcentage
+      // (+6 % par étage jusqu'à +24 %), pas en montant. On coche la tranche
+      // correspondante plutôt que de la calculer ici.
+      const parEtage = ["", "etage_1", "etage_2", "etage_3"];
+      if (floorsDepart > 0) {
+        majorations.push(floorsDepart >= 4 ? "etage_4plus" : parEtage[floorsDepart]);
+      }
+    }
   }
 
   if (d.isUrgent || DELAI_URGENT.has(d.delaiSouhaite ?? "")) majorations.push("urgent_48h");
 
+  // Quantités nommées : une option au m² ne porte pas forcément sur la
+  // surface du logement (terrasse, surface à désinfecter…).
+  const quantites: Record<string, number> = {};
+  // En débarras, `quantity` est un VOLUME : la surface du logement est une
+  // donnée distincte, qui sert à estimer ce volume quand il manque.
+  if (d.surfaceM2 != null && d.surfaceM2 > 0) quantites.surface = d.surfaceM2;
+  if (quantity != null && quantity > 0) quantites.volume = quantity;
+  if (exteriorQuantity != null && exteriorQuantity > 0) quantites.exterieur = exteriorQuantity;
+  // Désinfection partielle : sa propre surface si elle est renseignée, sinon
+  // la surface du logement.
+  const desinfM2 = num(det.desinfectionM2);
+  if (desinfM2 > 0) quantites.desinfection = desinfM2;
+  else if (quantity != null && quantity > 0) quantites.desinfection = quantity;
+
   return {
     input: {
       quantity, pieces, exteriorQuantity, distanceKm,
-      floorsDepart, floorsArrivee, options, majorations,
+      floorsDepart, floorsArrivee, options, majorations, quantites,
     },
     approx,
     nonCaptes,

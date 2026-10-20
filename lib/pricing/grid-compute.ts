@@ -11,6 +11,7 @@
 //   • Une difficulté n'est comptée qu'UNE fois, même si plusieurs champs de la
 //     découverte la désignent (pas de double majoration).
 
+import { computeBibliotheque } from "./grid-bibliotheque";
 import type { Grid, GridLine, GridSection, PricingGrid } from "./grid-types";
 
 export type GridInput = {
@@ -31,6 +32,10 @@ export type GridInput = {
   options: string[];
   // Clés de majorations à appliquer.
   majorations: string[];
+  // Quantités nommées, pour les options au prix unitaire de la bibliothèque
+  // tarifaire (« surface à désinfecter », « surface extérieure »…). Absente =
+  // le moteur retombe sur la quantité principale.
+  quantites?: Record<string, number>;
 };
 
 // `key` : la clé de la ligne de grille retenue. Elle permet à l'argumentaire
@@ -72,6 +77,10 @@ export function computeGrid(g: PricingGrid | null, input: GridInput): GridResult
   // Une grille non publiée n'est JAMAIS utilisée, quelles que soient les autres
   // options : c'est la garantie demandée par le client.
   if (g.status !== "active") return { ok: false, reason: "brouillon", missing: [] };
+
+  // Aiguillage : chaque grille porte son mode de calcul. Les grilles déjà
+  // configurées restent en « fourchette » et ne changent pas d'un iota.
+  if (g.mode === "bibliotheque") return computeBibliotheque(g, input);
 
   const grid: Grid = g.grid ?? {};
   const lines: GridResultLine[] = [];
@@ -196,6 +205,11 @@ export function computeGrid(g: PricingGrid | null, input: GridInput): GridResult
   // ── Prix conseillé : positionné dans la fourchette ────────────────────
   const pos = Math.min(100, Math.max(0, g.positioningPct)) / 100;
   const conseille = arrondir(min + (max - min) * pos, g.rounding);
+
+  // Garde-fou : une grille dont toutes les lignes sont à zéro produisait un
+  // « prix conseillé : 0 € », qu'un commercial pouvait annoncer tel quel.
+  // Zéro n'est pas un tarif, c'est une grille non remplie — on le dit.
+  if (conseille <= 0 && max <= 0) return { ok: false, reason: "vide", missing: [] };
 
   return {
     ok: true,

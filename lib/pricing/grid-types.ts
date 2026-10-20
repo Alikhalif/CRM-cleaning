@@ -10,6 +10,27 @@
 
 import { estFamilleNettoyage } from "@/lib/discovery-nettoyage";
 
+// D'où vient la quantité qui multiplie un prix unitaire. Une option au m²
+// ne porte pas forcément sur la surface du logement : une terrasse se facture
+// sur SA surface, une désinfection partielle sur la sienne.
+export type QuantiteSource =
+  | "surface" | "volume" | "exterieur" | "distance" | "desinfection" | "etages";
+
+export const QUANTITE_LABEL: Record<QuantiteSource, string> = {
+  surface: "Surface intérieure",
+  volume: "Volume",
+  exterieur: "Surface extérieure",
+  distance: "Distance",
+  desinfection: "Surface à désinfecter",
+  etages: "Nombre d'étages",
+};
+
+export type Unite = "m2" | "m3" | "km" | "h" | "u";
+
+export const UNITE_LABEL: Record<Unite, string> = {
+  m2: "€/m²", m3: "€/m³", km: "€/km", h: "€/heure", u: "€/unité",
+};
+
 export type GridLine = {
   key: string;
   label: string;
@@ -24,13 +45,28 @@ export type GridLine = {
   // « Calcul personnalisé » : le moteur REFUSE de chiffrer et demande une
   // validation, au lieu d'extrapoler un montant.
   custom?: boolean;
+
+  // ── Mode « bibliothèque » ─────────────────────────────────────────────
+  // Prix unitaire multiplié par une quantité : 11,50 €/m² × 80 m².
+  prixUnitaire?: number;
+  unite?: Unite;
+  source?: QuantiteSource;
+  // Coefficient MULTIPLICATEUR (état du logement, difficulté). 1 = neutre.
+  coef?: number;
+  // Forfait PLANCHER. Jamais additionné : on retient le maximum entre le
+  // calcul et ce montant.
+  forfaitMin?: number;
+  // Ratio d'estimation d'une quantité à partir d'une autre (0,50 m³/m²).
+  ratio?: number;
 };
 
 export type GridSection =
   | "volume" | "pieces" | "distance" | "floors"
   | "access" | "heavy" | "demontage" | "emballage" | "materiel"
   | "postes" | "exterieur" | "exterieur_options" | "complements"
-  | "majorations";
+  | "majorations"
+  // ── Sections de la bibliothèque tarifaire ───────────────────────────
+  | "base" | "minimums" | "coefficients" | "ratios" | "matrice_m3" | "kilometrique";
 
 export const SECTION_LABEL: Record<GridSection, string> = {
   volume: "Volume / surface",
@@ -47,6 +83,12 @@ export const SECTION_LABEL: Record<GridSection, string> = {
   exterieur_options: "Extérieur — revêtement et état",
   complements: "Prestations complémentaires",
   majorations: "Majorations (%)",
+  base: "Tarifs de référence (par prestation)",
+  minimums: "Forfaits minimums",
+  coefficients: "Coefficients de difficulté",
+  ratios: "Ratios d'estimation",
+  matrice_m3: "Matrice volume × distance",
+  kilometrique: "Tarif kilométrique",
 };
 
 // Sections à TRANCHES : une seule ligne s'applique, celle qui contient la
@@ -54,11 +96,34 @@ export const SECTION_LABEL: Record<GridSection, string> = {
 export const BAND_SECTIONS: GridSection[] = ["volume", "pieces", "distance", "floors", "exterieur"];
 
 export const SECTIONS: GridSection[] = [
+  "base", "minimums", "coefficients", "ratios", "matrice_m3", "kilometrique",
   "volume", "pieces", "distance", "floors", "access", "heavy",
   "demontage", "emballage", "materiel",
   "postes", "exterieur", "exterieur_options", "complements",
   "majorations",
 ];
+
+// Sections propres au mode « bibliothèque ». Elles n'apparaissent dans
+// l'éditeur que pour les grilles qui l'utilisent.
+export const SECTIONS_BIBLIOTHEQUE: GridSection[] = [
+  "base", "minimums", "coefficients", "ratios", "matrice_m3", "kilometrique",
+  "postes", "complements", "floors", "access", "majorations",
+];
+
+// Deux modes de calcul coexistent, par grille :
+//   • fourchette   — modèle d'origine : chaque ligne porte un min et un max en
+//                    euros, on additionne, et le prix conseillé se positionne
+//                    dans l'intervalle obtenu.
+//   • bibliotheque — modèle de la bibliothèque tarifaire : prix unitaire ×
+//                    quantité, coefficients, options, forfait plancher, puis
+//                    majoration commerciale et fourchette à ± x %.
+// Une grille déjà configurée garde son mode : rien n'est réinterprété.
+export type GridMode = "fourchette" | "bibliotheque";
+
+export const MODE_LABEL: Record<GridMode, string> = {
+  fourchette: "Fourchette par ligne (modèle d'origine)",
+  bibliotheque: "Bibliothèque tarifaire (prix unitaire × quantité)",
+};
 
 // Toutes les sections n'ont pas de sens pour toutes les activités : on ne
 // demande pas à l'administrateur de configurer un « emballage » pour du
@@ -73,7 +138,14 @@ const SECTIONS_TRANSPORT: GridSection[] = [
   "demontage", "emballage", "materiel", "majorations",
 ];
 
-export function sectionsFor(activitySlug: string): GridSection[] {
+export function sectionsFor(activitySlug: string, mode: GridMode = "fourchette"): GridSection[] {
+  if (mode === "bibliotheque") {
+    // Le déménagement est le seul à utiliser la matrice volume × distance et
+    // le tarif kilométrique ; inutile de les proposer ailleurs.
+    return activitySlug === "demenagement"
+      ? SECTIONS_BIBLIOTHEQUE
+      : SECTIONS_BIBLIOTHEQUE.filter((x) => x !== "matrice_m3" && x !== "kilometrique");
+  }
   return estFamilleNettoyage(activitySlug) ? SECTIONS_NETTOYAGE : SECTIONS_TRANSPORT;
 }
 
@@ -93,6 +165,11 @@ export type PricingGrid = {
   activityLabel: string;
   status: GridStatus;
   version: number;
+  mode: GridMode;
+  // Majoration commerciale appliquée UNE SEULE FOIS au prix de marché ajusté.
+  majorationPct: number;
+  // Demi-largeur de la fourchette annoncée, en % du prix recommandé.
+  fourchettePct: number;
   grid: Grid;
   visibleToCommercial: boolean;
   visibleToSubcontractor: boolean;
@@ -115,7 +192,12 @@ export function countConfigured(grid: Grid): number {
   let n = 0;
   for (const section of SECTIONS) {
     for (const l of grid[section] ?? []) {
-      if ((l.min ?? 0) > 0 || (l.max ?? 0) > 0 || (l.minPct ?? 0) > 0 || (l.maxPct ?? 0) > 0) n += 1;
+      if (
+        (l.min ?? 0) > 0 || (l.max ?? 0) > 0 || (l.minPct ?? 0) > 0 || (l.maxPct ?? 0) > 0
+        || (l.prixUnitaire ?? 0) > 0 || (l.forfaitMin ?? 0) > 0 || (l.ratio ?? 0) > 0
+        // Un coefficient neutre (1) n'est pas « configuré » : il ne change rien.
+        || ((l.coef ?? 1) !== 1)
+      ) n += 1;
     }
   }
   return n;
