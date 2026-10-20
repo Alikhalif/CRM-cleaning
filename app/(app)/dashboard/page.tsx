@@ -16,6 +16,7 @@ export default async function DashboardPage() {
   ]);
   const isAdmin = profile?.roles.some((r) => r.slug === "admin") ?? false;
   const isPlanner = profile?.roles.some((r) => r.slug === "planification") ?? false;
+  const isSuperviseur = profile?.roles.some((r) => r.slug === "superviseur") ?? false;
   // Indicateur « en attente de photos » : périmètre global pour manager, sinon
   // les dossiers du commercial connecté.
   const photoWaitingCount = await getPhotoWaitingCount(isAdmin || isPlanner ? undefined : profile?.id);
@@ -28,6 +29,7 @@ export default async function DashboardPage() {
       firstName={profile?.firstName ?? profile?.displayName ?? ""}
       currentUserId={profile?.id ?? ""}
       isAdmin={isAdmin}
+      isBackOffice={isAdmin || isPlanner || isSuperviseur}
       visibleSectors={visibleSectors}
       photoWaitingCount={photoWaitingCount}
     />

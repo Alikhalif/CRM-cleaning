@@ -48,6 +48,10 @@ type Props = {
   firstName: string;
   currentUserId: string;
   isAdmin: boolean;
+  /** Admin, planification ou supervision. Le chiffre d'affaires réparti par
+   *  activité est une vue d'ensemble de l'entreprise : un commercial n'a pas à
+   *  voir le poids relatif des activités qu'il ne traite pas. */
+  isBackOffice: boolean;
   // Secteurs visibles par l'utilisateur (restriction commerciale par activité).
   visibleSectors: Sector[];
   // Dossiers en attente de photos (indicateur — module Actions & Relances).
@@ -61,6 +65,7 @@ export default function Dashboard({
   firstName,
   currentUserId,
   isAdmin,
+  isBackOffice,
   visibleSectors,
   photoWaitingCount = 0,
 }: Props) {
@@ -328,14 +333,18 @@ export default function Dashboard({
       {/* ── Classement commerciaux ──────────────────────────────── */}
       <CommerciauxTable rows={top} />
 
-      {/* ── Sector donut + Canal Mano/Auto ───────────────────────── */}
-      <section className={styles.grid2Eq}>
-        <div className={styles.card}>
-          <header className={styles.cardHeader}>
-            <h2 className={styles.h2}>CA signé par activité</h2>
-          </header>
-          <Donut slices={sectors} />
-        </div>
+      {/* ── Répartition du CA (back-office) + Canal Mano/Auto ────── */}
+      {/* Sans le camembert, la seconde carte occupe toute la largeur : on
+          retire la grille à deux colonnes plutôt que de laisser un vide. */}
+      <section className={isBackOffice ? styles.grid2Eq : undefined}>
+        {isBackOffice && (
+          <div className={styles.card}>
+            <header className={styles.cardHeader}>
+              <h2 className={styles.h2}>CA signé par activité</h2>
+            </header>
+            <Donut slices={sectors} />
+          </div>
+        )}
 
         <div className={styles.card}>
           <header className={styles.cardHeader}>
