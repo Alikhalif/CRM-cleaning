@@ -24,6 +24,7 @@ import { getLeadMedia, getLeadConsultations } from "@/lib/media-server";
 import { getAllTechnicians, getLeadInterventionSchedule } from "@/lib/planification-server";
 import { leadTemplateVars, renderTemplate } from "@/lib/message-templates-shared";
 import MediaTab from "./MediaTab";
+import ConfirmationsCard from "./ConfirmationsCard";
 import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import CallNotesCard from "./CallNotesCard";
 import DiscoveryCard from "./DiscoveryCard";
@@ -383,6 +384,9 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
         <div className={styles.layout}>
           <main className={styles.main}>
             <DiscoveryCard lead={lead} pricingGrid={pricingGrid} />
+            {/* Confirmations des actions parties : mêmes données que
+                l'historique, aucune requête supplémentaire. */}
+            <ConfirmationsCard timeline={timeline} leadId={lead.id} />
             <section className={styles.card}>
               <h2 className={styles.h2}>Coordonnées</h2>
               <dl className={styles.dl}>

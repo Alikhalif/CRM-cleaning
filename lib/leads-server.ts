@@ -739,6 +739,20 @@ function mapAuditRowToTimeline(row: AuditRow): AuditTimelineEvent | null {
       label: "Lead réassigné",
     };
   }
+  // Demande de photos — tracée depuis toujours, mais jamais affichée : elle
+  // n'avait aucune correspondance ici. C'est pourtant la confirmation que le
+  // commercial cherche en premier (« est-ce que la demande est partie ? »).
+  if (row.action === "lead.photos.request") {
+    const canal = typeof after.channel === "string" ? after.channel : null;
+    return {
+      id: row.id,
+      action: row.action,
+      createdAt: row.created_at,
+      kind: canal === "sms" ? "sms" : "email",
+      label: "Demande de photos envoyée",
+      sublabel: canal === "sms" ? "par SMS" : canal === "email" ? "par e-mail" : undefined,
+    };
+  }
   if (row.action === "lead.sequence.launch") {
     return {
       id: row.id,
