@@ -11,20 +11,28 @@ import {
   SITUATION_TONE,
   QUICK_FILTERS,
   QUICK_LABEL,
+  PERIODE_PRESETS,
+  PERIODE_PRESET_LABEL,
   ROW_ACTION_LABEL,
   SITUATION_LABEL,
+  TYPE_DATE_LABEL,
   TAB_LABEL,
   TABS,
+  bornesPeriode,
   comparePriority,
+  dansPeriode,
   dueLabel,
+  libellePeriode,
   isRelancable,
   matchesQuick,
   matchesTab,
   momentComplet,
   momentCourt,
   rowActionFor,
+  type PeriodePreset,
   type QuickFilter,
   type Situation,
+  type TypeDate,
   type SuiviRow,
   type Tab,
 } from "@/lib/suivi-shared";
@@ -57,6 +65,19 @@ export default function SuiviCommercial({
   const [fOrigin, setFOrigin] = useState("");
   const [fSociete, setFSociete] = useState("");
   const [fNrp, setFNrp] = useState(false);
+  // ── Filtre calendrier ─────────────────────────────────────────────
+  const [periode, setPeriode] = useState<PeriodePreset>("tout");
+  const [typeDate, setTypeDate] = useState<TypeDate>("creation");
+  const [dateDebut, setDateDebut] = useState("");
+  const [dateFin, setDateFin] = useState("");
+  const [calOuvert, setCalOuvert] = useState(false);
+
+  // `now` vient du serveur : calculer les bornes avec Date.now() pendant le
+  // rendu violerait la pureté de React et ferait diverger serveur et client.
+  const bornes = useMemo(
+    () => bornesPeriode(periode, now, dateDebut || undefined, dateFin || undefined),
+    [periode, now, dateDebut, dateFin],
+  );
 
   // ── Compteurs : calculés sur les MÊMES lignes que le tableau, donc jamais
   // en désaccord avec lui. Ils respectent les droits par construction : `rows`
@@ -96,6 +117,7 @@ export default function SuiviCommercial({
       if (fOrigin && r.origin !== fOrigin) return false;
       if (fSociete && r.societe !== fSociete) return false;
       if (fNrp && !r.isNrp) return false;
+      if (!dansPeriode(r, bornes, typeDate)) return false;
       if (q) {
         const hay = `${r.client} ${r.shortId} ${r.phone} ${r.sectorLabel}`.toLowerCase();
         if (!hay.includes(q)) return false;
@@ -114,7 +136,7 @@ export default function SuiviCommercial({
           return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
         });
     return out;
-  }, [rows, tab, quick, priorites, search, fSector, fOwner, fSituation, fMin, fOrigin, fSociete, fNrp, now]);
+  }, [rows, tab, quick, priorites, search, fSector, fOwner, fSituation, fMin, fOrigin, fSociete, fNrp, bornes, typeDate, now]);
 
   // Classement par ÉTAPE commerciale : le commercial lit son travail par
   // moment du cycle, pas par colonne de tableau. L'ordre interne de chaque
@@ -140,6 +162,7 @@ export default function SuiviCommercial({
     setTab("tous"); setQuick(null); setPriorites(false); setSearch("");
     setFSector(""); setFOwner(""); setFSituation(""); setFMin(""); setFOrigin("");
     setFSociete(""); setFNrp(false);
+    setPeriode("tout"); setDateDebut(""); setDateFin(""); setTypeDate("creation");
   };
 
   const exportCsv = () => {
@@ -231,6 +254,79 @@ export default function SuiviCommercial({
             {QUICK_LABEL[q]}
           </button>
         ))}
+        {/* ── Période ────────────────────────────────────────────── */}
+        <div className={styles.calWrap}>
+          <button
+            type="button"
+            className={`${styles.chip} ${bornes ? styles.chipOn : ""}`}
+            onClick={() => setCalOuvert((v) => !v)}
+            aria-expanded={calOuvert}
+            title="Filtrer par période"
+          >
+            <Icon name="calendar" size={13} />{" "}
+            {bornes ? libellePeriode(bornes) : "Période"} {calOuvert ? "▴" : "▾"}
+          </button>
+
+          {calOuvert && (
+            <div className={styles.calPanel}>
+              <div className={styles.calSection}>
+                <span className={styles.calLabel}>Filtrer sur</span>
+                <div className={styles.chips}>
+                  {(Object.keys(TYPE_DATE_LABEL) as TypeDate[]).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      className={`${styles.chip} ${typeDate === t ? styles.chipOn : ""}`}
+                      onClick={() => setTypeDate(t)}
+                    >
+                      {TYPE_DATE_LABEL[t]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className={styles.calSection}>
+                <span className={styles.calLabel}>Période</span>
+                <div className={styles.chips}>
+                  {PERIODE_PRESETS.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      className={`${styles.chip} ${periode === p ? styles.chipOn : ""}`}
+                      onClick={() => setPeriode(p)}
+                    >
+                      {PERIODE_PRESET_LABEL[p]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {periode === "perso" && (
+                <div className={styles.calSection}>
+                  <span className={styles.calLabel}>Du / au</span>
+                  <div className={styles.calDates}>
+                    <input type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} aria-label="Date de début" />
+                    <input type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} aria-label="Date de fin" />
+                  </div>
+                </div>
+              )}
+
+              <div className={styles.calPied}>
+                <button
+                  type="button"
+                  className={styles.linkBtn}
+                  onClick={() => { setPeriode("tout"); setDateDebut(""); setDateFin(""); }}
+                >
+                  Effacer la période
+                </button>
+                <button type="button" className={styles.chip} onClick={() => setCalOuvert(false)}>
+                  Fermer
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         <button type="button" className={styles.chip} onClick={() => setAdvOpen((v) => !v)}>
           Filtres avancés {advOpen ? "▴" : "▾"}
         </button>

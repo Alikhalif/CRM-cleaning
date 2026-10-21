@@ -260,6 +260,134 @@ export function dueLabel(row: SuiviRow, now = Date.now()): string {
   return `${F_JOUR.format(d)} ${h}`;
 }
 
+// ── Filtre par période (calendrier du Suivi commercial) ─────────────────
+//
+// Les bornes sont calculées dans le fuseau Europe/Paris, comme tout le reste
+// du module : « aujourd'hui » doit vouloir dire la journée du commercial, pas
+// celle du serveur.
+
+export type PeriodePreset =
+  | "tout" | "aujourdhui" | "hier" | "semaine" | "7j" | "mois" | "30j" | "perso";
+
+export const PERIODE_PRESETS: PeriodePreset[] = [
+  "tout", "aujourdhui", "hier", "semaine", "7j", "mois", "30j", "perso",
+];
+
+export const PERIODE_PRESET_LABEL: Record<PeriodePreset, string> = {
+  tout: "Toutes les dates",
+  aujourdhui: "Aujourd'hui",
+  hier: "Hier",
+  semaine: "Cette semaine",
+  "7j": "7 derniers jours",
+  mois: "Ce mois-ci",
+  "30j": "30 derniers jours",
+  perso: "Période personnalisée",
+};
+
+/** Sur quelle date porte le filtre. */
+export type TypeDate = "creation" | "action";
+
+export const TYPE_DATE_LABEL: Record<TypeDate, string> = {
+  creation: "Date de création",
+  action: "Dernière action",
+};
+
+export type Bornes = { debut: number; fin: number } | null;
+
+/** « 2026-10-21 » dans le fuseau de travail. */
+function jourParis(d: Date): string {
+  return F_CLE.format(d);
+}
+
+/** Minuit (début) et 23:59:59,999 (fin) d'un jour « AAAA-MM-JJ », à Paris. */
+function bornesDuJour(cle: string): { debut: number; fin: number } {
+  // L'offset de Paris varie (heure d'été). On le déduit en comparant la date
+  // formatée à Paris et la même date en UTC, plutôt que de le coder en dur.
+  const minuitUtc = Date.parse(`${cle}T00:00:00Z`);
+  const sonde = new Date(minuitUtc);
+  const heureParis = Number(
+    new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hour12: false, timeZone: "Europe/Paris" })
+      .format(sonde),
+  );
+  // Si à minuit UTC il est 2 h à Paris, Paris est en avance de 2 h : minuit
+  // parisien tombe 2 h plus tôt en temps absolu.
+  const offsetMs = (heureParis % 24) * 3_600_000;
+  const debut = minuitUtc - offsetMs;
+  return { debut, fin: debut + 86_400_000 - 1 };
+}
+
+/**
+ * Bornes absolues d'un preset. `null` = aucune restriction de date.
+ * `debutPerso` / `finPerso` sont des « AAAA-MM-JJ » (champs date HTML).
+ */
+export function bornesPeriode(
+  preset: PeriodePreset,
+  now = Date.now(),
+  debutPerso?: string,
+  finPerso?: string,
+): Bornes {
+  const aujourdhui = jourParis(new Date(now));
+  const jourDecale = (n: number) => jourParis(new Date(now + n * 86_400_000));
+
+  switch (preset) {
+    case "tout":
+      return null;
+    case "aujourdhui":
+      return bornesDuJour(aujourdhui);
+    case "hier":
+      return bornesDuJour(jourDecale(-1));
+    case "semaine": {
+      // Semaine ISO : du lundi au dimanche. getDay() 0 = dimanche.
+      const d = new Date(`${aujourdhui}T12:00:00Z`);
+      const jour = (d.getUTCDay() + 6) % 7; // 0 = lundi
+      const lundi = jourParis(new Date(now - jour * 86_400_000));
+      return { debut: bornesDuJour(lundi).debut, fin: bornesDuJour(aujourdhui).fin };
+    }
+    case "7j":
+      return { debut: bornesDuJour(jourDecale(-6)).debut, fin: bornesDuJour(aujourdhui).fin };
+    case "mois": {
+      const premier = `${aujourdhui.slice(0, 7)}-01`;
+      return { debut: bornesDuJour(premier).debut, fin: bornesDuJour(aujourdhui).fin };
+    }
+    case "30j":
+      return { debut: bornesDuJour(jourDecale(-29)).debut, fin: bornesDuJour(aujourdhui).fin };
+    case "perso": {
+      // Une seule borne suffit : « depuis le… » ou « jusqu'au… » sont des
+      // demandes légitimes.
+      if (!debutPerso && !finPerso) return null;
+      const debut = debutPerso ? bornesDuJour(debutPerso).debut : Number.NEGATIVE_INFINITY;
+      const fin = finPerso ? bornesDuJour(finPerso).fin : Number.POSITIVE_INFINITY;
+      // Bornes inversées par mégarde : on les remet dans l'ordre plutôt que de
+      // ne rien renvoyer.
+      return debut <= fin ? { debut, fin } : { debut: fin, fin: debut };
+    }
+  }
+}
+
+/** La ligne tombe-t-elle dans la période, selon la date choisie ? */
+export function dansPeriode(row: SuiviRow, bornes: Bornes, type: TypeDate): boolean {
+  if (!bornes) return true;
+  const iso = type === "creation" ? row.receivedAt : row.lastActionAt;
+  if (!iso) return false;
+  const t = new Date(iso).getTime();
+  return Number.isFinite(t) && t >= bornes.debut && t <= bornes.fin;
+}
+
+/** « Du 01/10/2026 au 21/10/2026 » — libellé de la période active. */
+export function libellePeriode(bornes: Bornes): string {
+  if (!bornes) return "";
+  const f = (ms: number) =>
+    Number.isFinite(ms)
+      ? new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Paris" }).format(new Date(ms))
+      : null;
+  const d = f(bornes.debut);
+  const fn = f(bornes.fin);
+  if (d && fn) return d === fn ? `Le ${d}` : `Du ${d} au ${fn}`;
+  if (d) return `Depuis le ${d}`;
+  if (fn) return `Jusqu'au ${fn}`;
+  return "";
+}
+
 // ── Alerte prioritaire d'une ligne ──────────────────────────────────────
 export function alertFor(row: Omit<SuiviRow, "alert">): AlertKind {
   if (row.situation === "signe") return "signe";

@@ -4,6 +4,7 @@ import type { SVGProps } from "react";
 // Add icons here as the UI grows; avoid pulling in an icon library for the scaffold.
 
 export type IconName =
+  | "calendar"
   | "dashboard"
   | "pipeline"
   | "leads"
@@ -124,6 +125,14 @@ const PATHS: Record<IconName, React.ReactNode> = {
     <>
       <circle cx="11" cy="11" r="7" />
       <path d="m20 20-3.5-3.5" />
+    </>
+  ),
+  calendar: (
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18" />
+      <path d="M8 3v4" />
+      <path d="M16 3v4" />
     </>
   ),
   bell: (

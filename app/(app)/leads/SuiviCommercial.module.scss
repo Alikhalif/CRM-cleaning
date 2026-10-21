@@ -382,3 +382,77 @@
   .actions { flex-direction: column; }
   .actionGhost { width: 100%; min-height: 44px; }
 }
+
+// ── Filtre par période ─────────────────────────────────────────────────
+// Panneau flottant : il ne doit pas pousser la liste vers le bas à chaque
+// ouverture, sinon le commercial perd sa place.
+.calWrap { position: relative; }
+
+.calPanel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  width: min(420px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+}
+
+.calSection { display: flex; flex-direction: column; gap: 6px; }
+
+.calLabel {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.calDates {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+
+  input {
+    flex: 1 1 150px;
+    min-width: 0;
+    padding: 8px 10px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--border-strong);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font-size: var(--fs-sm);
+  }
+}
+
+.calPied {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 768px) {
+  // Plein écran sous le bouton : les panneaux flottants étroits sont
+  // inutilisables au pouce.
+  .calPanel {
+    position: fixed;
+    left: var(--sp-2);
+    right: var(--sp-2);
+    width: auto;
+    max-height: 70dvh;
+    overflow-y: auto;
+  }
+  .calDates input { min-height: 44px; font-size: 1rem; }
+  .calPanel .chip { min-height: 44px; }
+}
