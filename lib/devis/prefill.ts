@@ -1,3 +1,4 @@
+import { villeOuAdresse } from "@/lib/adresses";
 import { getGridBySlug } from "@/lib/pricing/grid-server";
 import { computeGrid } from "@/lib/pricing/grid-compute";
 import { buildGridInput } from "@/lib/pricing/grid-discovery";
@@ -47,8 +48,15 @@ function demenagementFromDiscovery(
     ? (d.objetsSpecifiques as unknown[]).map(String)
     : [];
 
-  const depart = str("adresseDepart").trim();
-  const arrivee = str("adresseArrivee").trim();
+  // Le devis annonce le TRAJET : la ville suffit et se lit mieux qu'une rue
+  // complete. villeOuAdresse retombe sur la rue quand la ville n'est pas
+  // renseignee, ce qui est le cas des dossiers anterieurs aux champs separes.
+  const depart = villeOuAdresse({
+    rue: str("adresseDepart"), cp: str("cpDepart"), ville: str("villeDepart"),
+  }).trim();
+  const arrivee = villeOuAdresse({
+    rue: str("adresseArrivee"), cp: str("cpArrivee"), ville: str("villeArrivee"),
+  }).trim();
   const lieu = depart && arrivee ? `${depart} » ${arrivee}` : undefined;
 
   const logement = str("logementDepart");

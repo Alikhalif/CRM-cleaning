@@ -4,8 +4,15 @@ import { useRef, useState } from "react";
 import {
   EMBALLAGE, LOGEMENT_TYPE, OBJETS_SPECIFIQUES, OUI_NON, VOLUME_DEMENAGEMENT, type Option,
 } from "@/lib/discovery-metier";
+import { composerAdresse, validerCodePostal } from "@/lib/adresses";
+import type { Country } from "@/lib/leads";
 
-type Props = { details: Record<string, unknown>; set: (k: string, v: unknown) => void };
+type Props = {
+  details: Record<string, unknown>;
+  set: (k: string, v: unknown) => void;
+  /** Pays du dossier — sert à valider le format du code postal. */
+  pays?: Country | null;
+};
 
 const field: React.CSSProperties = {
   width: "100%", padding: "8px 10px", borderRadius: "var(--r-sm)",
@@ -38,7 +45,75 @@ function Num({ label, k, details, set }: { label: string; k: string; details: Re
   );
 }
 
-export default function DemenagementFields({ details, set }: Props) {
+/**
+ * Un bloc d'adresse : rue, code postal, ville.
+ *
+ * La rue garde la clé historique (`adresseDepart` / `adresseArrivee`), si bien
+ * que les vingt-cinq dossiers déjà saisis conservent leur contenu et restent
+ * lisibles — le commercial peut le répartir dans les nouveaux champs quand il
+ * repasse dessus, sans rien perdre entre-temps.
+ */
+function Adresse({
+  titre, cles, details, set, pays, onSortie,
+}: {
+  titre: string;
+  cles: { rue: string; cp: string; ville: string };
+  details: Record<string, unknown>;
+  set: Props["set"];
+  pays: Country | null;
+  onSortie: () => void;
+}) {
+  const cp = str(details, cles.cp);
+  const verdict = validerCodePostal(cp, pays);
+
+  return (
+    <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+      <legend style={{ ...lbl, padding: 0 }}>{titre}</legend>
+      <input
+        value={str(details, cles.rue)}
+        onChange={(e) => set(cles.rue, e.target.value)}
+        onBlur={onSortie}
+        placeholder="N° et nom de rue"
+        aria-label={`${titre} — rue`}
+        style={field}
+      />
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(110px, 1fr) 2fr", gap: 8 }}>
+        <div>
+          <input
+            value={cp}
+            onChange={(e) => set(cles.cp, e.target.value)}
+            onBlur={onSortie}
+            placeholder="Code postal"
+            inputMode="numeric"
+            aria-label={`${titre} — code postal`}
+            aria-invalid={verdict && !verdict.ok ? true : undefined}
+            style={{
+              ...field,
+              borderColor: verdict && !verdict.ok ? "var(--tone-warning)" : "var(--border-strong)",
+            }}
+          />
+          {/* Avertissement, jamais blocage : un format inattendu peut être un
+              pays mal deviné, pas une faute du commercial. */}
+          {verdict && !verdict.ok && (
+            <span style={{ fontSize: "0.6875rem", color: "var(--tone-warning)" }}>
+              Format attendu : {verdict.attendu}
+            </span>
+          )}
+        </div>
+        <input
+          value={str(details, cles.ville)}
+          onChange={(e) => set(cles.ville, e.target.value)}
+          onBlur={onSortie}
+          placeholder="Ville"
+          aria-label={`${titre} — ville`}
+          style={field}
+        />
+      </div>
+    </fieldset>
+  );
+}
+
+export default function DemenagementFields({ details, set, pays = null }: Props) {
   const [distBusy, setDistBusy] = useState(false);
   const [distErr, setDistErr] = useState<string | null>(null);
   // Dernier couple d'adresses effectivement calculé (voir calcDistance).
@@ -64,8 +139,19 @@ export default function DemenagementFields({ details, set }: Props) {
   // l'état normal pendant la saisie, pas une erreur à afficher. Le bouton
   // « Calculer » reste la reprise manuelle (adresse corrigée, service tombé).
   const calcDistance = async (auto = false) => {
-    const from = str(details, "adresseDepart").trim();
-    const to = str(details, "adresseArrivee").trim();
+    // On recompose « rue, CP ville ». Les anciens dossiers n'ont que la rue —
+    // qui contenait souvent la ville entière : composerAdresse les laisse
+    // passer tels quels, donc leur distance continue de se calculer.
+    const from = composerAdresse({
+      rue: str(details, "adresseDepart"),
+      cp: str(details, "cpDepart"),
+      ville: str(details, "villeDepart"),
+    }).trim();
+    const to = composerAdresse({
+      rue: str(details, "adresseArrivee"),
+      cp: str(details, "cpArrivee"),
+      ville: str(details, "villeArrivee"),
+    }).trim();
     if (!from || !to) {
       if (!auto) setDistErr("Renseignez les deux adresses.");
       return;
@@ -96,14 +182,22 @@ export default function DemenagementFields({ details, set }: Props) {
         <Sel label="Logement d'arrivée" k="logementArrivee" options={LOGEMENT_TYPE} details={details} set={set} />
       </div>
 
-      <label>
-        <span style={lbl}>Adresse de départ</span>
-        <input value={str(details, "adresseDepart")} onChange={(e) => set("adresseDepart", e.target.value)} onBlur={() => { void calcDistance(true); }} placeholder="N°, rue, code postal, ville" style={field} />
-      </label>
-      <label>
-        <span style={lbl}>Adresse d&apos;arrivée</span>
-        <input value={str(details, "adresseArrivee")} onChange={(e) => set("adresseArrivee", e.target.value)} onBlur={() => { void calcDistance(true); }} placeholder="N°, rue, code postal, ville" style={field} />
-      </label>
+      <Adresse
+        titre="Adresse de départ"
+        cles={{ rue: "adresseDepart", cp: "cpDepart", ville: "villeDepart" }}
+        details={details}
+        set={set}
+        pays={pays}
+        onSortie={() => { void calcDistance(true); }}
+      />
+      <Adresse
+        titre="Adresse d'arrivée"
+        cles={{ rue: "adresseArrivee", cp: "cpArrivee", ville: "villeArrivee" }}
+        details={details}
+        set={set}
+        pays={pays}
+        onSortie={() => { void calcDistance(true); }}
+      />
 
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
         <label style={{ flex: 1 }}>

@@ -318,7 +318,9 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
 
       {/* ── Bloc métier (adapté au secteur) ─────────────────────────── */}
       {isDebarras && <DebarrasFields details={details} set={setDetail} />}
-      {isDemenagement && <DemenagementFields details={details} set={setDetail} />}
+      {isDemenagement && (
+        <DemenagementFields details={details} set={setDetail} pays={lead.country ?? null} />
+      )}
       {isFamilleNet && (
         <NettoyageFields
           leadId={leadId}
