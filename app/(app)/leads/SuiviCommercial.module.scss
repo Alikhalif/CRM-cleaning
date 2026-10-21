@@ -456,3 +456,54 @@
   .calDates input { min-height: 44px; font-size: 1rem; }
   .calPanel .chip { min-height: 44px; }
 }
+
+// ── Trois catégories principales ───────────────────────────────────────
+// Un liseré latéral et un titre fort : la catégorie doit se lire d'un coup
+// d'œil, les étapes restent en sous-niveau.
+.categorie {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding-left: var(--sp-3);
+  border-left: 3px solid var(--border-strong);
+
+  &[data-tone="rouge"] { border-left-color: var(--tone-danger); }
+  &[data-tone="bleu"]  { border-left-color: var(--color-brand-500); }
+  &[data-tone="vert"]  { border-left-color: var(--tone-success); }
+}
+
+.categorieHead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+}
+
+.categorieTitre {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.categorieCount {
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: var(--bg-surface-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.categorieAide {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+@media (max-width: 768px) {
+  .categorie { padding-left: var(--sp-2); gap: var(--sp-2); }
+  .categorieHead { gap: 2px; flex-direction: column; }
+}

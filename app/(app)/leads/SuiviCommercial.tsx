@@ -11,6 +11,10 @@ import {
   SITUATION_TONE,
   QUICK_FILTERS,
   QUICK_LABEL,
+  CATEGORIES,
+  CATEGORIE_AIDE,
+  CATEGORIE_LABEL,
+  CATEGORIE_TONE,
   PERIODE_PRESETS,
   PERIODE_PRESET_LABEL,
   ROW_ACTION_LABEL,
@@ -19,6 +23,7 @@ import {
   TAB_LABEL,
   TABS,
   bornesPeriode,
+  categorieDe,
   comparePriority,
   dansPeriode,
   dueLabel,
@@ -141,14 +146,23 @@ export default function SuiviCommercial({
   // Classement par ÉTAPE commerciale : le commercial lit son travail par
   // moment du cycle, pas par colonne de tableau. L'ordre interne de chaque
   // étape reste celui calculé plus haut (retards d'abord, puis échéance).
-  const parEtape = useMemo(() => {
+  // Deux niveaux : la catégorie que le commercial lit en premier, et l'étape
+  // précise en dessous. L'ordre interne de chaque étape reste celui calculé
+  // plus haut — retards d'abord, puis échéance.
+  const parCategorie = useMemo(() => {
     const map = new Map<Situation, SuiviRow[]>();
     for (const r of filtered) {
       const list = map.get(r.situation) ?? [];
       list.push(r);
       map.set(r.situation, list);
     }
-    return ETAPES.filter((e) => (map.get(e)?.length ?? 0) > 0).map((e) => ({ etape: e, list: map.get(e)! }));
+    return CATEGORIES.map((cat) => {
+      const etapes = ETAPES
+        .filter((e) => categorieDe(e) === cat && (map.get(e)?.length ?? 0) > 0)
+        .map((e) => ({ etape: e, list: map.get(e)! }));
+      const total = etapes.reduce((n, x) => n + x.list.length, 0);
+      return { cat, etapes, total };
+    }).filter((c) => c.total > 0);
   }, [filtered]);
 
   const onCard = (t: Tab, q: QuickFilter | null, situation?: string) => {
@@ -397,21 +411,33 @@ export default function SuiviCommercial({
         </div>
       )}
 
-      {/* ── 4. Dossiers, classés par étape commerciale ─────────────── */}
-      {parEtape.length === 0 ? (
+      {/* ── 4. Dossiers : trois catégories, étapes en sous-niveau ──── */}
+      {parCategorie.length === 0 ? (
         <p className={styles.empty}>Aucun dossier ne correspond. {meName && <>Vue de {meName}.</>}</p>
       ) : (
-        parEtape.map(({ etape, list }) => (
-          <section key={etape} className={styles.etape}>
-            <h2 className={styles.etapeHead} data-tone={SITUATION_TONE[etape]}>
-              {SITUATION_LABEL[etape]}
-              <span className={styles.etapeCount}>{list.length}</span>
-            </h2>
-            <ul className={styles.dossiers}>
-              {list.map((r) => (
-                <DossierCard key={r.leadId} row={r} isBackOffice={isBackOffice} canCall={canUseRingover} now={now} />
-              ))}
-            </ul>
+        parCategorie.map(({ cat, etapes, total }) => (
+          <section key={cat} className={styles.categorie} data-tone={CATEGORIE_TONE[cat]}>
+            <header className={styles.categorieHead}>
+              <h2 className={styles.categorieTitre}>
+                {CATEGORIE_LABEL[cat]}
+                <span className={styles.categorieCount}>{total}</span>
+              </h2>
+              <span className={styles.categorieAide}>{CATEGORIE_AIDE[cat]}</span>
+            </header>
+
+            {etapes.map(({ etape, list }) => (
+              <section key={etape} className={styles.etape}>
+                <h3 className={styles.etapeHead} data-tone={SITUATION_TONE[etape]}>
+                  {SITUATION_LABEL[etape]}
+                  <span className={styles.etapeCount}>{list.length}</span>
+                </h3>
+                <ul className={styles.dossiers}>
+                  {list.map((r) => (
+                    <DossierCard key={r.leadId} row={r} isBackOffice={isBackOffice} canCall={canUseRingover} now={now} />
+                  ))}
+                </ul>
+              </section>
+            ))}
           </section>
         ))
       )}

@@ -440,6 +440,49 @@ export const SITUATION_TONE: Record<Situation, Tone> = {
   perdu: "gris",
 };
 
+// ── Trois catégories du Suivi commercial ────────────────────────────────
+//
+// Le commercial lit d'abord « où en sont mes dossiers », pas le détail des
+// neuf étapes. Un dossier appartient à UNE seule catégorie principale ; son
+// étape précise reste affichée en sous-titre, rien n'est perdu.
+//
+// Attention : « terminé » qualifie le travail COMMERCIAL. Un devis signé est
+// commercialement terminé alors que l'intervention n'a pas commencé — les deux
+// processus ne doivent pas être confondus.
+export type Categorie = "nouveaux" | "en_cours" | "termines";
+
+export const CATEGORIES: Categorie[] = ["nouveaux", "en_cours", "termines"];
+
+export const CATEGORIE_LABEL: Record<Categorie, string> = {
+  nouveaux: "Nouveaux prospects",
+  en_cours: "En cours",
+  termines: "Terminés",
+};
+
+export const CATEGORIE_AIDE: Record<Categorie, string> = {
+  nouveaux: "Entrants pas encore traités",
+  en_cours: "De la découverte à la signature",
+  termines: "Travail commercial achevé — l'intervention, elle, reste à faire",
+};
+
+export const CATEGORIE_TONE: Record<Categorie, Tone> = {
+  nouveaux: "rouge",
+  en_cours: "bleu",
+  termines: "vert",
+};
+
+export function categorieDe(situation: Situation): Categorie {
+  switch (situation) {
+    case "nouveau":
+      return "nouveaux";
+    case "signe":
+    case "perdu":
+      return "termines";
+    default:
+      return "en_cours";
+  }
+}
+
 // ── Catégories du Pipeline ──────────────────────────────────────────────
 // Le Pipeline ne montre que QUATRE cases : c'est une vue de lecture rapide,
 // pas un second outil de gestion. Plusieurs étapes du Suivi y sont regroupées.
