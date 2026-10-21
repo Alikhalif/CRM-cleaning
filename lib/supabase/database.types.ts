@@ -1707,6 +1707,8 @@ export type Database = {
           discovery_details: Json
           discovery_done_at: string | null
           discovery_outcome: string | null
+          discovery_started_at: string | null
+          discovery_updated_at: string | null
           entity_id: string | null
           estimated_amount: number | null
           etat_salete: string | null
@@ -1737,6 +1739,11 @@ export type Database = {
           owner_id: string | null
           photos_requested_at: string | null
           price_range: string | null
+          price_recommended: number | null
+          price_recommended_at: string | null
+          price_recommended_max: number | null
+          price_recommended_min: number | null
+          pricing_grid_version: number | null
           reaction_prix: string | null
           received_at: string
           short_id: string
@@ -1782,6 +1789,8 @@ export type Database = {
           discovery_details?: Json
           discovery_done_at?: string | null
           discovery_outcome?: string | null
+          discovery_started_at?: string | null
+          discovery_updated_at?: string | null
           entity_id?: string | null
           estimated_amount?: number | null
           etat_salete?: string | null
@@ -1812,6 +1821,11 @@ export type Database = {
           owner_id?: string | null
           photos_requested_at?: string | null
           price_range?: string | null
+          price_recommended?: number | null
+          price_recommended_at?: string | null
+          price_recommended_max?: number | null
+          price_recommended_min?: number | null
+          pricing_grid_version?: number | null
           reaction_prix?: string | null
           received_at?: string
           short_id: string
@@ -1857,6 +1871,8 @@ export type Database = {
           discovery_details?: Json
           discovery_done_at?: string | null
           discovery_outcome?: string | null
+          discovery_started_at?: string | null
+          discovery_updated_at?: string | null
           entity_id?: string | null
           estimated_amount?: number | null
           etat_salete?: string | null
@@ -1887,6 +1903,11 @@ export type Database = {
           owner_id?: string | null
           photos_requested_at?: string | null
           price_range?: string | null
+          price_recommended?: number | null
+          price_recommended_at?: string | null
+          price_recommended_max?: number | null
+          price_recommended_min?: number | null
+          pricing_grid_version?: number | null
           reaction_prix?: string | null
           received_at?: string
           short_id?: string
@@ -2336,8 +2357,11 @@ export type Database = {
           activity_id: string
           allow_commercial_override: boolean
           floor_price: number
+          fourchette_pct: number
           grid: Json
+          majoration_pct: number
           max_discount_pct: number
+          mode_calcul: string
           positioning_pct: number
           published_at: string | null
           published_by: string | null
@@ -2354,8 +2378,11 @@ export type Database = {
           activity_id: string
           allow_commercial_override?: boolean
           floor_price?: number
+          fourchette_pct?: number
           grid?: Json
+          majoration_pct?: number
           max_discount_pct?: number
+          mode_calcul?: string
           positioning_pct?: number
           published_at?: string | null
           published_by?: string | null
@@ -2372,8 +2399,11 @@ export type Database = {
           activity_id?: string
           allow_commercial_override?: boolean
           floor_price?: number
+          fourchette_pct?: number
           grid?: Json
+          majoration_pct?: number
           max_discount_pct?: number
+          mode_calcul?: string
           positioning_pct?: number
           published_at?: string | null
           published_by?: string | null
@@ -2925,6 +2955,51 @@ export type Database = {
           },
         ]
       }
+      supervisor_scopes: {
+        Row: {
+          activity_ids: string[]
+          can_intervene: boolean
+          countries: string[]
+          owner_ids: string[]
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          activity_ids?: string[]
+          can_intervene?: boolean
+          countries?: string[]
+          owner_ids?: string[]
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          activity_ids?: string[]
+          can_intervene?: boolean
+          countries?: string[]
+          owner_ids?: string[]
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supervisor_scopes_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supervisor_scopes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       technicians: {
         Row: {
           base_postal_code: string | null
@@ -3372,7 +3447,12 @@ export type Database = {
         | "impaye"
       payment_term_slug: "comptant" | "jours_30" | "jours_45" | "jours_60"
       prestation_unit: "unite" | "forfait" | "h" | "m2" | "mois"
-      role_slug: "admin" | "commercial" | "planification" | "assistant"
+      role_slug:
+        | "admin"
+        | "commercial"
+        | "planification"
+        | "assistant"
+        | "superviseur"
       signature_status:
         | "brouillon"
         | "pret"
@@ -3558,7 +3638,13 @@ export const Constants = {
       ],
       payment_term_slug: ["comptant", "jours_30", "jours_45", "jours_60"],
       prestation_unit: ["unite", "forfait", "h", "m2", "mois"],
-      role_slug: ["admin", "commercial", "planification", "assistant"],
+      role_slug: [
+        "admin",
+        "commercial",
+        "planification",
+        "assistant",
+        "superviseur",
+      ],
       signature_status: [
         "brouillon",
         "pret",

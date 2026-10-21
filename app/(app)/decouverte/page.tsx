@@ -16,7 +16,32 @@ export const metadata = { title: "Découverte" };
 // RLS scopes getAllLeads to the commercial's own leads, so this is naturally
 // "mes découvertes".
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short" });
+// Date ET heure, en heure de Paris : deux découvertes du même jour doivent
+// se distinguer dans la liste.
+const dateFmt = new Intl.DateTimeFormat("fr-FR", {
+  day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+  timeZone: "Europe/Paris",
+});
+
+/** Création de la découverte, à défaut l'arrivée du dossier. */
+const creeLe = (l: Lead): string => l.discoveryStartedAt ?? l.receivedAt;
+
+/**
+ * Du plus récent au plus ancien, sur la date de CRÉATION.
+ *
+ * getAllLeads trie par dernière action : une vieille découverte simplement
+ * rouverte remontait donc en tête. Le client demande l'inverse — l'ordre
+ * doit rester stable quand on consulte un dossier.
+ */
+function parCreationDecroissante(a: Lead, b: Lead): number {
+  const ta = new Date(creeLe(a)).getTime();
+  const tb = new Date(creeLe(b)).getTime();
+  const va = Number.isFinite(ta) ? ta : Number.NEGATIVE_INFINITY;
+  const vb = Number.isFinite(tb) ? tb : Number.NEGATIVE_INFINITY;
+  if (va !== vb) return vb - va;
+  // Départage stable : la liste ne se réorganise pas d'un affichage à l'autre.
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
 
 function Tile({ label, value, hint, accent }: { label: string; value: string; hint?: string; accent?: string }) {
   return (
@@ -65,7 +90,7 @@ function LeadRows({ rows }: { rows: Lead[] }) {
             <th>Lead</th>
             <th>Secteur</th>
             <th>Ville</th>
-            <th>Reçu</th>
+            <th>Créé le</th>
             <th>Dernière action</th>
             <th />
           </tr>
@@ -81,7 +106,7 @@ function LeadRows({ rows }: { rows: Lead[] }) {
               </td>
               <td data-label="Secteur"><SectorChip sector={l.sector} /></td>
               <td data-label="Ville">{l.city || "—"}</td>
-              <td data-label="Reçu">{dateFmt.format(new Date(l.receivedAt))}</td>
+              <td data-label="Créé le">{dateFmt.format(new Date(creeLe(l)))}</td>
               <td data-label="Dernière action" className={styles.muted}>{l.lastActionLabel || "—"}</td>
               <td data-label="" className={styles.right}>
                 <Link href={`/leads/${l.id}`} className={styles.open}>Ouvrir →</Link>
@@ -103,7 +128,11 @@ function LeadRows({ rows }: { rows: Lead[] }) {
 
 export default async function DecouvertePage() {
   const leads = await getAllLeads();
-  const active = leads.filter((l) => l.status !== "perdu");
+  // Classement chronologique décroissant appliqué une fois, en amont : les
+  // trois listes qui en découlent en héritent.
+  const active = leads
+    .filter((l) => l.status !== "perdu")
+    .sort(parCreationDecroissante);
   const pending = active.filter((l) => !l.discoveryDoneAt);
   const done = active.filter((l) => l.discoveryDoneAt);
   // Découverte faite mais pas encore convertie (ni signé, ni encaissé) → à

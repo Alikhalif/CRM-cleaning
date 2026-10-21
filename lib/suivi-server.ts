@@ -256,6 +256,8 @@ export async function getSuiviData(): Promise<SuiviData> {
       societe: l.entityName ?? null,
       country: l.country ?? null,
       receivedAt: l.receivedAt,
+      creeLe: l.discoveryStartedAt ?? l.receivedAt,
+      modifieLe: l.discoveryUpdatedAt ?? null,
       // Appel entrant vs formulaire — visible par TOUS, y compris le
       // commercial (demande client du 14/10, répétée trois fois).
       //

@@ -124,6 +124,13 @@ export type SuiviRow = {
   // appliqué côté serveur dans getAllLeads.
   country: string | null;
   receivedAt: string;
+  // Date de CRÉATION de la ligne, et clé du classement chronologique :
+  // la découverte si elle existe, l'arrivée du dossier sinon. Rouvrir une
+  // vieille découverte ne la change pas (déclencheur en base).
+  creeLe: string;
+  // Dernière modification de la découverte. Affichée, jamais utilisée pour
+  // trier — sans quoi un simple coup d'œil remonterait le dossier en tête.
+  modifieLe: string | null;
   // Provenance — CONFIDENTIEL : renseigné UNIQUEMENT pour admin/planification
   // (même règle que partout ailleurs, cf. lib/leads.ts). null côté commercial.
   origin: "form" | "phone" | null;
@@ -221,6 +228,29 @@ export function momentComplet(iso: string): string {
   return F_COMPLET.format(new Date(iso));
 }
 
+// ── Classement chronologique (demande client du 2026-10-21) ────────────
+
+/**
+ * Ordre par défaut du Suivi : du plus récent au plus ancien.
+ *
+ * La clé est la date de CRÉATION, jamais celle de modification — rouvrir un
+ * vieux dossier ne doit pas le propulser en tête de liste. Le déclencheur
+ * `leads_discovery_timestamps` garantit cette immuabilité côté base.
+ *
+ * Le critère secondaire est l'identifiant : deux dossiers créés dans la même
+ * seconde (import, double saisie) sortent toujours dans le même ordre, si
+ * bien que la liste ne se réorganise pas d'un affichage à l'autre.
+ */
+export function compareChronologique(a: SuiviRow, b: SuiviRow): number {
+  const ta = new Date(a.creeLe).getTime();
+  const tb = new Date(b.creeLe).getTime();
+  // Une date illisible part en fin de liste plutôt que de désordonner le reste.
+  const va = Number.isFinite(ta) ? ta : Number.NEGATIVE_INFINITY;
+  const vb = Number.isFinite(tb) ? tb : Number.NEGATIVE_INFINITY;
+  if (va !== vb) return vb - va;
+  return a.leadId < b.leadId ? -1 : a.leadId > b.leadId ? 1 : 0;
+}
+
 // ── « Mes priorités » (§11) ─────────────────────────────────────────────
 // Classement : retard d'abord, puis prospects non contactés, relances,
 // découvertes sans devis, photos. À rang égal, l'échéance la plus ancienne —
@@ -245,7 +275,10 @@ export function comparePriority(a: SuiviRow, b: SuiviRow): number {
   const da = a.dueAt ? new Date(a.dueAt).getTime() : Number.POSITIVE_INFINITY;
   const db = b.dueAt ? new Date(b.dueAt).getTime() : Number.POSITIVE_INFINITY;
   if (da !== db) return da - db;
-  return new Date(a.receivedAt).getTime() - new Date(b.receivedAt).getTime();
+  // À rang ET échéance égaux, on retombe sur la règle générale : le plus
+  // récent d'abord. Le rang et l'échéance restent prioritaires — c'est tout
+  // l'objet de cette vue.
+  return compareChronologique(a, b);
 }
 
 // ── Échéance lisible ────────────────────────────────────────────────────
@@ -370,7 +403,7 @@ export function bornesPeriode(
 /** La ligne tombe-t-elle dans la période, selon la date choisie ? */
 export function dansPeriode(row: SuiviRow, bornes: Bornes, type: TypeDate): boolean {
   if (!bornes) return true;
-  const iso = type === "creation" ? row.receivedAt : row.lastActionAt;
+  const iso = type === "creation" ? row.creeLe : row.lastActionAt;
   if (!iso) return false;
   const t = new Date(iso).getTime();
   return Number.isFinite(t) && t >= bornes.debut && t <= bornes.fin;

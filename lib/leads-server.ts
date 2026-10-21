@@ -183,6 +183,8 @@ export type LeadRowJoined = {
   price_recommended_at?: string | null;
   discovery_outcome?: string | null;
   discovery_done_at?: string | null;
+  discovery_started_at?: string | null;
+  discovery_updated_at?: string | null;
   photos_requested_at?: string | null;
   delai_souhaite?: string | null;
   wanted_date?: string | null;
@@ -278,6 +280,8 @@ export function mapLead(row: LeadRowJoined, canImmob = false, canProvenance = fa
     priceRecommendedAt: row.price_recommended_at ?? undefined,
     discoveryOutcome: (row.discovery_outcome ?? undefined) as Lead["discoveryOutcome"],
     discoveryDoneAt: row.discovery_done_at ?? undefined,
+    discoveryStartedAt: row.discovery_started_at ?? undefined,
+    discoveryUpdatedAt: row.discovery_updated_at ?? undefined,
     photosRequestedAt: row.photos_requested_at ?? undefined,
     delaiSouhaite: (row.delai_souhaite ?? undefined) as Lead["delaiSouhaite"],
     wantedDate: row.wanted_date ?? undefined,
@@ -388,6 +392,7 @@ export const getAllLeads = cache(async function getAllLeads(): Promise<Lead[]> {
         entity_id, entity:legal_entities(legal_name), landing_page:landing_pages(name), source_url,
         move_from_city, move_from_postal, move_to_city, move_to_postal, move_volume, move_date,
         announced_price, discovery_outcome, discovery_done_at,
+        discovery_started_at, discovery_updated_at,
         photos_requested_at, delai_souhaite, price_range, reaction_prix,
 ${WANTED_COLS()}        statut_client, etat_salete, contexte_intervention, acompte_negocie, discovery_details, is_extreme,
         activity:activities(slug),

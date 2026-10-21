@@ -26,6 +26,7 @@ import {
   bornesPeriode,
   categorieDe,
   comparePriority,
+  compareChronologique,
   dansPeriode,
   dueLabel,
   libellePeriode,
@@ -140,17 +141,14 @@ export default function SuiviCommercial({
       }
       return true;
     });
-    out = priorites
-      ? [...out].sort(comparePriority)
-      : [...out].sort((a, b) => {
-          // Hors « Mes priorités » : les retards d'abord, puis l'échéance la
-          // plus proche, puis le dossier le plus récent.
-          if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
-          const da = a.dueAt ? new Date(a.dueAt).getTime() : Number.POSITIVE_INFINITY;
-          const db = b.dueAt ? new Date(b.dueAt).getTime() : Number.POSITIVE_INFINITY;
-          if (da !== db) return da - db;
-          return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
-        });
+    // Ordre par défaut : chronologique décroissant, le plus récent d'abord
+    // (demande client du 2026-10-21). Il s'applique APRÈS les filtres, donc
+    // une recherche, une activité ou une période laissent la liste classée.
+    //
+    // Le retard ne remonte plus un dossier : il reste signalé par sa pastille
+    // et par la couleur de l'échéance. « Mes priorités » garde son classement
+    // par urgence — c'est précisément à cela qu'elle sert.
+    out = [...out].sort(priorites ? comparePriority : compareChronologique);
     return out;
   }, [rows, tab, quick, priorites, search, fSector, fOwner, fSituation, fMin, fOrigin, fSociete, fPays, fNrp, bornes, typeDate, now]);
 
@@ -193,7 +191,7 @@ export default function SuiviCommercial({
   const exportCsv = () => {
     // « Reçu le » est ajouté EN FIN de ligne : les colonnes existantes gardent
     // leur position dans les tableurs déjà construits sur cet export.
-    const head = ["Dossier", "Client", "Activité", "Montant", "Situation", "Prochaine action", "Échéance", "Commercial", "Reçu le"];
+    const head = ["Dossier", "Client", "Activité", "Montant", "Situation", "Prochaine action", "Échéance", "Commercial", "Créé le", "Modifié le"];
     const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
     const lines = [head.map(esc).join(";")];
     for (const r of filtered) {
@@ -201,7 +199,8 @@ export default function SuiviCommercial({
         r.shortId, r.client, r.sectorLabel,
         r.amount != null ? String(r.amount) : "",
         SITUATION_LABEL[r.situation], r.nextAction, dueLabel(r, now),
-        r.ownerName ?? "", momentComplet(r.receivedAt),
+        r.ownerName ?? "", momentComplet(r.creeLe),
+        r.modifieLe ? momentComplet(r.modifieLe) : "",
       ].map((v) => esc(String(v))).join(";"));
     }
     const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
@@ -497,14 +496,22 @@ function DossierCard({ row, isBackOffice, canCall, now }: { row: SuiviRow; isBac
           {row.origin === "phone" ? "📞" : "📋"}
         </span>
         {row.alert && <span className={styles.badge} data-kind={row.alert}>{ALERT_LABEL[row.alert]}</span>}
-        {/* Heure d'arrivée du dossier. Sur un nouveau lead, c'est le chrono de
-            la prise en charge : le commercial doit le lire sans ouvrir la fiche. */}
+        {/* Date de création — celle qui classe la liste. L'infobulle donne les
+            trois dates quand elles diffèrent : créé, modifié, reçu. */}
         <time
           className={styles.recu}
-          dateTime={row.receivedAt}
-          title={`Reçu le ${momentComplet(row.receivedAt)}`}
+          dateTime={row.creeLe}
+          title={[
+            `Créé le ${momentComplet(row.creeLe)}`,
+            row.modifieLe && row.modifieLe !== row.creeLe
+              ? `Modifié le ${momentComplet(row.modifieLe)}`
+              : null,
+            row.creeLe !== row.receivedAt
+              ? `Dossier reçu le ${momentComplet(row.receivedAt)}`
+              : null,
+          ].filter(Boolean).join("\n")}
         >
-          {momentCourt(row.receivedAt, now)}
+          {momentCourt(row.creeLe, now)}
         </time>
       </div>
 

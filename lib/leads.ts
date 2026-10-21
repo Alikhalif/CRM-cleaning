@@ -221,6 +221,13 @@ export type Lead = {
   priceRecommendedAt?: string | null;
   discoveryOutcome?: DiscoveryOutcome; // undefined = découverte pas encore faite
   discoveryDoneAt?: string; // ISO — set when an outcome is recorded
+  // Chronologie de la découverte (migration 20261021000002). Trois dates
+  // distinctes, tenues par un déclencheur en base :
+  //   • création     — posée à la première saisie, jamais modifiée ensuite ;
+  //   • modification — avance à chaque changement, brouillon compris ;
+  //   • discoveryDoneAt — dernier « Enregistrer » explicite.
+  discoveryStartedAt?: string; // ISO — création de la découverte
+  discoveryUpdatedAt?: string; // ISO — dernière modification
   photosRequestedAt?: string; // ISO — set when a photo request is sent
   // Fiche Découverte enrichie (Lot 1, 2026-07-30) — remplie par TOUS les
   // commerciaux ; suit le dossier jusqu'à la planification.
