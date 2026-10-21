@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import Icon from "@/components/Icon/Icon";
 import { startCall } from "@/lib/ringover-webphone";
+import { COUNTRY_LABEL, type Country } from "@/lib/leads";
 import type { SuiviData } from "@/lib/suivi-server";
 import {
   ALERT_LABEL,
@@ -69,6 +70,7 @@ export default function SuiviCommercial({
   const [fMin, setFMin] = useState("");
   const [fOrigin, setFOrigin] = useState("");
   const [fSociete, setFSociete] = useState("");
+  const [fPays, setFPays] = useState("");
   const [fNrp, setFNrp] = useState(false);
   // ── Filtre calendrier ─────────────────────────────────────────────
   const [periode, setPeriode] = useState<PeriodePreset>("tout");
@@ -108,6 +110,14 @@ export default function SuiviCommercial({
     [rows],
   );
 
+  // Pays réellement présents dans le périmètre du commercial — jamais la liste
+  // des cinq pays du CRM. Un seul pays : pas de sélecteur, il n'offrirait
+  // aucun choix.
+  const paysDisponibles = useMemo(
+    () => [...new Set(rows.map((r) => r.country).filter((x): x is string => !!x))].sort(),
+    [rows],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const min = fMin.trim() ? Number(fMin) : null;
@@ -121,6 +131,7 @@ export default function SuiviCommercial({
       if (min != null && !Number.isNaN(min) && (r.amount ?? 0) < min) return false;
       if (fOrigin && r.origin !== fOrigin) return false;
       if (fSociete && r.societe !== fSociete) return false;
+      if (fPays && r.country !== fPays) return false;
       if (fNrp && !r.isNrp) return false;
       if (!dansPeriode(r, bornes, typeDate)) return false;
       if (q) {
@@ -141,7 +152,7 @@ export default function SuiviCommercial({
           return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
         });
     return out;
-  }, [rows, tab, quick, priorites, search, fSector, fOwner, fSituation, fMin, fOrigin, fSociete, fNrp, bornes, typeDate, now]);
+  }, [rows, tab, quick, priorites, search, fSector, fOwner, fSituation, fMin, fOrigin, fSociete, fPays, fNrp, bornes, typeDate, now]);
 
   // Classement par ÉTAPE commerciale : le commercial lit son travail par
   // moment du cycle, pas par colonne de tableau. L'ordre interne de chaque
@@ -175,7 +186,7 @@ export default function SuiviCommercial({
   const reset = () => {
     setTab("tous"); setQuick(null); setPriorites(false); setSearch("");
     setFSector(""); setFOwner(""); setFSituation(""); setFMin(""); setFOrigin("");
-    setFSociete(""); setFNrp(false);
+    setFSociete(""); setFPays(""); setFNrp(false);
     setPeriode("tout"); setDateDebut(""); setDateFin(""); setTypeDate("creation");
   };
 
@@ -380,6 +391,21 @@ export default function SuiviCommercial({
               <select value={fOwner} onChange={(e) => setFOwner(e.target.value)}>
                 <option value="">Tous</option>
                 {commerciaux.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+          )}
+          {/* Un seul pays autorisé → aucun sélecteur : il n'y aurait rien à
+              choisir, et le cloisonnement serveur s'applique déjà. */}
+          {paysDisponibles.length > 1 && (
+            <label>
+              <span>Pays</span>
+              <select value={fPays} onChange={(e) => setFPays(e.target.value)}>
+                <option value="">Tous mes pays</option>
+                {paysDisponibles.map((c) => (
+                  <option key={c} value={c}>
+                    {COUNTRY_LABEL[c as Country] ?? c}
+                  </option>
+                ))}
               </select>
             </label>
           )}

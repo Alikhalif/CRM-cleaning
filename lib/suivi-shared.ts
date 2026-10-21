@@ -120,6 +120,9 @@ export type SuiviRow = {
   // CAS 7 du moteur (client injoignable).
   isNrp: boolean;
   societe: string | null;
+  // Pays du dossier. Sert au filtre visuel ; le cloisonnement, lui, est déjà
+  // appliqué côté serveur dans getAllLeads.
+  country: string | null;
   receivedAt: string;
   // Provenance — CONFIDENTIEL : renseigné UNIQUEMENT pour admin/planification
   // (même règle que partout ailleurs, cf. lib/leads.ts). null côté commercial.

@@ -254,6 +254,7 @@ export async function getSuiviData(): Promise<SuiviData> {
       isUrgent: Boolean(l.isUrgent),
       isNrp: Boolean(l.isNrp),
       societe: l.entityName ?? null,
+      country: l.country ?? null,
       receivedAt: l.receivedAt,
       // Appel entrant vs formulaire — visible par TOUS, y compris le
       // commercial (demande client du 14/10, répétée trois fois).
