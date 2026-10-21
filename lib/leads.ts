@@ -705,6 +705,39 @@ export function visibleSectorsForUser(input: {
   return assigned.length ? assigned : SECTORS;
 }
 
+/**
+ * Pays qu'un utilisateur a le droit de voir. `null` = aucune restriction.
+ *
+ * Même convention que le routage : une liste VIDE couvre tout. C'est ce qui
+ * permet d'activer le cloisonnement progressivement, compte par compte, sans
+ * couper l'accès à ceux qui n'ont pas encore été configurés.
+ */
+export function visibleCountriesForUser(input: {
+  isAdmin: boolean;
+  isPlanner: boolean;
+  countries: string[];
+}): string[] | null {
+  if (input.isAdmin || input.isPlanner) return null;
+  return input.countries.length > 0 ? input.countries : null;
+}
+
+/**
+ * Ce dossier est-il visible pour ce périmètre de pays ?
+ *
+ * ⚠️ Un lead SANS pays reste visible. Trente-quatre dossiers sont dans ce cas
+ * aujourd'hui : les masquer sur un critère qu'ils ne portent pas les ferait
+ * disparaître pour tout le monde sauf l'administration. On ne cloisonne que
+ * ce qui est réellement renseigné.
+ */
+export function leadVisibleForCountries(
+  leadCountry: string | null | undefined,
+  allowed: string[] | null,
+): boolean {
+  if (!allowed) return true;
+  if (!leadCountry) return true;
+  return allowed.includes(leadCountry);
+}
+
 // Maps to the --sector-* CSS custom properties already defined in _tokens.scss.
 export const SECTOR_VAR: Record<Sector, string> = {
   urgence: "--sector-urgence",

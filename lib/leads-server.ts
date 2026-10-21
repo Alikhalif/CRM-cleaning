@@ -19,6 +19,8 @@ import type {
   SubSignatureMode,
   TimelineEvent,
 } from "./leads";
+import { leadVisibleForCountries, visibleCountriesForUser } from "./leads";
+import { getCurrentUserProfile } from "./users-server";
 import type { Json } from "./supabase/database.types";
 
 // Server-side data layer for the lead detail page. Returns the same UI-shaped
@@ -425,7 +427,26 @@ ${WANTED_COLS()}        statut_client, etat_salete, contexte_intervention, acomp
   // Confidentialité provenance (chaîne d'arrivée §5-8) : un commercial ne reçoit
   // jamais source / landingPage / sourceUrl / utm* / gclid dans la liste.
   const canProv = await provenancePromise;
-  const leads = (data as unknown as LeadRowJoined[]).map((r) => mapLead(r, false, canProv));
+  let leads = (data as unknown as LeadRowJoined[]).map((r) => mapLead(r, false, canProv));
+
+  // ── Cloisonnement par PAYS ──────────────────────────────────────────
+  // getAllLeads est le point de passage unique des listes (pipeline, suivi,
+  // découverte, à affecter, performance). Filtrer ici couvre donc tous ces
+  // écrans d'un coup, côté serveur : les lignes hors périmètre ne partent
+  // jamais vers le navigateur.
+  //
+  // Le filtrage par ACTIVITÉ reste dans getSuiviData, qui dispose du contexte
+  // nécessaire ; les deux restrictions se cumulent.
+  const moi = await getCurrentUserProfile();
+  const rolesMoi = (moi?.roles ?? []).map((r) => r.slug);
+  const paysAutorises = visibleCountriesForUser({
+    isAdmin: rolesMoi.includes("admin"),
+    isPlanner: rolesMoi.includes("planification") || rolesMoi.includes("superviseur"),
+    countries: moi?.countries ?? [],
+  });
+  if (paysAutorises) {
+    leads = leads.filter((l) => leadVisibleForCountries(l.country, paysAutorises));
+  }
 
   // Documents rattachés, pour que le Kanban range les cartes dans « Acompte
   // encaissé » / « Encaissement final » sans requête par carte.

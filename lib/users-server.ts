@@ -26,6 +26,9 @@ export type CurrentUserProfile = {
   // Activités (secteurs) affectées au user (slugs). Un commercial n'a accès
   // qu'à ces secteurs ; vide = aucune restriction (voir visibleSectorsForUser).
   activities: string[];
+  // Pays couverts par le user. Même convention que les activités et que le
+  // routage : vide = aucune restriction (voir visibleCountriesForUser).
+  countries: string[];
 };
 
 type UserRow = {
@@ -35,6 +38,7 @@ type UserRow = {
   last_name: string | null;
   color: string | null;
   commercial_profiles: string[] | null;
+  countries: string[] | null;
 };
 
 type RoleJoinRow = { roles: { slug: string; label: string } | null };
@@ -171,7 +175,7 @@ export const getCurrentUserProfile = cache(async function getCurrentUserProfile(
   const [profileRes, rolesRes, actsRes] = await Promise.all([
     supabase
       .from("users")
-      .select("id, email, first_name, last_name, color, commercial_profiles")
+      .select("id, email, first_name, last_name, color, commercial_profiles, countries")
       .eq("id", user.id)
       .maybeSingle<UserRow>(),
     supabase
@@ -207,6 +211,7 @@ export const getCurrentUserProfile = cache(async function getCurrentUserProfile(
       .map((r) => r.roles)
       .filter((r): r is { slug: string; label: string } => r !== null),
     commercialProfiles: profile?.commercial_profiles ?? [],
+    countries: profile?.countries ?? [],
     activities: (actsRes.data ?? [])
       .map((a) => a.activity?.slug)
       .filter((s): s is string => !!s),
