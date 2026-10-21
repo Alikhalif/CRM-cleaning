@@ -96,7 +96,7 @@ export default function SuiviCommercial({
     debutMois.setHours(0, 0, 0, 0);
     return {
       nouveaux: rows.filter((r) => r.situation === "nouveau").length,
-      decouvertes: rows.filter((r) => r.situation === "decouverte_encours").length,
+      decouvertes: rows.filter((r) => r.situation === "decouverte_a_realiser").length,
       aPreparer: rows.filter((r) => r.situation === "decouverte_faite").length,
       aRelancer: rows.filter((r) => isRelancable(r)).length,
       signes: rows.filter(
@@ -214,7 +214,7 @@ export default function SuiviCommercial({
 
   const cards: { key: string; label: string; sub: string; value: number; tone?: string; go: () => void }[] = [
     { key: "nouveaux", label: "Nouveaux leads", sub: "À contacter", value: kpi.nouveaux, go: () => onCard("nouveaux", null, "nouveau") },
-    { key: "decouvertes", label: "Découvertes", sub: "À compléter", value: kpi.decouvertes, go: () => onCard("nouveaux", null, "decouverte_encours") },
+    { key: "decouvertes", label: "Découvertes", sub: "À réaliser", value: kpi.decouvertes, go: () => onCard("nouveaux", null, "decouverte_a_realiser") },
     { key: "preparer", label: "Devis à préparer", sub: "À envoyer", value: kpi.aPreparer, go: () => onCard("devis", null, "decouverte_faite") },
     { key: "relancer", label: "Devis à relancer", sub: "À relancer", value: kpi.aRelancer, tone: "relance", go: () => onCard("relances", null) },
     { key: "signes", label: "Devis signés", sub: "Ce mois-ci", value: kpi.signes, tone: "ok", go: () => onCard("signes", null) },
@@ -505,6 +505,9 @@ function DossierCard({ row, isBackOffice, canCall, now }: { row: SuiviRow; isBac
             `Créé le ${momentComplet(row.creeLe)}`,
             row.modifieLe && row.modifieLe !== row.creeLe
               ? `Modifié le ${momentComplet(row.modifieLe)}`
+              : null,
+            row.valideeLe
+              ? `Découverte validée le ${momentComplet(row.valideeLe)}`
               : null,
             row.creeLe !== row.receivedAt
               ? `Dossier reçu le ${momentComplet(row.receivedAt)}`

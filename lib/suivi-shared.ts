@@ -4,13 +4,14 @@
 // des relances. Ici on ne fait que lire, situer et ordonner.
 
 import type { ActionType, CommercialAction } from "./commercial-actions/shared";
+import type { Lead } from "./leads";
 
 // ── Situation du dossier ────────────────────────────────────────────────
 // Dérivée du statut du lead + de la découverte + des photos. C'est une LECTURE
 // de l'état réel, jamais un statut stocké en double.
 export type Situation =
   | "nouveau"
-  | "decouverte_encours"
+  | "decouverte_a_realiser"
   | "decouverte_faite"
   | "attente_client"
   | "devis_preparation"
@@ -21,7 +22,7 @@ export type Situation =
 
 export const SITUATION_LABEL: Record<Situation, string> = {
   nouveau: "Nouveau prospect",
-  decouverte_encours: "Découverte en cours",
+  decouverte_a_realiser: "Découverte à réaliser",
   decouverte_faite: "Découverte terminée",
   attente_client: "En attente client",
   devis_preparation: "Devis en préparation",
@@ -50,7 +51,7 @@ export const ALERT_LABEL: Record<Exclude<AlertKind, null>, string> = {
 // commercial doit quand même lire « Appeler le prospect ».
 export const SUGGESTED_ACTION: Record<Situation, string> = {
   nouveau: "Appeler le prospect",
-  decouverte_encours: "Compléter la découverte",
+  decouverte_a_realiser: "Réaliser la découverte",
   decouverte_faite: "Préparer le devis",
   attente_client: "Relancer les photos",
   devis_preparation: "Finaliser et envoyer le devis",
@@ -131,10 +132,78 @@ export type SuiviRow = {
   // Dernière modification de la découverte. Affichée, jamais utilisée pour
   // trier — sans quoi un simple coup d'œil remonterait le dossier en tête.
   modifieLe: string | null;
+  // Validation de fin de découverte : la date et l'heure du « Enregistrer »
+  // explicite. C'est ELLE, et elle seule, qui fait passer le dossier en
+  // « Découverte terminée ».
+  valideeLe: string | null;
   // Provenance — CONFIDENTIEL : renseigné UNIQUEMENT pour admin/planification
   // (même règle que partout ailleurs, cf. lib/leads.ts). null côté commercial.
   origin: "form" | "phone" | null;
 };
+
+// ── Situation d'un dossier, dérivée (§1-2 du cahier du 2026-10-21) ─────
+//
+// PUR : aucune I/O, donc testable et importable depuis un composant client.
+// La situation n'est JAMAIS stockée en base — elle se relit à chaque
+// affichage depuis l'état réel du dossier. C'est ce qui permet de changer la
+// règle sans migrer une seule ligne : les dossiers existants se reclassent
+// d'eux-mêmes selon leur état réel.
+
+// Libellés écrits à la CRÉATION du dossier, par le webhook WF1 et par la
+// création manuelle (app/api/webhooks/leads/inbound, app/(app)/pipeline).
+// Tant que la dernière action est l'une d'elles, personne n'a encore touché
+// au dossier. Un test de non-régression vérifie que ces deux chaînes existent
+// toujours à l'identique dans le code qui les écrit.
+export const LIBELLES_ARRIVEE = new Set(["Lead reçu via WF1", "Lead créé manuellement"]);
+
+/**
+ * Le dossier a-t-il été PRIS EN CHARGE par un commercial ?
+ *
+ * L'affectation ne suffit pas : le routage automatique attribue un
+ * propriétaire dès l'arrivée du lead, si bien que tout dossier serait « pris
+ * en charge » à la seconde où il entre. Il faut la trace d'un geste réel.
+ *
+ * ⚠️ La surface N'EN FAIT PAS PARTIE, alors qu'elle figurait dans l'ancien
+ * test : elle arrive renseignée par le formulaire de la landing page. Tout
+ * lead déclarant une surface s'affichait donc en découverte commencée, sans
+ * que personne ne l'ait ouvert.
+ */
+export function priseEnCharge(lead: Lead): boolean {
+  // La découverte est commencée — le signal le plus net, posé en base par le
+  // déclencheur leads_discovery_timestamps.
+  if (lead.discoveryStartedAt) return true;
+  // Un appel a été tenté sans réponse, ou des photos ont été demandées.
+  if (lead.isNrp || lead.photosRequestedAt) return true;
+  // Une action a été enregistrée sur le dossier, autre que son arrivée.
+  const libelle = (lead.lastActionLabel ?? "").trim();
+  if (libelle && !LIBELLES_ARRIVEE.has(libelle)) return true;
+  // Repli pour les dossiers antérieurs à discovery_started_at : seuls les
+  // champs qu'un commercial est seul à pouvoir remplir comptent.
+  return (
+    lead.announcedPrice != null ||
+    !!lead.priceRange ||
+    !!lead.delaiSouhaite ||
+    !!lead.reactionPrix ||
+    !!lead.contexteIntervention ||
+    Object.keys(lead.discoveryDetails ?? {}).length > 0
+  );
+}
+
+// Situation RÉELLE du dossier, lue depuis le lead. Aucun statut dupliqué.
+export function situationOf(lead: Lead, photoPending: boolean, devisBrouillon: boolean): Situation {
+  if (lead.status === "perdu") return "perdu";
+  if (lead.status === "signe" || lead.status === "encaisse") return "signe";
+  if (lead.status === "ouvert") return "devis_ouvert";
+  if (lead.status === "envoye") return "devis_envoye";
+  // Statut « lead » : l'avancement se lit dans la découverte.
+  if (devisBrouillon) return "devis_preparation";
+  if (photoPending) return "attente_client";
+  // « Terminée » ne se déclenche QUE sur la validation explicite de fin de
+  // découverte. L'enregistrement automatique du brouillon n'y touche pas —
+  // c'est la règle §2 : un enregistrement partiel n'est pas une validation.
+  if (lead.discoveryDoneAt) return "decouverte_faite";
+  return priseEnCharge(lead) ? "decouverte_a_realiser" : "nouveau";
+}
 
 // ── Onglets (filtres internes d'un même tableau, §7) ────────────────────
 export type Tab = "tous" | "nouveaux" | "devis" | "relances" | "signes" | "perdus";
@@ -153,7 +222,7 @@ export const TABS: Tab[] = ["tous", "nouveaux", "devis", "relances", "signes", "
 export function matchesTab(row: SuiviRow, tab: Tab): boolean {
   switch (tab) {
     case "tous": return row.situation !== "perdu";
-    case "nouveaux": return row.situation === "nouveau" || row.situation === "decouverte_encours";
+    case "nouveaux": return row.situation === "nouveau" || row.situation === "decouverte_a_realiser";
     case "devis": return ["decouverte_faite", "devis_preparation", "devis_envoye", "devis_ouvert"].includes(row.situation);
     case "relances": return isRelancable(row);
     case "signes": return row.situation === "signe";
@@ -264,7 +333,7 @@ export function priorityRank(row: SuiviRow): number {
   if (isRelancable(row)) return 3;
   if (row.situation === "decouverte_faite" || row.situation === "devis_preparation") return 4;
   if (row.situation === "attente_client") return 5;
-  if (row.situation === "decouverte_encours") return 6;
+  if (row.situation === "decouverte_a_realiser") return 6;
   return 50;
 }
 
@@ -432,7 +501,7 @@ export function alertFor(row: Omit<SuiviRow, "alert">): AlertKind {
   if (row.situation === "attente_client") return "photos";
   if (row.situation === "devis_envoye" || row.situation === "devis_ouvert") return "relance";
   if (row.situation === "devis_preparation") return "decouverte";
-  if (row.situation === "decouverte_encours") return "decouverte";
+  if (row.situation === "decouverte_a_realiser") return "decouverte";
   return null;
 }
 
@@ -449,7 +518,7 @@ export function nextActionLabel(situation: Situation, action: CommercialAction |
 // tableau.
 export const ETAPES: Situation[] = [
   "nouveau",
-  "decouverte_encours",
+  "decouverte_a_realiser",
   "attente_client",
   "decouverte_faite",
   "devis_preparation",
@@ -462,13 +531,15 @@ export const ETAPES: Situation[] = [
 // Trois couleurs seulement (consigne client) : rouge = nouveau non traité,
 // bleu = dossier en cours, vert = signé, gris = clos. Les étapes se
 // distinguent par leur LIBELLÉ, pas par une quatrième teinte.
-export type Tone = "rouge" | "bleu" | "vert" | "gris";
+export type Tone = "rouge" | "orange" | "bleu" | "vert" | "gris";
 
 export const SITUATION_TONE: Record<Situation, Tone> = {
-  nouveau: "rouge",
-  decouverte_encours: "bleu",
+  // Les trois statuts de découverte portent les couleurs demandées par le
+  // client : bleu « nouveau prospect », orange « à réaliser », vert « terminée ».
+  nouveau: "bleu",
+  decouverte_a_realiser: "orange",
   attente_client: "bleu",
-  decouverte_faite: "bleu",
+  decouverte_faite: "vert",
   devis_preparation: "bleu",
   devis_envoye: "bleu",
   devis_ouvert: "bleu",
@@ -545,7 +616,7 @@ export const PIPELINE_CAT_TONE: Record<PipelineCat, Tone> = {
 export function pipelineCatOf(situation: Situation): PipelineCat | null {
   switch (situation) {
     case "nouveau": return "nouveaux";
-    case "decouverte_encours":
+    case "decouverte_a_realiser":
     case "attente_client":
     case "decouverte_faite":
     case "devis_preparation": return "decouverte";

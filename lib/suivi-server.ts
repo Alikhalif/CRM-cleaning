@@ -4,9 +4,10 @@ import { supabaseServiceRole } from "./supabase/service";
 import { getAllCommerciaux, getAllLeads } from "./leads-server";
 import { selectEnLotsTolerant } from "./supabase/batch";
 import { getCurrentUserProfile } from "./users-server";
-import { profileCapabilities, SECTOR_LABEL, visibleSectorsForUser, type Lead, type Sector } from "./leads";
+import { profileCapabilities, SECTOR_LABEL, visibleSectorsForUser, type Sector } from "./leads";
 import { effectiveDue, type ActionType, type CommercialAction } from "./commercial-actions/shared";
-import { alertFor, nextActionLabel, type Situation, type SuiviRow } from "./suivi-shared";
+import { situationOf } from "./suivi-shared";
+import { alertFor, nextActionLabel, type SuiviRow } from "./suivi-shared";
 
 // Assemblage du « Suivi commercial ». Lecture seule : aucune écriture, aucune
 // tâche créée. Les échéances viennent du moteur d'actions commerciales, les
@@ -137,25 +138,6 @@ async function originByLead(leadIds: string[]): Promise<Map<string, "phone" | "f
   return out;
 }
 
-// Situation RÉELLE du dossier, lue depuis le lead. Aucun statut dupliqué.
-function situationOf(lead: Lead, photoPending: boolean, devisBrouillon: boolean): Situation {
-  if (lead.status === "perdu") return "perdu";
-  if (lead.status === "signe" || lead.status === "encaisse") return "signe";
-  if (lead.status === "ouvert") return "devis_ouvert";
-  if (lead.status === "envoye") return "devis_envoye";
-  // Statut « lead » : l'avancement se lit dans la découverte.
-  if (devisBrouillon) return "devis_preparation";
-  if (photoPending) return "attente_client";
-  if (lead.discoveryDoneAt) return "decouverte_faite";
-  const commencee =
-    lead.announcedPrice != null ||
-    lead.surfaceM2 != null ||
-    !!lead.priceRange ||
-    !!lead.delaiSouhaite ||
-    !!lead.contexteIntervention ||
-    Object.keys(lead.discoveryDetails ?? {}).length > 0;
-  return commencee ? "decouverte_encours" : "nouveau";
-}
 
 export async function getSuiviData(): Promise<SuiviData> {
   const [leads, me, tousCommerciaux] = await Promise.all([
@@ -258,6 +240,7 @@ export async function getSuiviData(): Promise<SuiviData> {
       receivedAt: l.receivedAt,
       creeLe: l.discoveryStartedAt ?? l.receivedAt,
       modifieLe: l.discoveryUpdatedAt ?? null,
+      valideeLe: l.discoveryDoneAt ?? null,
       // Appel entrant vs formulaire — visible par TOUS, y compris le
       // commercial (demande client du 14/10, répétée trois fois).
       //
