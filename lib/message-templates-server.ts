@@ -1,3 +1,4 @@
+import { cache } from "react";
 import "server-only";
 import { supabaseServer } from "./supabase/server";
 import { getCurrentUserProfile } from "./users-server";
@@ -68,6 +69,31 @@ function mapRow(r: TemplateJoined): MessageTemplate {
 const SELECT =
   "id, channel, category, name, subject, body, activity_id, audiences, recipient, sort_order, is_active, activity:activities(slug, label)";
 
+/**
+ * Tous les modèles ACTIFS, mémoïsés par requête HTTP.
+ *
+ * La fiche lead interrogeait cette table cinq fois : les SMS, les e-mails, et
+ * trois recherches par nom. Cinq aller-retours réseau pour quatre-vingt-douze
+ * lignes. On la lit une fois et on filtre en mémoire — le tri reste celui de
+ * la base, pour que l'ordre d'affichage ne change pas.
+ */
+const tousLesActifs = cache(async function tousLesActifs(): Promise<MessageTemplate[]> {
+  const supabase = await supabaseServer();
+  const { data, error } = await supabase
+    .from("message_templates")
+    .select(SELECT)
+    .eq("is_active", true)
+    .order("category", { ascending: true })
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true })
+    .returns<TemplateJoined[]>();
+  if (error) {
+    console.error("[message_templates] lecture :", error.code, error.message);
+    return [];
+  }
+  return (data ?? []).map(mapRow);
+});
+
 // All templates, for the settings page (admin sees everything).
 export async function getMessageTemplates(): Promise<MessageTemplate[]> {
   const supabase = await supabaseServer();
@@ -89,17 +115,8 @@ export async function getMessageTemplates(): Promise<MessageTemplate[]> {
 export async function getTemplatesForUser(
   channel?: TemplateChannel,
 ): Promise<MessageTemplate[]> {
-  const [supabase, me] = await Promise.all([supabaseServer(), getCurrentUserProfile()]);
-  let query = supabase
-    .from("message_templates")
-    .select(SELECT)
-    .eq("is_active", true)
-    .order("category", { ascending: true })
-    .order("sort_order", { ascending: true })
-    .order("name", { ascending: true });
-  if (channel) query = query.eq("channel", channel);
-  const { data, error } = await query.returns<TemplateJoined[]>();
-  if (error || !data) return [];
+  const [tous, me] = await Promise.all([tousLesActifs(), getCurrentUserProfile()]);
+  const data = channel ? tous.filter((t) => t.channel === channel) : tous;
 
   const roles = (me?.roles ?? []).map((r) => r.slug);
   const isAdmin = roles.includes("admin");
@@ -107,9 +124,9 @@ export async function getTemplatesForUser(
   const audiences = userTemplateAudiences(roles, profiles, isAdmin);
   const groups = userRoleGroups(roles, profiles, isAdmin);
   // Double filtre : audience du template ET catégorie autorisée pour le rôle.
-  return data
-    .map(mapRow)
-    .filter((t) => templateVisibleTo(t.audiences, audiences) && categoryVisibleTo(t.category, groups));
+  return data.filter(
+    (t) => templateVisibleTo(t.audiences, audiences) && categoryVisibleTo(t.category, groups),
+  );
 }
 
 // Active SMS templates for the current user (SMS compose modal).
@@ -139,15 +156,10 @@ export async function getIntervenantTemplates(): Promise<MessageTemplate[]> {
 // Used for quick-action buttons that pre-fill a specific model (e.g. the NRP
 // buttons for the Divers profile).
 export async function getTemplateByName(name: string): Promise<MessageTemplate | null> {
-  const supabase = await supabaseServer();
-  const { data, error } = await supabase
-    .from("message_templates")
-    .select(SELECT)
-    .eq("name", name)
-    .eq("is_active", true)
-    .maybeSingle<TemplateJoined>();
-  if (error || !data) return null;
-  return mapRow(data);
+  // Même jeu mémoïsé : trois recherches par nom sur une fiche ne doivent pas
+  // coûter trois aller-retours.
+  const tous = await tousLesActifs();
+  return tous.find((t) => t.name === name) ?? null;
 }
 
 // Sector options for the template editor (optional targeting).
