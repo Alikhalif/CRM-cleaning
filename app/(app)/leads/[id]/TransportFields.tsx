@@ -24,7 +24,7 @@ const CLES_ENLEVEMENT = { rue: "adresseEnlevement", cp: "cpEnlevement", ville: "
 const CLES_LIVRAISON = { rue: "adresseLivraison", cp: "cpLivraison", ville: "villeLivraison" };
 
 export default function TransportFields({ details, set, pays = null }: Props) {
-  const { busy, erreur, calculer } = useDistance(details, set, CLES_ENLEVEMENT, CLES_LIVRAISON);
+  const { busy, erreur, calculer } = useDistance(details, set, CLES_ENLEVEMENT, CLES_LIVRAISON, pays);
   const surSortie = () => { void calculer(true); };
 
   return (

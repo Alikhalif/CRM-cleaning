@@ -9,8 +9,19 @@ import { supabaseServer } from "@/lib/supabase/server";
 
 const UA = "CGK-CRM/1.0 (distance lookup)";
 
-async function geocode(q: string): Promise<{ lat: number; lon: number } | null> {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`;
+// Pays couverts par le CRM → code ISO attendu par Nominatim.
+const PAYS_ISO: Record<string, string> = {
+  FR: "fr", CH: "ch", LU: "lu", BE: "be", CA: "ca",
+};
+
+async function geocode(q: string, pays: string | null): Promise<{ lat: number; lon: number } | null> {
+  // Sans ce biais, un code postal saisi seul (« 1000 », « 75011 ») peut
+  // désigner une commune de n'importe quel pays : le commercial obtenait une
+  // distance absurde sans comprendre pourquoi.
+  const iso = pays ? PAYS_ISO[pays] : undefined;
+  const url =
+    `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}` +
+    (iso ? `&countrycodes=${iso}` : "");
   const res = await fetch(url, { headers: { "User-Agent": UA, "Accept-Language": "fr" } });
   if (!res.ok) return null;
   const data = (await res.json()) as { lat: string; lon: string }[];
@@ -27,12 +38,16 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const from = (searchParams.get("from") ?? "").trim();
   const to = (searchParams.get("to") ?? "").trim();
+  // Pays du dossier, s'il est connu. Une valeur inattendue est ignorée plutôt
+  // que refusée : mieux vaut un géocodage mondial qu'un calcul impossible.
+  const paysBrut = (searchParams.get("pays") ?? "").trim().toUpperCase();
+  const pays = PAYS_ISO[paysBrut] ? paysBrut : null;
   if (!from || !to) {
     return NextResponse.json({ error: "Adresses de départ et d'arrivée requises." }, { status: 400 });
   }
 
   try {
-    const [a, b] = await Promise.all([geocode(from), geocode(to)]);
+    const [a, b] = await Promise.all([geocode(from, pays), geocode(to, pays)]);
     if (!a) return NextResponse.json({ error: "Adresse de départ introuvable." }, { status: 422 });
     if (!b) return NextResponse.json({ error: "Adresse d'arrivée introuvable." }, { status: 422 });
 

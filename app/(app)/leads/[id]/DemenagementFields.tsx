@@ -20,7 +20,7 @@ const CLES_DEPART = { rue: "adresseDepart", cp: "cpDepart", ville: "villeDepart"
 const CLES_ARRIVEE = { rue: "adresseArrivee", cp: "cpArrivee", ville: "villeArrivee" };
 
 export default function DemenagementFields({ details, set, pays = null }: Props) {
-  const { busy, erreur, calculer } = useDistance(details, set, CLES_DEPART, CLES_ARRIVEE);
+  const { busy, erreur, calculer } = useDistance(details, set, CLES_DEPART, CLES_ARRIVEE, pays);
   const surSortie = () => { void calculer(true); };
 
   return (

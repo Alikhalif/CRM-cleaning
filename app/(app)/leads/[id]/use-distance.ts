@@ -24,6 +24,8 @@ export function useDistance(
   set: (k: string, v: unknown) => void,
   depart: Cles,
   arrivee: Cles,
+  /** Pays du dossier — oriente le géocodage d'un code postal saisi seul. */
+  pays?: string | null,
 ) {
   const [busy, setBusy] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export function useDistance(
       if (!auto) setErreur("Renseignez les deux adresses.");
       return;
     }
-    const couple = `${from} » ${to}`;
+    const couple = `${from} » ${to} » ${pays ?? ""}`;
     if (auto && couple === dernierCouple.current) return;
     if (enCours.current) return;
     enCours.current = true;
@@ -60,7 +62,8 @@ export function useDistance(
     setBusy(true);
     try {
       const r = await fetch(
-        `/api/geo/distance?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+        `/api/geo/distance?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}` +
+          (pays ? `&pays=${encodeURIComponent(pays)}` : ""),
       );
       const d = (await r.json()) as { km?: number; error?: string };
       if (!r.ok || d.km == null) {
