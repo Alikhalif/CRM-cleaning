@@ -160,6 +160,7 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
       vatRate: r.vatRate,
       lines: r.lines,
       majorations: r.majorations,
+      vitrerie: r.vitrerie ?? null,
       input: pricing.input,
       details,
       etatSalete: salete || null,

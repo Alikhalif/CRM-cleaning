@@ -10,6 +10,7 @@
 
 import { estFamilleNettoyage } from "@/lib/discovery-nettoyage";
 import type { GridInput } from "./grid-compute";
+import { vitrerieRenseignee, type SaisieVitrerie } from "./vitrerie";
 
 // Les volumes sont des libellés, pas des nombres : « 20 » (déménagement) ou
 // « 10-20 » / « <5 » / « >100 » (débarras). Une tranche donne son MILIEU —
@@ -109,13 +110,26 @@ function nettoyageVersGrille(
   // Le type de prestation identifie la famille tarifaire.
   prefixe("type", det.typeNettoyage);
 
-  // Vitrerie : quantité et accessibilité sont deux lignes distinctes.
+  // ── Vitrerie ────────────────────────────────────────────────────
+  //
+  // Deux chemins, et un seul s'emprunte à la fois :
+  //
+  //   • Le commercial a compté les vitrages (fenêtres, baies, Velux…) : le
+  //     supplément est un POURCENTAGE calculé à part, dans lib/pricing/
+  //     vitrerie.ts. On ne pousse alors AUCUNE ancienne ligne de vitrerie,
+  //     sans quoi la même prestation serait facturée deux fois.
+  //
+  //   • Sinon : comportement d'origine, strictement inchangé. Les dossiers
+  //     déjà saisis gardent leur estimation au centime près.
   if (str(det.vitrerie) === "oui") {
-    pousser(det.vitrerieQuantite);
-    pousser(det.vitrerieAcces);
-    // Les deux lignes suivantes ne se déclenchent que si la quantité est
-    // saisie : le moteur refuse de chiffrer une unité qu'il ne connaît pas.
-    if (num(det.vitrerieM2) > 0) options.push("opt_vitrerie_m2");
+    if (!vitrerieComptee(det)) {
+      pousser(det.vitrerieQuantite);
+      pousser(det.vitrerieAcces);
+      // Ne se déclenche que si la quantité est saisie : le moteur refuse de
+      // chiffrer une unité qu'il ne connaît pas.
+      if (num(det.vitrerieM2) > 0) options.push("opt_vitrerie_m2");
+    }
+    // Les volets restent une ligne à part dans les deux cas.
     if (num(det.nbVolets) > 0) options.push("opt_volets");
   }
 
@@ -200,6 +214,32 @@ function nettoyageVersGrille(
   const pieces = num(det.nbPieces) > 0 ? num(det.nbPieces) : null;
   const etage = str(det.etage) === "4plus" ? 4 : num(det.etage);
   return { pieces, exteriorQuantity, etage };
+}
+
+/**
+ * Vitrerie saisie dans la découverte, au format attendu par le moteur.
+ *
+ * `vitrerie: "oui"` sans aucun compteur renseigné ne produit rien : c'est
+ * l'état normal d'une saisie en cours, et surtout celui des dossiers
+ * antérieurs à cette fonctionnalité.
+ */
+export function saisieVitrerie(det: Record<string, unknown>): SaisieVitrerie {
+  return {
+    fenetres: num(det.vitrerieFenetres),
+    baies: num(det.vitrerieBaies),
+    velux: num(det.vitrerieVelux),
+    verandaM2: num(det.vitrerieVerandaM2),
+    autres: num(det.vitrerieAutres),
+    faces: (str(det.vitrerieFaces) || null) as SaisieVitrerie["faces"],
+    encadrement: (str(det.vitrerieEncadrement) || null) as SaisieVitrerie["encadrement"],
+    acces: str(det.vitrerieAcces) === "vitrerie_acces_difficile" ? "difficile" : "classique",
+    equipementSpecifique: str(det.vitrerieEquipement) === "oui",
+  };
+}
+
+/** Le commercial a-t-il compté les vitrages (nouveau module) ? */
+function vitrerieComptee(det: Record<string, unknown>): boolean {
+  return vitrerieRenseignee(saisieVitrerie(det));
 }
 
 export function buildGridInput(d: GridDiscovery): { input: GridInput; approx: boolean; nonCaptes: string[] } {
@@ -380,6 +420,17 @@ export function buildGridInput(d: GridDiscovery): { input: GridInput; approx: bo
       options: [...new Set(options)],
       majorations: [...new Set(majorations)],
       quantites,
+      // Transmise seulement quand la case « Nettoyage des vitres » est à OUI :
+      // désactiver l'option fait disparaître le supplément intégralement.
+      //
+      // Et seulement pour la famille nettoyage. Un dossier reclassé de
+      // nettoyage vers débarras ou déménagement garde ses anciennes réponses
+      // dans `details` : sans ce garde-fou, un supplément vitrerie suivrait
+      // le dossier jusque dans un devis de déménagement.
+      vitrerie:
+        estFamilleNettoyage(d.sector) && str(det.vitrerie) === "oui"
+          ? saisieVitrerie(det)
+          : undefined,
     },
     approx,
     nonCaptes,

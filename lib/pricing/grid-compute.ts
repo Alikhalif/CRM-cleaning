@@ -11,6 +11,10 @@
 //   • Une difficulté n'est comptée qu'UNE fois, même si plusieurs champs de la
 //     découverte la désignent (pas de double majoration).
 
+import {
+  calculerVitrerie, paramsVitrerieDepuis,
+  type ResultatVitrerie, type SaisieVitrerie,
+} from "./vitrerie";
 import { computeBibliotheque } from "./grid-bibliotheque";
 import type { Grid, GridLine, GridSection, PricingGrid } from "./grid-types";
 
@@ -36,6 +40,9 @@ export type GridInput = {
   // tarifaire (« surface à désinfecter », « surface extérieure »…). Absente =
   // le moteur retombe sur la quantité principale.
   quantites?: Record<string, number>;
+  // Vitrerie saisie dans la découverte. Absente = aucun supplément, et le
+  // prix du nettoyage sort du moteur strictement inchangé.
+  vitrerie?: SaisieVitrerie;
 };
 
 // `key` : la clé de la ligne de grille retenue. Elle permet à l'argumentaire
@@ -57,6 +64,12 @@ export type GridResult =
       // Données absentes qui dégradent la fiabilité sans bloquer.
       assumptions: string[];
       vatRate: number | null;
+      // Supplément vitrerie, quand des vitrages ont été saisis. Le détail est
+      // conservé pour l'argumentaire : le commercial doit pouvoir expliquer
+      // d'où vient la majoration.
+      vitrerie?: ResultatVitrerie;
+      // Prix du nettoyage AVANT supplément — ce que le barème a calculé seul.
+      conseilleHorsVitrerie?: number;
     }
   | {
       ok: false;
@@ -79,7 +92,38 @@ const band = (lines: GridLine[] | undefined, value: number): GridLine | null => 
 // Arrondi commercial : 2 847 € → 2 850 € avec un pas de 50.
 const arrondir = (n: number, pas: number): number => (pas > 0 ? Math.round(n / pas) * pas : Math.round(n));
 
+/**
+ * Prix conseillé, supplément vitrerie compris.
+ *
+ * Le barème de nettoyage tourne d'abord, exactement comme avant : la fonction
+ * ci-dessous ne le touche pas, elle ajoute par-dessus. C'est la garantie
+ * demandée — « le calcul initial du nettoyage doit rester strictement
+ * inchangé ».
+ */
 export function computeGrid(g: PricingGrid | null, input: GridInput): GridResult {
+  const base = calculerBareme(g, input);
+  if (!base.ok || !input.vitrerie) return base;
+
+  const params = paramsVitrerieDepuis(g?.grid);
+  const v = calculerVitrerie(base.conseille, input.vitrerie, params);
+  if (!v) return base;
+
+  // La fourchette suit la même majoration, pour rester cohérente avec le
+  // prix conseillé : annoncer 1 350 EUR dans une fourchette qui s'arrête à
+  // 1 100 EUR n'aurait aucun sens au téléphone.
+  const majorer = (n: number) => n + Math.round((n * v.pct) / 100);
+  return {
+    ...base,
+    conseilleHorsVitrerie: base.conseille,
+    conseille: base.conseille + v.supplement,
+    min: majorer(base.min),
+    max: majorer(base.max),
+    vitrerie: v,
+    assumptions: [...base.assumptions, ...v.alertes],
+  };
+}
+
+function calculerBareme(g: PricingGrid | null, input: GridInput): GridResult {
   if (!g) return { ok: false, reason: "vide", missing: [] };
   // Diffusion fermée : aucun calcul, et surtout aucun montant transmis.
   if (g.nonDiffusee) return { ok: false, reason: "diffusion", missing: [] };

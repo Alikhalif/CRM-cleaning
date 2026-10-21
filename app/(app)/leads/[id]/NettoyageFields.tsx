@@ -8,7 +8,8 @@ import {
   ETAGE, ETAT_GENERAL, EXTERIEUR_ETAT, EXTERIEUR_REVETEMENT, EXTERIEUR_TYPE,
   EQUIPEMENTS, MURS, NOMBRE_0_3, OCCUPATION, PHOTOS_ETAT, TRAITEMENTS_SOL,
   PLAFONDS_ETAT, PLAFONDS_TYPE, SOLS, STATIONNEMENT, SURFACE_CONCERNEE,
-  TYPE_BIEN_NETTOYAGE, TYPE_NETTOYAGE, URGENCE, VITRERIE_ACCES, VITRERIE_QUANTITE,
+  TYPE_BIEN_NETTOYAGE, TYPE_NETTOYAGE, URGENCE, VITRERIE_ACCES,
+  VITRERIE_ENCADREMENT, VITRERIE_FACES, VITRERIE_QUANTITE,
 } from "@/lib/discovery-nettoyage";
 import { OUI_NON, type Option } from "@/lib/discovery-metier";
 import { WANTED_SLOT_LABEL, type WantedSlot } from "@/lib/leads";
@@ -105,6 +106,48 @@ function Nombre({ d, set, k, label }: { d: Details; set: Setter; k: string; labe
   );
 }
 
+/**
+ * Compteur [−] n [+].
+ *
+ * Trois façons de saisir, parce que le commercial est au téléphone : taper le
+ * nombre, ou cliquer. Un champ vide vaut zéro et n'écrit rien — c'est ce qui
+ * permet de distinguer « aucune fenêtre » d'« option vitrerie jamais touchée ».
+ */
+function Compteur({ d, set, k, label, pas = 1, unite }: {
+  d: Details; set: Setter; k: string; label: string; pas?: number; unite?: string;
+}) {
+  const brut = Number(txt(d, k));
+  const val = Number.isFinite(brut) && brut > 0 ? brut : 0;
+  const poser = (n: number) => set(k, n <= 0 ? "" : Math.round(n * 100) / 100);
+
+  return (
+    <div className={styles.compteur}>
+      <span className={styles.compteurLabel}>{label}</span>
+      <div className={styles.compteurCmd}>
+        <button
+          type="button" className={styles.compteurBtn} disabled={val <= 0}
+          onClick={() => poser(val - pas)} aria-label={`${label} — retirer`}
+        >
+          −
+        </button>
+        <input
+          type="number" min={0} step={pas} inputMode="decimal"
+          className={styles.compteurVal}
+          value={txt(d, k)} placeholder="0"
+          aria-label={unite ? `${label} (${unite})` : label}
+          onChange={(e) => set(k, e.target.value === "" ? "" : Number(e.target.value))}
+        />
+        <button
+          type="button" className={styles.compteurBtn}
+          onClick={() => poser(val + pas)} aria-label={`${label} — ajouter`}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
 type Props = {
   leadId: string;
   details: Details;
@@ -132,6 +175,10 @@ const CRENEAUX: WantedSlot[] = ["matin", "apres_midi", "heure_precise"];
 export default function NettoyageFields(p: Props) {
   const { details: d, set, leadId } = p;
   const oui = (k: string) => txt(d, k) === "oui";
+  // Les vitrages ont-ils été comptés ? Décide de l'affichage de
+  // l'ancienne saisie, et côté moteur du mode de calcul retenu.
+  const vitragesComptes = ["vitrerieFenetres", "vitrerieBaies", "vitrerieVelux",
+    "vitrerieVerandaM2", "vitrerieAutres"].some((k) => Number(txt(d, k)) > 0);
   const diogene = p.dejaDiogene || d.diogene === true;
   const comps = lst(d, "complements");
 
@@ -170,11 +217,34 @@ export default function NettoyageFields(p: Props) {
         <Choix d={d} set={set} k="vitrerie" options={OUI_NON} label="Nettoyage des vitres" />
         {oui("vitrerie") && (
           <div className={styles.conditionnel}>
-            <Choix d={d} set={set} k="vitrerieQuantite" options={VITRERIE_QUANTITE} label="Quantité" />
+            <span className={styles.label}>Types et quantités</span>
+            <Compteur d={d} set={set} k="vitrerieFenetres" label="Fenêtres classiques" />
+            <Compteur d={d} set={set} k="vitrerieBaies" label="Baies vitrées" />
+            <Compteur d={d} set={set} k="vitrerieVelux" label="Velux / fenêtres de toit" />
+            <Compteur d={d} set={set} k="vitrerieVerandaM2" label="Véranda — surface vitrée (m²)" unite="m²" />
+            <Compteur d={d} set={set} k="vitrerieAutres" label="Autres surfaces vitrées" />
+
+            <Choix d={d} set={set} k="vitrerieFaces" options={VITRERIE_FACES} label="Faces à nettoyer" />
+            <Choix d={d} set={set} k="vitrerieEncadrement" options={VITRERIE_ENCADREMENT} label="Encadrements" />
             <Choix d={d} set={set} k="vitrerieAcces" options={VITRERIE_ACCES} label="Accessibilité" />
-            {/* Vitrage supplémentaire facturé au m² DE VITRE, jamais au m² de
-                logement : laisser vide si le barème à la quantité suffit. */}
-            <Nombre d={d} set={set} k="vitrerieM2" label="Surface de vitrage à facturer (m²) — optionnel" />
+            {/* L'équipement ne se devine pas : il est signalé, jamais chiffré. */}
+            <Choix d={d} set={set} k="vitrerieEquipement" options={OUI_NON} label="Nacelle / échafaudage nécessaire" />
+            {oui("vitrerieEquipement") && (
+              <p className={styles.vitreAlerte}>
+                Accès spécifique : validation technique et tarifaire nécessaire.
+                L&apos;équipement n&apos;est pas compris dans le prix estimatif.
+              </p>
+            )}
+
+            {/* Ancienne saisie : affichée UNIQUEMENT si elle existe déjà et que
+                les vitrages n'ont pas été comptés. Les dossiers d'avant gardent
+                ainsi leur estimation, et rien n'est perdu. */}
+            {!vitragesComptes && txt(d, "vitrerieQuantite") !== "" && (
+              <>
+                <Choix d={d} set={set} k="vitrerieQuantite" options={VITRERIE_QUANTITE} label="Quantité (ancienne saisie)" />
+                <Nombre d={d} set={set} k="vitrerieM2" label="Surface de vitrage à facturer (m²) — ancienne saisie" />
+              </>
+            )}
             <Nombre d={d} set={set} k="nbVolets" label="Nombre de volets — optionnel" />
           </div>
         )}

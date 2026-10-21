@@ -143,6 +143,52 @@
   color: var(--text-primary);
 }
 
+// ── Compteurs de vitrerie ──────────────────────────────────────────────
+// Une ligne par type de vitrage : libellé à gauche, [−] [valeur] [+] à droite.
+// Le commercial est au téléphone — il doit pouvoir incrémenter sans viser.
+.compteur {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-2); padding: 2px 0;
+}
+.compteurLabel { font-size: var(--fs-xs); color: var(--text-muted); min-width: 0; }
+.compteurCmd { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.compteurBtn {
+  width: 30px; height: 30px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border-strong); border-radius: var(--r-sm);
+  background: var(--bg-surface); color: var(--text-primary);
+  font-size: 1rem; line-height: 1; cursor: pointer;
+
+  &:hover:not(:disabled) { background: var(--bg-surface-2); }
+  &:disabled { opacity: 0.4; cursor: default; }
+}
+.compteurVal {
+  width: 56px; text-align: center;
+  border: 1px solid var(--border-strong); border-radius: var(--r-sm);
+  background: var(--bg-surface); color: var(--text-primary);
+  padding: 5px 4px; font-size: var(--fs-sm);
+
+  // Les flèches natives doublonneraient avec les boutons − / +.
+  appearance: textfield;
+  &::-webkit-outer-spin-button, &::-webkit-inner-spin-button {
+    appearance: none; margin: 0;
+  }
+}
+// Rappel du supplément calculé, sous les compteurs.
+.vitreTotal {
+  margin-top: var(--sp-1); padding: 6px 10px;
+  border-radius: var(--r-sm);
+  background: color-mix(in oklab, var(--color-brand-500) 10%, transparent);
+  font-size: var(--fs-xs); color: var(--text-primary);
+}
+.vitreAlerte {
+  margin-top: var(--sp-1); padding: 6px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--tone-warning);
+  background: color-mix(in oklab, var(--tone-warning) 12%, transparent);
+  font-size: var(--fs-xs); color: var(--text-primary);
+}
+
 // ── Téléphone ──────────────────────────────────────────────────────────
 @media (max-width: 768px) {
   .bloc { padding: var(--sp-2); }
@@ -150,6 +196,8 @@
   .chip { min-height: 44px; padding: 10px 14px; font-size: var(--fs-sm); }
   .input { min-height: 44px; font-size: 1rem; } // 16px : empêche le zoom iOS
   .dioBtn { width: 100%; min-height: 44px; }
+  .compteurBtn { width: 44px; height: 44px; font-size: 1.125rem; }
+  .compteurVal { min-height: 44px; font-size: 1rem; width: 64px; }
   .ligne { gap: var(--sp-2); }
   .ligne > * { flex: 1 1 100%; }
   .conditionnel { margin-left: 0; padding-left: var(--sp-2); }

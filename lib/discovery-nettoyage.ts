@@ -96,8 +96,26 @@ export const VITRERIE_QUANTITE: Option[] = opt([
 ]);
 
 export const VITRERIE_ACCES: Option[] = opt([
-  ["normale", "Normale"],
-  ["vitrerie_acces_difficile", "Difficile"],
+  ["normale", "Classique"],
+  ["vitrerie_acces_difficile", "Difficile / en hauteur"],
+]);
+
+// Faces à nettoyer. Une seule réponse — le nettoyage des deux faces coûte
+// nécessairement plus cher qu'une seule (cahier du 2026-10-21, §4).
+export const VITRERIE_FACES: Option[] = opt([
+  ["interieur", "Intérieur"],
+  ["exterieur", "Extérieur"],
+  ["les_deux", "Intérieur + Extérieur"],
+]);
+
+// Matériau des encadrements. Le bois demande plus de soin, d'où sa
+// majoration ; le nettoyage des encadrements accessibles est compris (§5).
+export const VITRERIE_ENCADREMENT: Option[] = opt([
+  ["pvc", "PVC"],
+  ["bois", "Bois"],
+  ["alu", "Aluminium"],
+  ["mixte", "Mixte"],
+  ["nr", "Non renseigné"],
 ]);
 
 export const SOLS: Option[] = opt([

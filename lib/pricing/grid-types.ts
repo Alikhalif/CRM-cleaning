@@ -71,7 +71,11 @@ export type GridSection =
   | "postes" | "exterieur" | "exterieur_options" | "complements"
   | "majorations"
   // ── Sections de la bibliothèque tarifaire ───────────────────────────
-  | "base" | "minimums" | "coefficients" | "ratios" | "matrice_m3" | "kilometrique";
+  | "base" | "minimums" | "coefficients" | "ratios" | "matrice_m3" | "kilometrique"
+  // Supplément vitrerie : poids des vitrages, coefficients et paliers de
+  // majoration. Séparée des autres sections parce qu'elle ne s'additionne pas
+  // au prix — elle le majore, après coup (voir lib/pricing/vitrerie.ts).
+  | "vitrerie";
 
 export const SECTION_LABEL: Record<GridSection, string> = {
   volume: "Volume / surface",
@@ -94,6 +98,7 @@ export const SECTION_LABEL: Record<GridSection, string> = {
   ratios: "Ratios d'estimation",
   matrice_m3: "Matrice volume × distance",
   kilometrique: "Tarif kilométrique",
+  vitrerie: "Vitrerie — poids, coefficients et paliers",
 };
 
 // Sections à TRANCHES : une seule ligne s'applique, celle qui contient la
@@ -105,14 +110,14 @@ export const SECTIONS: GridSection[] = [
   "volume", "pieces", "distance", "floors", "access", "heavy",
   "demontage", "emballage", "materiel",
   "postes", "exterieur", "exterieur_options", "complements",
-  "majorations",
+  "majorations", "vitrerie",
 ];
 
 // Sections propres au mode « bibliothèque ». Elles n'apparaissent dans
 // l'éditeur que pour les grilles qui l'utilisent.
 export const SECTIONS_BIBLIOTHEQUE: GridSection[] = [
   "base", "minimums", "coefficients", "ratios", "matrice_m3", "kilometrique",
-  "postes", "complements", "floors", "access", "majorations",
+  "postes", "complements", "floors", "access", "majorations", "vitrerie",
 ];
 
 // Deux modes de calcul coexistent, par grille :
@@ -136,7 +141,7 @@ export const MODE_LABEL: Record<GridMode, string> = {
 // que les sections utiles à la famille de l'activité.
 const SECTIONS_NETTOYAGE: GridSection[] = [
   "volume", "pieces", "postes", "exterieur", "exterieur_options",
-  "complements", "floors", "access", "majorations",
+  "complements", "floors", "access", "majorations", "vitrerie",
 ];
 const SECTIONS_TRANSPORT: GridSection[] = [
   "volume", "distance", "floors", "access", "heavy",
@@ -146,16 +151,24 @@ const SECTIONS_TRANSPORT: GridSection[] = [
 export function sectionsFor(activitySlug: string, mode: GridMode = "fourchette"): GridSection[] {
   if (mode === "bibliotheque") {
     // Le déménagement est le seul à utiliser la matrice volume × distance.
-    if (activitySlug === "demenagement") return SECTIONS_BIBLIOTHEQUE;
+    if (activitySlug === "demenagement") {
+      return SECTIONS_BIBLIOTHEQUE.filter((x) => x !== "vitrerie");
+    }
     // Le transport se chiffre à l'objet et au kilomètre : il garde le tarif
     // kilométrique, mais pas la matrice volume × distance, qui suppose un
     // logement entier. Les postes de nettoyage ne le concernent pas.
     if (activitySlug === "transport") {
-      return SECTIONS_BIBLIOTHEQUE.filter((x) => x !== "matrice_m3" && x !== "postes");
+      return SECTIONS_BIBLIOTHEQUE.filter(
+        (x) => x !== "matrice_m3" && x !== "postes" && x !== "vitrerie",
+      );
     }
-    return SECTIONS_BIBLIOTHEQUE.filter((x) => x !== "matrice_m3" && x !== "kilometrique");
+    const net = estFamilleNettoyage(activitySlug);
+    return SECTIONS_BIBLIOTHEQUE.filter(
+      (x) => x !== "matrice_m3" && x !== "kilometrique" && (net || x !== "vitrerie"),
+    );
   }
   return estFamilleNettoyage(activitySlug) ? SECTIONS_NETTOYAGE : SECTIONS_TRANSPORT;
+  // (le mode « fourchette » : la vitrerie n'est proposée qu'au nettoyage)
 }
 
 export type Grid = Partial<Record<GridSection, GridLine[]>>;

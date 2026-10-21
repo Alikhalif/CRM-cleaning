@@ -24,6 +24,10 @@ import {
 } from "@/lib/discovery-metier";
 import { DELAI_SOUHAITE_LABEL, ETAT_SALETE_LABEL, type DelaiSouhaite, type EtatSalete } from "@/lib/leads";
 import { OPTIONS_TRANSPORT, TYPE_OBJET } from "@/lib/discovery-metier";
+import {
+  ACCES_LABEL, ENCADREMENT_LABEL, FACES_LABEL,
+  type Encadrement, type FacesVitres, type ResultatVitrerie,
+} from "./vitrerie";
 import type { GridInput, GridResultLine } from "./grid-compute";
 import { EMBALLAGE_VERS_GRILLE, OBJET_VERS_GRILLE } from "./grid-discovery";
 import type { GridSection } from "./grid-types";
@@ -94,11 +98,24 @@ const EXPLICATION: Record<GridSection, string> = {
   emballage: "Fourniture, emballage et protection du mobilier.",
   materiel: "Matériel et moyens mobilisés pour l'intervention.",
   majorations: "Contrainte de délai sur l'organisation de l'intervention.",
+  vitrerie: "Nombre et type de surfaces vitrées, faces à nettoyer et accès.",
 };
 
 // ── Types ───────────────────────────────────────────────────────────────
 export type PitchArg = { cle: string; titre: string; detail: string };
 export type Objection = { titre: string; reponse: string; precision: string | null };
+
+/** Bloc « Nettoyage des vitres » du pop-up existant (§14). */
+export type PitchVitrerie = {
+  faces: string;
+  vitrages: string[];
+  encadrements: string;
+  accessibilite: string;
+  majoration: string;
+  argument: string;
+  /** Validation tarifaire ou technique à demander. */
+  alertes: string[];
+};
 
 export type Pitch = {
   /** 3 à 5 arguments essentiels, les plus influents d'abord. */
@@ -110,10 +127,14 @@ export type Pitch = {
   closing: string;
   /** Réserves du moteur (approximations, éléments non captés). */
   reserves: string[];
+  /** Présent uniquement si des vitrages ont été saisis. */
+  vitrerie: PitchVitrerie | null;
 };
 
 export type PitchContext = {
   sector: string;
+  /** Supplément vitrerie calculé par le moteur, s'il y en a un. */
+  vitrerie?: ResultatVitrerie | null;
   conseille: number;
   min: number;
   max: number;
@@ -321,6 +342,36 @@ function titreLigne(l: GridResultLine, c: PitchContext, f: Famille): string {
 }
 
 // ── Construction de l'argumentaire ──────────────────────────────────────
+/**
+ * Bloc vitrerie de l'argumentaire.
+ *
+ * Il ne reprend QUE ce qui a été saisi : pas de ligne « Encadrements : non
+ * renseigné » qui n'apprendrait rien au client et affaiblirait l'annonce.
+ */
+function pitchVitrerie(c: PitchContext): PitchVitrerie | null {
+  const v = c.vitrerie;
+  if (!v) return null;
+  const d = c.details ?? {};
+  const faces = (str(d.vitrerieFaces) || "interieur") as FacesVitres;
+  const cadre = str(d.vitrerieEncadrement) as Encadrement;
+  const acces = str(d.vitrerieAcces) === "vitrerie_acces_difficile" ? "difficile" : "classique";
+
+  return {
+    faces: FACES_LABEL[faces] ?? FACES_LABEL.interieur,
+    vitrages: v.detail.map((x) => `${x.quantite} ${x.libelle.toLowerCase()}`),
+    encadrements: cadre && ENCADREMENT_LABEL[cadre] ? ENCADREMENT_LABEL[cadre] : "Non renseigné",
+    accessibilite: ACCES_LABEL[acces],
+    majoration: `+${Math.round(v.pct)} %`,
+    argument:
+      "Le tarif comprend également le nettoyage des vitrages sur leurs faces "
+      + (faces === "les_deux" ? "intérieures et extérieures" : FACES_LABEL[faces].toLowerCase())
+      + ", ainsi que les encadrements accessibles. Le supplément tient compte du "
+      + "nombre de surfaces vitrées, de leurs dimensions et du temps de travail "
+      + "supplémentaire nécessaire.",
+    alertes: v.alertes,
+  };
+}
+
 export function buildPitch(c: PitchContext): Pitch {
   const f = familleOf(c.sector);
   const prix = montantLabel(c.conseille, c.vatRate);
@@ -437,5 +488,9 @@ export function buildPitch(c: PitchContext): Pitch {
     closing = `« Vous souhaitez une intervention le ${dateFr(c.wantedDate)} : je vous envoie le devis maintenant pour que nous puissions réserver ce créneau. »`;
   }
 
-  return { arguments: principaux, autres, annonce, objections, closing, reserves: c.reserves };
+  return {
+    arguments: principaux, autres, annonce, objections, closing,
+    reserves: c.reserves,
+    vitrerie: pitchVitrerie(c),
+  };
 }

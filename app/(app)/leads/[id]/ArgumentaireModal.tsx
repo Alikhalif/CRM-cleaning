@@ -84,6 +84,42 @@ export default function ArgumentaireModal({ pitch, conseille, min, max, vatRate,
             )}
           </section>
 
+          {/* Vitrerie — dans CETTE fenêtre, pas dans une nouvelle (§14). Le
+              bloc n'apparaît que si des vitrages ont été saisis. */}
+          {pitch.vitrerie && (
+            <section className={styles.bloc}>
+              <h3 className={styles.h3}>🪟 Nettoyage des vitres</h3>
+              <ul className={styles.args}>
+                <li>
+                  <strong>Type de prestation</strong>
+                  <span>{pitch.vitrerie.faces}</span>
+                </li>
+                {pitch.vitrerie.vitrages.length > 0 && (
+                  <li>
+                    <strong>Vitrages concernés</strong>
+                    <span>{pitch.vitrerie.vitrages.join(" · ")}</span>
+                  </li>
+                )}
+                <li>
+                  <strong>Encadrements</strong>
+                  <span>{pitch.vitrerie.encadrements}</span>
+                </li>
+                <li>
+                  <strong>Accessibilité</strong>
+                  <span>{pitch.vitrerie.accessibilite}</span>
+                </li>
+                <li>
+                  <strong>Majoration vitrerie</strong>
+                  <span>{pitch.vitrerie.majoration}</span>
+                </li>
+              </ul>
+              <p className={styles.script}>{pitch.vitrerie.argument}</p>
+              {pitch.vitrerie.alertes.map((al) => (
+                <p key={al} className={styles.precision}>⚠️ {al}</p>
+              ))}
+            </section>
+          )}
+
           <section className={styles.bloc}>
             <h3 className={styles.h3}>💬 Comment annoncer le prix ?</h3>
             <p className={styles.script}>{pitch.annonce}</p>
