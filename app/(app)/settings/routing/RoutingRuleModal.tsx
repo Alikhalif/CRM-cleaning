@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Icon from "@/components/Icon/Icon";
 import type { Commercial } from "@/lib/leads";
+import { SECTORS, SECTOR_LABEL } from "@/lib/leads";
 import { createRule, updateRule, type RuleInput } from "./actions";
 import styles from "@/app/(app)/planification/PlanifyDossierModal.module.scss";
 
@@ -200,14 +201,11 @@ export default function RoutingRuleModal({ existing, commerciaux, onClose, onDon
                 <span className={styles.label}>Secteur</span>
                 <select value={v.sector} onChange={(e) => set("sector", e.target.value as RuleInput["sector"])} className={styles.input}>
                   <option value="">Indifférent</option>
-                  <option value="urgence">Urgence</option>
-                  <option value="nettoyage">Nettoyage</option>
-                  <option value="nettoyage_difficile">Nettoyage difficile</option>
-                  <option value="enr">ENR</option>
-                  <option value="renovation">Rénovation</option>
-                  <option value="debarras">Débarras</option>
-                  <option value="demenagement">Déménagement</option>
-                  <option value="diogene">Diogène</option>
+                  {/* Dérivé de la liste de référence : une nouvelle activité
+                      apparaît ici sans qu'on ait à y penser. */}
+                  {SECTORS.map((s) => (
+                    <option key={s} value={s}>{SECTOR_LABEL[s]}</option>
+                  ))}
                 </select>
               </label>
               <label className={styles.field}>

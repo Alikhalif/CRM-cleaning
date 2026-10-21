@@ -18,7 +18,7 @@ export const DEFAULT_PERFORMANT_THRESHOLD = 100;
 // combinaisons sont partagées (ex. Famille-nettoyage → Appel entrant OU Divers).
 // Règles :
 //   • Diogène                          → diogene
-//   • Débarras / Déménagement          → debarras_demenagement
+//   • Débarras / Déménagement / Transport → debarras_demenagement
 //   • Nettoyage difficile              → performant
 //   • Nettoyage (+ hérités) urgent     → performant
 //   • Nettoyage (+ hérités) surf>seuil → performant
@@ -27,7 +27,9 @@ export const DEFAULT_PERFORMANT_THRESHOLD = 100;
 export function targetProfiles(input: ProfileRoutingInput, threshold: number): string[] {
   const s = input.sectorSlug;
   if (s === "diogene") return ["diogene"];
-  if (s === "debarras" || s === "demenagement") return ["debarras_demenagement"];
+  if (s === "debarras" || s === "demenagement" || s === "transport") {
+    return ["debarras_demenagement"];
+  }
   if (s === "nettoyage_difficile") return ["performant"];
 
   // Famille "nettoyage" (nettoyage + secteurs hérités urgence/enr/renovation).

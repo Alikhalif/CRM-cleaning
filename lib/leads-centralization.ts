@@ -27,7 +27,8 @@ const NETTOYAGE_SECTORS = new Set<string>([
   "diogene",
   "debarras",
 ]);
-const DEMENAGEMENT_SECTORS = new Set<string>(["demenagement"]);
+// Le transport rejoint la boîte déménagement : même pôle, même équipe.
+const DEMENAGEMENT_SECTORS = new Set<string>(["demenagement", "transport"]);
 
 function centralAddressFor(sector: string): string | null {
   if (DEMENAGEMENT_SECTORS.has(sector)) {

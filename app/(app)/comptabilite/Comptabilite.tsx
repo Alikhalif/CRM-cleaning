@@ -19,6 +19,7 @@ import {
   type Sector,
   type Source,
   type Technician,
+  SECTORS,
 } from "@/lib/leads";
 import { computeAccountingKpis, type DocumentWithContext } from "@/lib/documents-shared";
 import { duplicateDocument } from "../_shared/document-actions";
@@ -38,7 +39,6 @@ const FACTURE_STATUSES: FactureStatus[] = ["brouillon", "envoye", "paye", "retar
 
 // Filter dropdown enumerations — sectors + sources are hard-coded enums in
 // leads.ts so no DB fetch needed for those two.
-const SECTORS: Sector[] = ["urgence", "nettoyage", "nettoyage_difficile", "enr", "renovation", "debarras", "demenagement", "diogene"];
 const SOURCES: Source[] = ["google-ads", "meta-ads", "site-web", "telephone", "recommandation"];
 
 const DATE = new Intl.DateTimeFormat("fr-FR", {

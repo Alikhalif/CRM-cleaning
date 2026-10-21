@@ -28,6 +28,7 @@ import DebarrasFields from "./DebarrasFields";
 import NettoyageFields from "./NettoyageFields";
 import { estFamilleNettoyage } from "@/lib/discovery-nettoyage";
 import DemenagementFields from "./DemenagementFields";
+import TransportFields from "./TransportFields";
 import ArgumentaireModal from "./ArgumentaireModal";
 import { computeGrid } from "@/lib/pricing/grid-compute";
 import { buildGridInput } from "@/lib/pricing/grid-discovery";
@@ -67,7 +68,11 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
 
   const isDebarras = lead.sector === "debarras";
   const isDemenagement = lead.sector === "demenagement";
-  const isNettoyage = !isDebarras && !isDemenagement;
+  const isTransport = lead.sector === "transport";
+  // Les trois métiers du pôle « enlèvement » partagent le même sélecteur de
+  // prestation : un appel bascule souvent de l'un à l'autre en cours de route.
+  const isEnlevement = isDebarras || isDemenagement || isTransport;
+  const isNettoyage = !isEnlevement;
   // Questionnaire nettoyage détaillé : nettoyage, nettoyage difficile, urgence
   // et Diogène. ENR et Rénovation gardent la découverte générique — poser des
   // panneaux n'a rien à voir avec nettoyer un logement.
@@ -267,7 +272,13 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
     return () => clearTimeout(t);
   }, [payloadJson, leadId]);
 
-  const sectorLabel = isDebarras ? "Débarras" : isDemenagement ? "Déménagement" : "Nettoyage";
+  const sectorLabel = isDebarras
+    ? "Débarras"
+    : isDemenagement
+      ? "Déménagement"
+      : isTransport
+        ? "Transport"
+        : "Nettoyage";
 
   return (
     <section className={styles.card}>
@@ -287,12 +298,17 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
         )}
       </header>
 
-      {/* ── Sélecteur du type de prestation (métier débarras/déménagement) ── */}
-      {(isDebarras || isDemenagement) && (
+      {/* ── Sélecteur du type de prestation (débarras / déménagement / transport) ── */}
+      {isEnlevement && (
         <div style={{ marginBottom: 12 }}>
           <span style={lbl}>Type de prestation</span>
-          <div style={{ display: "flex", gap: 6 }}>
-            {([["debarras", "Débarras"], ["demenagement", "Déménagement"]] as const).map(([slug, label]) => {
+          {/* `wrap` : trois boutons ne tiennent pas sur une ligne de téléphone. */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {([
+              ["debarras", "Débarras"],
+              ["demenagement", "Déménagement"],
+              ["transport", "Transport"],
+            ] as const).map(([slug, label]) => {
               const active = lead.sector === slug;
               return (
                 <button
@@ -301,7 +317,8 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
                   disabled={busy !== null}
                   onClick={() => { if (!active) run(`act-${slug}`, () => setLeadActivity(leadId, slug)); }}
                   style={{
-                    flex: 1, padding: "8px 10px", borderRadius: "var(--r-sm)", cursor: active ? "default" : "pointer",
+                    flex: "1 1 30%", minWidth: 96, minHeight: 44,
+                    padding: "8px 10px", borderRadius: "var(--r-sm)", cursor: active ? "default" : "pointer",
                     fontWeight: 600, fontSize: "0.875rem",
                     border: active ? "1px solid var(--color-brand-500)" : "1px solid var(--border-strong)",
                     background: active ? "var(--color-brand-500)" : "transparent",
@@ -320,6 +337,9 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
       {isDebarras && <DebarrasFields details={details} set={setDetail} />}
       {isDemenagement && (
         <DemenagementFields details={details} set={setDetail} pays={lead.country ?? null} />
+      )}
+      {isTransport && (
+        <TransportFields details={details} set={setDetail} pays={lead.country ?? null} />
       )}
       {isFamilleNet && (
         <NettoyageFields
@@ -342,7 +362,7 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
 
       {/* ── Champs communs à toutes les activités ───────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 10 }}>
-        {!isDemenagement && !isFamilleNet && (
+        {!isDemenagement && !isTransport && !isFamilleNet && (
           <label>
             <span style={lbl}>{isDebarras ? "Surface approximative (m²)" : "Surface (m²)"}</span>
             <input type="number" min={0} step="0.01" inputMode="decimal" value={surface} onChange={(e) => setSurface(e.target.value)} placeholder="—" style={field} />

@@ -1,5 +1,6 @@
 "use server";
 
+import type { Sector } from "@/lib/leads";
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
@@ -15,7 +16,7 @@ export type RuleInput = {
   // Conditions
   surfaceM2Gte: number | null;
   surfaceM2Lt: number | null;
-  sector: "" | "urgence" | "nettoyage" | "nettoyage_difficile" | "enr" | "renovation" | "debarras" | "demenagement" | "diogene";
+  sector: "" | Sector;
   source: "" | "google_ads" | "meta_ads" | "site_web" | "telephone" | "recommandation";
   clientIsPremium: "any" | "true" | "false";
   demandeIsExtreme: "any" | "true" | "false";

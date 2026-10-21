@@ -24,8 +24,14 @@ import type { Grid, GridLine, PricingGrid, QuantiteSource, Unite } from "./grid-
 
 // Arrondi à la dizaine SUPÉRIEURE (§10). Volontairement différent de l'arrondi
 // commercial du mode d'origine, qui arrondit au plus proche.
-export const arrondirSup = (n: number, pas: number): number =>
-  pas > 0 ? Math.ceil(n / pas) * pas : Math.ceil(n);
+export const arrondirSup = (n: number, pas: number): number => {
+  // Le quotient est recadré avant l'arrondi supérieur. Sans cela, l'erreur de
+  // la virgule flottante fait franchir le palier : 3000 x 1,1 vaut
+  // 3300.0000000000005 en JavaScript, et la fourchette d'un prix conseille de
+  // 3000 EUR s'affichait « 2 700 - 3 310 EUR » au lieu de « 2 700 - 3 300 ».
+  if (pas <= 0) return Math.ceil(Math.round(n * 1e6) / 1e6);
+  return Math.ceil(Math.round((n / pas) * 1e9) / 1e9) * pas;
+};
 
 /**
  * Quantité disponible pour une source donnée, ou null si non renseignée.
@@ -48,13 +54,16 @@ function quantite(
     case "etages": return (input.floorsDepart ?? 0) + (input.floorsArrivee ?? 0) || null;
     case "unites": return q.unites ?? null;
     case "vitrerie": return q.vitrerie ?? null;
+    case "poids": return q.poids ?? null;
     case "heures": return q.heures ?? null;
     case "volume":
     case "surface": return input.quantity ?? null;
     default:
       // Aucune source déclarée : on n'accepte le repli que pour les unités de
       // mesure qui correspondent effectivement à la quantité principale.
-      return unite === "u" || unite === "h" ? null : input.quantity ?? null;
+      return unite === "u" || unite === "h" || unite === "kg"
+        ? null
+        : input.quantity ?? null;
   }
 }
 
@@ -148,6 +157,31 @@ export function computeBibliotheque(g: PricingGrid, input: GridInput): GridResul
           assumptions.push("formule non renseignée — « standard » retenue");
         }
         lines.push(ligneRes("matrice_m3", ligne, (ligne.prixUnitaire ?? 0) * travail.quantity));
+      }
+    }
+  }
+
+  // ── 5 ter. Tarif kilométrique, facturé à part ─────────────────────────
+  // Une grille qui PORTE une matrice y a déjà modélisé la distance : sa ligne
+  // kilométrique n'est qu'un contrôle de cohérence et ne doit jamais être
+  // facturée (c'est le cas du déménagement). On ne facture le trajet que
+  // lorsque la grille n'a pas de matrice du tout — la voie du transport, qui
+  // se chiffre à l'objet puis au kilomètre.
+  const bandesKm = matrice.length === 0 ? grid.kilometrique ?? [] : [];
+  if (bandesKm.length > 0) {
+    const km = travail.distanceKm;
+    if (km == null || km <= 0) {
+      assumptions.push("distance non renseignée — trajet non facturé");
+    } else {
+      const bande = bandesKm.find(
+        (l) => km >= (l.from ?? 0) && km <= (l.to ?? Number.POSITIVE_INFINITY),
+      );
+      if (!bande) {
+        assumptions.push(`aucune tranche kilométrique ne couvre ${km} km`);
+      } else if (bande.custom) {
+        custom.push(bande.label);
+      } else if ((bande.prixUnitaire ?? 0) > 0) {
+        lines.push(ligneRes("kilometrique", bande, bande.prixUnitaire! * km));
       }
     }
   }

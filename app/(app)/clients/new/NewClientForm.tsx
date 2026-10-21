@@ -9,11 +9,11 @@ import {
   SECTOR_VAR,
   type ClientType,
   type Sector,
+  SECTORS,
 } from "@/lib/leads";
 import { createDirectClient } from "./actions";
 import styles from "./NewClient.module.scss";
 
-const SECTORS: Sector[] = ["urgence", "nettoyage", "nettoyage_difficile", "enr", "renovation", "debarras", "demenagement", "diogene"];
 
 export default function NewClientForm() {
   const router = useRouter();

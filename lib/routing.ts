@@ -1,3 +1,4 @@
+import type { Sector } from "@/lib/leads";
 import "server-only";
 import { supabaseServiceRole } from "./supabase/service";
 import { DEFAULT_PERFORMANT_THRESHOLD, targetProfiles } from "./routing-shared";
@@ -14,7 +15,7 @@ import { DEFAULT_PERFORMANT_THRESHOLD, targetProfiles } from "./routing-shared";
 
 export type RoutingInput = {
   surfaceM2: number | null;
-  sectorSlug: "urgence" | "nettoyage" | "nettoyage_difficile" | "enr" | "renovation" | "debarras" | "demenagement" | "diogene";
+  sectorSlug: Sector;
   sourceSlug: string;
   clientIsPremium: boolean;
   estimatedAmount: number | null;

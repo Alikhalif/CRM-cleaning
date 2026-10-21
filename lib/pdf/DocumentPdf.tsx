@@ -25,6 +25,7 @@ const SECTOR_ACCENT: Record<Sector, string> = {
   renovation: "#f59e0b",
   debarras: "#8b5cf6",
   demenagement: "#ec4899",
+  transport: "#84cc16",
   diogene: "#0d9488",
 };
 
@@ -36,10 +37,11 @@ const SECTOR_TAGLINE: Record<Sector, string> = {
   renovation: "Rénovation du bâtiment",
   debarras: "Débarras & évacuation",
   demenagement: "Déménagement",
+  transport: "Transport d'objets et de marchandises",
   diogene: "Nettoyage extrême · Diogène",
 };
 
-const BOLD_SECTORS = new Set<Sector>(["demenagement", "diogene", "debarras"]);
+const BOLD_SECTORS = new Set<Sector>(["demenagement", "diogene", "debarras", "transport"]);
 
 // hex #rrggbb + alpha → rgba() string (react-pdf accepts rgba()).
 function rgba(hex: string, a: number): string {
@@ -157,7 +159,7 @@ const DATE_FMT = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long
 
 type Props = { detail: DocumentDetail };
 
-const LOGISTIQUE = new Set<Sector>(["demenagement", "diogene", "debarras"]);
+const LOGISTIQUE = new Set<Sector>(["demenagement", "diogene", "debarras", "transport"]);
 
 export default function DocumentPdf({ detail }: Props) {
   const { doc, entity, lead } = detail;

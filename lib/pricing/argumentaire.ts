@@ -23,6 +23,7 @@ import {
   ACCES, EMBALLAGE, ENCOMBREMENT, OBJETS_SPECIFIQUES, labelOf,
 } from "@/lib/discovery-metier";
 import { DELAI_SOUHAITE_LABEL, ETAT_SALETE_LABEL, type DelaiSouhaite, type EtatSalete } from "@/lib/leads";
+import { OPTIONS_TRANSPORT, TYPE_OBJET } from "@/lib/discovery-metier";
 import type { GridInput, GridResultLine } from "./grid-compute";
 import { EMBALLAGE_VERS_GRILLE, OBJET_VERS_GRILLE } from "./grid-discovery";
 import type { GridSection } from "./grid-types";
@@ -30,13 +31,16 @@ import type { GridSection } from "./grid-types";
 // ── Familles de prestation ──────────────────────────────────────────────
 // Le discours s'adapte à la famille, pas à chacune des huit activités : un
 // nettoyage difficile et un nettoyage classique se défendent de la même façon.
-// Le TRANSPORT n'est pas une activité du CRM : il est couvert par la famille
-// déménagement, où la distance devient l'argument dominant quand elle pèse.
-export type Famille = "nettoyage" | "desinfection" | "debarras" | "demenagement" | "urgence" | "travaux";
+// Le transport a sa propre famille depuis le 2026-10-21 : il se défend sur
+// l'objet confié et le trajet, pas sur un volume de logement.
+export type Famille =
+  | "nettoyage" | "desinfection" | "debarras" | "demenagement" | "transport"
+  | "urgence" | "travaux";
 
 export function familleOf(sector: string): Famille {
   switch (sector) {
     case "demenagement": return "demenagement";
+    case "transport": return "transport";
     case "debarras": return "debarras";
     case "diogene": return "desinfection";
     case "urgence": return "urgence";
@@ -51,6 +55,7 @@ const PRESTATION: Record<Famille, string> = {
   desinfection: "une intervention de décontamination",
   debarras: "un débarras",
   demenagement: "un déménagement",
+  transport: "un transport",
   urgence: "un dépannage",
   travaux: "une intervention",
 };
@@ -61,6 +66,7 @@ const QUANTITE: Record<Famille, { libelle: string; unite: string; detail: string
   desinfection: { libelle: "Surface", unite: "m²", detail: "Surface à traiter et à décontaminer." },
   debarras: { libelle: "Volume", unite: "m³", detail: "Volume à évacuer et à traiter." },
   demenagement: { libelle: "Volume", unite: "m³", detail: "Volume à charger, transporter et livrer." },
+  transport: { libelle: "Volume", unite: "m³", detail: "Encombrement des objets à charger, transporter et livrer." },
   urgence: { libelle: "Surface", unite: "m²", detail: "Étendue de la zone à traiter." },
   travaux: { libelle: "Surface", unite: "m²", detail: "Surface concernée par les travaux." },
 };
@@ -194,6 +200,45 @@ function faitsDecouverte(c: PitchContext, f: Famille, etagesChiffres: Set<string
         cle: `acces-${acces}`,
         titre: labelOf(ACCES, acces),
         detail: EXPLICATION.access,
+      });
+    }
+  }
+
+  if (f === "transport") {
+    const type = str(d.typeObjet);
+    if (type) {
+      out.push({
+        cle: `objet-${type}`,
+        titre: labelOf(TYPE_OBJET, type),
+        detail: "Nature de l'objet confié, qui détermine le matériel et la manutention.",
+      });
+    }
+    const poids = Number(d.poidsKg);
+    if (Number.isFinite(poids) && poids > 0) {
+      out.push({
+        cle: "poids",
+        titre: `${poids} kg à charger et à livrer`,
+        detail: "Poids total, qui détermine le véhicule et la taille de l'équipage.",
+      });
+    }
+    for (const [n, ou] of [[c.input.floorsDepart, "enlèvement"], [c.input.floorsArrivee, "livraison"]] as const) {
+      if (n > 0 && !etagesChiffres.has(ou)) {
+        out.push({
+          cle: `etages-${ou}`,
+          titre: `${n}${n === 1 ? "er" : "e"} étage sans ascenseur (${ou})`,
+          detail: EXPLICATION.floors,
+        });
+      }
+    }
+    const coches = Array.isArray(d.optionsTransport) ? d.optionsTransport.map(String) : [];
+    for (const o of coches) {
+      if (o === "urgence") continue; // porté par la majoration de délai
+      out.push({
+        // La clé est celle de la GRILLE : si l'option est déjà chiffrée, le
+        // fait est écarté au lieu d'être répété sous un autre libellé.
+        cle: o,
+        titre: labelOf(OPTIONS_TRANSPORT, o),
+        detail: EXPLICATION.heavy,
       });
     }
   }

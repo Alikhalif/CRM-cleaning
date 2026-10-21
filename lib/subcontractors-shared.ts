@@ -72,7 +72,7 @@ export function computeConformity(docs: ConformityDocInput[], now: Date = new Da
 
   const assuranceDoc = docs.find((d) => d.docType === "assurance_decennale");
   let assurance: InsuranceStatus = "manquante";
-  let assuranceEndDate: string | null | undefined = assuranceDoc?.endDate ?? null;
+  const assuranceEndDate: string | null | undefined = assuranceDoc?.endDate ?? null;
   let daysToInsuranceExpiry: number | null = null;
   if (assuranceDoc) {
     if (assuranceDoc.endDate) {

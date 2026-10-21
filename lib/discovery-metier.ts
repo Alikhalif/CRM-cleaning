@@ -42,6 +42,38 @@ export const ACCES: Option[] = opt([
   ["stationnement_facile", "Stationnement facile"], ["stationnement_difficile", "Stationnement difficile"],
 ]);
 
+// ── Transport ─────────────────────────────────────────────────────────
+// Le transport déplace des OBJETS désignés, là où le déménagement vide un
+// logement entier. D'où un inventaire d'objets plutôt qu'un volume global,
+// et un poids — déterminant pour le véhicule et l'équipage.
+export const TYPE_OBJET: Option[] = opt([
+  ["mobilier", "Mobilier"],
+  ["electromenager", "Électroménager"],
+  ["piano", "Piano"],
+  ["coffre_fort", "Coffre-fort"],
+  ["oeuvre_art", "Œuvre d'art"],
+  ["materiel_pro", "Matériel professionnel"],
+  ["marchandise", "Marchandise / palette"],
+  ["materiaux", "Matériaux de chantier"],
+  ["vehicule", "Véhicule / deux-roues"],
+  ["colis", "Cartons / colis"],
+  ["autre", "Autre"],
+]);
+
+// Cases à cocher de la découverte Transport. Chaque clé est aussi la clé de
+// ligne attendue dans la grille tarifaire Transport : ce que le commercial
+// coche est exactement ce que le moteur cherche à chiffrer.
+export const OPTIONS_TRANSPORT: Option[] = opt([
+  ["fragile", "Objet fragile"],
+  ["lourd", "Objet lourd"],
+  ["volumineux", "Objet volumineux"],
+  ["manutention", "Manutention particulière"],
+  ["demontage", "Démontage"],
+  ["remontage", "Remontage"],
+  ["protection", "Protection / emballage"],
+  ["urgence", "Urgence"],
+]);
+
 // ── Déménagement ──────────────────────────────────────────────────────
 export const LOGEMENT_TYPE: Option[] = opt([
   ["appartement", "Appartement"], ["maison", "Maison"], ["bureau", "Bureau"],

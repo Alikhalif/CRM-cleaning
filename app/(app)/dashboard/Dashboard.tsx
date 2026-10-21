@@ -11,6 +11,7 @@ import {
   formatKEUR,
   type Commercial,
   type Sector,
+  SECTORS,
 } from "@/lib/leads";
 import {
   aggregateByDay,
@@ -38,7 +39,6 @@ import styles from "./Dashboard.module.scss";
 // Périodes partagées avec le filtre global de la Topbar (source unique).
 const PERIODS = DASHBOARD_PERIODS;
 
-const SECTORS: Sector[] = ["urgence", "nettoyage", "nettoyage_difficile", "enr", "renovation", "debarras", "demenagement", "diogene"];
 const CHANNELS: Channel[] = ["mano", "auto"];
 
 type Props = {

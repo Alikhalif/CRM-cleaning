@@ -106,6 +106,7 @@ function mapDocumentBase(row: DocumentRowJoined): CrmDocument {
 const PAYMENT_TERM_BY_SECTOR: Record<Sector, PaymentTermSlug> = {
   debarras: "comptant",
   demenagement: "comptant",
+  transport: "comptant",
   diogene: "comptant",
   urgence: "comptant",
   nettoyage: "30j",
@@ -228,6 +229,7 @@ export async function getAllEntities(): Promise<LegalEntity[]> {
 const VAT_BY_SECTOR: Record<Sector, number> = {
   debarras: 20,
   demenagement: 20,
+  transport: 20,
   diogene: 20,
   urgence: 20,
   nettoyage: 20,

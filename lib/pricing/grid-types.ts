@@ -15,7 +15,7 @@ import { estFamilleNettoyage } from "@/lib/discovery-nettoyage";
 // sur SA surface, une désinfection partielle sur la sienne.
 export type QuantiteSource =
   | "surface" | "volume" | "exterieur" | "distance" | "desinfection" | "etages"
-  | "unites" | "heures" | "vitrerie";
+  | "unites" | "heures" | "vitrerie" | "poids";
 
 export const QUANTITE_LABEL: Record<QuantiteSource, string> = {
   surface: "Surface intérieure",
@@ -27,12 +27,13 @@ export const QUANTITE_LABEL: Record<QuantiteSource, string> = {
   unites: "Nombre d'unités (volets, pièces…)",
   heures: "Nombre d'heures",
   vitrerie: "Surface de vitrage",
+  poids: "Poids total",
 };
 
-export type Unite = "m2" | "m3" | "km" | "h" | "u";
+export type Unite = "m2" | "m3" | "km" | "h" | "u" | "kg";
 
 export const UNITE_LABEL: Record<Unite, string> = {
-  m2: "€/m²", m3: "€/m³", km: "€/km", h: "€/heure", u: "€/unité",
+  m2: "€/m²", m3: "€/m³", km: "€/km", h: "€/heure", u: "€/unité", kg: "€/kg",
 };
 
 export type GridLine = {
@@ -144,11 +145,15 @@ const SECTIONS_TRANSPORT: GridSection[] = [
 
 export function sectionsFor(activitySlug: string, mode: GridMode = "fourchette"): GridSection[] {
   if (mode === "bibliotheque") {
-    // Le déménagement est le seul à utiliser la matrice volume × distance et
-    // le tarif kilométrique ; inutile de les proposer ailleurs.
-    return activitySlug === "demenagement"
-      ? SECTIONS_BIBLIOTHEQUE
-      : SECTIONS_BIBLIOTHEQUE.filter((x) => x !== "matrice_m3" && x !== "kilometrique");
+    // Le déménagement est le seul à utiliser la matrice volume × distance.
+    if (activitySlug === "demenagement") return SECTIONS_BIBLIOTHEQUE;
+    // Le transport se chiffre à l'objet et au kilomètre : il garde le tarif
+    // kilométrique, mais pas la matrice volume × distance, qui suppose un
+    // logement entier. Les postes de nettoyage ne le concernent pas.
+    if (activitySlug === "transport") {
+      return SECTIONS_BIBLIOTHEQUE.filter((x) => x !== "matrice_m3" && x !== "postes");
+    }
+    return SECTIONS_BIBLIOTHEQUE.filter((x) => x !== "matrice_m3" && x !== "kilometrique");
   }
   return estFamilleNettoyage(activitySlug) ? SECTIONS_NETTOYAGE : SECTIONS_TRANSPORT;
 }

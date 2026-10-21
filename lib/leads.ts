@@ -10,6 +10,7 @@ export type Sector =
   | "renovation"
   | "debarras"
   | "demenagement"
+  | "transport"
   | "diogene";
 
 // Pays d'opération (CDC §6/§9). Le CRM couvre 4 pays.
@@ -49,7 +50,7 @@ export const COMMERCIAL_PROFILE_LABEL: Record<CommercialProfile, string> = {
   appel_entrant: "Appel entrant",
   emission_appel: "Émission d'appels",
   divers: "Divers",
-  debarras_demenagement: "Débarras / Déménagement",
+  debarras_demenagement: "Débarras / Déménagement / Transport",
   diogene: "Diogène",
   performant: "Performant",
   en_attente: "En attente",
@@ -477,6 +478,7 @@ export const DEFAULT_ACOMPTE_PCT: Record<Sector, number> = {
   renovation: 40,
   debarras: 30,
   demenagement: 30,
+  transport: 30,
   diogene: 30,
 };
 
@@ -488,6 +490,7 @@ export const DEFAULT_PAYMENT_TERM: Record<Sector, PaymentTermSlug> = {
   renovation: "45j",
   debarras: "comptant",
   demenagement: "comptant",
+  transport: "comptant",
   diogene: "comptant",
 };
 
@@ -675,6 +678,7 @@ export const SECTOR_LABEL: Record<Sector, string> = {
   renovation: "Rénovation",
   debarras: "Débarras",
   demenagement: "Déménagement",
+  transport: "Transport",
   diogene: "Diogène",
 };
 
@@ -687,6 +691,7 @@ export const SECTORS: Sector[] = [
   "renovation",
   "debarras",
   "demenagement",
+  "transport",
   "diogene",
 ];
 
@@ -747,6 +752,7 @@ export const SECTOR_VAR: Record<Sector, string> = {
   renovation: "--sector-renovation",
   debarras: "--sector-debarras",
   demenagement: "--sector-demenagement",
+  transport: "--sector-transport",
   diogene: "--sector-diogene",
 };
 

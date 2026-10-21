@@ -1,3 +1,4 @@
+import { SECTORS } from "@/lib/leads";
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { supabaseServiceRole } from "@/lib/supabase/service";
@@ -80,7 +81,9 @@ function corsJson(body: unknown, status: number): NextResponse {
   return NextResponse.json(body, { status, headers: CORS_HEADERS });
 }
 
-const ALLOWED_ACTIVITIES = ["urgence", "nettoyage", "nettoyage_difficile", "enr", "renovation", "debarras", "demenagement", "diogene"] as const;
+// Dérivé de la liste de référence : une nouvelle activité est acceptée dès
+// qu'elle existe dans le CRM, sans quoi ses leads seraient rejetés en 400.
+const ALLOWED_ACTIVITIES = SECTORS;
 const ALLOWED_SOURCES = ["google_ads", "meta_ads", "site_web", "telephone", "recommandation"] as const;
 type ActivitySlug = (typeof ALLOWED_ACTIVITIES)[number];
 type SourceSlug = (typeof ALLOWED_SOURCES)[number];

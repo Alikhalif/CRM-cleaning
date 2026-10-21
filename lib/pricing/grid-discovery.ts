@@ -213,7 +213,12 @@ export function buildGridInput(d: GridDiscovery): { input: GridInput; approx: bo
   // Diogène appartient à la famille nettoyage : sa découverte saisit une
   // SURFACE ; le volume à évacuer est une option à part (dio_vol_*).
   let quantity: number | null = null;
-  if (d.sector === "demenagement" || d.sector === "debarras") {
+  if (d.sector === "transport") {
+    // Le transport saisit son volume directement en m³ : c'est un inventaire
+    // d'objets, pas une tranche de logement.
+    const v = num(det.volumeM3);
+    quantity = v > 0 ? v : null;
+  } else if (d.sector === "demenagement" || d.sector === "debarras") {
     const v = parseVolume(det.volume);
     quantity = v.value;
     approx = v.approx;
@@ -262,6 +267,33 @@ export function buildGridInput(d: GridDiscovery): { input: GridInput; approx: bo
     // Ni la formule (économique / standard / confort) : le moteur retient
     // « standard » et le signale, plutôt que de supposer un choix client.
     nonCaptes.push("la formule de déménagement (économique / standard / confort)");
+  } else if (d.sector === "transport") {
+    // Seuls les étages SANS ascenseur comptent, ici comme ailleurs.
+    if (str(det.ascenseurEnlevement) === "non") floorsDepart = num(det.etageEnlevement);
+    if (str(det.ascenseurLivraison) === "non") floorsArrivee = num(det.etageLivraison);
+    if (floorsDepart + floorsArrivee > 0) options.push("etage_sans_ascenseur");
+
+    const coches = Array.isArray(det.optionsTransport) ? det.optionsTransport.map(String) : [];
+    for (const o of coches) {
+      // L'urgence est une MAJORATION partout ailleurs dans le CRM. La traiter
+      // ici comme une option la facturerait deux fois.
+      if (o === "urgence") majorations.push("urgent_48h");
+      else options.push(o);
+    }
+
+    for (const a of [str(det.accesEnlevement), str(det.accesLivraison)]) {
+      if (a === "stationnement_difficile") options.push("sans_stationnement");
+    }
+
+    // Le tarif de référence se choisit par type d'objet : transporter un
+    // piano n'a rien à voir avec transporter des cartons.
+    const typeObjet = str(det.typeObjet);
+    if (typeObjet) options.push(`tr_${typeObjet}`);
+    else nonCaptes.push("le type d'objet à transporter");
+
+    // Le forfait minimum d'un transport s'applique toujours : un déplacement
+    // mobilise un véhicule et un équipage, quelle que soit la charge.
+    options.push("tr_forfait_min");
   } else if (estFamilleNettoyage(d.sector)) {
     const net = nettoyageVersGrille(det, options, majorations);
     pieces = net.pieces;
@@ -335,12 +367,19 @@ export function buildGridInput(d: GridDiscovery): { input: GridInput; approx: bo
   // Quantités à l'unité : sans elles, les lignes correspondantes ne sont pas
   // chiffrées du tout (cf. anomalie A-08).
   if (num(det.nbVolets) > 0) quantites.unites = num(det.nbVolets);
+  // Transport : le poids décide du véhicule et de l'équipage, le nombre
+  // d'objets décide du temps de manutention. Les deux se facturent.
+  if (num(det.poidsKg) > 0) quantites.poids = num(det.poidsKg);
+  if (num(det.quantiteObjets) > 0) quantites.unites = num(det.quantiteObjets);
   if (num(det.vitrerieM2) > 0) quantites.vitrerie = num(det.vitrerieM2);
 
   return {
     input: {
       quantity, pieces, exteriorQuantity, distanceKm,
-      floorsDepart, floorsArrivee, options, majorations, quantites,
+      floorsDepart, floorsArrivee,
+      options: [...new Set(options)],
+      majorations: [...new Set(majorations)],
+      quantites,
     },
     approx,
     nonCaptes,

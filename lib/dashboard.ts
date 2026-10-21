@@ -2,6 +2,7 @@
 // row set is built server-side in lib/dashboard-server.ts and passed in
 // as DailyMetric[]. These functions filter / roll up / score.
 
+import { SECTORS } from "@/lib/leads";
 import type { Commercial, Sector } from "./leads";
 
 export type Channel = "mano" | "auto";
@@ -68,7 +69,6 @@ export type DailyMetric = {
   encaisseFinaleCount: number;
 };
 
-const SECTORS: Sector[] = ["urgence", "nettoyage", "nettoyage_difficile", "enr", "renovation", "debarras", "demenagement", "diogene"];
 
 // « Aujourd'hui » à minuit UTC — recalculé À CHAQUE APPEL (recette 2026-09-24).
 // Auparavant figé au chargement du module (mis en cache pour toute la vie du

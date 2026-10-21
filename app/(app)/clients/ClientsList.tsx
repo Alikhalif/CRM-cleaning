@@ -14,6 +14,7 @@ import {
   type ClientOrigin,
   type ClientType,
   type Sector,
+  SECTORS,
 } from "@/lib/leads";
 import styles from "./Clients.module.scss";
 
@@ -25,7 +26,6 @@ type Row = {
 
 type Props = { rows: Row[] };
 
-const SECTORS: Sector[] = ["urgence", "nettoyage", "nettoyage_difficile", "enr", "renovation", "debarras", "demenagement", "diogene"];
 
 export default function ClientsList({ rows }: Props) {
   const [search, setSearch] = useState("");
