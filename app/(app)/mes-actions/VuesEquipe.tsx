@@ -1,254 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+// Vues secondaires de « Mes actions », réservées au manager et au Super
+// Admin : photos en attente, pilotage de l'équipe, réglage des règles.
+//
+// Ce code est REPRIS TEL QUEL de l'ancien module « Ma journée ». Il n'a pas
+// été réécrit : la refonte porte sur l'écran du commercial, et ces trois
+// vues fonctionnent. Les extraire ici permet à la nouvelle page de rester
+// lisible sans rien perdre de l'existant.
+
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon/Icon";
 import {
-  bucketOf, priorityOf, relativeFr, effectiveDue,
-  TYPE_LABEL, TYPE_VERB, BUCKET_LABEL, PHOTO_SUBTYPE_LABEL,
-  type ActionBucket, type ActionType, type CommercialAction,
+  bucketOf, effectiveDue, relativeFr,
+  BUCKET_LABEL, TYPE_LABEL, PHOTO_SUBTYPE_LABEL,
+  type ActionType,
 } from "@/lib/commercial-actions/shared";
 import type { ManagerData, CommercialRule, PhotoWaitingRow } from "@/lib/commercial-actions/read-server";
-import { completeAction, snoozeAction, resumeAction, updateCommercialRule } from "./actions";
-import styles from "./ma-journee.module.scss";
+import { updateCommercialRule } from "@/app/(app)/ma-journee/actions";
+import styles from "./mes-actions.module.scss";
 
-type Props = {
-  actions: CommercialAction[];
-  urgentAfterHours: number;
-  isManager: boolean;
-  isAdmin: boolean;
-  manager: ManagerData | null;
-  rules: CommercialRule[];
-  photoWaiting: PhotoWaitingRow[];
-  meName: string;
-  serverNow: number;
-  initialTab?: Tab;
-};
-
-type Tab = ActionBucket | "photos" | "equipe";
-
-const TYPE_ICON: Record<ActionType, "phone" | "image" | "document" | "mail"> = {
-  prise_en_charge: "phone",
-  decouverte: "phone",
-  photos: "image",
-  devis: "document",
-  relance: "mail",
-};
 const CHANNEL_LABEL: Record<"email" | "sms", string> = { email: "E-mail", sms: "SMS" };
 
-export default function MaJournee({ actions, urgentAfterHours, isManager, isAdmin, manager, rules, photoWaiting, meName, serverNow, initialTab }: Props) {
-  const router = useRouter();
-  const [now, setNow] = useState(serverNow);
-  const [tab, setTab] = useState<Tab>(initialTab ?? "a_faire");
-  const [pending, startTransition] = useTransition();
-  const [busyId, setBusyId] = useState<string | null>(null);
-
-  // Horloge : rafraîchit l'affichage relatif + les priorités toutes les 30 s.
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(id);
-  }, []);
-
-  const grouped = useMemo(() => {
-    const g: Record<ActionBucket, CommercialAction[]> = { a_faire: [], en_retard: [], reportee: [], terminee: [] };
-    for (const a of actions) g[bucketOf(a, now)].push(a);
-    // tri par échéance croissante (les plus urgentes d'abord) sauf terminées (récentes d'abord)
-    g.a_faire.sort((x, y) => effectiveDue(x) - effectiveDue(y));
-    g.en_retard.sort((x, y) => effectiveDue(x) - effectiveDue(y));
-    g.reportee.sort((x, y) => effectiveDue(x) - effectiveDue(y));
-    g.terminee.sort((x, y) => new Date(y.closedAt ?? y.createdAt).getTime() - new Date(x.closedAt ?? x.createdAt).getTime());
-    return g;
-  }, [actions, now]);
-
-  const counts = {
-    a_faire: grouped.a_faire.length,
-    en_retard: grouped.en_retard.length,
-    reportee: grouped.reportee.length,
-    terminee: grouped.terminee.length,
-  };
-
-  const run = (id: string, fn: () => Promise<{ ok: boolean; error?: string }>) => {
-    setBusyId(id);
-    startTransition(async () => {
-      await fn();
-      router.refresh();
-      setBusyId(null);
-    });
-  };
-
-  const TABS: { key: Tab; label: string; count?: number; tone?: string }[] = [
-    { key: "a_faire", label: BUCKET_LABEL.a_faire, count: counts.a_faire },
-    { key: "en_retard", label: BUCKET_LABEL.en_retard, count: counts.en_retard, tone: "retard" },
-    { key: "reportee", label: BUCKET_LABEL.reportee, count: counts.reportee },
-    { key: "photos", label: "Photos", count: photoWaiting.length, tone: photoWaiting.some((p) => p.status === "attente") ? "retard" : undefined },
-    { key: "terminee", label: BUCKET_LABEL.terminee, count: counts.terminee },
-    ...(isManager ? [{ key: "equipe" as Tab, label: "Équipe" }] : []),
-  ];
-
-  return (
-    <div className={styles.page}>
-      <header className={styles.head}>
-        <div>
-          <h1 className={styles.title}>Ma journée</h1>
-          <p className={styles.subtitle}>
-            {meName} · {counts.a_faire + counts.en_retard} action{counts.a_faire + counts.en_retard > 1 ? "s" : ""} à mener
-            {counts.en_retard > 0 && <span className={styles.hotInline}> · {counts.en_retard} en retard</span>}
-          </p>
-        </div>
-      </header>
-
-      <nav className={styles.tabs}>
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            className={`${styles.tab} ${tab === t.key ? styles.tabActive : ""}`}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-            {typeof t.count === "number" && t.count > 0 && (
-              <span className={`${styles.pill} ${t.tone === "retard" ? styles.pillRetard : ""}`}>{t.count}</span>
-            )}
-          </button>
-        ))}
-      </nav>
-
-      {tab === "equipe" && manager ? (
-        <ManagerView data={manager} now={now} isAdmin={isAdmin} rules={rules} />
-      ) : tab === "photos" ? (
-        <PhotoWaitingView rows={photoWaiting} now={now} showOwner={isManager} />
-      ) : (
-        <section className={styles.list}>
-          {grouped[tab as ActionBucket].length === 0 ? (
-            <EmptyState bucket={tab as ActionBucket} />
-          ) : (
-            grouped[tab as ActionBucket].map((a) => (
-              <ActionCard
-                key={a.id}
-                action={a}
-                now={now}
-                urgentAfterHours={urgentAfterHours}
-                busy={pending && busyId === a.id}
-                onComplete={() => run(a.id, () => completeAction(a.id))}
-                onSnooze={(h) => run(a.id, () => snoozeAction(a.id, h))}
-                onResume={() => run(a.id, () => resumeAction(a.id))}
-              />
-            ))
-          )}
-        </section>
-      )}
-    </div>
-  );
-}
-
-function EmptyState({ bucket }: { bucket: ActionBucket }) {
-  const msg =
-    bucket === "en_retard" ? "Aucun retard. Tout est sous contrôle."
-    : bucket === "reportee" ? "Aucune action reportée."
-    : bucket === "terminee" ? "Aucune action terminée récemment."
-    : "Rien à faire pour l'instant. Les actions apparaîtront ici automatiquement.";
-  return (
-    <div className={styles.empty}>
-      <Icon name="check" size={22} />
-      <p>{msg}</p>
-    </div>
-  );
-}
-
-function ActionCard({
-  action, now, urgentAfterHours, busy, onComplete, onSnooze, onResume,
-}: {
-  action: CommercialAction;
-  now: number;
-  urgentAfterHours: number;
-  busy: boolean;
-  onComplete: () => void;
-  onSnooze: (hours: number) => void;
-  onResume: () => void;
-}) {
-  const bucket = bucketOf(action, now);
-  const prio = priorityOf(action, urgentAfterHours, now);
-  const [snoozeOpen, setSnoozeOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!snoozeOpen) return;
-    const onDoc = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setSnoozeOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [snoozeOpen]);
-
-  const isDone = action.status === "terminee";
-  const due = effectiveDue(action);
-  const dueLabel = relativeFr(new Date(due).toISOString(), now);
-
-  return (
-    <article className={`${styles.card} ${styles[`type_${action.type}`]} ${prio === "urgent" ? styles.cardUrgent : bucket === "en_retard" ? styles.cardRetard : ""}`}>
-      <div className={styles.cardIcon}><Icon name={TYPE_ICON[action.type]} size={16} /></div>
-
-      <div className={styles.cardBody}>
-        <div className={styles.cardTop}>
-          <span className={`${styles.badge} ${styles[`badge_${action.type}`]}`}>{TYPE_LABEL[action.type]}</span>
-          {!isDone && action.type === "photos" && action.subtype === "a_verifier" && (
-            <span className={`${styles.badge} ${styles.badgeVerify}`}>À vérifier</span>
-          )}
-          {!isDone && prio === "urgent" && <span className={`${styles.badge} ${styles.badgeUrgent}`}>Urgent</span>}
-          {!isDone && bucket === "en_retard" && prio !== "urgent" && <span className={`${styles.badge} ${styles.badgeRetard}`}>En retard</span>}
-          {action.reportCount > 0 && !isDone && <span className={styles.reported}>reporté ×{action.reportCount}</span>}
-        </div>
-
-        <h3 className={styles.cardTitle}>{TYPE_VERB[action.type]}</h3>
-        {action.reason && <p className={styles.cardReason}>{action.reason}</p>}
-
-        <div className={styles.cardMeta}>
-          <Link href={`/leads/${action.leadId}`} className={styles.leadLink}>
-            <Icon name="leads" size={13} /> {action.leadRef ?? "Lead"}{action.leadName ? ` · ${action.leadName}` : ""}
-          </Link>
-          <span className={`${styles.due} ${bucket === "en_retard" && !isDone ? styles.dueLate : ""}`}>
-            <Icon name="alert" size={12} />
-            {isDone ? `terminé ${action.closedAt ? relativeFr(action.closedAt, now) : ""}` : `échéance ${dueLabel}`}
-          </span>
-        </div>
-      </div>
-
-      {!isDone && (
-        <div className={styles.cardActions}>
-          {action.status === "reportee" ? (
-            <button type="button" className={styles.btnGhost} disabled={busy} onClick={onResume}>Reprendre</button>
-          ) : (
-            <div className={styles.snoozeWrap} ref={menuRef}>
-              <button type="button" className={styles.btnGhost} disabled={busy} onClick={() => setSnoozeOpen((v) => !v)}>
-                Reporter <Icon name="chevron-down" size={12} />
-              </button>
-              {snoozeOpen && (
-                <div className={styles.snoozeMenu}>
-                  <button type="button" onClick={() => { setSnoozeOpen(false); onSnooze(1); }}>Dans 1 h</button>
-                  <button type="button" onClick={() => { setSnoozeOpen(false); onSnooze(3); }}>Dans 3 h</button>
-                  <button type="button" onClick={() => { setSnoozeOpen(false); onSnooze(24); }}>Demain</button>
-                  <button type="button" onClick={() => { setSnoozeOpen(false); onSnooze(72); }}>Dans 3 j</button>
-                </div>
-              )}
-            </div>
-          )}
-          <button type="button" className={styles.btnPrimary} disabled={busy} onClick={onComplete}>
-            <Icon name="check" size={14} /> Fait
-          </button>
-        </div>
-      )}
-      {isDone && (
-        <div className={styles.cardActions}>
-          <span className={styles.doneTag}><Icon name="check" size={13} /> {action.closedReason === "auto" ? "Auto" : "Fait"}</span>
-        </div>
-      )}
-    </article>
-  );
-}
-
-// ── Vue « Clients en attente de photos » ────────────────────────────────────
-function PhotoWaitingView({ rows, now, showOwner }: { rows: PhotoWaitingRow[]; now: number; showOwner: boolean }) {
+export function PhotoWaitingView({ rows, now, showOwner }: { rows: PhotoWaitingRow[]; now: number; showOwner: boolean }) {
   if (rows.length === 0) {
     return (
       <div className={styles.empty}>
@@ -307,7 +82,7 @@ function PhotoWaitingView({ rows, now, showOwner }: { rows: PhotoWaitingRow[]; n
 }
 
 // ── Vue manager (admin / planificateur) ─────────────────────────────────────
-function ManagerView({ data, now, isAdmin, rules }: { data: ManagerData; now: number; isAdmin: boolean; rules: CommercialRule[] }) {
+export function ManagerView({ data, now, isAdmin, rules }: { data: ManagerData; now: number; isAdmin: boolean; rules: CommercialRule[] }) {
   const fmt = (h: number | null) => (h == null ? "—" : h < 1 ? `${Math.round(h * 60)} min` : `${h} h`);
   return (
     <section className={styles.manager}>

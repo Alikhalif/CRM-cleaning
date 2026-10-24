@@ -733,6 +733,134 @@ export type Database = {
           },
         ]
       }
+      commercial_task_events: {
+        Row: {
+          at: string
+          by_user: string | null
+          detail: Json
+          id: number
+          kind: string
+          task_id: string
+        }
+        Insert: {
+          at?: string
+          by_user?: string | null
+          detail?: Json
+          id?: never
+          kind: string
+          task_id: string
+        }
+        Update: {
+          at?: string
+          by_user?: string | null
+          detail?: Json
+          id?: never
+          kind?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commercial_task_events_by_user_fkey"
+            columns: ["by_user"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercial_task_events_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "commercial_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      commercial_tasks: {
+        Row: {
+          closed_at: string | null
+          closed_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_at: string
+          has_time: boolean
+          id: string
+          lead_id: string | null
+          owner_id: string
+          priority: string
+          report_count: number
+          result: string | null
+          status: string
+          title: string
+          type: string
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_at: string
+          has_time?: boolean
+          id?: string
+          lead_id?: string | null
+          owner_id: string
+          priority?: string
+          report_count?: number
+          result?: string | null
+          status?: string
+          title: string
+          type: string
+        }
+        Update: {
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_at?: string
+          has_time?: boolean
+          id?: string
+          lead_id?: string | null
+          owner_id?: string
+          priority?: string
+          report_count?: number
+          result?: string | null
+          status?: string
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commercial_tasks_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercial_tasks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercial_tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercial_tasks_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contract_counters: {
         Row: {
           next_value: number
