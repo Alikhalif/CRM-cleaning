@@ -2839,6 +2839,699 @@ export type Database = {
           },
         ]
       }
+      subcontract_amendments: {
+        Row: {
+          accord_client_le: string | null
+          accord_client_ref: string | null
+          contenu: Json
+          contract_id: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          descriptif: string | null
+          id: string
+          modele_version: string
+          objet: string
+          pdf_path: string | null
+          ref: string | null
+          signature_preuve: Json | null
+          signe_le: string | null
+          signed_pdf_path: string | null
+          statut: string
+          taux_tva: number | null
+          total_ht: number | null
+          total_ttc: number | null
+          updated_at: string
+          valide_optimivv_le: string | null
+          valide_optimivv_par: string | null
+        }
+        Insert: {
+          accord_client_le?: string | null
+          accord_client_ref?: string | null
+          contenu?: Json
+          contract_id: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          descriptif?: string | null
+          id?: string
+          modele_version?: string
+          objet: string
+          pdf_path?: string | null
+          ref?: string | null
+          signature_preuve?: Json | null
+          signe_le?: string | null
+          signed_pdf_path?: string | null
+          statut?: string
+          taux_tva?: number | null
+          total_ht?: number | null
+          total_ttc?: number | null
+          updated_at?: string
+          valide_optimivv_le?: string | null
+          valide_optimivv_par?: string | null
+        }
+        Update: {
+          accord_client_le?: string | null
+          accord_client_ref?: string | null
+          contenu?: Json
+          contract_id?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          descriptif?: string | null
+          id?: string
+          modele_version?: string
+          objet?: string
+          pdf_path?: string | null
+          ref?: string | null
+          signature_preuve?: Json | null
+          signe_le?: string | null
+          signed_pdf_path?: string | null
+          statut?: string
+          taux_tva?: number | null
+          total_ht?: number | null
+          total_ttc?: number | null
+          updated_at?: string
+          valide_optimivv_le?: string | null
+          valide_optimivv_par?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_amendments_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_amendments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_amendments_valide_optimivv_par_fkey"
+            columns: ["valide_optimivv_par"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subcontract_contracts: {
+        Row: {
+          consulte_le: string | null
+          contenu: Json
+          created_at: string
+          created_by: string | null
+          date_debut: string | null
+          date_fin: string | null
+          deleted_at: string | null
+          dossier_id: string | null
+          envoye_a: string | null
+          envoye_le: string | null
+          envoye_par: string | null
+          id: string
+          lead_id: string | null
+          mode_prix: string
+          modele: string
+          modele_version: string
+          notes: string | null
+          parent_id: string | null
+          pdf_path: string | null
+          portee: string
+          ref: string | null
+          signature_preuve: Json | null
+          signe_le: string | null
+          signed_pdf_path: string | null
+          statut: string
+          taux_tva: number | null
+          technician_id: string
+          total_ht: number | null
+          total_ttc: number | null
+          updated_at: string
+        }
+        Insert: {
+          consulte_le?: string | null
+          contenu?: Json
+          created_at?: string
+          created_by?: string | null
+          date_debut?: string | null
+          date_fin?: string | null
+          deleted_at?: string | null
+          dossier_id?: string | null
+          envoye_a?: string | null
+          envoye_le?: string | null
+          envoye_par?: string | null
+          id?: string
+          lead_id?: string | null
+          mode_prix?: string
+          modele: string
+          modele_version?: string
+          notes?: string | null
+          parent_id?: string | null
+          pdf_path?: string | null
+          portee?: string
+          ref?: string | null
+          signature_preuve?: Json | null
+          signe_le?: string | null
+          signed_pdf_path?: string | null
+          statut?: string
+          taux_tva?: number | null
+          technician_id: string
+          total_ht?: number | null
+          total_ttc?: number | null
+          updated_at?: string
+        }
+        Update: {
+          consulte_le?: string | null
+          contenu?: Json
+          created_at?: string
+          created_by?: string | null
+          date_debut?: string | null
+          date_fin?: string | null
+          deleted_at?: string | null
+          dossier_id?: string | null
+          envoye_a?: string | null
+          envoye_le?: string | null
+          envoye_par?: string | null
+          id?: string
+          lead_id?: string | null
+          mode_prix?: string
+          modele?: string
+          modele_version?: string
+          notes?: string | null
+          parent_id?: string | null
+          pdf_path?: string | null
+          portee?: string
+          ref?: string | null
+          signature_preuve?: Json | null
+          signe_le?: string | null
+          signed_pdf_path?: string | null
+          statut?: string
+          taux_tva?: number | null
+          technician_id?: string
+          total_ht?: number | null
+          total_ttc?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_contracts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_contracts_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "dossiers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_contracts_envoye_par_fkey"
+            columns: ["envoye_par"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_contracts_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_contracts_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_contracts_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subcontract_events: {
+        Row: {
+          amendment_id: string | null
+          at: string
+          by_user: string | null
+          contract_id: string | null
+          detail: Json
+          id: number
+          incident_id: string | null
+          kind: string
+          report_id: string | null
+        }
+        Insert: {
+          amendment_id?: string | null
+          at?: string
+          by_user?: string | null
+          contract_id?: string | null
+          detail?: Json
+          id?: never
+          incident_id?: string | null
+          kind: string
+          report_id?: string | null
+        }
+        Update: {
+          amendment_id?: string | null
+          at?: string
+          by_user?: string | null
+          contract_id?: string | null
+          detail?: Json
+          id?: never
+          incident_id?: string | null
+          kind?: string
+          report_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_events_amendment_id_fkey"
+            columns: ["amendment_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_amendments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_events_by_user_fkey"
+            columns: ["by_user"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_events_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_events_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_events_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subcontract_incidents: {
+        Row: {
+          clos_le: string | null
+          clos_par: string | null
+          constate_le: string
+          constate_par: string | null
+          contract_id: string
+          created_at: string
+          description: string
+          dossier_id: string | null
+          id: string
+          nature: string
+          ref: string | null
+          reponse_le: string | null
+          reponse_sous_traitant: string | null
+          reprise_delai: string | null
+          reprise_demandee: boolean
+          resultat: string | null
+          statut: string
+          technician_id: string
+          updated_at: string
+        }
+        Insert: {
+          clos_le?: string | null
+          clos_par?: string | null
+          constate_le?: string
+          constate_par?: string | null
+          contract_id: string
+          created_at?: string
+          description: string
+          dossier_id?: string | null
+          id?: string
+          nature: string
+          ref?: string | null
+          reponse_le?: string | null
+          reponse_sous_traitant?: string | null
+          reprise_delai?: string | null
+          reprise_demandee?: boolean
+          resultat?: string | null
+          statut?: string
+          technician_id: string
+          updated_at?: string
+        }
+        Update: {
+          clos_le?: string | null
+          clos_par?: string | null
+          constate_le?: string
+          constate_par?: string | null
+          contract_id?: string
+          created_at?: string
+          description?: string
+          dossier_id?: string | null
+          id?: string
+          nature?: string
+          ref?: string | null
+          reponse_le?: string | null
+          reponse_sous_traitant?: string | null
+          reprise_delai?: string | null
+          reprise_demandee?: boolean
+          resultat?: string | null
+          statut?: string
+          technician_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_incidents_clos_par_fkey"
+            columns: ["clos_par"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_incidents_constate_par_fkey"
+            columns: ["constate_par"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_incidents_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_incidents_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "dossiers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_incidents_technician_id_fkey"
+            columns: ["technician_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subcontract_lines: {
+        Row: {
+          a_verifier: boolean
+          code: string | null
+          contract_id: string
+          created_at: string
+          descriptif: string | null
+          fournitures_incluses: boolean
+          genre: string
+          id: string
+          label: string
+          materiel_inclus: boolean
+          montant_ht: number | null
+          observations: string | null
+          position: number
+          prix_unitaire_ht: number | null
+          quantite: number | null
+          unite: string | null
+        }
+        Insert: {
+          a_verifier?: boolean
+          code?: string | null
+          contract_id: string
+          created_at?: string
+          descriptif?: string | null
+          fournitures_incluses?: boolean
+          genre?: string
+          id?: string
+          label: string
+          materiel_inclus?: boolean
+          montant_ht?: number | null
+          observations?: string | null
+          position?: number
+          prix_unitaire_ht?: number | null
+          quantite?: number | null
+          unite?: string | null
+        }
+        Update: {
+          a_verifier?: boolean
+          code?: string | null
+          contract_id?: string
+          created_at?: string
+          descriptif?: string | null
+          fournitures_incluses?: boolean
+          genre?: string
+          id?: string
+          label?: string
+          materiel_inclus?: boolean
+          montant_ht?: number | null
+          observations?: string | null
+          position?: number
+          prix_unitaire_ht?: number | null
+          quantite?: number | null
+          unite?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_lines_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_contracts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subcontract_missions: {
+        Row: {
+          contenu: Json
+          contract_id: string
+          created_at: string
+          created_by: string | null
+          date_prevue: string | null
+          dossier_id: string | null
+          heure_debut: string | null
+          heure_fin: string | null
+          id: string
+          pdf_path: string | null
+          ref: string | null
+        }
+        Insert: {
+          contenu?: Json
+          contract_id: string
+          created_at?: string
+          created_by?: string | null
+          date_prevue?: string | null
+          dossier_id?: string | null
+          heure_debut?: string | null
+          heure_fin?: string | null
+          id?: string
+          pdf_path?: string | null
+          ref?: string | null
+        }
+        Update: {
+          contenu?: Json
+          contract_id?: string
+          created_at?: string
+          created_by?: string | null
+          date_prevue?: string | null
+          dossier_id?: string | null
+          heure_debut?: string | null
+          heure_fin?: string | null
+          id?: string
+          pdf_path?: string | null
+          ref?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_missions_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_missions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_missions_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "dossiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subcontract_report_photos: {
+        Row: {
+          created_at: string
+          file_name: string | null
+          id: string
+          legende: string | null
+          mime_type: string | null
+          moment: string
+          report_id: string
+          size_bytes: number | null
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          file_name?: string | null
+          id?: string
+          legende?: string | null
+          mime_type?: string | null
+          moment: string
+          report_id: string
+          size_bytes?: number | null
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string | null
+          id?: string
+          legende?: string | null
+          mime_type?: string | null
+          moment?: string
+          report_id?: string
+          size_bytes?: number | null
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_report_photos_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subcontract_reports: {
+        Row: {
+          contract_id: string
+          created_at: string
+          declare: Json
+          dossier_id: string | null
+          heure_arrivee: string | null
+          heure_depart: string | null
+          id: string
+          pdf_path: string | null
+          prerempli: Json
+          ref: string | null
+          remis_le: string | null
+          remis_par: string | null
+          statut: string
+          updated_at: string
+          valide_le: string | null
+          valide_par: string | null
+        }
+        Insert: {
+          contract_id: string
+          created_at?: string
+          declare?: Json
+          dossier_id?: string | null
+          heure_arrivee?: string | null
+          heure_depart?: string | null
+          id?: string
+          pdf_path?: string | null
+          prerempli?: Json
+          ref?: string | null
+          remis_le?: string | null
+          remis_par?: string | null
+          statut?: string
+          updated_at?: string
+          valide_le?: string | null
+          valide_par?: string | null
+        }
+        Update: {
+          contract_id?: string
+          created_at?: string
+          declare?: Json
+          dossier_id?: string | null
+          heure_arrivee?: string | null
+          heure_depart?: string | null
+          id?: string
+          pdf_path?: string | null
+          prerempli?: Json
+          ref?: string | null
+          remis_le?: string | null
+          remis_par?: string | null
+          statut?: string
+          updated_at?: string
+          valide_le?: string | null
+          valide_par?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_reports_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_reports_dossier_id_fkey"
+            columns: ["dossier_id"]
+            isOneToOne: false
+            referencedRelation: "dossiers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_reports_remis_par_fkey"
+            columns: ["remis_par"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_reports_valide_par_fkey"
+            columns: ["valide_par"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subcontract_sequences: {
+        Row: {
+          kind: string
+          last: number
+          year: number
+        }
+        Insert: {
+          kind: string
+          last?: number
+          year: number
+        }
+        Update: {
+          kind?: string
+          last?: number
+          year?: number
+        }
+        Relationships: []
+      }
       subcontractor_documents: {
         Row: {
           activities: string | null
@@ -3513,6 +4206,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      allocate_subcontract_ref: {
+        Args: { p_kind: string; p_prefix: string }
+        Returns: string
+      }
       format_devis_optimivv_num: {
         Args: { p_n: number; p_year: number }
         Returns: string
