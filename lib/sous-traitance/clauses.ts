@@ -17,7 +17,18 @@
 // ajoutée puis défaite au fil des clics.
 
 import { exigencesCumulees, famillesDe, type Famille } from "./prestations";
-import { SOCLE_NETTOYAGE, VERSION_NETTOYAGE } from "./modele-nettoyage";
+import {
+  ANNEXE_BON_MISSION, ANNEXE_RAPPORT, SOCLE_NETTOYAGE, TITRE_NETTOYAGE,
+  VERSION_NETTOYAGE, type BlocAnnexe, type RubriqueRapport,
+} from "./modele-nettoyage";
+import {
+  ANNEXE_BON_MISSION_DEBARRAS, ANNEXE_RAPPORT_DEBARRAS, SOCLE_DEBARRAS,
+  TITRE_DEBARRAS, VERSION_DEBARRAS,
+} from "./modele-debarras";
+import {
+  ANNEXE_BON_MISSION_DEBARRAS_SEUL, ANNEXE_RAPPORT_DEBARRAS_SEUL,
+  SOCLE_DEBARRAS_SEUL, TITRE_DEBARRAS_SEUL, VERSION_DEBARRAS_SEUL,
+} from "./modele-debarras-seul";
 
 export type Article = {
   cle: string;
@@ -31,12 +42,18 @@ export type Article = {
 export type ModeleContrat =
   | "nettoyage_approfondi"
   | "nettoyage_debarras"
+  // Débarras SEUL : son article 1 exclut expressément le nettoyage
+  // approfondi, la désinfection et la décontamination, et son article 3
+  // porte une liste d'exclusions. Le confondre avec « nettoyage et
+  // débarras » ferait signer un périmètre non accepté.
+  | "debarras_seul"
   | "nettoyage_complements"
   | "demenagement_transport";
 
 export const MODELE_LABEL: Record<ModeleContrat, string> = {
   nettoyage_approfondi: "Contrat 1 — Nettoyage approfondi",
   nettoyage_debarras: "Contrat 2 — Nettoyage avec débarras",
+  debarras_seul: "Contrat 3 — Débarras seul",
   nettoyage_complements: "Contrat 3 — Nettoyage avec compléments d'activité",
   demenagement_transport: "Contrat 4 — Déménagement et transport",
 };
@@ -703,7 +720,12 @@ export function modelePour(codes: readonly string[]): ModeleContrat | null {
   if (f.length === 0) return null;
   if (f.includes("transport")) return "demenagement_transport";
   if (f.includes("complements")) return "nettoyage_complements";
-  if (f.includes("debarras")) return "nettoyage_debarras";
+  if (f.includes("debarras")) {
+    // Du débarras SANS nettoyage relève du contrat « débarras seul », qui
+    // exclut expressément les prestations de nettoyage. Avec du nettoyage,
+    // c'est le contrat mixte.
+    return f.includes("nettoyage") ? "nettoyage_debarras" : "debarras_seul";
+  }
   return "nettoyage_approfondi";
 }
 
@@ -711,6 +733,9 @@ export function modelePour(codes: readonly string[]): ModeleContrat | null {
 const ARTICLES_DU_MODELE: Record<ModeleContrat, string[]> = {
   nettoyage_approfondi: ["produits"],
   nettoyage_debarras: ["produits", "objets_conserver", "objets_valeur", "tracabilite_dechets", "volume_contractuel"],
+  // Le débarras seul n'emploie aucun produit d'entretien : son contrat
+  // exclut le nettoyage. L'article « produits » n'a donc rien à y faire.
+  debarras_seul: ["objets_conserver", "objets_valeur", "volume_contractuel"],
   // Le contrat 3 impose la validation des suppléments : c'est sa raison d'être.
   nettoyage_complements: ["produits", "fournitures", "reception_travaux", "prestations_supplementaires"],
   demenagement_transport: [
@@ -721,23 +746,88 @@ const ARTICLES_DU_MODELE: Record<ModeleContrat, string[]> = {
 };
 
 /**
- * Socle applicable à un modèle.
+ * Registre des modèles contractuels.
  *
- * La famille nettoyage utilise le CONTRAT FOURNI PAR LE CLIENT le
- * 2026-11-01 (30 articles, version 2.0). Le déménagement et le transport
- * gardent le socle de travail 1.0 : le client ne l'a pas encore remplacé, et
- * publier un texte non validé sous son nom serait pire que de l'annoncer.
+ * Un contrat fourni par le client s'ajoute ici, en UNE entrée, sans toucher
+ * au moteur. `valide` dit si le texte vient du client ou s'il s'agit encore
+ * du brouillon de travail — distinction qui doit rester visible jusque dans
+ * l'interface.
  */
-export function socleDe(modele: ModeleContrat): { articles: Article[]; version: string } {
-  if (modele === "demenagement_transport") {
-    return { articles: SOCLE, version: VERSION_MODELES };
-  }
-  return { articles: SOCLE_NETTOYAGE, version: VERSION_NETTOYAGE };
+export type ModeleContractuel = {
+  titre: string;
+  socle: Article[];
+  version: string;
+  valide: boolean;
+  bonMission: { titre: string; blocs: BlocAnnexe[]; pied: string[] };
+  rapport: { titre: string; entete: RubriqueRapport[]; rubriques: RubriqueRapport[] };
+  /**
+   * Articles conditionnels dont le socle traite DÉJÀ le sujet, sous un autre
+   * intitulé. Sans cette liste, l'article 12 du contrat 2 — « Gestion et
+   * traçabilité des déchets » — serait doublé par le conditionnel
+   * `tracabilite_dechets`, qui dit la même chose. La comparaison par clé ne
+   * suffit pas : les intitulés du client ne portent pas nos clés.
+   */
+  couvre: string[];
+};
+
+const REGISTRE: Record<ModeleContrat, ModeleContractuel> = {
+  // Contrat 1 — fourni le 2026-11-01.
+  nettoyage_approfondi: {
+    titre: TITRE_NETTOYAGE, socle: SOCLE_NETTOYAGE, version: VERSION_NETTOYAGE,
+    valide: true, bonMission: ANNEXE_BON_MISSION, rapport: ANNEXE_RAPPORT,
+    // Art. 12 couvre les déchets et leurs justificatifs.
+    couvre: ["tracabilite_dechets"],
+  },
+  // Contrat 2 — fourni le 2026-11-01. Texte INTÉGRALEMENT distinct du
+  // contrat 1 : onze articles diffèrent et le rapport compte huit rubriques.
+  nettoyage_debarras: {
+    titre: TITRE_DEBARRAS, socle: SOCLE_DEBARRAS, version: VERSION_DEBARRAS,
+    valide: true, bonMission: ANNEXE_BON_MISSION_DEBARRAS, rapport: ANNEXE_RAPPORT_DEBARRAS,
+    // Art. 12 traite la traçabilité jusqu'à la communication des
+    // justificatifs ; art. 13 traite le transport pour compte d'autrui.
+    couvre: ["tracabilite_dechets"],
+  },
+  // Contrat 3 — fourni le 2026-11-01. Débarras seul.
+  debarras_seul: {
+    titre: TITRE_DEBARRAS_SEUL, socle: SOCLE_DEBARRAS_SEUL, version: VERSION_DEBARRAS_SEUL,
+    valide: true, bonMission: ANNEXE_BON_MISSION_DEBARRAS_SEUL,
+    rapport: ANNEXE_RAPPORT_DEBARRAS_SEUL,
+    // Art. 12 traite la traçabilité ; art. 13 le transport pour autrui.
+    couvre: ["tracabilite_dechets"],
+  },
+  // Contrat « compléments d'activité » — EN ATTENTE du texte client. On emploie provisoirement celui
+  // du nettoyage, et `valide: false` l'annonce : les compléments d'activité
+  // appellent des clauses de travaux que ce texte ne porte pas.
+  nettoyage_complements: {
+    titre: TITRE_NETTOYAGE, socle: SOCLE_NETTOYAGE, version: VERSION_NETTOYAGE,
+    valide: false, bonMission: ANNEXE_BON_MISSION, rapport: ANNEXE_RAPPORT,
+    couvre: ["tracabilite_dechets"],
+  },
+  // Contrat 4 — EN ATTENTE du texte client. Brouillon de travail 1.0.
+  demenagement_transport: {
+    titre: "CONTRAT DE SOUS-TRAITANCE — DÉMÉNAGEMENT ET TRANSPORT",
+    socle: SOCLE, version: VERSION_MODELES,
+    valide: false, bonMission: ANNEXE_BON_MISSION, rapport: ANNEXE_RAPPORT,
+    couvre: [],
+  },
+};
+
+export function modeleContractuel(m: ModeleContrat): ModeleContractuel {
+  return REGISTRE[m];
 }
 
-/** Le texte du modèle a-t-il été validé par le client ? */
-export function socleValide(modele: ModeleContrat): boolean {
-  return modele !== "demenagement_transport";
+export function socleDe(m: ModeleContrat): { articles: Article[]; version: string } {
+  return { articles: REGISTRE[m].socle, version: REGISTRE[m].version };
+}
+
+/** Le texte de ce modèle a-t-il été fourni et validé par le client ? */
+export function socleValide(m: ModeleContrat): boolean {
+  return REGISTRE[m].valide;
+}
+
+/** Modèles encore sur un texte de travail — à signaler à l'utilisateur. */
+export function modelesEnAttente(): ModeleContrat[] {
+  return (Object.keys(REGISTRE) as ModeleContrat[]).filter((m) => !REGISTRE[m].valide);
 }
 
 export type ContratAssemble = {
@@ -772,7 +862,10 @@ export function assembler(
   // Un article conditionnel dont le socle traite déjà le sujet n'est pas
   // ajouté : le contrat du client couvre la protection des biens et les
   // déchets, inutile de les redire.
-  const dejaAuSocle = new Set(socle.map((a) => a.cle));
+  const dejaAuSocle = new Set([
+    ...socle.map((a) => a.cle),
+    ...REGISTRE[modele].couvre,
+  ]);
 
   // Ordre de CONDITIONNELS, pas ordre d'insertion : le document ne doit pas
   // changer selon l'ordre des clics de la planificatrice.
