@@ -17,6 +17,7 @@
 // ajoutée puis défaite au fil des clics.
 
 import { exigencesCumulees, famillesDe, type Famille } from "./prestations";
+import { SOCLE_NETTOYAGE, VERSION_NETTOYAGE } from "./modele-nettoyage";
 
 export type Article = {
   cle: string;
@@ -719,6 +720,26 @@ const ARTICLES_DU_MODELE: Record<ModeleContrat, string[]> = {
   ],
 };
 
+/**
+ * Socle applicable à un modèle.
+ *
+ * La famille nettoyage utilise le CONTRAT FOURNI PAR LE CLIENT le
+ * 2026-11-01 (30 articles, version 2.0). Le déménagement et le transport
+ * gardent le socle de travail 1.0 : le client ne l'a pas encore remplacé, et
+ * publier un texte non validé sous son nom serait pire que de l'annoncer.
+ */
+export function socleDe(modele: ModeleContrat): { articles: Article[]; version: string } {
+  if (modele === "demenagement_transport") {
+    return { articles: SOCLE, version: VERSION_MODELES };
+  }
+  return { articles: SOCLE_NETTOYAGE, version: VERSION_NETTOYAGE };
+}
+
+/** Le texte du modèle a-t-il été validé par le client ? */
+export function socleValide(modele: ModeleContrat): boolean {
+  return modele !== "demenagement_transport";
+}
+
 export type ContratAssemble = {
   modele: ModeleContrat;
   version: string;
@@ -745,21 +766,26 @@ export function assembler(
   const modele = modeleForce ?? modelePour(codes);
   if (!modele) return null;
 
+  const { articles: socle, version } = socleDe(modele);
   const exig = exigencesCumulees(codes);
   const voulus = new Set<string>([...exig.articles, ...ARTICLES_DU_MODELE[modele]]);
+  // Un article conditionnel dont le socle traite déjà le sujet n'est pas
+  // ajouté : le contrat du client couvre la protection des biens et les
+  // déchets, inutile de les redire.
+  const dejaAuSocle = new Set(socle.map((a) => a.cle));
 
   // Ordre de CONDITIONNELS, pas ordre d'insertion : le document ne doit pas
   // changer selon l'ordre des clics de la planificatrice.
   const conditionnels = Object.keys(CONDITIONNELS)
-    .filter((k) => voulus.has(k))
+    .filter((k) => voulus.has(k) && !dejaAuSocle.has(k))
     .map((k) => CONDITIONNELS[k]);
 
   const unique = (xs: string[]) => [...new Set(xs)];
 
   return {
     modele,
-    version: VERSION_MODELES,
-    articles: [...SOCLE, ...conditionnels],
+    version,
+    articles: [...socle, ...conditionnels],
     securite: unique(exig.securite),
     assurances: unique(exig.assurances),
     qualifications: unique(exig.qualifications),

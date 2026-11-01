@@ -85,6 +85,8 @@ export const VARIABLES: DefinitionVariable[] = [
   { cle: "subcontractor_rcs", libelle: "RCS", groupe: "prestataire", obligatoire: false },
   { cle: "subcontractor_address", libelle: "Adresse du prestataire", groupe: "prestataire", obligatoire: true },
   { cle: "subcontractor_representative", libelle: "Représentant légal", groupe: "prestataire", obligatoire: true },
+  // Exigée par le contrat de nettoyage du client : « en sa qualité de ».
+  { cle: "subcontractor_representative_title", libelle: "Qualité du représentant", groupe: "prestataire", obligatoire: true },
   { cle: "subcontractor_email", libelle: "Courriel du prestataire", groupe: "prestataire", obligatoire: true },
   { cle: "subcontractor_phone", libelle: "Téléphone du prestataire", groupe: "prestataire", obligatoire: false },
   { cle: "subcontractor_activities", libelle: "Activités exercées", groupe: "prestataire", obligatoire: false },
