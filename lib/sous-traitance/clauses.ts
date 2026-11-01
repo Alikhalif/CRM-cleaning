@@ -29,6 +29,10 @@ import {
   ANNEXE_BON_MISSION_DEBARRAS_SEUL, ANNEXE_RAPPORT_DEBARRAS_SEUL,
   SOCLE_DEBARRAS_SEUL, TITRE_DEBARRAS_SEUL, VERSION_DEBARRAS_SEUL,
 } from "./modele-debarras-seul";
+import {
+  ANNEXE_BON_MISSION_DESINFECTION, ANNEXE_RAPPORT_DESINFECTION,
+  SOCLE_DESINFECTION, TITRE_DESINFECTION, VERSION_DESINFECTION,
+} from "./modele-desinfection";
 
 export type Article = {
   cle: string;
@@ -47,6 +51,11 @@ export type ModeleContrat =
   // porte une liste d'exclusions. Le confondre avec « nettoyage et
   // débarras » ferait signer un périmètre non accepté.
   | "debarras_seul"
+  // Désinfection et décontamination : précisément ce que le contrat
+  // « débarras seul » exclut. Seul contrat à porter l'autorisation biocide,
+  // les temps de contact, les délais de réoccupation et les contrôles de
+  // validation.
+  | "desinfection_decontamination"
   | "nettoyage_complements"
   | "demenagement_transport";
 
@@ -54,8 +63,9 @@ export const MODELE_LABEL: Record<ModeleContrat, string> = {
   nettoyage_approfondi: "Contrat 1 — Nettoyage approfondi",
   nettoyage_debarras: "Contrat 2 — Nettoyage avec débarras",
   debarras_seul: "Contrat 3 — Débarras seul",
-  nettoyage_complements: "Contrat 3 — Nettoyage avec compléments d'activité",
-  demenagement_transport: "Contrat 4 — Déménagement et transport",
+  desinfection_decontamination: "Contrat 4 — Désinfection et décontamination",
+  nettoyage_complements: "Nettoyage avec compléments d'activité (texte en attente)",
+  demenagement_transport: "Déménagement et transport (texte en attente)",
 };
 
 /** Version du jeu de modèles. Figée sur chaque contrat généré (§29). */
@@ -715,6 +725,20 @@ export const CONDITIONNELS: Record<string, Article> = {
  *
  * `null` = aucune prestation retenue : on ne devine pas un modèle.
  */
+/**
+ * Prestations que le contrat de désinfection couvre à lui seul. La
+ * désodorisation y figure parce qu'elle emploie les mêmes produits, mais elle
+ * ne suffit pas à caractériser la mission : il faut une désinfection ou une
+ * décontamination.
+ */
+const DESINFECTION_SEULE = new Set(["net_desinfection", "net_decontamination", "net_desodorisation"]);
+const DESINFECTION_NOYAU = new Set(["net_desinfection", "net_decontamination"]);
+
+function estDesinfection(codes: readonly string[]): boolean {
+  return codes.some((c) => DESINFECTION_NOYAU.has(c))
+    && codes.every((c) => DESINFECTION_SEULE.has(c));
+}
+
 export function modelePour(codes: readonly string[]): ModeleContrat | null {
   const f: Famille[] = famillesDe(codes);
   if (f.length === 0) return null;
@@ -726,6 +750,13 @@ export function modelePour(codes: readonly string[]): ModeleContrat | null {
     // c'est le contrat mixte.
     return f.includes("nettoyage") ? "nettoyage_debarras" : "debarras_seul";
   }
+  // Une mission dont l'objet EST la désinfection ou la décontamination relève
+  // du contrat 4, dont l'article 2 fixe cette nature d'intervention et dont
+  // l'article 3-B absorbe le nettoyage préalable. Un nettoyage approfondi
+  // assorti d'une désinfection reste, lui, un contrat de nettoyage : les
+  // articles conditionnels « produits_biocides » et « risque_biologique » y
+  // ajoutent les obligations correspondantes.
+  if (estDesinfection(codes)) return "desinfection_decontamination";
   return "nettoyage_approfondi";
 }
 
@@ -736,6 +767,10 @@ const ARTICLES_DU_MODELE: Record<ModeleContrat, string[]> = {
   // Le débarras seul n'emploie aucun produit d'entretien : son contrat
   // exclut le nettoyage. L'article « produits » n'a donc rien à y faire.
   debarras_seul: ["objets_conserver", "objets_valeur", "volume_contractuel"],
+  // Rien à imposer : le socle du contrat 4 porte déjà les produits (art. 8 et
+  // 11), les biocides (art. 5), le risque biologique (art. 6 et 9) et la
+  // traçabilité (art. 12).
+  desinfection_decontamination: [],
   // Le contrat 3 impose la validation des suppléments : c'est sa raison d'être.
   nettoyage_complements: ["produits", "fournitures", "reception_travaux", "prestations_supplementaires"],
   demenagement_transport: [
@@ -794,6 +829,16 @@ const REGISTRE: Record<ModeleContrat, ModeleContractuel> = {
     rapport: ANNEXE_RAPPORT_DEBARRAS_SEUL,
     // Art. 12 traite la traçabilité ; art. 13 le transport pour autrui.
     couvre: ["tracabilite_dechets"],
+  },
+  // Contrat 4 — fourni le 2026-11-01. Désinfection et décontamination.
+  desinfection_decontamination: {
+    titre: TITRE_DESINFECTION, socle: SOCLE_DESINFECTION, version: VERSION_DESINFECTION,
+    valide: true, bonMission: ANNEXE_BON_MISSION_DESINFECTION,
+    rapport: ANNEXE_RAPPORT_DESINFECTION,
+    // Art. 5 porte l'autorisation biocide, art. 6 et 9 le risque biologique,
+    // art. 8 et 11 la compatibilité des produits, art. 12 la traçabilité.
+    // Y ajouter les conditionnels correspondants serait un doublon.
+    couvre: ["produits", "produits_biocides", "risque_biologique", "tracabilite_dechets"],
   },
   // Contrat « compléments d'activité » — EN ATTENTE du texte client. On emploie provisoirement celui
   // du nettoyage, et `valide: false` l'annonce : les compléments d'activité

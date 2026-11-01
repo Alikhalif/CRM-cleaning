@@ -607,6 +607,11 @@ export const BLOC_SIGNATURES = {
 export const VARIABLES_MODELE = [
   { cle: "prestations_detaillees", libelle: "Détail des prestations commandées", obligatoire: true },
   { cle: "securite_mission", libelle: "Équipements et consignes de sécurité de la mission", obligatoire: false },
+  // Exigées par le contrat de désinfection et de décontamination : elles
+  // définissent le protocole, donc le risque que le sous-traitant accepte.
+  { cle: "contamination_origine", libelle: "Origine déclarée de la contamination", obligatoire: true },
+  { cle: "zones_surfaces", libelle: "Zones et surfaces à traiter", obligatoire: true },
+  { cle: "produits_procedes", libelle: "Produits ou procédés prévus, si connus", obligatoire: false },
   { cle: "montant_ht", libelle: "Montant forfaitaire HT", obligatoire: true },
   { cle: "tva_detail", libelle: "TVA (taux et montant)", obligatoire: false },
   { cle: "montant_ttc", libelle: "Montant TTC", obligatoire: false },
