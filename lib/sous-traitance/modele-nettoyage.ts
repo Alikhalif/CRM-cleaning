@@ -542,7 +542,7 @@ export type RubriqueRapport = {
   /** "prerempli" = repris du contrat ; "declare" = saisi après l'intervention. */
   origine: "prerempli" | "declare";
   /** Type de saisie attendu, pour construire le formulaire. */
-  saisie: "texte" | "texte_long" | "oui_non";
+  saisie: "texte" | "texte_long" | "oui_non" | "oui_non_non_prevu";
 };
 
 export const ANNEXE_RAPPORT: { titre: string; entete: RubriqueRapport[]; rubriques: RubriqueRapport[] } = {
@@ -612,6 +612,28 @@ export const VARIABLES_MODELE = [
   { cle: "contamination_origine", libelle: "Origine déclarée de la contamination", obligatoire: true },
   { cle: "zones_surfaces", libelle: "Zones et surfaces à traiter", obligatoire: true },
   { cle: "produits_procedes", libelle: "Produits ou procédés prévus, si connus", obligatoire: false },
+  // Exigées par le contrat de nettoyage de logement insalubre. Les trois
+  // dernières définissent le périmètre réel : ses articles 3-C et 3-D
+  // n'incluent ces prestations que si le bon de mission les mentionne, donc
+  // une case laissée vide vaut exclusion.
+  { cle: "niveau_insalubrite", libelle: "Niveau d'insalubrité déclaré (léger, sévère, extrême)", obligatoire: true },
+  { cle: "lessivage_murs", libelle: "Lessivage des murs commandé (oui/non)", obligatoire: true },
+  { cle: "lessivage_zones", libelle: "Zones concernées par le lessivage, si applicable", obligatoire: false },
+  { cle: "desinfection_prevue", libelle: "Désinfection commandée (oui/non)", obligatoire: true },
+  { cle: "desodorisation_prevue", libelle: "Désodorisation commandée (oui/non)", obligatoire: true },
+  // Exigée par les contrats de débarras insalubre : pendant écrit de leur
+  // article 11, qui interdit d'évacuer un bien non désigné.
+  { cle: "biens_a_conserver", libelle: "Biens expressément exclus du débarras", obligatoire: true },
+  // Exigées par le contrat « nettoyage insalubre ET débarras insalubre » :
+  // son bon de mission décrit les prestations en deux phases distinctes, et
+  // son article 3-E refuse de tenir les traitements pour compris d'office,
+  // d'où des zones déclarées option par option.
+  { cle: "phase1_debarras", libelle: "Phase 1 — objets et déchets à évacuer", obligatoire: true },
+  { cle: "phase2_nettoyage", libelle: "Phase 2 — surfaces et équipements à nettoyer", obligatoire: true },
+  { cle: "desinfection_zones", libelle: "Zones concernées par la désinfection, si applicable", obligatoire: false },
+  { cle: "desodorisation_zones", libelle: "Zones concernées par la désodorisation, si applicable", obligatoire: false },
+  { cle: "decontamination_prevue", libelle: "Décontamination commandée (oui/non)", obligatoire: true },
+  { cle: "decontamination_zones", libelle: "Nature et zones concernées par la décontamination, si applicable", obligatoire: false },
   { cle: "montant_ht", libelle: "Montant forfaitaire HT", obligatoire: true },
   { cle: "tva_detail", libelle: "TVA (taux et montant)", obligatoire: false },
   { cle: "montant_ttc", libelle: "Montant TTC", obligatoire: false },

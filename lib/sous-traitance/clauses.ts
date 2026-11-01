@@ -33,6 +33,18 @@ import {
   ANNEXE_BON_MISSION_DESINFECTION, ANNEXE_RAPPORT_DESINFECTION,
   SOCLE_DESINFECTION, TITRE_DESINFECTION, VERSION_DESINFECTION,
 } from "./modele-desinfection";
+import {
+  ANNEXE_BON_MISSION_INSALUBRE, ANNEXE_RAPPORT_INSALUBRE,
+  SOCLE_INSALUBRE, TITRE_INSALUBRE, VERSION_INSALUBRE,
+} from "./modele-insalubre";
+import {
+  ANNEXE_BON_MISSION_DEBARRAS_INSALUBRE, ANNEXE_RAPPORT_DEBARRAS_INSALUBRE,
+  SOCLE_DEBARRAS_INSALUBRE, TITRE_DEBARRAS_INSALUBRE, VERSION_DEBARRAS_INSALUBRE,
+} from "./modele-debarras-insalubre";
+import {
+  ANNEXE_BON_MISSION_INSALUBRE_COMPLET, ANNEXE_RAPPORT_INSALUBRE_COMPLET,
+  SOCLE_INSALUBRE_COMPLET, TITRE_INSALUBRE_COMPLET, VERSION_INSALUBRE_COMPLET,
+} from "./modele-insalubre-complet";
 
 export type Article = {
   cle: string;
@@ -56,6 +68,17 @@ export type ModeleContrat =
   // les temps de contact, les délais de réoccupation et les contrôles de
   // validation.
   | "desinfection_decontamination"
+  // Logement insalubre : SEUL contrat à 31 articles. Son article 19 fait du
+  // comportement envers une personne vulnérable une obligation sanctionnée.
+  // Son article 3 exclut en revanche le débarras et l'évacuation des
+  // encombrants.
+  | "nettoyage_insalubre"
+  // Débarras de logement insalubre : son article 16 fait du volume une
+  // obligation d'alerte avant tout supplément. Exclut le nettoyage.
+  | "debarras_insalubre"
+  // Les deux à la fois. Chacun des deux précédents exclut ce que l'autre
+  // fait, donc un chantier complet n'avait aucun texte avant celui-ci.
+  | "insalubre_complet"
   | "nettoyage_complements"
   | "demenagement_transport";
 
@@ -64,6 +87,9 @@ export const MODELE_LABEL: Record<ModeleContrat, string> = {
   nettoyage_debarras: "Contrat 2 — Nettoyage avec débarras",
   debarras_seul: "Contrat 3 — Débarras seul",
   desinfection_decontamination: "Contrat 4 — Désinfection et décontamination",
+  nettoyage_insalubre: "Contrat 5 — Nettoyage de logement insalubre",
+  debarras_insalubre: "Contrat 6 — Débarras de logement insalubre",
+  insalubre_complet: "Contrat 7 — Nettoyage et débarras de logement insalubre",
   nettoyage_complements: "Nettoyage avec compléments d'activité (texte en attente)",
   demenagement_transport: "Déménagement et transport (texte en attente)",
 };
@@ -748,7 +774,14 @@ export function modelePour(codes: readonly string[]): ModeleContrat | null {
     // Du débarras SANS nettoyage relève du contrat « débarras seul », qui
     // exclut expressément les prestations de nettoyage. Avec du nettoyage,
     // c'est le contrat mixte.
-    return f.includes("nettoyage") ? "nettoyage_debarras" : "debarras_seul";
+    const insalubre = codes.includes("deb_insalubre") || codes.includes("net_insalubre");
+    if (f.includes("nettoyage")) {
+      // Débarras ET nettoyage : sur un terrain insalubre, c'est le contrat 7,
+      // seul texte dont l'article 3 déroule les deux phases. Les contrats 5
+      // et 6 s'excluent mutuellement sur ce point.
+      return insalubre ? "insalubre_complet" : "nettoyage_debarras";
+    }
+    return insalubre ? "debarras_insalubre" : "debarras_seul";
   }
   // Une mission dont l'objet EST la désinfection ou la décontamination relève
   // du contrat 4, dont l'article 2 fixe cette nature d'intervention et dont
@@ -756,6 +789,10 @@ export function modelePour(codes: readonly string[]): ModeleContrat | null {
   // assorti d'une désinfection reste, lui, un contrat de nettoyage : les
   // articles conditionnels « produits_biocides » et « risque_biologique » y
   // ajoutent les obligations correspondantes.
+  // Un logement insalubre a son propre contrat, et son article 3-D absorbe la
+  // désinfection et la désodorisation lorsqu'elles sont commandées. Le test
+  // passe donc avant celui de la désinfection.
+  if (codes.includes("net_insalubre")) return "nettoyage_insalubre";
   if (estDesinfection(codes)) return "desinfection_decontamination";
   return "nettoyage_approfondi";
 }
@@ -771,6 +808,12 @@ const ARTICLES_DU_MODELE: Record<ModeleContrat, string[]> = {
   // 11), les biocides (art. 5), le risque biologique (art. 6 et 9) et la
   // traçabilité (art. 12).
   desinfection_decontamination: [],
+  nettoyage_insalubre: ["produits"],
+  // Le débarras insalubre n'emploie pas de produit d'entretien : son article
+  // 3 exclut le nettoyage. Il impose en revanche les articles de débarras.
+  debarras_insalubre: ["objets_conserver", "objets_valeur", "volume_contractuel"],
+  // Le contrat complet cumule les deux périmètres.
+  insalubre_complet: ["produits", "objets_conserver", "objets_valeur", "volume_contractuel"],
   // Le contrat 3 impose la validation des suppléments : c'est sa raison d'être.
   nettoyage_complements: ["produits", "fournitures", "reception_travaux", "prestations_supplementaires"],
   demenagement_transport: [
@@ -839,6 +882,30 @@ const REGISTRE: Record<ModeleContrat, ModeleContractuel> = {
     // art. 8 et 11 la compatibilité des produits, art. 12 la traçabilité.
     // Y ajouter les conditionnels correspondants serait un doublon.
     couvre: ["produits", "produits_biocides", "risque_biologique", "tracabilite_dechets"],
+  },
+  // Contrat 5 — fourni le 2026-11-01. Logement insalubre, 31 articles.
+  nettoyage_insalubre: {
+    titre: TITRE_INSALUBRE, socle: SOCLE_INSALUBRE, version: VERSION_INSALUBRE,
+    valide: true, bonMission: ANNEXE_BON_MISSION_INSALUBRE,
+    rapport: ANNEXE_RAPPORT_INSALUBRE,
+    // Art. 12 traite la traçabilité jusqu'aux justificatifs de dépôt.
+    couvre: ["tracabilite_dechets"],
+  },
+  // Contrat 6 — fourni le 2026-11-01. Débarras insalubre, 31 articles.
+  debarras_insalubre: {
+    titre: TITRE_DEBARRAS_INSALUBRE, socle: SOCLE_DEBARRAS_INSALUBRE,
+    version: VERSION_DEBARRAS_INSALUBRE, valide: true,
+    bonMission: ANNEXE_BON_MISSION_DEBARRAS_INSALUBRE,
+    rapport: ANNEXE_RAPPORT_DEBARRAS_INSALUBRE,
+    couvre: ["tracabilite_dechets"],
+  },
+  // Contrat 7 — fourni le 2026-11-01. Nettoyage ET débarras insalubres.
+  insalubre_complet: {
+    titre: TITRE_INSALUBRE_COMPLET, socle: SOCLE_INSALUBRE_COMPLET,
+    version: VERSION_INSALUBRE_COMPLET, valide: true,
+    bonMission: ANNEXE_BON_MISSION_INSALUBRE_COMPLET,
+    rapport: ANNEXE_RAPPORT_INSALUBRE_COMPLET,
+    couvre: ["tracabilite_dechets"],
   },
   // Contrat « compléments d'activité » — EN ATTENTE du texte client. On emploie provisoirement celui
   // du nettoyage, et `valide: false` l'annonce : les compléments d'activité
