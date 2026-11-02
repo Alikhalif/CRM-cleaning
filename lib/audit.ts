@@ -44,8 +44,19 @@ type AuditLogInsert = Database["public"]["Tables"]["audit_logs"]["Insert"];
 //   dossier.sold            — → solde + payment_status=solde
 //   dossier.acompte_paid    — invoice paid via Planification button
 //   dossier.finale.create   — FAC- generated from a finalised dossier
+//   subcontract.contract.created    — brouillon de contrat de sous-traitance
+//   subcontract.contract.updated    — sous-traitant / entité / modèle / tarif modifiés
+//   subcontract.contract.generated  — document émis, numéro ST- alloué
+//   subcontract.contract.sent       — envoyé en signature
+//   subcontract.contract.signed     — signature des deux parties aboutie
+//   subcontract.contract.cancelled  — annulé avec motif
 export type AuditAction = string;
-export type AuditEntityType = "lead" | "document" | "dossier" | "client" | "user";
+export type AuditEntityType =
+  | "lead" | "document" | "dossier" | "client" | "user"
+  // Contrat de sous-traitance : entité propre, distincte de `document` qui
+  // porte les devis et factures CLIENTS. Les confondre mélangerait dans le
+  // journal des pièces commerciales et des pièces d'achat.
+  | "subcontract_contract";
 
 export type AuditPayload = {
   action: AuditAction;

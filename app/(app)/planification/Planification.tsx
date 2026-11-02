@@ -940,6 +940,19 @@ function Row({
                   : { visibility: "hidden" }
               }
             >
+              {/* Ouverture de la fiche dossier — c'est là que se génère le
+                  contrat de sous-traitance. Première entrée du menu : c'est
+                  le point d'entrée du parcours après-signature. */}
+              <Link
+                href={`/planification/${dossier.id}`}
+                className={styles.menuItem}
+                role="menuitem"
+                onClick={onToggleMenu}
+              >
+                <Icon name="folder" size={15} /> Ouvrir le dossier · contrat de sous-traitance
+              </Link>
+              <div className={styles.menuDivider} />
+
               {(dossier.status === "a_planifier" || dossier.status === "planifie" || dossier.status === "en_cours") && (
                 <div className={styles.menuLabel}>Intervention</div>
               )}

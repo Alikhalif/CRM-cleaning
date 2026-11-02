@@ -79,20 +79,68 @@ export type ModeleContrat =
   // Les deux à la fois. Chacun des deux précédents exclut ce que l'autre
   // fait, donc un chantier complet n'avait aucun texte avant celui-ci.
   | "insalubre_complet"
+  // Nettoyage approfondi AVEC lessivage des murs. TEXTE NON INTÉGRÉ : le
+  // document transmis le 2026-11-01 s'est interrompu en plein article 27, la
+  // limite de 50 000 caractères du message l'ayant tronqué. Les articles 27
+  // (fin) à 31 et les deux annexes manquent. Rien n'a été inventé pour
+  // combler ce trou : le modèle est déclaré sans texte et refusé à l'émission.
+  | "nettoyage_lessivage"
+  // Nettoyage approfondi SANS lessivage des murs. TEXTE JAMAIS TRANSMIS.
+  | "nettoyage_sans_lessivage"
+  // ── Hors liste des neuf : replis du routage ─────────────────────────
+  // Ces deux clés ne correspondent à aucun contrat de la liste client. Le
+  // moteur les renvoie encore pour les familles « compléments d'activité » et
+  // « transport », qui n'ont pas de texte dédié. Elles ne sont jamais
+  // proposées au choix et ne peuvent pas être émises.
   | "nettoyage_complements"
   | "demenagement_transport";
 
 export const MODELE_LABEL: Record<ModeleContrat, string> = {
-  nettoyage_approfondi: "Contrat 1 — Nettoyage approfondi",
-  nettoyage_debarras: "Contrat 2 — Nettoyage avec débarras",
-  debarras_seul: "Contrat 3 — Débarras seul",
-  desinfection_decontamination: "Contrat 4 — Désinfection et décontamination",
-  nettoyage_insalubre: "Contrat 5 — Nettoyage de logement insalubre",
-  debarras_insalubre: "Contrat 6 — Débarras de logement insalubre",
-  insalubre_complet: "Contrat 7 — Nettoyage et débarras de logement insalubre",
-  nettoyage_complements: "Nettoyage avec compléments d'activité (texte en attente)",
-  demenagement_transport: "Déménagement et transport (texte en attente)",
+  nettoyage_approfondi: "Nettoyage classique",
+  nettoyage_debarras: "Nettoyage et débarras",
+  debarras_seul: "Débarras uniquement",
+  desinfection_decontamination: "Désinfection et décontamination",
+  nettoyage_insalubre: "Nettoyage insalubre",
+  debarras_insalubre: "Débarras insalubre",
+  insalubre_complet: "Nettoyage insalubre et débarras insalubre",
+  nettoyage_lessivage: "Nettoyage approfondi avec lessivage des murs",
+  nettoyage_sans_lessivage: "Nettoyage approfondi sans lessivage des murs",
+  nettoyage_complements: "Nettoyage avec compléments d'activité",
+  demenagement_transport: "Déménagement et transport",
 };
+
+/**
+ * Numéro du contrat dans la liste de référence du client.
+ *
+ * `null` = hors liste. Deux clés en portent : ce sont des replis de routage,
+ * pas des contrats. Les distinguer par un champ plutôt que par leur intitulé
+ * évite qu'un libellé retouché fasse apparaître un dixième contrat dans le
+ * menu de la planificatrice.
+ */
+export const MODELE_NUMERO: Record<ModeleContrat, number | null> = {
+  nettoyage_approfondi: 1,
+  nettoyage_debarras: 2,
+  debarras_seul: 3,
+  desinfection_decontamination: 4,
+  nettoyage_insalubre: 5,
+  debarras_insalubre: 6,
+  insalubre_complet: 7,
+  nettoyage_lessivage: 8,
+  nettoyage_sans_lessivage: 9,
+  nettoyage_complements: null,
+  demenagement_transport: null,
+};
+
+/** Les neuf contrats de la liste client, dans l'ordre. C'est ce que montre le menu. */
+export const MODELES_CLIENT: ModeleContrat[] = (Object.keys(MODELE_NUMERO) as ModeleContrat[])
+  .filter((m) => MODELE_NUMERO[m] != null)
+  .sort((a, b) => (MODELE_NUMERO[a] as number) - (MODELE_NUMERO[b] as number));
+
+/** Intitulé numéroté, tel qu'il doit apparaître dans le menu déroulant. */
+export function modeleLabelNumerote(m: ModeleContrat): string {
+  const n = MODELE_NUMERO[m];
+  return n == null ? MODELE_LABEL[m] : `Contrat ${n} — ${MODELE_LABEL[m]}`;
+}
 
 /** Version du jeu de modèles. Figée sur chaque contrat généré (§29). */
 export const VERSION_MODELES = "1.0";
@@ -814,6 +862,10 @@ const ARTICLES_DU_MODELE: Record<ModeleContrat, string[]> = {
   debarras_insalubre: ["objets_conserver", "objets_valeur", "volume_contractuel"],
   // Le contrat complet cumule les deux périmètres.
   insalubre_complet: ["produits", "objets_conserver", "objets_valeur", "volume_contractuel"],
+  // Contrats 8 et 9 — sans texte. Rien à imposer : il n'y a pas de socle sur
+  // quoi greffer un conditionnel, et l'émission est refusée en amont.
+  nettoyage_lessivage: [],
+  nettoyage_sans_lessivage: [],
   // Le contrat 3 impose la validation des suppléments : c'est sa raison d'être.
   nettoyage_complements: ["produits", "fournitures", "reception_travaux", "prestations_supplementaires"],
   demenagement_transport: [
@@ -836,6 +888,21 @@ export type ModeleContractuel = {
   socle: Article[];
   version: string;
   valide: boolean;
+  /**
+   * Provenance du texte, et c'est une distinction qui compte.
+   *
+   *   "client"    — contrat juridique transmis et validé, repris mot pour mot.
+   *   "brouillon" — rédaction de travail, en attente du texte client.
+   *   "absent"    — AUCUN texte. Le modèle existe pour figurer dans la liste
+   *                 des neuf, pas pour être émis.
+   *
+   * Un simple booléen `valide` ne suffisait plus : il confondait « texte
+   * provisoire » et « pas de texte du tout », deux situations qui n'appellent
+   * pas le même message à la planificatrice.
+   */
+  texte: "client" | "brouillon" | "absent";
+  /** Pourquoi le texte manque, affiché tel quel dans l'interface. */
+  manqueMotif?: string;
   bonMission: { titre: string; blocs: BlocAnnexe[]; pied: string[] };
   rapport: { titre: string; entete: RubriqueRapport[]; rubriques: RubriqueRapport[] };
   /**
@@ -852,7 +919,7 @@ const REGISTRE: Record<ModeleContrat, ModeleContractuel> = {
   // Contrat 1 — fourni le 2026-11-01.
   nettoyage_approfondi: {
     titre: TITRE_NETTOYAGE, socle: SOCLE_NETTOYAGE, version: VERSION_NETTOYAGE,
-    valide: true, bonMission: ANNEXE_BON_MISSION, rapport: ANNEXE_RAPPORT,
+    valide: true, texte: "client", bonMission: ANNEXE_BON_MISSION, rapport: ANNEXE_RAPPORT,
     // Art. 12 couvre les déchets et leurs justificatifs.
     couvre: ["tracabilite_dechets"],
   },
@@ -860,7 +927,7 @@ const REGISTRE: Record<ModeleContrat, ModeleContractuel> = {
   // contrat 1 : onze articles diffèrent et le rapport compte huit rubriques.
   nettoyage_debarras: {
     titre: TITRE_DEBARRAS, socle: SOCLE_DEBARRAS, version: VERSION_DEBARRAS,
-    valide: true, bonMission: ANNEXE_BON_MISSION_DEBARRAS, rapport: ANNEXE_RAPPORT_DEBARRAS,
+    valide: true, texte: "client", bonMission: ANNEXE_BON_MISSION_DEBARRAS, rapport: ANNEXE_RAPPORT_DEBARRAS,
     // Art. 12 traite la traçabilité jusqu'à la communication des
     // justificatifs ; art. 13 traite le transport pour compte d'autrui.
     couvre: ["tracabilite_dechets"],
@@ -868,7 +935,7 @@ const REGISTRE: Record<ModeleContrat, ModeleContractuel> = {
   // Contrat 3 — fourni le 2026-11-01. Débarras seul.
   debarras_seul: {
     titre: TITRE_DEBARRAS_SEUL, socle: SOCLE_DEBARRAS_SEUL, version: VERSION_DEBARRAS_SEUL,
-    valide: true, bonMission: ANNEXE_BON_MISSION_DEBARRAS_SEUL,
+    valide: true, texte: "client", bonMission: ANNEXE_BON_MISSION_DEBARRAS_SEUL,
     rapport: ANNEXE_RAPPORT_DEBARRAS_SEUL,
     // Art. 12 traite la traçabilité ; art. 13 le transport pour autrui.
     couvre: ["tracabilite_dechets"],
@@ -876,7 +943,7 @@ const REGISTRE: Record<ModeleContrat, ModeleContractuel> = {
   // Contrat 4 — fourni le 2026-11-01. Désinfection et décontamination.
   desinfection_decontamination: {
     titre: TITRE_DESINFECTION, socle: SOCLE_DESINFECTION, version: VERSION_DESINFECTION,
-    valide: true, bonMission: ANNEXE_BON_MISSION_DESINFECTION,
+    valide: true, texte: "client", bonMission: ANNEXE_BON_MISSION_DESINFECTION,
     rapport: ANNEXE_RAPPORT_DESINFECTION,
     // Art. 5 porte l'autorisation biocide, art. 6 et 9 le risque biologique,
     // art. 8 et 11 la compatibilité des produits, art. 12 la traçabilité.
@@ -886,7 +953,7 @@ const REGISTRE: Record<ModeleContrat, ModeleContractuel> = {
   // Contrat 5 — fourni le 2026-11-01. Logement insalubre, 31 articles.
   nettoyage_insalubre: {
     titre: TITRE_INSALUBRE, socle: SOCLE_INSALUBRE, version: VERSION_INSALUBRE,
-    valide: true, bonMission: ANNEXE_BON_MISSION_INSALUBRE,
+    valide: true, texte: "client", bonMission: ANNEXE_BON_MISSION_INSALUBRE,
     rapport: ANNEXE_RAPPORT_INSALUBRE,
     // Art. 12 traite la traçabilité jusqu'aux justificatifs de dépôt.
     couvre: ["tracabilite_dechets"],
@@ -894,7 +961,7 @@ const REGISTRE: Record<ModeleContrat, ModeleContractuel> = {
   // Contrat 6 — fourni le 2026-11-01. Débarras insalubre, 31 articles.
   debarras_insalubre: {
     titre: TITRE_DEBARRAS_INSALUBRE, socle: SOCLE_DEBARRAS_INSALUBRE,
-    version: VERSION_DEBARRAS_INSALUBRE, valide: true,
+    version: VERSION_DEBARRAS_INSALUBRE, valide: true, texte: "client",
     bonMission: ANNEXE_BON_MISSION_DEBARRAS_INSALUBRE,
     rapport: ANNEXE_RAPPORT_DEBARRAS_INSALUBRE,
     couvre: ["tracabilite_dechets"],
@@ -902,24 +969,47 @@ const REGISTRE: Record<ModeleContrat, ModeleContractuel> = {
   // Contrat 7 — fourni le 2026-11-01. Nettoyage ET débarras insalubres.
   insalubre_complet: {
     titre: TITRE_INSALUBRE_COMPLET, socle: SOCLE_INSALUBRE_COMPLET,
-    version: VERSION_INSALUBRE_COMPLET, valide: true,
+    version: VERSION_INSALUBRE_COMPLET, valide: true, texte: "client",
     bonMission: ANNEXE_BON_MISSION_INSALUBRE_COMPLET,
     rapport: ANNEXE_RAPPORT_INSALUBRE_COMPLET,
     couvre: ["tracabilite_dechets"],
+  },
+  // ── Contrats 8 et 9 : AUCUN TEXTE ────────────────────────────────────
+  // Ils figurent au registre parce que la liste client en compte neuf et que
+  // le menu doit les montrer. Leur socle est VIDE, délibérément : rien n'a
+  // été rédigé à la place du contrat du client. `assembler()` renvoie null
+  // sur un socle vide, et l'émission est refusée avec le motif ci-dessous.
+  nettoyage_lessivage: {
+    titre: "CONTRAT DE SOUS-TRAITANCE — PRESTATIONS PROFESSIONNELLES DE "
+      + "NETTOYAGE APPROFONDI AVEC LESSIVAGE DES MURS",
+    socle: [], version: "0", valide: false, texte: "absent",
+    manqueMotif:
+      "Texte transmis le 1er novembre 2026 mais tronqué en plein article 27 par "
+      + "la limite de 50 000 caractères du message. Manquent la fin de l'article "
+      + "27, les articles 28 à 31, l'annexe 1 (bon de mission) et l'annexe 2 "
+      + "(rapport de fin d'intervention).",
+    bonMission: ANNEXE_BON_MISSION, rapport: ANNEXE_RAPPORT, couvre: [],
+  },
+  nettoyage_sans_lessivage: {
+    titre: "CONTRAT DE SOUS-TRAITANCE — PRESTATIONS PROFESSIONNELLES DE "
+      + "NETTOYAGE APPROFONDI SANS LESSIVAGE DES MURS",
+    socle: [], version: "0", valide: false, texte: "absent",
+    manqueMotif: "Texte jamais transmis. Aucun article, aucune annexe.",
+    bonMission: ANNEXE_BON_MISSION, rapport: ANNEXE_RAPPORT, couvre: [],
   },
   // Contrat « compléments d'activité » — EN ATTENTE du texte client. On emploie provisoirement celui
   // du nettoyage, et `valide: false` l'annonce : les compléments d'activité
   // appellent des clauses de travaux que ce texte ne porte pas.
   nettoyage_complements: {
     titre: TITRE_NETTOYAGE, socle: SOCLE_NETTOYAGE, version: VERSION_NETTOYAGE,
-    valide: false, bonMission: ANNEXE_BON_MISSION, rapport: ANNEXE_RAPPORT,
+    valide: false, texte: "brouillon", bonMission: ANNEXE_BON_MISSION, rapport: ANNEXE_RAPPORT,
     couvre: ["tracabilite_dechets"],
   },
   // Contrat 4 — EN ATTENTE du texte client. Brouillon de travail 1.0.
   demenagement_transport: {
     titre: "CONTRAT DE SOUS-TRAITANCE — DÉMÉNAGEMENT ET TRANSPORT",
     socle: SOCLE, version: VERSION_MODELES,
-    valide: false, bonMission: ANNEXE_BON_MISSION, rapport: ANNEXE_RAPPORT,
+    valide: false, texte: "brouillon", bonMission: ANNEXE_BON_MISSION, rapport: ANNEXE_RAPPORT,
     couvre: [],
   },
 };
@@ -940,6 +1030,41 @@ export function socleValide(m: ModeleContrat): boolean {
 /** Modèles encore sur un texte de travail — à signaler à l'utilisateur. */
 export function modelesEnAttente(): ModeleContrat[] {
   return (Object.keys(REGISTRE) as ModeleContrat[]).filter((m) => !REGISTRE[m].valide);
+}
+
+export type Emissibilite =
+  | { ok: true }
+  | { ok: false; motif: string };
+
+/**
+ * Ce modèle peut-il produire un contrat opposable ?
+ *
+ * Appelée côté serveur AVANT toute génération, et pas seulement pour griser un
+ * bouton : masquer l'option dans l'interface ne protège de rien, un appel
+ * direct à l'action serveur passerait outre.
+ */
+export function peutEtreEmis(m: ModeleContrat): Emissibilite {
+  const r = REGISTRE[m];
+  if (r.texte === "absent" || r.socle.length === 0) {
+    return {
+      ok: false,
+      motif: r.manqueMotif
+        ?? "Le texte de ce contrat n'a pas été fourni. Aucun document ne peut être émis.",
+    };
+  }
+  if (r.texte === "brouillon") {
+    return {
+      ok: false,
+      motif: "Ce modèle ne fait pas partie des neuf contrats validés : son texte "
+        + "est une rédaction de travail, pas un contrat signé par le client.",
+    };
+  }
+  return { ok: true };
+}
+
+/** Les modèles réellement émissibles aujourd'hui. */
+export function modelesEmissibles(): ModeleContrat[] {
+  return MODELES_CLIENT.filter((m) => peutEtreEmis(m).ok);
 }
 
 export type ContratAssemble = {
@@ -969,6 +1094,11 @@ export function assembler(
   if (!modele) return null;
 
   const { articles: socle, version } = socleDe(modele);
+  // Un modèle sans texte (contrats 8 et 9) n'a pas de socle. Renvoyer un
+  // document fait des seuls articles conditionnels donnerait un contrat
+  // d'apparence valable, amputé de tout son corps juridique — pire qu'une
+  // absence de document.
+  if (socle.length === 0) return null;
   const exig = exigencesCumulees(codes);
   const voulus = new Set<string>([...exig.articles, ...ARTICLES_DU_MODELE[modele]]);
   // Un article conditionnel dont le socle traite déjà le sujet n'est pas

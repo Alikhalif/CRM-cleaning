@@ -12,7 +12,19 @@
 //   • les informations personnelles transmises au sous-traitant se limitent à
 //     ce qui est nécessaire à l'exécution (§10).
 
-/** Informations d'OPTIMIVV, centralisées une seule fois (§13). */
+/**
+ * Clés attendues pour le donneur d'ordre, et leur forme.
+ *
+ * ⚠️ CE N'EST PLUS LA SOURCE DES VALEURS. Le CRM est multientreprise : le
+ * contrat doit porter l'entité juridique que la planificatrice a choisie, en
+ * France, en Suisse, en Belgique, au Luxembourg ou au Canada. Alimenter ces
+ * variables depuis une constante ferait signer chaque contrat au nom d'une
+ * seule société, quelle que soit celle qui l'émet — et la mention « la facture
+ * devra être établie au nom de … » de l'article 17 désignerait la mauvaise.
+ *
+ * L'objet reste exporté comme GABARIT : il énumère les clés que
+ * `donneurOrdreDepuisEntite()` doit remplir, et sert de jeu d'essai.
+ */
 export const DONNEUR_ORDRE = {
   principal_company_name: "OPTIMIVV",
   principal_company_legal_form: "SASU",
@@ -94,10 +106,19 @@ export const VARIABLES: DefinitionVariable[] = [
   { cle: "subcontractor_qualifications", libelle: "Qualifications déclarées", groupe: "prestataire", obligatoire: false },
   { cle: "subcontractor_documents", libelle: "Documents au dossier", groupe: "prestataire", obligatoire: false },
 
-  // ── Donneur d'ordre (§13) ──────────────────────────────────────────
-  ...Object.keys(DONNEUR_ORDRE).map((cle) => ({
-    cle, libelle: cle, groupe: "donneur_ordre" as GroupeVariable, obligatoire: false,
-  })),
+  // ── Donneur d'ordre : l'entité juridique émettrice ─────────────────
+  // Toutes OBLIGATOIRES, et c'est voulu : le bloc « ENTRE LES SOUSSIGNÉS »
+  // identifie la partie qui s'engage. Un contrat où elle est incomplète n'est
+  // pas opposable, et sept entités du CRM n'ont aujourd'hui aucun
+  // représentant légal renseigné — mieux vaut un blocage explicite à
+  // l'émission qu'un contrat signé par « [à compléter] ».
+  { cle: "principal_company_name", libelle: "Dénomination sociale de l'entité", groupe: "donneur_ordre", obligatoire: true },
+  { cle: "principal_company_legal_form", libelle: "Forme juridique de l'entité", groupe: "donneur_ordre", obligatoire: true },
+  { cle: "principal_company_siren", libelle: "SIREN / identifiant légal de l'entité", groupe: "donneur_ordre", obligatoire: true },
+  { cle: "principal_company_rcs", libelle: "RCS / registre de l'entité", groupe: "donneur_ordre", obligatoire: false },
+  { cle: "principal_company_address", libelle: "Siège social de l'entité", groupe: "donneur_ordre", obligatoire: true },
+  { cle: "principal_company_representative", libelle: "Représentant légal de l'entité", groupe: "donneur_ordre", obligatoire: true },
+  { cle: "principal_company_representative_title", libelle: "Qualité du représentant", groupe: "donneur_ordre", obligatoire: true },
 
   // ── Transport (§18) ────────────────────────────────────────────────
   { cle: "pickup_address", libelle: "Adresse d'enlèvement", groupe: "transport", obligatoire: true, transportSeulement: true },
@@ -126,7 +147,47 @@ export type Contexte = {
   mission?: Record<string, unknown>;
   prestataire?: Record<string, unknown>;
   transport?: Record<string, unknown>;
+  /** Entité juridique émettrice, résolue par `donneurOrdreDepuisEntite()`. */
+  donneur_ordre?: Record<string, unknown>;
 };
+
+/** Une ligne de `legal_entities`, réduite à ce que le contrat emploie. */
+export type EntiteEmettrice = {
+  id: string;
+  legal_name: string | null;
+  trade_name?: string | null;
+  legal_form: string | null;
+  siren?: string | null;
+  siret: string | null;
+  vat_number?: string | null;
+  address: string | null;
+  country?: string | null;
+  representative_name?: string | null;
+  representative_title?: string | null;
+};
+
+/**
+ * Variables du donneur d'ordre à partir de l'entité choisie.
+ *
+ * L'identifiant légal retenu suit le pays : SIREN en France, à défaut SIRET,
+ * à défaut numéro de TVA. Hors de France il n'existe pas de SIREN — un contrat
+ * suisse ou canadien doit porter l'identifiant local, pas une case vide.
+ * Aucune valeur n'est fabriquée : ce qui manque reste vide et ressortira dans
+ * `manquantes`.
+ */
+export function donneurOrdreDepuisEntite(e: EntiteEmettrice): Record<string, string> {
+  const t = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const identifiant = t(e.siren) || t(e.siret) || t(e.vat_number);
+  return {
+    principal_company_name: t(e.legal_name) || t(e.trade_name),
+    principal_company_legal_form: t(e.legal_form),
+    principal_company_siren: identifiant,
+    principal_company_rcs: "",
+    principal_company_address: t(e.address),
+    principal_company_representative: t(e.representative_name),
+    principal_company_representative_title: t(e.representative_title),
+  };
+}
 
 export type Resolution = {
   /** Valeurs prêtes à être substituées dans le contrat. */
@@ -159,7 +220,9 @@ export function resoudre(ctx: Contexte, estTransport: boolean): Resolution {
     mission: ctx.mission ?? {},
     prestataire: ctx.prestataire ?? {},
     transport: ctx.transport ?? {},
-    donneur_ordre: DONNEUR_ORDRE as unknown as Record<string, unknown>,
+    // Pas de repli sur DONNEUR_ORDRE : une entité non transmise doit faire
+    // apparaître des manques, pas substituer silencieusement OPTIMIVV.
+    donneur_ordre: ctx.donneur_ordre ?? {},
   };
 
   const valeurs: Record<string, string> = {};
