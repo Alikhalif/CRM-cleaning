@@ -1201,6 +1201,194 @@ export type Database = {
         }
         Relationships: []
       }
+      document_access_log: {
+        Row: {
+          action: string
+          at: string
+          detail: Json
+          document_id: string
+          id: number
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          at?: string
+          detail?: Json
+          document_id: string
+          id?: never
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          at?: string
+          detail?: Json
+          document_id?: string
+          id?: never
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_access_log_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "document_archive"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_access_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_archive: {
+        Row: {
+          client_id: string | null
+          completed_at: string | null
+          contract_id: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          document_type: string
+          docusign_envelope_id: string | null
+          entity_id: string
+          entity_snapshot: Json
+          file_name: string | null
+          id: string
+          intervention_id: string | null
+          is_final: boolean
+          mime_type: string | null
+          ref: string | null
+          retention_until: string | null
+          sha256: string | null
+          signataires: Json
+          signature_status: string
+          size_bytes: number | null
+          source: string | null
+          storage_bucket: string
+          storage_path: string
+          subcontractor_id: string | null
+          supersedes_id: string | null
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          client_id?: string | null
+          completed_at?: string | null
+          contract_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          document_type: string
+          docusign_envelope_id?: string | null
+          entity_id: string
+          entity_snapshot?: Json
+          file_name?: string | null
+          id?: string
+          intervention_id?: string | null
+          is_final?: boolean
+          mime_type?: string | null
+          ref?: string | null
+          retention_until?: string | null
+          sha256?: string | null
+          signataires?: Json
+          signature_status?: string
+          size_bytes?: number | null
+          source?: string | null
+          storage_bucket?: string
+          storage_path: string
+          subcontractor_id?: string | null
+          supersedes_id?: string | null
+          title: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          client_id?: string | null
+          completed_at?: string | null
+          contract_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          document_type?: string
+          docusign_envelope_id?: string | null
+          entity_id?: string
+          entity_snapshot?: Json
+          file_name?: string | null
+          id?: string
+          intervention_id?: string | null
+          is_final?: boolean
+          mime_type?: string | null
+          ref?: string | null
+          retention_until?: string | null
+          sha256?: string | null
+          signataires?: Json
+          signature_status?: string
+          size_bytes?: number | null
+          source?: string | null
+          storage_bucket?: string
+          storage_path?: string
+          subcontractor_id?: string | null
+          supersedes_id?: string | null
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_archive_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_archive_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_archive_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_archive_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "legal_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_archive_intervention_id_fkey"
+            columns: ["intervention_id"]
+            isOneToOne: false
+            referencedRelation: "dossiers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_archive_subcontractor_id_fkey"
+            columns: ["subcontractor_id"]
+            isOneToOne: false
+            referencedRelation: "technicians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_archive_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "document_archive"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_lines: {
         Row: {
           created_at: string
@@ -1260,6 +1448,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      document_retention_rules: {
+        Row: {
+          annees: number
+          document_type: string
+          motif: string | null
+          updated_at: string
+        }
+        Insert: {
+          annees: number
+          document_type: string
+          motif?: string | null
+          updated_at?: string
+        }
+        Update: {
+          annees?: number
+          document_type?: string
+          motif?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       document_templates: {
         Row: {
@@ -1472,6 +1681,174 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      docusign_envelope_events: {
+        Row: {
+          at: string
+          detail: Json
+          envelope_id: string
+          id: number
+          origine: string
+          statut: string
+        }
+        Insert: {
+          at?: string
+          detail?: Json
+          envelope_id: string
+          id?: never
+          origine?: string
+          statut: string
+        }
+        Update: {
+          at?: string
+          detail?: Json
+          envelope_id?: string
+          id?: never
+          origine?: string
+          statut?: string
+        }
+        Relationships: []
+      }
+      docusign_envelopes: {
+        Row: {
+          amendment_id: string | null
+          archivage_erreur: string | null
+          archivage_essais: number
+          archive_le: string | null
+          completed_at: string | null
+          contract_id: string | null
+          created_at: string
+          document_type: string
+          entity_id: string
+          envelope_id: string
+          envoye_le: string | null
+          envoye_par: string | null
+          id: string
+          mission_id: string | null
+          signataires: Json
+          statut: string
+          synchronise_le: string | null
+          updated_at: string
+        }
+        Insert: {
+          amendment_id?: string | null
+          archivage_erreur?: string | null
+          archivage_essais?: number
+          archive_le?: string | null
+          completed_at?: string | null
+          contract_id?: string | null
+          created_at?: string
+          document_type: string
+          entity_id: string
+          envelope_id: string
+          envoye_le?: string | null
+          envoye_par?: string | null
+          id?: string
+          mission_id?: string | null
+          signataires?: Json
+          statut?: string
+          synchronise_le?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amendment_id?: string | null
+          archivage_erreur?: string | null
+          archivage_essais?: number
+          archive_le?: string | null
+          completed_at?: string | null
+          contract_id?: string | null
+          created_at?: string
+          document_type?: string
+          entity_id?: string
+          envelope_id?: string
+          envoye_le?: string | null
+          envoye_par?: string | null
+          id?: string
+          mission_id?: string | null
+          signataires?: Json
+          statut?: string
+          synchronise_le?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "docusign_envelopes_amendment_id_fkey"
+            columns: ["amendment_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_amendments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "docusign_envelopes_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "docusign_envelopes_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "legal_entities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "docusign_envelopes_envoye_par_fkey"
+            columns: ["envoye_par"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "docusign_envelopes_mission_id_fkey"
+            columns: ["mission_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      docusign_webhook_queue: {
+        Row: {
+          derniere_erreur: string | null
+          envelope_id: string
+          essais: number
+          etat: string
+          event_key: string
+          id: string
+          payload: Json
+          prochain_essai_le: string | null
+          recu_le: string
+          statut_recu: string | null
+          traite_le: string | null
+        }
+        Insert: {
+          derniere_erreur?: string | null
+          envelope_id: string
+          essais?: number
+          etat?: string
+          event_key: string
+          id?: string
+          payload?: Json
+          prochain_essai_le?: string | null
+          recu_le?: string
+          statut_recu?: string | null
+          traite_le?: string | null
+        }
+        Update: {
+          derniere_erreur?: string | null
+          envelope_id?: string
+          essais?: number
+          etat?: string
+          event_key?: string
+          id?: string
+          payload?: Json
+          prochain_essai_le?: string | null
+          recu_le?: string
+          statut_recu?: string | null
+          traite_le?: string | null
+        }
+        Relationships: []
       }
       dossiers: {
         Row: {
@@ -2114,18 +2491,28 @@ export type Database = {
           color: string | null
           contact_email: string | null
           contact_phone: string | null
+          country: string
           created_at: string
           default_vat_rate: number | null
           deleted_at: string | null
           deleted_by: string | null
+          docusign_account_id: string | null
+          docusign_base_uri: string | null
+          docusign_key_env: string | null
+          docusign_user_id: string | null
           iban: string | null
           id: string
+          is_active: boolean
           is_vat_exempt: boolean
           legal_form: Database["public"]["Enums"]["legal_form"]
           legal_mentions: string | null
           legal_name: string
           logo_url: string | null
+          representative_name: string | null
+          representative_title: string | null
+          siren: string | null
           siret: string
+          trade_name: string | null
           updated_at: string
           vat_number: string | null
           website: string | null
@@ -2137,18 +2524,28 @@ export type Database = {
           color?: string | null
           contact_email?: string | null
           contact_phone?: string | null
+          country?: string
           created_at?: string
           default_vat_rate?: number | null
           deleted_at?: string | null
           deleted_by?: string | null
+          docusign_account_id?: string | null
+          docusign_base_uri?: string | null
+          docusign_key_env?: string | null
+          docusign_user_id?: string | null
           iban?: string | null
           id?: string
+          is_active?: boolean
           is_vat_exempt?: boolean
           legal_form: Database["public"]["Enums"]["legal_form"]
           legal_mentions?: string | null
           legal_name: string
           logo_url?: string | null
+          representative_name?: string | null
+          representative_title?: string | null
+          siren?: string | null
           siret: string
+          trade_name?: string | null
           updated_at?: string
           vat_number?: string | null
           website?: string | null
@@ -2160,18 +2557,28 @@ export type Database = {
           color?: string | null
           contact_email?: string | null
           contact_phone?: string | null
+          country?: string
           created_at?: string
           default_vat_rate?: number | null
           deleted_at?: string | null
           deleted_by?: string | null
+          docusign_account_id?: string | null
+          docusign_base_uri?: string | null
+          docusign_key_env?: string | null
+          docusign_user_id?: string | null
           iban?: string | null
           id?: string
+          is_active?: boolean
           is_vat_exempt?: boolean
           legal_form?: Database["public"]["Enums"]["legal_form"]
           legal_mentions?: string | null
           legal_name?: string
           logo_url?: string | null
+          representative_name?: string | null
+          representative_title?: string | null
+          siren?: string | null
           siret?: string
+          trade_name?: string | null
           updated_at?: string
           vat_number?: string | null
           website?: string | null
@@ -2949,6 +3356,7 @@ export type Database = {
           date_fin: string | null
           deleted_at: string | null
           dossier_id: string | null
+          entity_id: string | null
           envoye_a: string | null
           envoye_le: string | null
           envoye_par: string | null
@@ -2981,6 +3389,7 @@ export type Database = {
           date_fin?: string | null
           deleted_at?: string | null
           dossier_id?: string | null
+          entity_id?: string | null
           envoye_a?: string | null
           envoye_le?: string | null
           envoye_par?: string | null
@@ -3013,6 +3422,7 @@ export type Database = {
           date_fin?: string | null
           deleted_at?: string | null
           dossier_id?: string | null
+          entity_id?: string | null
           envoye_a?: string | null
           envoye_le?: string | null
           envoye_par?: string | null
@@ -3049,6 +3459,13 @@ export type Database = {
             columns: ["dossier_id"]
             isOneToOne: false
             referencedRelation: "dossiers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_contracts_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "legal_entities"
             referencedColumns: ["id"]
           },
           {
@@ -4206,6 +4623,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      allocate_document_archive_ref: {
+        Args: { p_type: string }
+        Returns: string
+      }
       allocate_subcontract_ref: {
         Args: { p_kind: string; p_prefix: string }
         Returns: string
