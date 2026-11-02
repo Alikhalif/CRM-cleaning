@@ -189,7 +189,32 @@ export default function GridEditor({ initial }: { initial: PricingGrid }) {
                         onChange={(e) => setLine(section, i, { to: e.target.value === "" ? null : Number(e.target.value) })} />
                     </>
                   )}
-                  {section === "majorations" ? (
+                  {section === "vitrerie" ? (
+                    l.key.startsWith("vit_palier_") ? (
+                      <>
+                        <input type="number" step="0.5" className={styles.small} value={l.from ?? 0}
+                          aria-label="Unités pondérées — de"
+                          onChange={(e) => setLine(section, i, { from: Number(e.target.value) })} />
+                        <input type="number" step="0.5" className={styles.small} value={l.to ?? ""}
+                          placeholder="∞" aria-label="Unités pondérées — à"
+                          onChange={(e) => setLine(section, i, { to: e.target.value === "" ? null : Number(e.target.value) })} />
+                        <input type="number" step="0.5" className={styles.small} value={l.minPct ?? 0}
+                          aria-label="% min"
+                          onChange={(e) => setLine(section, i, { minPct: Number(e.target.value) })} />
+                        <input type="number" step="0.5" className={styles.small} value={l.maxPct ?? 0}
+                          aria-label="% max"
+                          onChange={(e) => setLine(section, i, { maxPct: Number(e.target.value) })} />
+                      </>
+                    ) : l.key === "vit_minimum" ? (
+                      <input type="number" className={styles.small} value={l.forfaitMin ?? 0}
+                        aria-label="Supplément minimum (€)"
+                        onChange={(e) => setLine(section, i, { forfaitMin: Number(e.target.value) })} />
+                    ) : (
+                      <input type="number" step="0.01" min="0" className={styles.small} value={l.coef ?? 0}
+                        aria-label="Coefficient"
+                        onChange={(e) => setLine(section, i, { coef: Number(e.target.value) })} />
+                    )
+                  ) : section === "majorations" ? (
                     <>
                       <input type="number" className={styles.small} value={l.minPct ?? 0} aria-label="% min"
                         onChange={(e) => setLine(section, i, { minPct: Number(e.target.value) })} />

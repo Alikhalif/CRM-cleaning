@@ -143,6 +143,21 @@
   color: var(--text-primary);
 }
 
+// Zone de texte libre — observations de vitrerie.
+.zone {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--fs-sm);
+  resize: vertical;
+  min-height: 72px;
+}
+.zone:focus-visible { outline: 2px solid var(--color-brand-500); outline-offset: 1px; }
+
 // ── Compteurs de vitrerie ──────────────────────────────────────────────
 // Une ligne par type de vitrage : libellé à gauche, [−] [valeur] [+] à droite.
 // Le commercial est au téléphone — il doit pouvoir incrémenter sans viser.
@@ -201,5 +216,6 @@
   .ligne { gap: var(--sp-2); }
   .ligne > * { flex: 1 1 100%; }
   .conditionnel { margin-left: 0; padding-left: var(--sp-2); }
+  .zone { min-height: 88px; font-size: 1rem; }
   .lienPhotos { align-self: flex-start; min-height: 44px; display: flex; align-items: center; }
 }

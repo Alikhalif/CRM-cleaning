@@ -10,7 +10,7 @@
 
 import { estFamilleNettoyage } from "@/lib/discovery-nettoyage";
 import type { GridInput } from "./grid-compute";
-import { vitrerieRenseignee, type SaisieVitrerie } from "./vitrerie";
+import { vitrerieRenseignee, type AccesVitres, type SaisieVitrerie } from "./vitrerie";
 
 // Les volumes sont des libellés, pas des nombres : « 20 » (déménagement) ou
 // « 10-20 » / « <5 » / « >100 » (débarras). Une tranche donne son MILIEU —
@@ -223,16 +223,39 @@ function nettoyageVersGrille(
  * l'état normal d'une saisie en cours, et surtout celui des dossiers
  * antérieurs à cette fonctionnalité.
  */
+/**
+ * Niveau d'accès du moteur, depuis la valeur stockée dans la découverte.
+ *
+ * Les deux valeurs d'origine (`normale`, `vitrerie_acces_difficile`) sont
+ * CONSERVÉES telles quelles : les dossiers saisis avant le 2026-11-02 gardent
+ * exactement leur coefficient, donc leur estimation au centime près. Toute
+ * valeur inconnue retombe sur `classique`, le coefficient neutre — jamais sur
+ * une majoration qui n'aurait pas été choisie.
+ */
+export function accesVitrerie(v: string): AccesVitres {
+  switch (v) {
+    case "vitrerie_acces_difficile": return "difficile";
+    case "vitrerie_acces_escabeau": return "escabeau";
+    case "vitrerie_acces_echelle": return "echelle";
+    case "vitrerie_acces_particulier": return "particulier";
+    default: return "classique";
+  }
+}
+
 export function saisieVitrerie(det: Record<string, unknown>): SaisieVitrerie {
   return {
     fenetres: num(det.vitrerieFenetres),
     baies: num(det.vitrerieBaies),
+    portesFenetres: num(det.vitreriePortesFenetres),
     velux: num(det.vitrerieVelux),
     verandaM2: num(det.vitrerieVerandaM2),
+    grandesSurfacesM2: num(det.vitrerieGrandesSurfacesM2),
     autres: num(det.vitrerieAutres),
+    rails: str(det.vitrerieRails) === "oui",
+    coulisses: str(det.vitrerieCoulisses) === "oui",
     faces: (str(det.vitrerieFaces) || null) as SaisieVitrerie["faces"],
     encadrement: (str(det.vitrerieEncadrement) || null) as SaisieVitrerie["encadrement"],
-    acces: str(det.vitrerieAcces) === "vitrerie_acces_difficile" ? "difficile" : "classique",
+    acces: accesVitrerie(str(det.vitrerieAcces)),
     equipementSpecifique: str(det.vitrerieEquipement) === "oui",
   };
 }

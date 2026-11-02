@@ -95,9 +95,19 @@ export const VITRERIE_QUANTITE: Option[] = opt([
   ["vitrerie_beaucoup", "Beaucoup"],
 ]);
 
+// Accessibilité des vitrages — cinq niveaux (cahier du 2026-11-02).
+//
+// ⚠️ Les valeurs `normale` et `vitrerie_acces_difficile` sont CONSERVÉES à
+// l'identique : elles sont déjà enregistrées dans des découvertes et portent
+// les deux seuls coefficients validés (1,00 et 1,15). Les trois nouvelles
+// attendent leur coefficient — elles n'ont donc aucun effet tarifaire pour
+// l'instant, et le CRM le dit au commercial plutôt que de deviner un prix.
 export const VITRERIE_ACCES: Option[] = opt([
-  ["normale", "Classique"],
-  ["vitrerie_acces_difficile", "Difficile / en hauteur"],
+  ["normale", "Facilement accessibles"],
+  ["vitrerie_acces_difficile", "En hauteur"],
+  ["vitrerie_acces_escabeau", "Escabeau nécessaire"],
+  ["vitrerie_acces_echelle", "Échelle nécessaire"],
+  ["vitrerie_acces_particulier", "Accès difficile ou particulier"],
 ]);
 
 // Faces à nettoyer. Une seule réponse — le nettoyage des deux faces coûte
@@ -115,7 +125,7 @@ export const VITRERIE_ENCADREMENT: Option[] = opt([
   ["bois", "Bois"],
   ["alu", "Aluminium"],
   ["mixte", "Mixte"],
-  ["nr", "Non renseigné"],
+  ["nr", "Autre / non renseigné"],
 ]);
 
 export const SOLS: Option[] = opt([
@@ -292,3 +302,84 @@ export const DIO_PRESTATIONS: Option[] = opt([
   ["desodorisation", "Désodorisation"],
   ["traitement_nuisibles", "Traitement des nuisibles"],
 ]);
+
+/**
+ * Descriptif des prestations de vitrerie, en texte.
+ *
+ * Reprend EXACTEMENT ce que le commercial a saisi en découverte : aucun
+ * vitrage n'est supposé, aucune quantité arrondie. Renvoie `null` si la
+ * vitrerie n'a pas été retenue — un devis de nettoyage sans vitres ne doit
+ * pas porter une ligne vide.
+ *
+ * Employé par le devis ET par la fiche dossier de la planificatrice : une
+ * seule rédaction, pour que les deux ne divergent pas au premier correctif.
+ *
+ * ⚠️ Aucun MONTANT n'est écrit ici. Le supplément vitrerie est déjà compris
+ * dans le montant recommandé, calculé par le moteur tarifaire ; le rappeler
+ * séparément dans le descriptif risquerait de le faire additionner deux fois.
+ */
+export function descriptifVitrerie(d: Record<string, unknown>): string | null {
+  const str = (k: string): string =>
+    typeof d[k] === "string" ? (d[k] as string) : d[k] != null ? String(d[k]) : "";
+  const num = (k: string): number => {
+    const n = Number(str(k));
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  if (str("vitrerie") !== "oui") return null;
+
+  const vitrages: string[] = [];
+  const compte = (k: string, un: string, plusieurs: string) => {
+    const n = num(k);
+    if (n > 0) vitrages.push(`${n} ${n > 1 ? plusieurs : un}`);
+  };
+  compte("vitrerieFenetres", "fenêtre classique", "fenêtres classiques");
+  compte("vitrerieBaies", "baie vitrée", "baies vitrées");
+  compte("vitreriePortesFenetres", "porte-fenêtre", "portes-fenêtres");
+  compte("vitrerieVelux", "Velux", "Velux");
+  if (num("vitrerieVerandaM2") > 0) vitrages.push(`véranda ${num("vitrerieVerandaM2")} m² vitrés`);
+  if (num("vitrerieGrandesSurfacesM2") > 0) {
+    vitrages.push(`grandes surfaces vitrées ${num("vitrerieGrandesSurfacesM2")} m²`);
+  }
+  compte("vitrerieAutres", "autre vitrage", "autres vitrages");
+
+  const parts: string[] = [];
+  let l1 = "Nettoyage de vitrerie";
+  if (vitrages.length) l1 += ` — ${vitrages.join(", ")}`;
+  const faces = str("vitrerieFaces");
+  if (faces) {
+    l1 += ` · ${faces === "les_deux" ? "faces intérieures et extérieures"
+      : faces === "exterieur" ? "face extérieure" : "face intérieure"}`;
+  }
+  parts.push(l1 + ".");
+
+  const cadre = str("vitrerieEncadrement");
+  if (cadre && cadre !== "nr") {
+    const libelle: Record<string, string> = {
+      pvc: "PVC", bois: "bois", alu: "aluminium", mixte: "mixtes",
+    };
+    parts.push(`Encadrements ${libelle[cadre] ?? cadre} nettoyés.`);
+  }
+
+  const options: string[] = [];
+  if (str("vitrerieRails") === "oui") options.push("rails");
+  if (str("vitrerieCoulisses") === "oui") options.push("coulisses");
+  if (options.length) parts.push(`Nettoyage des ${options.join(" et des ")}.`);
+
+  const acces: Record<string, string> = {
+    vitrerie_acces_difficile: "vitrages en hauteur",
+    vitrerie_acces_escabeau: "accès par escabeau",
+    vitrerie_acces_echelle: "accès par échelle",
+    vitrerie_acces_particulier: "accès difficile ou particulier",
+  };
+  const a = acces[str("vitrerieAcces")];
+  if (a) parts.push(`Accès : ${a}.`);
+  if (str("vitrerieEquipement") === "oui") {
+    parts.push("Nacelle ou échafaudage nécessaire — non compris, à chiffrer séparément.");
+  }
+
+  const obs = str("vitrerieObservations").trim();
+  if (obs) parts.push(`Observations : ${obs}`);
+
+  // Un simple « oui » sans aucun vitrage compté ne décrit rien d'utile.
+  return vitrages.length > 0 || options.length > 0 ? parts.join("\n") : null;
+}

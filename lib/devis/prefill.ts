@@ -34,6 +34,8 @@ export type DevisPrefill = {
   montant_ht?: number | null;
 };
 
+import { descriptifVitrerie, estFamilleNettoyage } from "@/lib/discovery-nettoyage";
+
 const labelOf = (options: Option[], value: string): string =>
   options.find((o) => o.value === value)?.label ?? value;
 
@@ -120,6 +122,15 @@ function buildPrefill(detail: LeadDetail): DevisPrefill {
       ? demenagementFromDiscovery(l.discoveryDetails)
       : {};
 
+  // Vitrerie : reprise du descriptif pour la famille nettoyage uniquement.
+  // Le garde-fou sur la famille est le même que celui du moteur tarifaire —
+  // un dossier reclassé de nettoyage vers débarras garde ses réponses dans
+  // `details`, et son descriptif de vitrerie ne doit pas suivre.
+  const vit =
+    estFamilleNettoyage(l.sector) && l.discoveryDetails
+      ? descriptifVitrerie(l.discoveryDetails)
+      : null;
+
   return {
     leadId: l.id,
     sector: l.sector,
@@ -131,7 +142,9 @@ function buildPrefill(detail: LeadDetail): DevisPrefill {
       email: l.email || undefined,
     },
     lieu_intervention: dm.lieu || l.city || undefined,
-    description: dm.description || l.typeService || undefined,
+    // La vitrerie complète le descriptif, elle ne le remplace pas.
+    description: [dm.description || l.typeService || "", vit ?? ""]
+      .filter(Boolean).join("\n") || undefined,
     // Rempli par getDevisPageData, qui seul a accès à la grille tarifaire.
     montant_ht: null,
   };

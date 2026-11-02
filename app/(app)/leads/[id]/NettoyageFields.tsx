@@ -134,7 +134,10 @@ function Compteur({ d, set, k, label, pas = 1, unite }: {
           type="number" min={0} step={pas} inputMode="decimal"
           className={styles.compteurVal}
           value={txt(d, k)} placeholder="0"
-          aria-label={unite ? `${label} (${unite})` : label}
+          // L'unité n'est ajoutée que si le libellé ne la porte pas déjà :
+          // « Véranda — surface vitrée (m²) » donnait sinon un aria-label en
+          // « … (m²) (m²) », lu deux fois par un lecteur d'écran.
+          aria-label={unite && !label.includes(unite) ? `${label} (${unite})` : label}
           onChange={(e) => set(k, e.target.value === "" ? "" : Number(e.target.value))}
         />
         <button
@@ -214,41 +217,6 @@ export default function NettoyageFields(p: Props) {
       <section className={styles.bloc}>
         <h3 className={styles.h3}>3 · Éléments intérieurs</h3>
 
-        <Choix d={d} set={set} k="vitrerie" options={OUI_NON} label="Nettoyage des vitres" />
-        {oui("vitrerie") && (
-          <div className={styles.conditionnel}>
-            <span className={styles.label}>Types et quantités</span>
-            <Compteur d={d} set={set} k="vitrerieFenetres" label="Fenêtres classiques" />
-            <Compteur d={d} set={set} k="vitrerieBaies" label="Baies vitrées" />
-            <Compteur d={d} set={set} k="vitrerieVelux" label="Velux / fenêtres de toit" />
-            <Compteur d={d} set={set} k="vitrerieVerandaM2" label="Véranda — surface vitrée (m²)" unite="m²" />
-            <Compteur d={d} set={set} k="vitrerieAutres" label="Autres surfaces vitrées" />
-
-            <Choix d={d} set={set} k="vitrerieFaces" options={VITRERIE_FACES} label="Faces à nettoyer" />
-            <Choix d={d} set={set} k="vitrerieEncadrement" options={VITRERIE_ENCADREMENT} label="Encadrements" />
-            <Choix d={d} set={set} k="vitrerieAcces" options={VITRERIE_ACCES} label="Accessibilité" />
-            {/* L'équipement ne se devine pas : il est signalé, jamais chiffré. */}
-            <Choix d={d} set={set} k="vitrerieEquipement" options={OUI_NON} label="Nacelle / échafaudage nécessaire" />
-            {oui("vitrerieEquipement") && (
-              <p className={styles.vitreAlerte}>
-                Accès spécifique : validation technique et tarifaire nécessaire.
-                L&apos;équipement n&apos;est pas compris dans le prix estimatif.
-              </p>
-            )}
-
-            {/* Ancienne saisie : affichée UNIQUEMENT si elle existe déjà et que
-                les vitrages n'ont pas été comptés. Les dossiers d'avant gardent
-                ainsi leur estimation, et rien n'est perdu. */}
-            {!vitragesComptes && txt(d, "vitrerieQuantite") !== "" && (
-              <>
-                <Choix d={d} set={set} k="vitrerieQuantite" options={VITRERIE_QUANTITE} label="Quantité (ancienne saisie)" />
-                <Nombre d={d} set={set} k="vitrerieM2" label="Surface de vitrage à facturer (m²) — ancienne saisie" />
-              </>
-            )}
-            <Nombre d={d} set={set} k="nbVolets" label="Nombre de volets — optionnel" />
-          </div>
-        )}
-
         <Multi d={d} set={set} k="sols" options={SOLS} label="Revêtements de sol" />
         <Multi d={d} set={set} k="traitementsSol" options={TRAITEMENTS_SOL} label="Traitement de sol (au m²)" />
         <Multi d={d} set={set} k="equipements" options={EQUIPEMENTS} label="Équipements à nettoyer" />
@@ -293,8 +261,77 @@ export default function NettoyageFields(p: Props) {
       </section>
 
       {/* ── 4. Extérieur ──────────────────────────────────────────── */}
+            {/* ── 4. Vitres / Vitrerie ──────────────────────────────────────
+          Section à part entière, et c'est le correctif du 2026-11-02 : ces
+          champs existaient depuis le 21 octobre mais vivaient À L'INTÉRIEUR
+          d'« Éléments intérieurs », derrière une seule ligne Oui/Non posée au
+          milieu des revêtements de sol. Techniquement présents, visuellement
+          introuvables — le commercial cherchait une section et n'en voyait
+          aucune. Le contenu d'origine n'a pas changé ; sa place, oui. */}
+      <section className={styles.bloc} id="vitrerie">
+        <h3 className={styles.h3}>4 · Vitres / Vitrerie</h3>
+        <Choix d={d} set={set} k="vitrerie" options={OUI_NON} label="Nettoyage des vitres" />
+        {oui("vitrerie") && (
+          <div className={styles.conditionnel}>
+            <span className={styles.label}>Types de vitrages et quantités</span>
+            <Compteur d={d} set={set} k="vitrerieFenetres" label="Fenêtres classiques" />
+            <Compteur d={d} set={set} k="vitrerieBaies" label="Baies vitrées" />
+            <Compteur d={d} set={set} k="vitreriePortesFenetres" label="Portes-fenêtres" />
+            <Compteur d={d} set={set} k="vitrerieVelux" label="Velux / fenêtres de toit" />
+            <Compteur d={d} set={set} k="vitrerieVerandaM2" label="Véranda — surface vitrée (m²)" unite="m²" />
+            <Compteur
+              d={d} set={set} k="vitrerieGrandesSurfacesM2"
+              label="Grandes surfaces vitrées (m²)" unite="m²"
+            />
+            <Compteur d={d} set={set} k="vitrerieAutres" label="Autres vitrages" />
+
+            <Choix d={d} set={set} k="vitrerieFaces" options={VITRERIE_FACES} label="Faces à nettoyer" />
+            <Choix
+              d={d} set={set} k="vitrerieEncadrement"
+              options={VITRERIE_ENCADREMENT} label="Type d’encadrement"
+            />
+
+            <Choix d={d} set={set} k="vitrerieRails" options={OUI_NON} label="Nettoyage des rails" />
+            <Choix d={d} set={set} k="vitrerieCoulisses" options={OUI_NON} label="Nettoyage des coulisses" />
+
+            <Choix d={d} set={set} k="vitrerieAcces" options={VITRERIE_ACCES} label="Accessibilité" />
+            {/* L'équipement ne se devine pas : il est signalé, jamais chiffré. */}
+            <Choix d={d} set={set} k="vitrerieEquipement" options={OUI_NON} label="Nacelle / échafaudage nécessaire" />
+            {oui("vitrerieEquipement") && (
+              <p className={styles.vitreAlerte}>
+                Accès spécifique : validation technique et tarifaire nécessaire.
+                L&apos;équipement n&apos;est pas compris dans le prix estimatif.
+              </p>
+            )}
+
+            <label className={styles.champ}>
+              <span className={styles.label}>
+                Observations — saleté, traces, contraintes, difficultés d&apos;accès
+              </span>
+              <textarea
+                className={styles.zone} rows={3}
+                value={txt(d, "vitrerieObservations")}
+                onChange={(e) => set("vitrerieObservations", e.target.value)}
+                placeholder="Calcaire important, fenêtres côté rue inaccessibles de l’intérieur…"
+              />
+            </label>
+
+            {/* Ancienne saisie : affichée UNIQUEMENT si elle existe déjà et que
+                les vitrages n'ont pas été comptés. Les dossiers d'avant gardent
+                ainsi leur estimation, et rien n'est perdu. */}
+            {!vitragesComptes && txt(d, "vitrerieQuantite") !== "" && (
+              <>
+                <Choix d={d} set={set} k="vitrerieQuantite" options={VITRERIE_QUANTITE} label="Quantité (ancienne saisie)" />
+                <Nombre d={d} set={set} k="vitrerieM2" label="Surface de vitrage à facturer (m²) — ancienne saisie" />
+              </>
+            )}
+            <Nombre d={d} set={set} k="nbVolets" label="Nombre de volets — optionnel" />
+          </div>
+        )}
+      </section>
+
       <section className={styles.bloc}>
-        <h3 className={styles.h3}>4 · Terrasse et extérieurs</h3>
+        <h3 className={styles.h3}>5 · Terrasse et extérieurs</h3>
         <Choix d={d} set={set} k="exterieur" options={OUI_NON} label="Espace extérieur à nettoyer" />
         {oui("exterieur") && (
           <div className={styles.conditionnel}>
@@ -311,7 +348,7 @@ export default function NettoyageFields(p: Props) {
 
       {/* ── 5. Options complémentaires ────────────────────────────── */}
       <section className={styles.bloc}>
-        <h3 className={styles.h3}>5 · Options complémentaires</h3>
+        <h3 className={styles.h3}>6 · Options complémentaires</h3>
         <Multi d={d} set={set} k="complements" options={COMPLEMENTS} />
 
         {comps.includes("desinfection") && (
@@ -342,7 +379,7 @@ export default function NettoyageFields(p: Props) {
 
       {/* ── 6. Accès et date ──────────────────────────────────────── */}
       <section className={styles.bloc}>
-        <h3 className={styles.h3}>6 · Accès et date souhaitée</h3>
+        <h3 className={styles.h3}>7 · Accès et date souhaitée</h3>
         <div className={styles.ligne}>
           <Choix d={d} set={set} k="etage" options={ETAGE} label="Étage" />
           <Choix d={d} set={set} k="ascenseur" options={OUI_NON} label="Ascenseur" />
@@ -377,7 +414,7 @@ export default function NettoyageFields(p: Props) {
 
       {/* ── 7. Diogène — extension facultative ────────────────────── */}
       <section className={styles.bloc}>
-        <h3 className={styles.h3}>7 · Cas particulier</h3>
+        <h3 className={styles.h3}>8 · Cas particulier</h3>
         {p.dejaDiogene ? (
           <p className={styles.dioActif}>🔵 Ce dossier est classé <strong>Diogène</strong>.</p>
         ) : (
@@ -416,7 +453,7 @@ export default function NettoyageFields(p: Props) {
 
       {/* ── 8. Photos ─────────────────────────────────────────────── */}
       <section className={styles.bloc}>
-        <h3 className={styles.h3}>8 · Photos</h3>
+        <h3 className={styles.h3}>9 · Photos</h3>
         <div className={styles.ligne}>
           <Choix d={d} set={set} k="photosEtat" options={PHOTOS_ETAT} />
           <Link href={`/leads/${leadId}?tab=media`} className={styles.lienPhotos}>

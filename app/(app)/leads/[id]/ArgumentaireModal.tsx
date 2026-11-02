@@ -108,6 +108,15 @@ export default function ArgumentaireModal({ pitch, conseille, min, max, vatRate,
                   <strong>Accessibilité</strong>
                   <span>{pitch.vitrerie.accessibilite}</span>
                 </li>
+                {/* Rails et coulisses : affichés seulement s'ils ont été
+                    cochés. Annoncer une prestation non vendue créerait une
+                    attente que l'intervention ne tiendrait pas. */}
+                {pitch.vitrerie.prestations.length > 0 && (
+                  <li>
+                    <strong>Prestations incluses</strong>
+                    <span>{pitch.vitrerie.prestations.join(" · ")}</span>
+                  </li>
+                )}
                 <li>
                   <strong>Majoration vitrerie</strong>
                   <span>{pitch.vitrerie.majoration}</span>

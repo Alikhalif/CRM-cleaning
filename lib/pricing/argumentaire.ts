@@ -29,7 +29,7 @@ import {
   type Encadrement, type FacesVitres, type ResultatVitrerie,
 } from "./vitrerie";
 import type { GridInput, GridResultLine } from "./grid-compute";
-import { EMBALLAGE_VERS_GRILLE, OBJET_VERS_GRILLE } from "./grid-discovery";
+import { EMBALLAGE_VERS_GRILLE, OBJET_VERS_GRILLE, accesVitrerie } from "./grid-discovery";
 import type { GridSection } from "./grid-types";
 
 // ── Familles de prestation ──────────────────────────────────────────────
@@ -111,6 +111,8 @@ export type PitchVitrerie = {
   vitrages: string[];
   encadrements: string;
   accessibilite: string;
+  /** Rails, coulisses… : seulement ce qui a été effectivement coché. */
+  prestations: string[];
   majoration: string;
   argument: string;
   /** Validation tarifaire ou technique à demander. */
@@ -354,20 +356,33 @@ function pitchVitrerie(c: PitchContext): PitchVitrerie | null {
   const d = c.details ?? {};
   const faces = (str(d.vitrerieFaces) || "interieur") as FacesVitres;
   const cadre = str(d.vitrerieEncadrement) as Encadrement;
-  const acces = str(d.vitrerieAcces) === "vitrerie_acces_difficile" ? "difficile" : "classique";
+  const acces = accesVitrerie(str(d.vitrerieAcces));
+
+  // Rails et coulisses n'entrent dans le discours que s'ils ont été cochés.
+  // Un argument sur une prestation non vendue est un argument faux : le
+  // client s'attendrait à la voir réalisée.
+  const prestations: string[] = [];
+  if (str(d.vitrerieRails) === "oui") prestations.push("nettoyage des rails");
+  if (str(d.vitrerieCoulisses) === "oui") prestations.push("nettoyage des coulisses");
+
+  const phraseFaces = faces === "les_deux"
+    ? "intérieures et extérieures"
+    : FACES_LABEL[faces].toLowerCase();
 
   return {
     faces: FACES_LABEL[faces] ?? FACES_LABEL.interieur,
     vitrages: v.detail.map((x) => `${x.quantite} ${x.libelle.toLowerCase()}`),
     encadrements: cadre && ENCADREMENT_LABEL[cadre] ? ENCADREMENT_LABEL[cadre] : "Non renseigné",
     accessibilite: ACCES_LABEL[acces],
+    prestations,
     majoration: `+${Math.round(v.pct)} %`,
     argument:
       "Le tarif comprend également le nettoyage des vitrages sur leurs faces "
-      + (faces === "les_deux" ? "intérieures et extérieures" : FACES_LABEL[faces].toLowerCase())
-      + ", ainsi que les encadrements accessibles. Le supplément tient compte du "
-      + "nombre de surfaces vitrées, de leurs dimensions et du temps de travail "
-      + "supplémentaire nécessaire.",
+      + phraseFaces
+      + ", ainsi que les encadrements accessibles"
+      + (prestations.length > 0 ? ` et le ${prestations.join(" et le ")}` : "")
+      + ". Le supplément tient compte du nombre de surfaces vitrées, de leurs "
+      + "dimensions et du temps de travail supplémentaire nécessaire.",
     alertes: v.alertes,
   };
 }

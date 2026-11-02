@@ -14,7 +14,19 @@ import type { Grid, GridLine } from "./grid-types";
 
 export type FacesVitres = "interieur" | "exterieur" | "les_deux";
 export type Encadrement = "pvc" | "bois" | "alu" | "mixte" | "nr";
-export type AccesVitres = "classique" | "difficile";
+/**
+ * Niveaux d'accessibilité.
+ *
+ * `classique` et `difficile` portent les deux coefficients VALIDÉS du cahier
+ * du 2026-10-21 (1,00 et 1,15). Les trois suivants ont été demandés le
+ * 2026-11-02 mais AUCUN coefficient ne leur a été communiqué : ils valent donc
+ * 1,00 — strictement sans effet sur le prix — et déclenchent une demande de
+ * validation tarifaire tant que le Super Admin ne les a pas réglés. Leur
+ * donner une valeur inventée ferait varier des devis sur une estimation.
+ */
+export type AccesVitres =
+  | "classique" | "difficile"
+  | "escabeau" | "echelle" | "particulier";
 
 /** Ce que le commercial a saisi dans la découverte. */
 export type SaisieVitrerie = {
@@ -23,8 +35,16 @@ export type SaisieVitrerie = {
   velux: number;
   /** Véranda : surface vitrée approximative, en m². */
   verandaM2: number;
+  /** Portes-fenêtres. Demandées le 2026-11-02. */
+  portesFenetres: number;
+  /** Grandes surfaces vitrées : surface approximative, en m². */
+  grandesSurfacesM2: number;
   /** Autres surfaces vitrées : quantité ou surface approximative. */
   autres: number;
+  /** Nettoyage des rails. Demandé le 2026-11-02. */
+  rails: boolean;
+  /** Nettoyage des coulisses. Demandé le 2026-11-02. */
+  coulisses: boolean;
   faces: FacesVitres | null;
   encadrement: Encadrement | null;
   acces: AccesVitres | null;
@@ -35,10 +55,20 @@ export type SaisieVitrerie = {
 export type Palier = { cle: string; de: number; a: number; pctMin: number; pctMax: number };
 
 export type ParamsVitrerie = {
-  poids: { fenetre: number; baie: number; velux: number; verandaParM2: number; autre: number };
+  poids: {
+    fenetre: number; baie: number; velux: number; verandaParM2: number; autre: number;
+    /** 0 = tarif non communiqué. Le vitrage est compté, jamais chiffré au hasard. */
+    porteFenetre: number;
+    grandeSurfaceParM2: number;
+  };
   faces: Record<FacesVitres, number>;
   encadrement: Record<Encadrement, number>;
   acces: Record<AccesVitres, number>;
+  /**
+   * Rails et coulisses, en unités ajoutées par ouvrant concerné.
+   * 0 = tarif non communiqué.
+   */
+  options: { rails: number; coulisses: number };
   paliers: Palier[];
   /** Plancher du supplément, en euros. 0 = aucun (le client n'en a pas fixé). */
   supplementMin: number;
@@ -50,13 +80,21 @@ export type ParamsVitrerie = {
 // servent que de repli quand une grille n'a pas encore sa section vitrerie.
 export const PARAMS_VITRERIE_DEFAUT: ParamsVitrerie = {
   // §8 — charge de travail relative d'un vitrage.
-  poids: { fenetre: 1, baie: 2.5, velux: 2, verandaParM2: 0.5, autre: 1 },
+  poids: {
+    fenetre: 1, baie: 2.5, velux: 2, verandaParM2: 0.5, autre: 1,
+    // Demandés le 2026-11-02, sans barème. À 0 ils ne déplacent aucun prix ;
+    // le commercial peut les compter et l'alerte réclame la validation.
+    porteFenetre: 0, grandeSurfaceParM2: 0,
+  },
   // §4 — faces à nettoyer.
   faces: { interieur: 1.0, exterieur: 1.1, les_deux: 1.8 },
   // §5 — matériau des encadrements.
   encadrement: { pvc: 1.0, bois: 1.1, alu: 1.0, mixte: 1.05, nr: 1.0 },
-  // §6 — accessibilité.
-  acces: { classique: 1.0, difficile: 1.15 },
+  // §6 — accessibilité. Les deux premiers sont du cahier ; les trois autres
+  // attendent leur coefficient et restent neutres d'ici là.
+  acces: { classique: 1.0, difficile: 1.15, escabeau: 1.0, echelle: 1.0, particulier: 1.0 },
+  // Rails et coulisses : aucune valeur communiquée.
+  options: { rails: 0, coulisses: 0 },
   // §10 — barème progressif, six niveaux.
   paliers: [
     { cle: "vit_palier_1", de: 1, a: 2, pctMin: 3, pctMax: 7 },
@@ -89,6 +127,8 @@ export type ResultatVitrerie = {
   alertes: string[];
   /** Détail des vitrages retenus, pour l'argumentaire. */
   detail: { libelle: string; quantite: number; unites: number }[];
+  /** Éléments saisis que le barème ne sait pas chiffrer. */
+  sansTarif: string[];
 };
 
 const nb = (v: unknown): number => {
@@ -96,18 +136,40 @@ const nb = (v: unknown): number => {
   return Number.isFinite(n) && n > 0 ? n : 0;
 };
 
+/**
+ * Arrondi au dix-millième, pour que les unités restent lisibles.
+ *
+ * Sans lui, six ouvrants à 0,2 unité de rails donnent 1,2000000000000002 —
+ * la virgule flottante binaire ne représente pas 0,2 exactement. Le prix
+ * final n'en bougeait pas (il est arrondi à l'euro), mais une unité affichée
+ * avec seize décimales dans une alerte de validation ferait douter du calcul.
+ * Les poids du cahier (1, 2,5, 2, 0,5) sont exacts en binaire et sortent
+ * inchangés de cet arrondi.
+ */
+const u4 = (n: number): number => Math.round(n * 10000) / 10000;
+
 /** Unités de vitrerie, avant tout coefficient (§8). */
 export function unitesVitrerie(s: SaisieVitrerie, p: ParamsVitrerie): ResultatVitrerie["detail"] {
   const out: ResultatVitrerie["detail"] = [];
   const ajouter = (libelle: string, quantite: number, poids: number) => {
-    if (quantite > 0) out.push({ libelle, quantite, unites: quantite * poids });
+    if (quantite > 0) out.push({ libelle, quantite, unites: u4(quantite * poids) });
   };
   ajouter("Fenêtres classiques", nb(s.fenetres), p.poids.fenetre);
   ajouter("Baies vitrées", nb(s.baies), p.poids.baie);
+  ajouter("Portes-fenêtres", nb(s.portesFenetres), p.poids.porteFenetre);
   ajouter("Velux / fenêtres de toit", nb(s.velux), p.poids.velux);
   // Véranda : une unité par tranche de 2 m², soit 0,5 unité au m².
   ajouter("Véranda (m² vitrés)", nb(s.verandaM2), p.poids.verandaParM2);
+  ajouter("Grandes surfaces vitrées (m²)", nb(s.grandesSurfacesM2), p.poids.grandeSurfaceParM2);
   ajouter("Autres surfaces vitrées", nb(s.autres), p.poids.autre);
+
+  // Rails et coulisses se comptent par OUVRANT concerné, pas au forfait :
+  // nettoyer les rails de vingt fenêtres n'est pas le même travail que ceux
+  // d'une seule. Les Velux n'en ont pas, la véranda et les grandes surfaces
+  // se comptent au m² — on ne retient donc que les ouvrants dénombrés.
+  const ouvrants = nb(s.fenetres) + nb(s.baies) + nb(s.portesFenetres);
+  if (s.rails) ajouter("Nettoyage des rails", ouvrants, p.options.rails);
+  if (s.coulisses) ajouter("Nettoyage des coulisses", ouvrants, p.options.coulisses);
   return out;
 }
 
@@ -135,7 +197,33 @@ export function pourcentagePalier(u: number, paliers: Palier[]): number {
 
 /** La saisie décrit-elle au moins un vitrage ? */
 export function vitrerieRenseignee(s: SaisieVitrerie): boolean {
-  return nb(s.fenetres) + nb(s.baies) + nb(s.velux) + nb(s.verandaM2) + nb(s.autres) > 0;
+  return nb(s.fenetres) + nb(s.baies) + nb(s.portesFenetres) + nb(s.velux)
+    + nb(s.verandaM2) + nb(s.grandesSurfacesM2) + nb(s.autres) > 0;
+}
+
+/**
+ * Éléments saisis dont le tarif n'a jamais été communiqué.
+ *
+ * C'est la contrepartie du refus d'inventer un barème : le commercial peut
+ * tout saisir, mais ce que le CRM ne sait pas chiffrer est NOMMÉ, et le
+ * dossier part en validation tarifaire au lieu d'être sous-évalué en silence.
+ */
+export function parametresManquants(s: SaisieVitrerie, p: ParamsVitrerie): string[] {
+  const manquants: string[] = [];
+  if (nb(s.portesFenetres) > 0 && p.poids.porteFenetre <= 0) manquants.push("portes-fenêtres");
+  if (nb(s.grandesSurfacesM2) > 0 && p.poids.grandeSurfaceParM2 <= 0) {
+    manquants.push("grandes surfaces vitrées");
+  }
+  if (s.rails && p.options.rails <= 0) manquants.push("nettoyage des rails");
+  if (s.coulisses && p.options.coulisses <= 0) manquants.push("nettoyage des coulisses");
+  const accesSansCoef: Record<string, string> = {
+    escabeau: "accès par escabeau",
+    echelle: "accès par échelle",
+    particulier: "accès difficile ou particulier",
+  };
+  const a = s.acces ?? "classique";
+  if (accesSansCoef[a] && (p.acces[a] ?? 1) === 1) manquants.push(accesSansCoef[a]);
+  return manquants;
 }
 
 /**
@@ -152,13 +240,13 @@ export function calculerVitrerie(
   const detail = unitesVitrerie(s, p);
   if (detail.length === 0) return null;
 
-  const unites = detail.reduce((n, d) => n + d.unites, 0);
+  const unites = u4(detail.reduce((n, d) => n + d.unites, 0));
   // Les coefficients multiplient les UNITÉS, jamais le pourcentage obtenu
   // ensuite (§9) — sans quoi ils s'appliqueraient deux fois.
   const coefFaces = p.faces[s.faces ?? "interieur"] ?? 1;
   const coefEncadrement = p.encadrement[s.encadrement ?? "nr"] ?? 1;
   const coefAcces = p.acces[s.acces ?? "classique"] ?? 1;
-  const unitesPonderees = unites * coefFaces * coefEncadrement * coefAcces;
+  const unitesPonderees = u4(unites * coefFaces * coefEncadrement * coefAcces);
 
   const pct = pourcentagePalier(unitesPonderees, p.paliers);
 
@@ -174,6 +262,15 @@ export function calculerVitrerie(
     // §6 : signalé, jamais chiffré. Une nacelle ne se devine pas.
     alertes.push("Accès spécifique : validation technique et tarifaire nécessaire.");
   }
+  // Ce que le barème ne couvre pas est NOMMÉ. Le prix reste juste pour ce
+  // qu'il sait chiffrer, et le commercial sait ce qui reste à valider.
+  const sansTarif = parametresManquants(s, p);
+  if (sansTarif.length > 0) {
+    alertes.push(
+      `Non compris dans le prix estimatif, faute de barème communiqué : ${sansTarif.join(", ")}. `
+      + "À régler dans Grilles tarifaires › Vitrerie, ou à valider au cas par cas.",
+    );
+  }
 
   let supplement = Math.round((prixNettoyage * pct) / 100);
   if (p.supplementMin > 0 && supplement < p.supplementMin) supplement = p.supplementMin;
@@ -186,9 +283,10 @@ export function calculerVitrerie(
     coefAcces,
     pct,
     supplement,
-    validationRequise: horsBareme || s.equipementSpecifique,
+    validationRequise: horsBareme || s.equipementSpecifique || sansTarif.length > 0,
     alertes,
     detail,
+    sansTarif,
   };
 }
 
@@ -230,6 +328,8 @@ export function paramsVitrerieDepuis(grid: Grid | null | undefined): ParamsVitre
       velux: coefDe(lignes, "vit_poids_velux", d.poids.velux),
       verandaParM2: coefDe(lignes, "vit_poids_veranda", d.poids.verandaParM2),
       autre: coefDe(lignes, "vit_poids_autre", d.poids.autre),
+      porteFenetre: coefDe(lignes, "vit_poids_porte_fenetre", d.poids.porteFenetre),
+      grandeSurfaceParM2: coefDe(lignes, "vit_poids_grande_surface", d.poids.grandeSurfaceParM2),
     },
     faces: {
       interieur: coefDe(lignes, "vit_faces_interieur", d.faces.interieur),
@@ -246,6 +346,13 @@ export function paramsVitrerieDepuis(grid: Grid | null | undefined): ParamsVitre
     acces: {
       classique: coefDe(lignes, "vit_acces_classique", d.acces.classique),
       difficile: coefDe(lignes, "vit_acces_difficile", d.acces.difficile),
+      escabeau: coefDe(lignes, "vit_acces_escabeau", d.acces.escabeau),
+      echelle: coefDe(lignes, "vit_acces_echelle", d.acces.echelle),
+      particulier: coefDe(lignes, "vit_acces_particulier", d.acces.particulier),
+    },
+    options: {
+      rails: coefDe(lignes, "vit_option_rails", d.options.rails),
+      coulisses: coefDe(lignes, "vit_option_coulisses", d.options.coulisses),
     },
     paliers,
     supplementMin: typeof minimum?.forfaitMin === "number" ? minimum.forfaitMin : d.supplementMin,
@@ -269,6 +376,9 @@ export const ENCADREMENT_LABEL: Record<Encadrement, string> = {
 };
 
 export const ACCES_LABEL: Record<AccesVitres, string> = {
-  classique: "Accès classique",
-  difficile: "Accès difficile / en hauteur",
+  classique: "Vitrages facilement accessibles",
+  difficile: "Vitrages en hauteur",
+  escabeau: "Accès nécessitant un escabeau",
+  echelle: "Accès nécessitant une échelle",
+  particulier: "Accès difficile ou particulier",
 };
