@@ -32,23 +32,6 @@ import {
 
 export type Echec = { ok: false; error: string };
 
-/**
- * Noms de tables castés, et c'est volontairement visible.
- *
- * `docusign_connections` et `docusign_oauth_states` arrivent avec la
- * migration `20261103000001`, qui n'est PAS appliquée — la consigne est de la
- * préparer sans l'exécuter. Elles sont donc absentes de
- * `lib/supabase/database.types.ts`, et le client Supabase refuse un nom de
- * table qu'il ne connaît pas.
- *
- * Le cast est réduit au NOM de la table : les lignes lues et écrites, elles,
- * restent typées par les interfaces de ce fichier. À la régénération des
- * types, ces deux constantes se remplacent par les littéraux et le cast
- * disparaît — un test vérifie qu'aucune autre table n'est castée ici.
- */
-const T_CONNEXIONS = "docusign_connections" as never;
-const T_ETATS = "docusign_oauth_states" as never;
-
 // ══════════════════════════════════════════════════════════════════════
 //  Démarrage : créer un état et renvoyer l'URL d'autorisation
 // ══════════════════════════════════════════════════════════════════════
@@ -73,7 +56,7 @@ export async function demarrerAutorisation(input: {
 
   const demande = creerDemandePkce();
   const sb = await supabaseServiceRole();
-  const { error } = await sb.from(T_ETATS).insert({
+  const { error } = await sb.from("docusign_oauth_states").insert({
     state: demande.state,
     entity_id: input.entityId,
     environment: conf.config.environnement,
@@ -193,7 +176,7 @@ export async function terminerAutorisation(input: {
 
   const sb = await supabaseServiceRole();
   const { data: etat } = await sb
-    .from(T_ETATS)
+    .from("docusign_oauth_states")
     .select("state, entity_id, environment, code_verifier, redirect_uri, created_at, used_at")
     .eq("state", input.state)
     .maybeSingle<EtatRow>();
@@ -220,7 +203,7 @@ export async function terminerAutorisation(input: {
   // Marquage AVANT l'échange : un code rejoué ne doit pas pouvoir repasser,
   // même si l'échange échoue ensuite.
   const { error: errUse, data: pris } = await sb
-    .from(T_ETATS)
+    .from("docusign_oauth_states")
     .update({ used_at: new Date().toISOString() } as never)
     .eq("state", input.state)
     .is("used_at", null)
@@ -300,13 +283,13 @@ export async function terminerAutorisation(input: {
   // Réautoriser REMPLACE la connexion : l'index unique partiel garantit une
   // seule ligne active par entité et par environnement.
   await sb
-    .from(T_CONNEXIONS)
+    .from("docusign_connections")
     .update({ revoked_at: new Date(maintenant).toISOString() } as never)
     .eq("entity_id", etat.entity_id)
     .eq("environment", config.environnement)
     .is("revoked_at", null);
 
-  const { error: errIns } = await sb.from(T_CONNEXIONS).insert(ligne as never);
+  const { error: errIns } = await sb.from("docusign_connections").insert(ligne as never);
   if (errIns) return { ok: false, error: `Enregistrement de la connexion impossible : ${errIns.message}` };
 
   return {
@@ -345,7 +328,7 @@ export type AccesDocuSign = {
 async function connexion(entityId: string, env: Environnement): Promise<ConnexionRow | null> {
   const sb = await supabaseServiceRole();
   const { data } = await sb
-    .from(T_CONNEXIONS)
+    .from("docusign_connections")
     .select(
       "id, entity_id, environment, account_id, base_uri, account_name, access_token_enc, "
       + "refresh_token_enc, expires_at, refresh_expires_at, connected_at, last_error",
@@ -360,7 +343,7 @@ async function connexion(entityId: string, env: Environnement): Promise<Connexio
 async function noterErreur(id: string, message: string): Promise<void> {
   const sb = await supabaseServiceRole();
   await sb
-    .from(T_CONNEXIONS)
+    .from("docusign_connections")
     .update({
       last_error: message.slice(0, 500),
       last_error_at: new Date().toISOString(),
@@ -456,7 +439,7 @@ export async function accesPourEntite(
   const maintenant = Date.now();
   const sb = await supabaseServiceRole();
   await sb
-    .from(T_CONNEXIONS)
+    .from("docusign_connections")
     .update({
       access_token_enc: encryptField(jeton.acces),
       // DocuSign renvoie un NOUVEAU jeton de rafraîchissement : le conserver
@@ -542,7 +525,7 @@ export async function purgerEtatsOAuth(): Promise<number | null> {
   try {
     const sb = await supabaseServiceRole();
     const { data, error } = await sb
-      .rpc("purge_docusign_oauth_states" as never)
+      .rpc("purge_docusign_oauth_states")
       .returns<number>();
     if (error) {
       console.error(`[docusign] purge des états OAuth : ${error.message}`);

@@ -1682,6 +1682,84 @@ export type Database = {
           },
         ]
       }
+      docusign_connections: {
+        Row: {
+          access_token_enc: string
+          account_id: string
+          account_name: string | null
+          base_uri: string
+          connected_at: string
+          connected_by: string | null
+          docusign_user_id: string | null
+          entity_id: string
+          environment: string
+          expires_at: string
+          id: string
+          last_error: string | null
+          last_error_at: string | null
+          refresh_expires_at: string | null
+          refresh_token_enc: string | null
+          revoked_at: string | null
+          scope: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token_enc: string
+          account_id: string
+          account_name?: string | null
+          base_uri: string
+          connected_at?: string
+          connected_by?: string | null
+          docusign_user_id?: string | null
+          entity_id: string
+          environment: string
+          expires_at: string
+          id?: string
+          last_error?: string | null
+          last_error_at?: string | null
+          refresh_expires_at?: string | null
+          refresh_token_enc?: string | null
+          revoked_at?: string | null
+          scope?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token_enc?: string
+          account_id?: string
+          account_name?: string | null
+          base_uri?: string
+          connected_at?: string
+          connected_by?: string | null
+          docusign_user_id?: string | null
+          entity_id?: string
+          environment?: string
+          expires_at?: string
+          id?: string
+          last_error?: string | null
+          last_error_at?: string | null
+          refresh_expires_at?: string | null
+          refresh_token_enc?: string | null
+          revoked_at?: string | null
+          scope?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "docusign_connections_connected_by_fkey"
+            columns: ["connected_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "docusign_connections_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "legal_entities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       docusign_envelope_events: {
         Row: {
           at: string
@@ -1804,6 +1882,57 @@ export type Database = {
             columns: ["mission_id"]
             isOneToOne: false
             referencedRelation: "subcontract_missions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      docusign_oauth_states: {
+        Row: {
+          code_verifier: string
+          created_at: string
+          created_by: string | null
+          entity_id: string
+          environment: string
+          expires_at: string
+          redirect_uri: string
+          state: string
+          used_at: string | null
+        }
+        Insert: {
+          code_verifier: string
+          created_at?: string
+          created_by?: string | null
+          entity_id: string
+          environment: string
+          expires_at: string
+          redirect_uri: string
+          state: string
+          used_at?: string | null
+        }
+        Update: {
+          code_verifier?: string
+          created_at?: string
+          created_by?: string | null
+          entity_id?: string
+          environment?: string
+          expires_at?: string
+          redirect_uri?: string
+          state?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "docusign_oauth_states_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "docusign_oauth_states_entity_id_fkey"
+            columns: ["entity_id"]
+            isOneToOne: false
+            referencedRelation: "legal_entities"
             referencedColumns: ["id"]
           },
         ]
@@ -4655,6 +4784,7 @@ export type Database = {
       next_facture_optimivv_num: { Args: { p_year: number }; Returns: string }
       peek_devis_optimivv_num: { Args: { p_year: number }; Returns: string }
       peek_facture_optimivv_num: { Args: { p_year: number }; Returns: string }
+      purge_docusign_oauth_states: { Args: never; Returns: number }
     }
     Enums: {
       client_origin: "lead" | "direct"
