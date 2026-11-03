@@ -1,5 +1,6 @@
 import React from "react";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { ANCRE_DONNEUR_ORDRE, ANCRE_SOUS_TRAITANT } from "@/lib/docusign/ancres";
 
 // PDF du contrat de sous-traitance : le contrat, puis ses deux annexes.
 //
@@ -102,6 +103,23 @@ const s = StyleSheet.create({
   signLabel: { fontSize: 8.5, fontFamily: "Helvetica-Bold", marginBottom: 3 },
   signQui: { fontSize: 7.5, color: C.muted, marginBottom: 2 },
   signLine: { borderBottomWidth: 1, borderBottomColor: C.line, height: 48 },
+  /**
+   * Ancre de signature électronique.
+   *
+   * DocuSign positionne ses champs sur une CHAÎNE D'ANCRAGE trouvée dans le
+   * PDF. On ne peut pas ancrer sur « Le Sous-traitant » : l'expression
+   * revient des dizaines de fois dans les articles, et DocuSign poserait un
+   * champ à chaque occurrence. On ne peut pas davantage ancrer sur des
+   * coordonnées absolues : la page du bloc de signature varie selon que le
+   * contrat compte trente ou trente-et-un articles.
+   *
+   * D'où ces deux jetons, écrits à la couleur du papier — invisibles à la
+   * lecture et à l'impression, trouvables par DocuSign. Ils n'ajoutent PAS
+   * un mot au contenu contractuel : ils marquent seulement l'emplacement de
+   * la signature. Les valeurs sont dans `lib/docusign/ancres.ts`, qui est la
+   * référence partagée entre ce rendu et la création de l'enveloppe.
+   */
+  ancre: { fontSize: 6, color: "#ffffff" },
   lieuDate: { fontSize: 8.6, marginTop: 14 },
 
   champ: {
@@ -240,11 +258,13 @@ export default function SousTraitancePdf(p: SousTraitancePdfProps) {
           <View style={s.signBox}>
             <Text style={s.signLabel}>Le Donneur d&apos;ordre</Text>
             <Text style={s.signQui}>{p.signatures.donneurOrdre}</Text>
+            <Text style={s.ancre}>{ANCRE_DONNEUR_ORDRE}</Text>
             <View style={s.signLine} />
           </View>
           <View style={s.signBox}>
             <Text style={s.signLabel}>Le Sous-traitant</Text>
             <Text style={s.signQui}>{p.signatures.sousTraitant}</Text>
+            <Text style={s.ancre}>{ANCRE_SOUS_TRAITANT}</Text>
             <View style={s.signLine} />
           </View>
         </View>

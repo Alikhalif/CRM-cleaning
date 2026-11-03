@@ -41,7 +41,10 @@ import {
   emettreContrat,
   enregistrerContrat,
   envoyerEnSignature,
+  resynchroniserSignature,
+  urlPieceArchivee,
 } from "./actions";
+import type { EtatConnexion, SignatureContrat } from "@/lib/docusign/vues";
 import styles from "./DossierDetail.module.scss";
 
 type Props = {
@@ -50,13 +53,17 @@ type Props = {
   entites: EntiteChoisissable[];
   modeles: OptionModele[];
   contrats: ContratResume[];
+  /** État du raccordement DocuSign, par entité juridique (§6). */
+  etatsDocuSign: Record<string, EtatConnexion>;
+  /** Signatures en cours ou achevées, par contrat. */
+  signatures: SignatureContrat[];
 };
 
 const euros = (n: number | null) =>
   n == null ? "—" : n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 
 export default function ContratSousTraitance({
-  dossier, prestataires, entites, modeles, contrats,
+  dossier, prestataires, entites, modeles, contrats, etatsDocuSign, signatures,
 }: Props) {
   // Le contrat déjà engagé sur ce dossier, s'il existe.
   const engage = contrats.find((c) => estFige(c.statut));
@@ -84,6 +91,35 @@ export default function ContratSousTraitance({
   const [onglet, setOnglet] = useState<"contrat" | "mission" | "rapport">("contrat");
   const [message, setMessage] = useState<{ ton: "ok" | "ko" | "info"; texte: string } | null>(null);
   const [enCours, demarrer] = useTransition();
+
+  const signatureDe = (contractId: string): SignatureContrat | null =>
+    signatures.find((s) => s.contractId === contractId) ?? null;
+
+  // Raccordement de l'entité SÉLECTIONNÉE : c'est lui qui décide si le bouton
+  // d'envoi peut être actif (§6). Montrer un bouton qui échouerait à l'appel
+  // serait pire que l'absence de bouton.
+  const docusign = entityId ? etatsDocuSign[entityId] ?? null : null;
+  const configGlobale = Object.values(etatsDocuSign)[0] ?? null;
+
+  function onResynchroniser(envelopeId: string) {
+    demarrer(async () => {
+      setMessage(null);
+      const r = await resynchroniserSignature(envelopeId);
+      setMessage(r.ok
+        ? { ton: "ok", texte: r.message ?? "État mis à jour." }
+        : { ton: "ko", texte: r.error });
+    });
+  }
+
+  function onTelecharger(storagePath: string) {
+    demarrer(async () => {
+      setMessage(null);
+      const r = await urlPieceArchivee(storagePath);
+      if (!r.ok) { setMessage({ ton: "ko", texte: r.error }); return; }
+      // URL signée, valable une heure : on l'ouvre sans jamais la conserver.
+      window.open(r.url, "_blank", "noopener,noreferrer");
+    });
+  }
 
   const prestataire = prestataires.find((p) => p.technicianId === technicianId) ?? null;
   const entite = entites.find((e) => e.id === entityId) ?? null;
@@ -199,6 +235,39 @@ export default function ContratSousTraitance({
         </p>
       )}
 
+      {/* ── État du raccordement DocuSign (§6) ─────────────────────── */}
+      {configGlobale && !configGlobale.configure && (
+        <p className={styles.warn}>
+          <strong>Signature électronique non configurée.</strong> Variables absentes :{" "}
+          {configGlobale.manquant.join(", ")}. Les contrats se génèrent et se
+          téléchargent, mais aucun envoi en signature n&apos;est possible.
+        </p>
+      )}
+      {configGlobale?.configure && !configGlobale.chiffrementActif && (
+        <p className={styles.error}>
+          <strong>FIELD_ENCRYPTION_KEY absente.</strong> Le raccordement DocuSign est
+          refusé : les jetons ne pourraient pas être chiffrés.
+        </p>
+      )}
+      {configGlobale?.configure && configGlobale.chiffrementActif && entityId && docusign && (
+        docusign.connecte ? (
+          <p className={styles.info}>
+            DocuSign raccordé — compte {docusign.compte} ·{" "}
+            environnement <strong>{docusign.environnement === "demo" ? "bac à sable" : "production"}</strong>
+            {docusign.joursAvantReautorisation != null && docusign.joursAvantReautorisation <= 7
+              ? ` · ⚠️ réautorisation nécessaire dans ${docusign.joursAvantReautorisation} jour(s)`
+              : ""}
+          </p>
+        ) : (
+          <p className={styles.warn}>
+            L&apos;entité sélectionnée n&apos;est pas raccordée à DocuSign
+            {docusign.derniereErreur ? ` (${docusign.derniereErreur})` : ""}. Un Super
+            Admin doit l&apos;autoriser depuis Réglages › Sociétés. Le contrat peut être
+            généré et téléchargé en attendant.
+          </p>
+        )
+      )}
+
       {/* ── Contrats déjà émis ──────────────────────────────────────── */}
       {contrats.length > 0 && (
         <div className={styles.contratList}>
@@ -228,11 +297,19 @@ export default function ContratSousTraitance({
                 >
                   <Icon name="document" size={14} /> PDF
                 </a>
-                {c.signedPdfPath && (
-                  <span className={styles.muted}>Contrat signé archivé</span>
-                )}
-                {["pret_a_envoyer", "envoye"].includes(c.statut) && (
-                  <button type="button" className={styles.link} onClick={() => onEnvoyer(c.id)} disabled={enCours}>
+                {/* L'envoi n'est proposé que si l'entité est RÉELLEMENT
+                    raccordée et qu'aucune enveloppe n'est déjà en cours. */}
+                {["pret_a_envoyer"].includes(c.statut) && !signatureDe(c.id) && (
+                  <button
+                    type="button" className={styles.link}
+                    onClick={() => onEnvoyer(c.id)}
+                    disabled={enCours || !(c.entityId && etatsDocuSign[c.entityId]?.connecte)}
+                    title={
+                      c.entityId && etatsDocuSign[c.entityId]?.connecte
+                        ? "Créer l'enveloppe DocuSign et l'envoyer aux deux signataires"
+                        : "Entité non raccordée à DocuSign"
+                    }
+                  >
                     Envoyer à la signature
                   </button>
                 )}
@@ -242,6 +319,69 @@ export default function ContratSousTraitance({
                   </button>
                 )}
               </div>
+
+              {/* ── État de la signature électronique ──────────────── */}
+              {(() => {
+                const sig = signatureDe(c.id);
+                if (!sig) return null;
+                return (
+                  <div className={styles.signature} data-ton={sig.ton}>
+                    <div className={styles.signatureHaut}>
+                      <span className={styles.signatureStatut} data-ton={sig.ton}>
+                        {sig.statutLabel}
+                      </span>
+                      <span className={styles.contratMeta}>
+                        DocuSign · {sig.envelopeId}
+                      </span>
+                      <button
+                        type="button" className={styles.link}
+                        onClick={() => onResynchroniser(sig.envelopeId)}
+                        disabled={enCours}
+                        title="Relire l'état réel chez DocuSign"
+                      >
+                        Actualiser
+                      </button>
+                    </div>
+
+                    {sig.signataires.length > 0 && (
+                      <ul className={styles.signataires}>
+                        {sig.signataires.map((s) => (
+                          <li key={s.email}>
+                            <strong>{s.nom ?? s.email}</strong>
+                            <span className={styles.contratMeta}>
+                              {" "}· {s.statut}
+                              {s.signeLe ? ` le ${new Date(s.signeLe).toLocaleString("fr-FR")}` : ""}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {sig.archiveLe ? (
+                      <div className={styles.contratActions}>
+                        {sig.pieces.map((piece) => (
+                          <button
+                            key={piece.id} type="button" className={styles.link}
+                            onClick={() => onTelecharger(piece.storagePath)}
+                            disabled={enCours}
+                          >
+                            <Icon name="document" size={14} />{" "}
+                            {piece.documentType === "certificat_signature"
+                              ? "Certificat de signature"
+                              : "Contrat signé"}
+                          </button>
+                        ))}
+                      </div>
+                    ) : sig.statut === "signe_toutes_parties" ? (
+                      <p className={styles.warn}>
+                        Signé chez DocuSign, archivage en cours. Les pièces apparaîtront
+                        ici dès leur téléchargement.
+                        {sig.archivageErreur ? ` Dernière erreur : ${sig.archivageErreur}` : ""}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })()}
             </div>
           ))}
         </div>

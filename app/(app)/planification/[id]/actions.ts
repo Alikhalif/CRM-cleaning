@@ -26,9 +26,12 @@ import { calculerTotaux, type SaisieMontants } from "@/lib/sous-traitance/montan
 import {
   assemblerDocumentContrat,
   getDossierContrat,
-  getPrestataires,
   type SaisieComplements,
 } from "@/lib/sous-traitance/contrats-server";
+import { envoyerContratEnSignature } from "@/lib/docusign/envoi-server";
+import { resynchroniser } from "@/lib/docusign/notifications-server";
+import { urlSigneeArchive } from "@/lib/docusign/archivage-server";
+import { STATUT_LABEL as STATUT_SIGNATURE_LABEL } from "@/lib/docusign/statuts";
 import type { DocumentAssemble } from "@/lib/sous-traitance/contrats-shared";
 
 export type Result = { ok: true; id?: string; message?: string } | { ok: false; error: string };
@@ -370,59 +373,70 @@ export async function emettreContrat(contratId: string): Promise<Result> {
 // ══════════════════════════════════════════════════════════════════════
 
 /**
- * Envoi du contrat à la signature électronique.
+ * Envoi du contrat à la signature électronique DocuSign.
  *
- * ⚠️ ÉTAT RÉEL : aucun client HTTP DocuSign n'existe dans ce dépôt. Les
- * modules `lib/docusign/` ne portent que la machine à états, la lecture des
- * notifications et les règles d'archivage — aucune requête n'est émise vers
- * DocuSign, et aucune variable d'environnement n'est déclarée pour lui.
+ * Le refus systématique d'avant est remplacé par un véritable appel — mais
+ * UNIQUEMENT quand le connecteur est configuré ET que l'entité est autorisée.
+ * Toutes les vérifications, l'appel et l'enregistrement vivent dans
+ * `lib/docusign/envoi-server.ts` ; ici on ne garde que le contrôle d'accès.
  *
- * Cette action REFUSE donc explicitement, en nommant ce qui manque. Elle ne
- * passe pas le contrat en « envoyé » : un statut mensonger ferait croire à la
- * planificatrice qu'un document attend une signature qui n'a jamais été
- * demandée, et le dossier resterait bloqué sans que personne ne sache pourquoi.
+ * ⚠️ Rien n'est annoncé « envoyé » avant la confirmation de DocuSign. Si
+ * l'appel échoue, le contrat reste dans son état réel et le message dit
+ * pourquoi.
  */
 export async function envoyerEnSignature(contratId: string): Promise<Result> {
   const guard = await ensurePlanner();
   if (!guard.ok) return guard;
   if (!UUID_RE.test(contratId)) return { ok: false, error: "Contrat invalide." };
 
-  const supabase = await supabaseServer();
-  const { data: c } = await supabase
-    .from("subcontract_contracts")
-    .select("id, ref, statut, technician_id, entity_id")
-    .eq("id", contratId)
-    .maybeSingle<{ id: string; ref: string | null; statut: string; technician_id: string; entity_id: string | null }>();
-  if (!c) return { ok: false, error: "Contrat introuvable." };
-  if (c.statut === "brouillon") {
-    return { ok: false, error: "Générez d'abord le contrat." };
-  }
+  const r = await envoyerContratEnSignature({ contratId, userId: guard.userId });
+  if (!r.ok) return { ok: false, error: r.error };
 
-  // Contrôles qui, eux, sont réels : destinataire et entité signataire.
-  const prestataires = await getPrestataires();
-  const p = prestataires.find((x) => x.technicianId === c.technician_id);
-  if (!p?.email) {
-    return {
-      ok: false,
-      error: "Le sous-traitant n'a pas d'adresse de courriel : renseignez-la dans sa fiche avant l'envoi.",
-    };
-  }
+  revalidatePath("/planification");
+  return { ok: true, id: contratId, message: r.message };
+}
 
-  await supabase.from("subcontract_events").insert({
-    contract_id: contratId,
-    kind: "envoi_refuse_configuration",
-    by_user: guard.userId,
-    detail: { raison: "docusign_non_configure" },
-  } as never);
+/**
+ * Relit l'état d'une signature chez DocuSign.
+ *
+ * Bouton « Actualiser » de la fiche : la planificatrice n'a pas à attendre le
+ * passage du cron pour savoir où en est une signature. DocuSign fait foi.
+ */
+export async function resynchroniserSignature(envelopeId: string): Promise<Result> {
+  const guard = await ensurePlanner();
+  if (!guard.ok) return guard;
+  if (!envelopeId.trim()) return { ok: false, error: "Enveloppe invalide." };
 
+  const r = await resynchroniser(envelopeId.trim());
+  if (!r.ok) return { ok: false, error: r.error };
+
+  revalidatePath("/planification");
   return {
-    ok: false,
-    error: "Signature électronique non configurée. Le contrat est généré et prêt, mais aucun "
-      + "connecteur DocuSign n'est en place dans ce CRM : il n'existe ni client d'API, ni "
-      + "identifiants (compte, utilisateur, clé RSA). En attendant, le bouton « PDF » "
-      + "fournit le document complet à faire signer hors ligne. Transmettez les accès "
-      + "DocuSign pour que le raccordement soit effectué.",
+    ok: true,
+    message: r.ignore
+      ? `État confirmé : ${STATUT_SIGNATURE_LABEL[r.statut]} (${r.ignore}).`
+      : `État mis à jour : ${STATUT_SIGNATURE_LABEL[r.statut]}.`
+      + (r.archive ? " Documents signés archivés." : ""),
   };
+}
+
+/**
+ * URL de téléchargement d'une pièce archivée, valable une heure.
+ *
+ * Jamais d'URL permanente : ces documents portent le prix d'achat convenu
+ * avec le sous-traitant. Le rôle est vérifié ici, et le bucket est privé.
+ */
+export async function urlPieceArchivee(storagePath: string): Promise<
+  { ok: true; url: string } | { ok: false; error: string }
+> {
+  const guard = await ensurePlanner();
+  if (!guard.ok) return guard;
+  // On n'accepte qu'un chemin interne au dépôt : pas de remontée de dossier,
+  // pas de chemin absolu.
+  if (!storagePath || storagePath.includes("..") || storagePath.startsWith("/")) {
+    return { ok: false, error: "Chemin de document invalide." };
+  }
+  return urlSigneeArchive(storagePath);
 }
 
 // ══════════════════════════════════════════════════════════════════════

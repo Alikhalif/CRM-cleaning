@@ -3,6 +3,8 @@ import { evaluate } from "@/lib/presence/alerts-server";
 import { evaluateCommercialActions } from "@/lib/commercial-actions/engine-server";
 import { evaluateDocumentAlerts } from "@/lib/documents/alerts-server";
 import { isCurrentUserAdmin } from "@/lib/presence/guard";
+import { rattraperArchivages, rejouerFile } from "@/lib/docusign/notifications-server";
+import { purgerEtatsOAuth } from "@/lib/docusign/oauth-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,7 +47,37 @@ async function run(request: Request) {
     console.error("[documents.evaluate] échec :", (e as Error).message);
     documents = { ok: false, error: (e as Error).message };
   }
-  return NextResponse.json({ ...result, commercial, documents });
+  // Couche DocuSign : rejeu des notifications en échec et rattrapage des
+  // archivages manquants, isolée comme les précédentes.
+  //
+  // Elle est INDISPENSABLE au bon fonctionnement de la signature : une
+  // notification perdue ou un téléchargement échoué laisserait un contrat
+  // signé chez DocuSign mais non archivé dans le CRM. C'est ce passage qui
+  // ferme la boucle. Sans cron, la signature reste tributaire du seul webhook.
+  let docusign: unknown = { ok: false, skipped: true };
+  try {
+    const [file, archivages] = await Promise.all([
+      rejouerFile(),
+      rattraperArchivages(),
+    ]);
+    // Purge isolée DANS la passe : c'est un entretien, pas un traitement
+    // critique. Son échec ne doit masquer ni le rejeu des notifications ni le
+    // rattrapage des archivages, dont dépend l'exactitude des signatures.
+    // `purgerEtatsOAuth()` avale déjà ses erreurs et renvoie null ; ce
+    // try/catch couvre le cas où l'appel lui-même ne reviendrait pas.
+    let purge: number | null | string = null;
+    try {
+      purge = await purgerEtatsOAuth();
+    } catch (e) {
+      purge = `échec : ${(e as Error).message}`;
+    }
+    docusign = { ok: true, file, archivages, etatsOauthPurges: purge };
+  } catch (e) {
+    console.error("[docusign.evaluate] échec :", (e as Error).message);
+    docusign = { ok: false, error: (e as Error).message };
+  }
+
+  return NextResponse.json({ ...result, commercial, documents, docusign });
 }
 
 export async function POST(request: Request) {
