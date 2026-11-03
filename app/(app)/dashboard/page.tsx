@@ -3,6 +3,7 @@ import { getDashboardSeries, getImmobAnnotations } from "@/lib/dashboard-server"
 import { getAllCommerciaux } from "@/lib/leads-server";
 import { getCurrentUserProfile } from "@/lib/users-server";
 import { getPhotoWaitingCount } from "@/lib/commercial-actions/read-server";
+import { getDevisARealiserCount } from "@/lib/devis-a-realiser/server";
 import { visibleSectorsForUser } from "@/lib/leads";
 
 export const metadata = { title: "Dashboard" };
@@ -20,6 +21,9 @@ export default async function DashboardPage() {
   // Indicateur « en attente de photos » : périmètre global pour manager, sinon
   // les dossiers du commercial connecté.
   const photoWaitingCount = await getPhotoWaitingCount(isAdmin || isPlanner ? undefined : profile?.id);
+  // Devis à réaliser (§2). Le périmètre est celui de l'utilisateur : la RLS
+  // restreint déjà les dossiers, aucun paramètre de rôle n'est nécessaire.
+  const devisARealiser = await getDevisARealiserCount();
   const visibleSectors = visibleSectorsForUser({ isAdmin, isPlanner, activities: profile?.activities ?? [] });
   return (
     <Dashboard
@@ -32,6 +36,7 @@ export default async function DashboardPage() {
       isBackOffice={isAdmin || isPlanner || isSuperviseur}
       visibleSectors={visibleSectors}
       photoWaitingCount={photoWaitingCount}
+      devisARealiser={devisARealiser}
     />
   );
 }

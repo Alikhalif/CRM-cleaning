@@ -45,6 +45,10 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/recherche",      label: "Recherche",     icon: "search" },
       { href: "/pipeline",       label: "Pipeline",      icon: "pipeline" },
       { href: "/leads",          label: "Suivi commercial", icon: "leads", badge: "leadsUntreated" },
+      // Vue de travail entre la découverte et l'envoi du devis. Ouverte à
+      // tous : son périmètre est déjà restreint par la RLS et par le filtre
+      // d'activité, elle n'a donc rien à faire dans RESTRICTED_MODULES.
+      { href: "/devis-a-realiser", label: "Devis à réaliser", icon: "document" },
       { href: "/a-affecter",     label: "À affecter",    icon: "leads" },
       { href: "/decouverte",     label: "Découverte",    icon: "search" },
       { href: "/commerciaux",    label: "Commerciaux",   icon: "commerciaux" },

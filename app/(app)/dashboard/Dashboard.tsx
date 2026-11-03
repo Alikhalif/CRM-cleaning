@@ -34,6 +34,7 @@ import {
 import type { ImmobAnnotation } from "@/lib/dashboard-server";
 import { Donut, EvolutionChart } from "./Charts";
 import PhotoWaitingBanner from "./PhotoWaitingBanner";
+import BoutonDevisARealiser from "@/components/DevisARealiser/BoutonDevisARealiser";
 import styles from "./Dashboard.module.scss";
 
 // Périodes partagées avec le filtre global de la Topbar (source unique).
@@ -56,6 +57,8 @@ type Props = {
   visibleSectors: Sector[];
   // Dossiers en attente de photos (indicateur — module Actions & Relances).
   photoWaitingCount?: number;
+  // Devis à réaliser : découverte terminée, devis pas encore envoyé.
+  devisARealiser?: { total: number; enRetard: number };
 };
 
 export default function Dashboard({
@@ -68,6 +71,7 @@ export default function Dashboard({
   isBackOffice,
   visibleSectors,
   photoWaitingCount = 0,
+  devisARealiser,
 }: Props) {
   // Période + activité viennent de l'URL (source unique, partagée avec le
   // filtre global de la Topbar). Le canal reste local (pas dans la Topbar).
@@ -164,6 +168,13 @@ export default function Dashboard({
           visibleSectors={visibleSectors}
         />
       )}
+
+      {/* ── Indicateur : devis à réaliser ────────────────────────── */}
+      <BoutonDevisARealiser
+        total={devisARealiser?.total ?? 0}
+        enRetard={devisARealiser?.enRetard ?? 0}
+        variante="bandeau"
+      />
 
       {/* ── Indicateur : clients en attente de photos ────────────── */}
       <PhotoWaitingBanner count={photoWaitingCount} />

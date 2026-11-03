@@ -4,6 +4,8 @@ import Supervision from "./Supervision";
 import styles from "./Leads.module.scss";
 import { getSuiviData } from "@/lib/suivi-server";
 import { getSupervisionData, getSupervisionScope, type Periode } from "@/lib/supervision-server";
+import { getDevisARealiserCount } from "@/lib/devis-a-realiser/server";
+import BoutonDevisARealiser from "@/components/DevisARealiser/BoutonDevisARealiser";
 
 export const metadata = { title: "Suivi commercial" };
 
@@ -34,7 +36,10 @@ export default async function SuiviCommercialPage({
   if (scope) {
     const { periode: brut } = await searchParams;
     const periode = (PERIODES_VALIDES.includes(brut ?? "") ? brut : "30d") as Periode;
-    const data = await getSupervisionData(periode);
+    const [data, devis] = await Promise.all([
+      getSupervisionData(periode),
+      getDevisARealiserCount(),
+    ]);
     return (
       <div className={styles.page}>
         <header className={styles.header}>
@@ -44,6 +49,7 @@ export default async function SuiviCommercialPage({
               Comprendre la situation sans ouvrir un dossier — indicateurs, anomalies, performances.
             </p>
           </div>
+          <BoutonDevisARealiser total={devis.total} enRetard={devis.enRetard} />
         </header>
         {data && (
           <Suspense fallback={null}>
@@ -54,7 +60,7 @@ export default async function SuiviCommercialPage({
     );
   }
 
-  const data = await getSuiviData();
+  const [data, devis] = await Promise.all([getSuiviData(), getDevisARealiserCount()]);
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -64,6 +70,9 @@ export default async function SuiviCommercialPage({
             Un dossier, une situation, une prochaine action — du premier appel à la signature.
           </p>
         </div>
+        {/* §2 — le compteur est visible là où le commercial travaille, pas
+            seulement sur une page dédiée qu'il faudrait penser à ouvrir. */}
+        <BoutonDevisARealiser total={devis.total} enRetard={devis.enRetard} />
       </header>
       <SuiviCommercial {...data} />
     </div>

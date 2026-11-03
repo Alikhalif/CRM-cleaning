@@ -1,0 +1,87 @@
+// Bouton « DEVIS À RÉALISER — XX ».
+//
+// Teinte orange demandée au cahier (§2 : 🟠). Elle vient du token
+// `--tone-warning`, pas d'une couleur écrite en dur : le thème sombre reste un
+// échange de variables.
+
+.bandeau, .compact {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-3);
+  text-decoration: none;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(245, 158, 11, .35);
+  background: rgba(245, 158, 11, .10);
+  color: var(--text-primary);
+  transition: filter .12s ease;
+}
+.bandeau:hover, .compact:hover { filter: brightness(1.04); }
+
+// Un retard change le ton : rouge, parce que c'est le seul cas où le bouton
+// réclame une action immédiate.
+.bandeau[data-alerte="1"], .compact[data-alerte="1"] {
+  border-color: rgba(239, 68, 68, .35);
+  background: rgba(239, 68, 68, .10);
+}
+
+.bandeau {
+  width: 100%;
+  padding: var(--sp-3) var(--sp-4);
+}
+.compact {
+  padding: 8px var(--sp-3);
+  gap: var(--sp-2);
+}
+
+.icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--tone-warning);
+  flex-shrink: 0;
+}
+.bandeau[data-alerte="1"] .icone, .compact[data-alerte="1"] .icone { color: var(--tone-danger); }
+
+.valeur {
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.bandeau .valeur { font-size: 1.5rem; }
+.compact .valeur { font-size: 1rem; }
+
+.libelle {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.86rem;
+  color: var(--text-primary);
+  min-width: 0;
+}
+.compact .libelle { font-size: 0.82rem; }
+.sous {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--tone-warning);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.bandeau[data-alerte="1"] .cta { color: var(--tone-danger); }
+
+@media (max-width: 768px) {
+  // Apple HIG / Material : 44px minimum sous le doigt.
+  .bandeau, .compact { min-height: 44px; }
+  .compact { width: 100%; justify-content: flex-start; }
+  // Sous le doigt, le sous-titre du bandeau tient encore ; le « Voir la
+  // liste » devient redondant avec le bandeau entier, déjà cliquable.
+  .cta { display: none; }
+}

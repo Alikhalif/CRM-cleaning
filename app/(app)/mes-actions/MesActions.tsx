@@ -22,6 +22,7 @@ import {
   terminerActionMoteur, reporterActionMoteur,
 } from "./actions";
 import { ManagerView, PhotoWaitingView } from "./VuesEquipe";
+import BoutonDevisARealiser from "@/components/DevisARealiser/BoutonDevisARealiser";
 import styles from "./mes-actions.module.scss";
 
 type Dossier = { id: string; ref: string | null; nom: string; activite: string | null };
@@ -38,6 +39,8 @@ type Props = {
   rules: CommercialRule[];
   photoWaiting: PhotoWaitingRow[];
   filtreInitial: string | null;
+  /** Devis à réaliser — découverte terminée, devis pas encore envoyé. */
+  devisARealiser?: { total: number; enRetard: number };
   ouvrirPhotos: boolean;
 };
 
@@ -74,7 +77,8 @@ const jourIso = (ms: number) =>
 
 export default function MesActions({
   items, erreur, serverNow, dossiers, meName,
-  isManager, isAdmin, manager, rules, photoWaiting, filtreInitial, ouvrirPhotos,
+  isManager, isAdmin, manager, rules, photoWaiting, devisARealiser,
+  filtreInitial, ouvrirPhotos,
 }: Props) {
   // Horloge locale : les retards et les « dans 15 min » doivent avancer sans
   // recharger la page. On part de l'heure du SERVEUR pour que le premier
@@ -134,6 +138,13 @@ export default function MesActions({
         <div className={styles.titreBloc}>
           <h1 className={styles.h1}>Mes actions</h1>
           <p className={styles.sousTitre}>{meName}</p>
+          {/* §9 — compteur, pas seconde liste : la tâche « Envoyer le devis »
+              du moteur reste la seule à matérialiser ce travail, et elle se
+              clôt d'elle-même quand le devis part. */}
+          <BoutonDevisARealiser
+            total={devisARealiser?.total ?? 0}
+            enRetard={devisARealiser?.enRetard ?? 0}
+          />
         </div>
 
         <div className={styles.progression}>
