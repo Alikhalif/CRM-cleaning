@@ -347,13 +347,33 @@ moment, y compris avant un déploiement et sur une machine sans secret.
 | Représentant légal → contrat | contrôle, variables, en-tête, instantané |
 | TypeScript, ESLint, build | zéro erreur sur le dépôt |
 
-| **Non testé** | Pourquoi |
+### Vérifié sur l'environnement réel (bac à sable)
+
+Relevé en lecture seule le **2026-11-04** sur le projet de production :
+
+| Étape | État |
 |---|---|
-| Échange OAuth réel | aucun compte DocuSign Developer |
-| Création d'enveloppe réelle | idem |
-| Réception d'une notification réelle | Connect non configuré |
-| Téléchargement et archivage réels | aucune enveloppe signée |
-| Parcours cliqué dans l'interface | aucun identifiant de test |
+| Échange OAuth complet | **fait** — compte « OPTIMIVV » raccordé en `demo`, sans erreur |
+| Conservation et chiffrement des jetons | **fait** — renouvellement valable jusqu'au 2026-12-03 |
+| Réception d'une notification Connect | **fait** — une notification réelle reçue, HMAC validée, mise en file, traitée |
+| Idempotence sur un événement réel | **fait** — clé `docusign:<enveloppe>:sent:<horodatage>` enregistrée |
+| Enveloppe étrangère ignorée | **fait** — la notification ne portait pas sur une enveloppe du CRM, elle a été classée sans effet |
+
+### Reste à faire
+
+| Non vérifié | Pourquoi |
+|---|---|
+| Création d'une enveloppe **depuis le CRM** | demande votre autorisation explicite |
+| Téléchargement et archivage réels | découle du point précédent |
+| Parcours cliqué de bout en bout | découle du point précédent |
+| Cloisonnement des pièces archivées face à un compte commercial | aucune pièce archivée à ce jour |
+
+Au 2026-11-04 : **0 contrat de sous-traitance** et **0 enveloppe** en base. Le
+CRM n'a jamais envoyé d'enveloppe.
+
+> **Prérequis bloquant.** Les sept sociétés sont sans représentant légal
+> (cf. § 5). Tant qu'aucune ne l'a, l'envoi est refusé avant même d'atteindre
+> DocuSign.
 
 **Le premier envoi en bac à sable reste à faire, et il demande votre
 autorisation.** Rien n'a été simulé, aucun statut de signature n'a été
