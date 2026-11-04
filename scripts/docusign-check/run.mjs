@@ -30,6 +30,7 @@ const SUITES = [
   { fichier: "envoi-devis.ts", titre: "Envoi des devis (aucun envoi automatique)" },
   { fichier: "generation-devis.ts", titre: "Génération du devis depuis la découverte" },
   { fichier: "prestataires.ts", titre: "Recherche prestataires et représentation des sociétés" },
+  { fichier: "accessibilite.ts", titre: "Accessibilité depuis l'interface et cloisonnement des rôles" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "docusign-check-"));
