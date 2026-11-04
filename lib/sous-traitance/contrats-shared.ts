@@ -58,11 +58,127 @@ export type PrestataireChoisissable = {
   siren: string | null;
   siret: string | null;
   adresse: string | null;
+  /** « 77400 Lagny-sur-Marne » tel que saisi sur la fiche sous-traitant. */
+  cpVille: string | null;
   dirigeant: string | null;
+  /** Activités couvertes — `technicians.sectors`. */
+  secteurs: string[];
+  /** Départements d'intervention — `technicians.service_departments`. */
+  departements: string[];
+  /** Compétences déclarées — `technicians.skills`. */
+  competences: string[];
+  /** Code postal de rattachement — `technicians.base_postal_code`. */
+  codePostalBase: string | null;
+  /** Nombre d'interventions déjà confiées. 0 = jamais travaillé avec nous. */
+  nbInterventions: number;
   /** Champs exigés par l'en-tête du contrat et encore vides. */
   manquants: string[];
   utilisable: boolean;
 };
+
+// ── Appariement prestataire ↔ mission ─────────────────────────────────
+//
+// CE QUE CETTE RECHERCHE FAIT, ET CE QU'ELLE NE FAIT PAS.
+//
+// Elle croise ce qui est RÉELLEMENT en base : l'activité (`sectors`), le
+// département d'intervention (`service_departments`), les compétences
+// (`skills`), le rattachement géographique (`base_postal_code`) et
+// l'historique (nombre de dossiers déjà confiés).
+//
+// ⚠️ ELLE NE DIT RIEN DE LA DISPONIBILITÉ. Le CRM ne porte aucun calendrier
+// de sous-traitant : ni congés, ni charge, ni créneaux. Afficher « disponible »
+// serait une invention, et la consigne l'interdit expressément. La
+// planificatrice confirme la disponibilité par téléphone, comme aujourd'hui.
+
+export type CritereMission = {
+  /** Secteur de la prestation (slug d'activité). */
+  secteur?: string | null;
+  /** Code postal du chantier — son département en est déduit. */
+  codePostal?: string | null;
+};
+
+/** Département français depuis un code postal. Gère la Corse (2A/2B exclue). */
+export function departementDe(codePostal: string | null | undefined): string | null {
+  const cp = (codePostal ?? "").replace(/\s/g, "");
+  if (!/^\d{5}$/.test(cp)) return null;
+  // 97x / 98x : outre-mer, sur trois chiffres.
+  if (cp.startsWith("97") || cp.startsWith("98")) return cp.slice(0, 3);
+  return cp.slice(0, 2);
+}
+
+export type Correspondance = {
+  /** L'activité de la mission figure parmi celles du prestataire. */
+  secteurCouvert: boolean;
+  /** Le département du chantier figure parmi ses départements. */
+  departementCouvert: boolean;
+  /** Les deux à la fois : c'est ce qui le fait remonter en tête. */
+  correspond: boolean;
+  /** Ce qui explique le classement, affiché tel quel à la planificatrice. */
+  motifs: string[];
+};
+
+/**
+ * Le prestataire correspond-il à la mission ?
+ *
+ * Un critère non renseignable (secteur inconnu, chantier sans code postal,
+ * prestataire sans département déclaré) n'est JAMAIS compté comme un échec :
+ * on ne masque pas un prestataire parce qu'une donnée manque, on dit
+ * seulement qu'on n'a pas pu vérifier.
+ */
+export function correspondanceMission(
+  p: PrestataireChoisissable,
+  c: CritereMission,
+): Correspondance {
+  const motifs: string[] = [];
+
+  const secteur = (c.secteur ?? "").trim();
+  const secteurCouvert = secteur !== "" && p.secteurs.includes(secteur);
+  if (secteurCouvert) motifs.push("activité couverte");
+  else if (secteur && p.secteurs.length > 0) motifs.push("activité non déclarée");
+
+  const dep = departementDe(c.codePostal);
+  const depPrestataire = departementDe(p.codePostalBase);
+  const departementCouvert =
+    dep !== null
+    && (p.departements.includes(dep) || (depPrestataire !== null && depPrestataire === dep));
+  if (departementCouvert) motifs.push(`département ${dep}`);
+  else if (dep && p.departements.length > 0) motifs.push(`hors zone (${dep})`);
+
+  if (p.nbInterventions > 0) {
+    motifs.push(`${p.nbInterventions} intervention${p.nbInterventions > 1 ? "s" : ""}`);
+  }
+
+  return { secteurCouvert, departementCouvert, correspond: secteurCouvert && departementCouvert, motifs };
+}
+
+/**
+ * Classe les prestataires pour la mission : ceux qui correspondent d'abord.
+ *
+ * AUCUN prestataire n'est retiré de la liste. Masquer un prestataire sur un
+ * critère incomplet ferait croire qu'il n'existe pas, alors qu'il suffit
+ * souvent de compléter sa fiche. On trie, on explique, on ne cache pas.
+ */
+export function classerPrestataires(
+  prestataires: readonly PrestataireChoisissable[],
+  c: CritereMission,
+): { prestataire: PrestataireChoisissable; corr: Correspondance }[] {
+  return prestataires
+    .map((prestataire) => ({ prestataire, corr: correspondanceMission(prestataire, c) }))
+    .sort((a, b) => {
+      // 1. correspondance complète, 2. activité seule, 3. zone seule,
+      // 4. dossier administratif complet, 5. historique, 6. nom.
+      const score = (x: { corr: Correspondance; prestataire: PrestataireChoisissable }) =>
+        (x.corr.correspond ? 8 : 0)
+        + (x.corr.secteurCouvert ? 4 : 0)
+        + (x.corr.departementCouvert ? 2 : 0)
+        + (x.prestataire.utilisable ? 1 : 0);
+      const d = score(b) - score(a);
+      if (d !== 0) return d;
+      const h = b.prestataire.nbInterventions - a.prestataire.nbInterventions;
+      if (h !== 0) return h;
+      return a.prestataire.nom.localeCompare(b.prestataire.nom, "fr");
+    });
+}
 
 // ── Dossier d'intervention ────────────────────────────────────────────
 
@@ -89,7 +205,15 @@ export type DossierContrat = {
   /** Intervention. L'adresse de chantier prime sur celle de facturation. */
   mission: {
     reference: string;
+    /** Libellé de l'activité, tel qu'il s'affiche. */
     type: string;
+    /**
+     * Slug de l'activité — `nettoyage`, `debarras`, `demenagement`…
+     *
+     * Distinct de `type`, qui est le LIBELLÉ. L'appariement prestataire se
+     * fait sur le slug, parce que `technicians.sectors` en contient.
+     */
+    secteurSlug: string;
     date: string;
     heureDebut: string;
     dureeHeures: number | null;

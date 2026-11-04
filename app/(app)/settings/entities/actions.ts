@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
 import type { Database } from "@/lib/supabase/database.types";
-import type { LegalForm } from "@/lib/leads";
+import { COUNTRY_LABEL, IDENTIFIANT_LEGAL, type Country, type LegalForm } from "@/lib/leads";
 
 // Admin-only CRUD on legal_entities. RLS already enforces admin-write via
 // the existing "legal_entities writable by admin" policy, so non-admin
@@ -31,6 +31,10 @@ export type EntityInput = {
   color: string;
   representativeName: string;
   representativeTitle: string;
+  representativeCompanyName: string;
+  country: Country;
+  /** Identifiant légal national. Cf. `IDENTIFIANT_LEGAL` dans lib/leads.ts. */
+  siren: string;
 };
 
 export type Result = { ok: true; id?: string } | { ok: false; error: string };
@@ -38,8 +42,20 @@ export type Result = { ok: true; id?: string } | { ok: false; error: string };
 function validate(input: EntityInput): string | null {
   if (!input.legalName.trim()) return "Raison sociale requise.";
   if (!input.legalForm) return "Forme juridique requise.";
-  if (!/^\d{14}$/.test(input.siret.replace(/\s/g, ""))) {
-    return "SIRET invalide (14 chiffres attendus).";
+  if (!input.country) return "Pays d'établissement requis.";
+
+  // Le SIRET à 14 chiffres n'existe QU'EN FRANCE. La règle précédente
+  // s'appliquait à toutes les sociétés : aucune entité suisse, belge,
+  // luxembourgeoise ou canadienne ne pouvait être enregistrée, alors que le
+  // CRM opère dans ces cinq pays. On ne l'exige donc qu'en France, et on
+  // demande ailleurs l'identifiant légal national.
+  if (input.country === "FR") {
+    if (!/^\d{14}$/.test(input.siret.replace(/\s/g, ""))) {
+      return "SIRET invalide (14 chiffres attendus pour une société française).";
+    }
+  } else if (!input.siren.trim() && !input.siret.trim() && !input.vatNumber.trim()) {
+    const l = IDENTIFIANT_LEGAL[input.country].label;
+    return `Identifiant légal requis (${l}) pour une société ${COUNTRY_LABEL[input.country]}.`;
   }
   if (input.defaultVatRate < 0 || input.defaultVatRate > 100) {
     return "Taux de TVA invalide (0–100).";
@@ -47,7 +63,21 @@ function validate(input: EntityInput): string | null {
   return null;
 }
 
-function buildPayload(input: EntityInput): Omit<EntityInsert, "id"> {
+/**
+ * Charge utile d'écriture.
+ *
+ * `representative_company_name` est ajoutée par la migration
+ * `20261104000001`, pas encore poussée au moment où ce code est écrit : les
+ * types générés (`lib/supabase/database.types.ts`) l'ignorent donc. On élargit
+ * le type ici plutôt que de retoucher à la main un fichier généré, qui serait
+ * écrasé au prochain `supabase gen types`. Après `npx supabase db push` et
+ * régénération, cette intersection devient redondante et peut disparaître.
+ */
+type EntityPayload = Omit<EntityInsert, "id"> & {
+  representative_company_name: string | null;
+};
+
+function buildPayload(input: EntityInput): EntityPayload {
   return {
     legal_name: input.legalName.trim(),
     legal_form: input.legalForm,
@@ -72,6 +102,11 @@ function buildPayload(input: EntityInput): Omit<EntityInsert, "id"> {
     // l'émission d'un contrat de sous-traitance, par `controlerEntite()`.
     representative_name: input.representativeName.trim() || null,
     representative_title: input.representativeTitle.trim() || null,
+    // Représentation par une personne morale : optionnelle, et c'est voulu.
+    // La plupart des sociétés sont représentées par une personne physique.
+    representative_company_name: input.representativeCompanyName.trim() || null,
+    country: input.country,
+    siren: input.siren.replace(/\s/g, "") || null,
   };
 }
 

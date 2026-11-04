@@ -26,6 +26,48 @@ export const COUNTRY_LABEL: Record<Country, string> = {
 
 export const COUNTRIES: Country[] = ["FR", "CH", "LU", "BE", "CA"];
 
+/**
+ * Identifiant légal d'une société, par pays d'établissement.
+ *
+ * Un contrat de sous-traitance doit identifier la partie qui s'engage par son
+ * numéro d'immatriculation national. « SIRET » n'a aucun sens pour une
+ * société suisse ou canadienne : le libellé doit suivre le pays, sinon
+ * l'administrateur saisit la mauvaise donnée dans la bonne case.
+ *
+ * Les valeurs sont stockées dans une colonne unique (`legal_entities.siren`),
+ * qui joue le rôle d'identifiant légal national quel que soit le pays.
+ */
+export const IDENTIFIANT_LEGAL: Record<
+  Country,
+  { label: string; aide: string; exemple: string }
+> = {
+  FR: {
+    label: "SIREN",
+    aide: "9 chiffres — identifie l'entité juridique, là où le SIRET désigne un établissement",
+    exemple: "812345678",
+  },
+  CH: {
+    label: "IDE / numéro CHE",
+    aide: "Numéro d'identification des entreprises, registre du commerce suisse",
+    exemple: "CHE-123.456.789",
+  },
+  LU: {
+    label: "RCS Luxembourg",
+    aide: "Registre de commerce et des sociétés, numéro commençant par B",
+    exemple: "B123456",
+  },
+  BE: {
+    label: "Numéro d'entreprise (BCE)",
+    aide: "Banque-Carrefour des Entreprises, 10 chiffres",
+    exemple: "0123.456.789",
+  },
+  CA: {
+    label: "NEQ / numéro d'entreprise",
+    aide: "NEQ au Québec, numéro d'entreprise fédéral ailleurs",
+    exemple: "1234567890",
+  },
+};
+
 // Profils commerciaux / pools de routage (CDC §7). Un commercial peut en cumuler.
 export type CommercialProfile =
   | "appel_entrant"
@@ -461,6 +503,24 @@ export type LegalEntity = {
    */
   representativeName: string;
   representativeTitle: string;
+  /**
+   * Société représentante, quand la représentation légale est exercée par une
+   * personne morale : présidence ou gérance assurée par une société, holding.
+   *
+   * Vide = représentation directe par une personne physique. Renseignée, le
+   * contrat écrit « représentée par la société X, elle-même représentée par
+   * M. Y, en sa qualité de Z » — `representativeName` décrit alors la personne
+   * physique qui représente CETTE société représentante.
+   */
+  representativeCompanyName: string;
+  /** Pays d'établissement — pilote le libellé de l'identifiant légal. */
+  country: Country;
+  /**
+   * Identifiant légal national : SIREN en France, IDE en Suisse, BCE en
+   * Belgique, RCS au Luxembourg, NEQ au Canada. Une seule colonne pour les
+   * cinq pays (cf. `IDENTIFIANT_LEGAL`).
+   */
+  siren: string;
 };
 
 // CDC §5.2 prestations — service catalogue.

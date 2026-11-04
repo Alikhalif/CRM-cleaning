@@ -27,6 +27,7 @@ import { UNITE_LABEL, type Unite } from "@/lib/sous-traitance/prestations";
 import type { ModeleContrat } from "@/lib/sous-traitance/clauses";
 import {
   STATUT_CONTRAT_LABEL,
+  classerPrestataires,
   estFige,
   type ContratResume,
   type DocumentAssemble,
@@ -123,6 +124,25 @@ export default function ContratSousTraitance({
 
   const prestataire = prestataires.find((p) => p.technicianId === technicianId) ?? null;
   const entite = entites.find((e) => e.id === entityId) ?? null;
+
+  // ── Recherche des prestataires référencés ────────────────────────────
+  //
+  // Classement sur ce qui est RÉELLEMENT en base : activité couverte,
+  // département d'intervention, dossier administratif, historique. Rien sur la
+  // disponibilité — le CRM n'a aucun calendrier de sous-traitant, et inventer
+  // un « disponible » serait pire que de ne rien dire.
+  const classes = useMemo(
+    () => classerPrestataires(prestataires, {
+      secteur: dossier.mission.secteurSlug,
+      codePostal: dossier.mission.codePostal || dossier.client.codePostal,
+    }),
+    [prestataires, dossier.mission.secteurSlug, dossier.mission.codePostal, dossier.client.codePostal],
+  );
+  const correspondants = classes.filter((x) => x.corr.correspond);
+  const autres = classes.filter((x) => !x.corr.correspond);
+  const correspondanceChoisie = classes.find(
+    (x) => x.prestataire.technicianId === technicianId,
+  )?.corr ?? null;
   const optionModele = modeles.find((m) => m.valeur === modele) ?? null;
   const totaux = useMemo(() => calculerTotaux(montants), [montants]);
 
@@ -400,18 +420,38 @@ export default function ContratSousTraitance({
           <div className={styles.formGrid}>
             <label>
               Prestataire
+              {/* Les prestataires qui couvrent l'activité ET le département du
+                  chantier remontent en tête, avec le motif du classement.
+                  Aucun n'est masqué : une fiche incomplète se complète, elle
+                  ne doit pas disparaître de la liste. */}
               <select
                 className={styles.select}
                 value={technicianId}
                 onChange={(e) => setTechnicianId(e.target.value)}
               >
                 <option value="">— Sélectionner —</option>
-                {prestataires.map((p) => (
-                  <option key={p.technicianId} value={p.technicianId}>
-                    {p.raisonSociale ?? p.nom}
-                    {p.utilisable ? "" : " (fiche incomplète)"}
-                  </option>
-                ))}
+                {correspondants.length > 0 && (
+                  <optgroup label="Correspondent à la mission">
+                    {correspondants.map(({ prestataire: p, corr }) => (
+                      <option key={p.technicianId} value={p.technicianId}>
+                        {p.raisonSociale ?? p.nom}
+                        {corr.motifs.length ? ` — ${corr.motifs.join(", ")}` : ""}
+                        {p.utilisable ? "" : " · fiche incomplète"}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {autres.length > 0 && (
+                  <optgroup label="Autres prestataires référencés">
+                    {autres.map(({ prestataire: p, corr }) => (
+                      <option key={p.technicianId} value={p.technicianId}>
+                        {p.raisonSociale ?? p.nom}
+                        {corr.motifs.length ? ` — ${corr.motifs.join(", ")}` : ""}
+                        {p.utilisable ? "" : " · fiche incomplète"}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </label>
             <label>
@@ -449,7 +489,71 @@ export default function ContratSousTraitance({
                 <dt className={styles.k}>Courriel</dt>
                 <dd className={styles.v}>{prestataire.email ?? <span className={styles.vide}>—</span>}</dd>
               </div>
+              <div>
+                <dt className={styles.k}>Téléphone</dt>
+                <dd className={styles.v}>{prestataire.telephone ?? <span className={styles.vide}>—</span>}</dd>
+              </div>
+              {/* Activités, zone et compétences : lues sur la fiche technicien,
+                  où elles étaient déjà saisies sans jamais être affichées ici. */}
+              <div>
+                <dt className={styles.k}>Activités couvertes</dt>
+                <dd className={styles.v}>
+                  {prestataire.secteurs.length > 0
+                    ? prestataire.secteurs.join(", ")
+                    : <span className={styles.vide}>aucune déclarée</span>}
+                </dd>
+              </div>
+              <div>
+                <dt className={styles.k}>Secteur géographique</dt>
+                <dd className={styles.v}>
+                  {prestataire.departements.length > 0
+                    ? `départements ${prestataire.departements.join(", ")}`
+                    : prestataire.codePostalBase
+                      ? `rattaché au ${prestataire.codePostalBase}`
+                      : <span className={styles.vide}>aucun déclaré</span>}
+                </dd>
+              </div>
+              {prestataire.competences.length > 0 && (
+                <div>
+                  <dt className={styles.k}>Compétences</dt>
+                  <dd className={styles.v}>{prestataire.competences.join(", ")}</dd>
+                </div>
+              )}
+              <div>
+                <dt className={styles.k}>Historique</dt>
+                <dd className={styles.v}>
+                  {prestataire.nbInterventions > 0
+                    ? `${prestataire.nbInterventions} intervention${prestataire.nbInterventions > 1 ? "s" : ""} confiée${prestataire.nbInterventions > 1 ? "s" : ""}`
+                    : <span className={styles.vide}>jamais encore missionné</span>}
+                </dd>
+              </div>
+              <div>
+                <dt className={styles.k}>Correspondance mission</dt>
+                <dd className={styles.v}>
+                  {correspondanceChoisie?.correspond
+                    ? "Activité et secteur couverts"
+                    : correspondanceChoisie?.motifs.length
+                      ? correspondanceChoisie.motifs.join(" · ")
+                      : <span className={styles.vide}>non vérifiable</span>}
+                </dd>
+              </div>
+              <div>
+                <dt className={styles.k}>Statut administratif</dt>
+                <dd className={styles.v}>
+                  {prestataire.utilisable
+                    ? "Dossier complet"
+                    : `À compléter : ${prestataire.manquants.join(", ")}`}
+                </dd>
+              </div>
             </dl>
+          )}
+          {/* La disponibilité n'est PAS affichée : le CRM ne porte aucun
+              calendrier de sous-traitant. L'annoncer serait une invention. */}
+          {prestataire && (
+            <p className={styles.muted}>
+              La disponibilité n&apos;est pas suivie dans le CRM : à confirmer
+              auprès du prestataire avant d&apos;émettre le contrat.
+            </p>
           )}
           {prestataire && !prestataire.utilisable && (
             <p className={styles.warn}>

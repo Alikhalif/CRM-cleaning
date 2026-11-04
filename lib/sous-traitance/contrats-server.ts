@@ -77,6 +77,7 @@ type EntiteRow = {
   country: string | null;
   representative_name: string | null;
   representative_title: string | null;
+  representative_company_name: string | null;
   is_active: boolean | null;
 };
 
@@ -124,7 +125,7 @@ export async function getEntitesEmettrices(): Promise<EntiteChoisissable[]> {
   const complet = await supabase
     .from("legal_entities")
     .select(
-      "id, legal_name, trade_name, legal_form, siren, siret, vat_number, address, country, representative_name, representative_title, is_active",
+      "id, legal_name, trade_name, legal_form, siren, siret, vat_number, address, country, representative_name, representative_title, representative_company_name, is_active",
     )
     .is("deleted_at", null)
     .order("legal_name")
@@ -147,6 +148,7 @@ export async function getEntitesEmettrices(): Promise<EntiteChoisissable[]> {
       country: null,
       representative_name: null,
       representative_title: null,
+      representative_company_name: null,
       is_active: true,
     }));
   } else {
@@ -168,6 +170,7 @@ export async function getEntitesEmettrices(): Promise<EntiteChoisissable[]> {
         country: r.country,
         representative_name: r.representative_name,
         representative_title: r.representative_title,
+        representative_company_name: r.representative_company_name,
       };
       return { ...e, ...controlerEntite(e) };
     });
@@ -183,6 +186,13 @@ type PrestataireRow = {
   initials: string;
   email: string | null;
   is_active: boolean;
+  // Donnees d'appariement DEJA PRESENTES sur `technicians`, et jusqu'ici
+  // jamais lues par cet ecran : le menu de la planificatrice listait les
+  // prestataires a plat, sans dire lequel couvre la prestation ni le secteur.
+  sectors: string[] | null;
+  service_departments: string[] | null;
+  skills: string[] | null;
+  base_postal_code: string | null;
   profil: {
     raison_sociale: string | null;
     nom_commercial: string | null;
@@ -209,10 +219,28 @@ type PrestataireRow = {
  */
 export async function getPrestataires(): Promise<PrestataireChoisissable[]> {
   const supabase = await supabaseServer();
+
+  // Historique : nombre d'interventions déjà confiées. Il ne sert pas à
+  // classer d'autorité — c'est à la planificatrice de juger — mais à ne plus
+  // choisir à l'aveugle entre un prestataire éprouvé et un inconnu.
+  const interventions = new Map<string, number>();
+  const { data: passees } = await supabase
+    .from("dossiers")
+    .select("technician_id");
+  // Cast explicite : la combinaison `.select()` restreint + `.returns<>()` fait
+  // retomber l'inférence de postgrest-js sur `never` ici. Même frontière, même
+  // convention que les `as never` du dépôt côté écriture.
+  for (const d of (passees ?? []) as { technician_id: string | null }[]) {
+    if (d.technician_id) {
+      interventions.set(d.technician_id, (interventions.get(d.technician_id) ?? 0) + 1);
+    }
+  }
+
   const { data } = await supabase
     .from("technicians")
     .select(
-      "id, name, initials, email, is_active, profil:subcontractor_profiles(raison_sociale, nom_commercial, siren, siret, adresse, cp_ville, dirigeant, phone)",
+      "id, name, initials, email, is_active, sectors, service_departments, skills, base_postal_code, "
+      + "profil:subcontractor_profiles(raison_sociale, nom_commercial, siren, siret, adresse, cp_ville, dirigeant, phone)",
     )
     .eq("is_active", true)
     .order("name")
@@ -240,7 +268,13 @@ export async function getPrestataires(): Promise<PrestataireChoisissable[]> {
       siren: p?.siren ?? null,
       siret: p?.siret ?? null,
       adresse,
+      cpVille: p?.cp_ville ?? null,
       dirigeant: p?.dirigeant ?? null,
+      secteurs: r.sectors ?? [],
+      departements: r.service_departments ?? [],
+      competences: r.skills ?? [],
+      codePostalBase: r.base_postal_code ?? null,
+      nbInterventions: interventions.get(r.id) ?? 0,
       manquants,
       utilisable: manquants.length === 0,
     };
@@ -376,6 +410,7 @@ export async function getDossierContrat(dossierId: string): Promise<DossierContr
     mission: {
       reference: lead.short_id,
       type: lead.activity?.name ?? lead.activity?.slug ?? "",
+      secteurSlug: lead.activity?.slug ?? "",
       date: d.planned_at ? d.planned_at.slice(0, 10) : "",
       heureDebut: d.planned_at ? d.planned_at.slice(11, 16) : "",
       dureeHeures: d.duration_hours == null ? null : Number(d.duration_hours),

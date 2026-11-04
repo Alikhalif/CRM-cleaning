@@ -39,6 +39,9 @@ type EntityRow = {
   color: string;
   representative_name: string | null;
   representative_title: string | null;
+  representative_company_name: string | null;
+  country: string | null;
+  siren: string | null;
 };
 
 type EntityAddressJson = { line1?: string; postal_code?: string; city?: string };
@@ -65,6 +68,12 @@ function mapEntity(row: EntityRow): LegalEntity {
     defaultActivities: [], // not used by DocumentView; skip the extra join
     representativeName: row.representative_name ?? "",
     representativeTitle: row.representative_title ?? "",
+    representativeCompanyName: row.representative_company_name ?? "",
+    // Repli sur la France : la colonne est `not null` en base, mais une
+    // lecture degradee (colonne absente avant migration) ne doit pas casser
+    // l'affichage d'une facture.
+    country: (row.country as LegalEntity["country"]) ?? "FR",
+    siren: row.siren ?? "",
   };
 }
 
@@ -220,8 +229,8 @@ export async function getAllEntities(): Promise<LegalEntity[]> {
     .select(
       `id, legal_name, legal_form, siret, ape_code, vat_number,
        address, contact_email, contact_phone, iban, bic,
-       default_vat_rate, legal_mentions, color,
-       representative_name, representative_title`,
+       default_vat_rate, legal_mentions, color, country, siren,
+       representative_name, representative_title, representative_company_name`,
     )
     .order("legal_name", { ascending: true });
   if (error || !data) return [];

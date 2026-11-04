@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import Icon from "@/components/Icon/Icon";
-import type { LegalEntity, LegalForm } from "@/lib/leads";
+import {
+  COUNTRIES,
+  COUNTRY_LABEL,
+  IDENTIFIANT_LEGAL,
+  type Country,
+  type LegalEntity,
+  type LegalForm,
+} from "@/lib/leads";
 import { createEntity, updateEntity, type EntityInput } from "./actions";
 // Reuses the shared modal stylesheet — same overlay/footer pattern.
 import styles from "@/app/(app)/planification/PlanifyDossierModal.module.scss";
@@ -35,6 +42,11 @@ function emptyInput(): EntityInput {
     color: "#5b4bcc",
     representativeName: "",
     representativeTitle: "",
+    representativeCompanyName: "",
+    // La France par defaut : c'est le pays de la majorite des societes du
+    // CRM, et le seul ou le SIRET a 14 chiffres est exige.
+    country: "FR",
+    siren: "",
   };
 }
 
@@ -57,6 +69,9 @@ function fromExisting(e: LegalEntity): EntityInput {
     color: e.color,
     representativeName: e.representativeName,
     representativeTitle: e.representativeTitle,
+    representativeCompanyName: e.representativeCompanyName,
+    country: e.country,
+    siren: e.siren,
   };
 }
 
@@ -156,17 +171,57 @@ export default function EntityFormModal({ existing, onClose, onDone }: Props) {
             </label>
           </div>
 
+          {/* ── Pays d'établissement ────────────────────────────────────
+              Le CRM opère dans cinq pays, et la colonne existait depuis le
+              début — mais aucun écran ne l'exposait. Conséquence : toutes les
+              sociétés étaient traitées comme françaises, et la validation
+              exigeait un SIRET à 14 chiffres, inexistant hors de France. */}
           <div className={styles.row}>
             <label className={styles.field}>
-              <span className={styles.label}>SIRET (14 chiffres)</span>
+              <span className={styles.label}>Pays d&apos;établissement</span>
+              <select
+                value={v.country}
+                onChange={(e) => set("country", e.target.value as Country)}
+                className={styles.input}
+              >
+                {COUNTRIES.map((c) => (
+                  <option key={c} value={c}>{COUNTRY_LABEL[c]}</option>
+                ))}
+              </select>
+              <span className={styles.subtitle}>
+                Détermine l&apos;identifiant légal attendu et les mentions des documents.
+              </span>
+            </label>
+            <label className={styles.field}>
+              <span className={styles.label}>
+                {IDENTIFIANT_LEGAL[v.country].label}
+              </span>
+              <input
+                type="text"
+                value={v.siren}
+                onChange={(e) => set("siren", e.target.value)}
+                className={styles.input}
+                placeholder={IDENTIFIANT_LEGAL[v.country].exemple}
+              />
+              <span className={styles.subtitle}>
+                {IDENTIFIANT_LEGAL[v.country].aide}
+              </span>
+            </label>
+          </div>
+
+          <div className={styles.row}>
+            <label className={styles.field}>
+              <span className={styles.label}>
+                SIRET (14 chiffres){v.country !== "FR" ? " — France uniquement" : ""}
+              </span>
               <input
                 type="text"
                 value={v.siret}
                 onChange={(e) => set("siret", e.target.value)}
-                required
+                required={v.country === "FR"}
                 inputMode="numeric"
                 className={styles.input}
-                placeholder="12345678900012"
+                placeholder={v.country === "FR" ? "12345678900012" : "—"}
               />
             </label>
             <label className={styles.field}>
@@ -288,6 +343,30 @@ export default function EntityFormModal({ existing, onClose, onDone }: Props) {
                 placeholder="Président, Gérant…"
                 autoComplete="off"
               />
+            </label>
+          </div>
+
+          {/* ── Représentation par une personne morale ──────────────────
+              Une SAS peut avoir une société pour président, une SARL une
+              société pour gérant. Laissé vide dans le cas courant. */}
+          <div className={styles.row}>
+            <label className={styles.field}>
+              <span className={styles.label}>
+                Représentée par une société (facultatif)
+              </span>
+              <input
+                type="text"
+                value={v.representativeCompanyName}
+                onChange={(e) => set("representativeCompanyName", e.target.value)}
+                className={styles.input}
+                placeholder="HOLDING EXEMPLE SAS"
+                autoComplete="off"
+              />
+              <span className={styles.subtitle}>
+                À remplir seulement si la présidence ou la gérance est exercée par
+                une société. Le contrat écrira alors « représentée par la société
+                …, elle-même représentée par … ».
+              </span>
             </label>
           </div>
           {/* `.subtitle` : petit texte atténué, déjà défini dans la feuille
