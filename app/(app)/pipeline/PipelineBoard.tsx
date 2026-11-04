@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
+import PipelineSummary from "./PipelineSummary";
 import RelativeTime from "@/components/RelativeTime/RelativeTime";
 import { setStoredValue, useStoredValue } from "@/lib/client-store";
 import {
@@ -211,6 +212,13 @@ export default function PipelineBoard({ initialLeads, commerciaux, visibleSector
 
   return (
     <>
+      {/* ── Résumé horizontal : quatre étapes, quatre chiffres ──────────
+          Nourri par `visibleLeads`, donc le MÊME ensemble que le Kanban et la
+          vue Liste au-dessous : la restriction d'activité s'y applique, et le
+          résumé ne peut pas raconter autre chose que ce que l'écran montre.
+          Le Kanban, la vue Liste et le Suivi commercial sont inchangés. */}
+      <PipelineSummary leads={visibleLeads} />
+
       <div className={styles.viewToolbar}>
         <div className={styles.viewToggle} role="tablist" aria-label="Affichage">
           <button

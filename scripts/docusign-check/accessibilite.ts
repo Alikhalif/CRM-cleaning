@@ -225,6 +225,22 @@ const CHAINES: Chaine[] = [
     rolesExclus: ["commercial"],
   },
   {
+    nom: "Résumé horizontal du pipeline commercial",
+    source: "lib/pipeline-summary.ts",
+    symbole: "resumePipeline",
+    maillons: [
+      { f: "app/(app)/pipeline/PipelineSummary.tsx", s: "resumePipeline" },
+      { f: "lib/pipeline-summary.ts", s: "DÉCOUVERTE EFFECTUÉE" },
+      { f: "app/(app)/pipeline/PipelineSummary.tsx", s: "e.libelle" },
+      { f: "app/(app)/pipeline/PipelineSummary.module.scss", s: ".etapes" },
+      { f: "app/(app)/pipeline/PipelineBoard.tsx", s: "PipelineSummary" },
+      { f: "app/(app)/pipeline/PipelineBoard.tsx", s: "leads={visibleLeads}" },
+      { f: "app/styles/_tokens.scss", s: "--pipeline-decouverte" },
+    ],
+    route: "/pipeline",
+    roles: ["commercial", "admin"],
+  },
+  {
     nom: "Demande de tarif aux prestataires (e-mails préparés)",
     source: "lib/generation/demande-prestataire.ts",
     symbole: "preparerDemande",

@@ -1,0 +1,168 @@
+// Résumé horizontal du pipeline — quatre blocs de dimensions identiques.
+//
+// Toutes les couleurs viennent des jetons (`--pipeline-*`, `--text-*`,
+// `--bg-*`) : le thème sombre est un échange à l'exécution, rien n'est en dur.
+
+.resume {
+  margin-bottom: var(--sp-5);
+}
+
+// ── La rangée ────────────────────────────────────────────────────────
+//
+// `1fr` quatre fois : les blocs ont STRICTEMENT la même largeur, quelle que
+// soit la longueur de leur intitulé. Les flèches sont posées dans le flux de
+// chaque item, pas en colonnes de grille — sinon « DÉCOUVERTE EFFECTUÉE »
+// élargirait sa colonne et casserait l'égalité demandée.
+.etapes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  // Place pour la flèche, qui chevauche la gouttière.
+  padding-right: var(--sp-5);
+
+  &:last-child { padding-right: 0; }
+}
+
+.bloc {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-4) var(--sp-4);
+  border-radius: var(--r-lg);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  // Le filet coloré porte l'identité de l'étape sans noyer le bloc : un fond
+  // plein en quatre teintes vives serait illisible et fatigant.
+  border-top: 3px solid var(--teinte);
+  box-shadow: var(--shadow-sm);
+}
+
+// ── Le chiffre : l'information principale ────────────────────────────
+.nombre {
+  font-size: 2.4rem;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  color: var(--teinte);
+  font-variant-numeric: tabular-nums;
+}
+
+.libelle {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+  // Deux lignes au maximum : « DÉCOUVERTE EFFECTUÉE » tient sur deux lignes
+  // en tablette, et le bloc ne doit pas grandir pour autant.
+  min-height: 2.4em;
+}
+
+.conversion {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+
+  // Plus de dossiers qu'à l'étape précédente : c'est réel (devis parti sans
+  // découverte enregistrée). On le signale au lieu de laisser lire un
+  // pourcentage qui passerait pour un bug.
+  &[data-anomalie="true"] {
+    color: var(--tone-warning);
+    font-weight: 600;
+  }
+}
+
+.conversionVide {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+// ── La flèche de progression ─────────────────────────────────────────
+.fleche {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translate(35%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.global {
+  margin: var(--sp-3) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+
+  strong { color: var(--text-primary); }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  Tablette — 2 × 2, et surtout PAS une colonne verticale
+// ══════════════════════════════════════════════════════════════════════
+//
+// Quatre blocs côte à côte sous 1024 px donneraient des chiffres minuscules.
+// Deux par deux, les quatre restent visibles d'un coup d'œil — ce qui est
+// l'objet même de ce résumé.
+@media (max-width: 1024px) {
+  .etapes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-3);
+  }
+
+  .item { padding-right: 0; }
+
+  // Les flèches pointaient vers la droite : entre la 2e et la 3e case, elles
+  // désigneraient le vide. On les retire plutôt que de les laisser mentir.
+  .fleche { display: none; }
+
+  .nombre { font-size: 2.1rem; }
+  .libelle { min-height: 2.8em; }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  Mobile — toujours 2 × 2
+// ══════════════════════════════════════════════════════════════════════
+@media (max-width: 768px) {
+  .resume { margin-bottom: var(--sp-4); }
+
+  .bloc {
+    padding: var(--sp-3);
+    border-radius: var(--r-md);
+  }
+
+  .nombre { font-size: 1.75rem; }
+
+  .libelle {
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+    min-height: 3em;
+  }
+
+  .conversion, .conversionVide { font-size: 0.6875rem; }
+  .global { font-size: var(--fs-xs); }
+}
+
+// Téléphone en paysage : la hauteur est la ressource rare. On garde les
+// quatre chiffres sur une seule rangée et on sacrifie la ligne de conversion,
+// pas une étape.
+@media (max-width: 920px) and (orientation: landscape) {
+  .etapes { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .bloc { padding: var(--sp-2) var(--sp-3); }
+  .nombre { font-size: 1.5rem; }
+  .libelle { min-height: 0; }
+  .conversion, .conversionVide { display: none; }
+}
