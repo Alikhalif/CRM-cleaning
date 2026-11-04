@@ -236,6 +236,17 @@ export async function getPrestataires(): Promise<PrestataireChoisissable[]> {
     }
   }
 
+  // ⚠️ `technicians.sectors` contient les IDENTIFIANTS des activités, pas
+  // leurs slugs — vérifié en production le 2026-11-04 : les quatre fiches
+  // portent des UUID. Comparer directement au slug du dossier ne
+  // correspondrait JAMAIS, et l'écran afficherait des UUID à la
+  // planificatrice. On traduit donc ici, une fois.
+  const slugParActivite = new Map<string, string>();
+  const { data: activites } = await supabase.from("activities").select("id, slug");
+  for (const a of (activites ?? []) as { id: string; slug: string | null }[]) {
+    if (a.slug) slugParActivite.set(a.id, a.slug);
+  }
+
   const { data } = await supabase
     .from("technicians")
     .select(
@@ -270,7 +281,12 @@ export async function getPrestataires(): Promise<PrestataireChoisissable[]> {
       adresse,
       cpVille: p?.cp_ville ?? null,
       dirigeant: p?.dirigeant ?? null,
-      secteurs: r.sectors ?? [],
+      // Traduits en slugs : lisibles à l'écran, et comparables au secteur du
+      // dossier. Un identifiant sans activité correspondante est écarté
+      // plutôt qu'affiché brut.
+      secteurs: (r.sectors ?? [])
+        .map((id) => slugParActivite.get(id) ?? "")
+        .filter(Boolean),
       departements: r.service_departments ?? [],
       competences: r.skills ?? [],
       codePostalBase: r.base_postal_code ?? null,
@@ -309,9 +325,29 @@ type DossierRow = {
     type_service: string | null;
     notes: string | null;
     discovery_details: Record<string, unknown> | null;
+    // Niveau de difficulte et creneau SOUHAITE par le client (jamais une
+    // intervention confirmee) : la planificatrice en a besoin pour organiser.
+    etat_salete: string | null;
+    wanted_date: string | null;
+    wanted_slot: string | null;
     activity: { slug: string; name: string | null } | null;
   } | null;
 };
+
+// Lecture tolerante de `discovery_details` : ce JSONB porte des chaines, des
+// nombres ou rien du tout selon le champ et l'anciennete du dossier.
+function texteDetail(d: Record<string, unknown> | null, k: string): string {
+  const v = d?.[k];
+  if (typeof v === "string") return v.trim();
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  return "";
+}
+
+function nombreDetail(d: Record<string, unknown> | null, k: string): number | null {
+  const v = d?.[k];
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
 
 function partieAdresse(v: unknown): { rue: string; cp: string; ville: string; etage: string; acces: string } {
   if (typeof v === "string") return { rue: v.trim(), cp: "", ville: "", etage: "", acces: "" };
@@ -346,7 +382,7 @@ export async function getDossierContrat(dossierId: string): Promise<DossierContr
        lead:leads(
          id, short_id, is_company, client_first_name, client_last_name, client_company,
          client_email, client_phone, client_address, country, surface_m2, type_service, notes,
-         discovery_details,
+         discovery_details, etat_salete, wanted_date, wanted_slot,
          activity:activities(slug, name)
        )`,
     )
@@ -422,6 +458,17 @@ export async function getDossierContrat(dossierId: string): Promise<DossierContr
       consignes: lead.type_service ?? "",
       surfaceM2: lead.surface_m2 == null ? null : Number(lead.surface_m2),
       notes: [d.notes, lead.notes].filter(Boolean).join("\n"),
+      // Champs repris de la découverte, jusqu'ici absents de la fiche de
+      // mission alors qu'ils y étaient attendus : la planificatrice devait
+      // ouvrir la fiche lead pour les lire.
+      nbPieces: nombreDetail(lead.discovery_details, "nbPieces"),
+      ascenseur: texteDetail(lead.discovery_details, "ascenseur"),
+      volumeDebarras:
+        texteDetail(lead.discovery_details, "debarrasVolume")
+        || texteDetail(lead.discovery_details, "volume"),
+      niveauDifficulte: (lead.etat_salete ?? "").trim(),
+      dateSouhaitee: (lead.wanted_date ?? "").trim(),
+      creneauSouhaite: (lead.wanted_slot ?? "").trim(),
     },
     technicianIdAffecte: d.technician_id,
     // Vitrerie : le texte exact que porte le devis, pour que la planificatrice
@@ -495,6 +542,15 @@ export function construireContexte(
       mission_access_conditions: d.mission.acces,
       mission_client_instructions: d.mission.consignes,
       mission_status: d.statut,
+      // Repris de la découverte : le bon de mission les porte désormais, au
+      // lieu d'obliger la planificatrice à rouvrir la fiche lead.
+      mission_rooms: d.mission.nbPieces ?? "",
+      mission_elevator: d.mission.ascenseur,
+      mission_clearance_volume: d.mission.volumeDebarras,
+      mission_difficulty: d.mission.niveauDifficulte,
+      // Souhait du client, distinct de la date planifiée.
+      mission_wanted_date: d.mission.dateSouhaitee,
+      mission_wanted_slot: d.mission.creneauSouhaite,
       ...(saisie.complements ?? {}),
     },
     prestataire: {

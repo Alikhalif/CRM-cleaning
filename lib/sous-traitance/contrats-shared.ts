@@ -225,6 +225,23 @@ export type DossierContrat = {
     consignes: string;
     surfaceM2: number | null;
     notes: string;
+    /** Nombre de pièces concernées, repris de la découverte. */
+    nbPieces: number | null;
+    /** Ascenseur : « oui » / « non », ou vide si non renseigné. */
+    ascenseur: string;
+    /** Volume de débarras estimé, repris de la découverte. */
+    volumeDebarras: string;
+    /** Niveau de difficulté — l'état général relevé (`etat_salete`). */
+    niveauDifficulte: string;
+    /**
+     * Date SOUHAITÉE par le client, et son créneau.
+     *
+     * ⚠️ À ne pas confondre avec `date`, qui est la date PLANIFIÉE. Un souhait
+     * n'est pas une intervention confirmée, et la fiche de mission doit
+     * montrer les deux sans les mélanger.
+     */
+    dateSouhaitee: string;
+    creneauSouhaite: string;
   };
   technicianIdAffecte: string | null;
   /** Descriptif des prestations de vitrerie, ou null si aucune. */
