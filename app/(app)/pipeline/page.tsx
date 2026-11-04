@@ -3,7 +3,6 @@ import PipelineBoard from "./PipelineBoard";
 import PipelineShell from "./PipelineShell";
 import { getSuiviData } from "@/lib/suivi-server";
 import styles from "./Pipeline.module.scss";
-import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import { getAllCommerciaux, getAllLeads } from "@/lib/leads-server";
 import { getCurrentUserProfile } from "@/lib/users-server";
 import { profileCapabilities, visibleSectorsForUser } from "@/lib/leads";
@@ -11,10 +10,9 @@ import { profileCapabilities, visibleSectorsForUser } from "@/lib/leads";
 export const metadata = { title: "Pipeline" };
 
 export default async function PipelinePage() {
-  const [leads, commerciaux, n8nEnabled, user, suivi] = await Promise.all([
+  const [leads, commerciaux, user, suivi] = await Promise.all([
     getAllLeads(),
     getAllCommerciaux(),
-    isN8nSequenceEnabled(),
     getCurrentUserProfile(),
     // MÊME source que le Suivi commercial : un seul système de statuts, donc
     // aucune désynchronisation possible entre les deux modules.
@@ -46,7 +44,7 @@ export default async function PipelinePage() {
       <PipelineShell
         rows={suivi.rows}
         kanban={
-          <PipelineBoard initialLeads={leads} commerciaux={commerciaux} n8nEnabled={n8nEnabled} visibleSectors={visibleSectors} />
+          <PipelineBoard initialLeads={leads} commerciaux={commerciaux} visibleSectors={visibleSectors} />
         }
       />
     </div>

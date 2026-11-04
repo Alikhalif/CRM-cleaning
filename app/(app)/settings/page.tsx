@@ -197,7 +197,7 @@ export default async function SettingsPage() {
             <strong>Intégrations</strong>
             <br />
             <span style={{ fontSize: "var(--fs-xs)", color: "var(--text-muted)" }}>
-              Activer / désactiver la séquence n8n automatique
+              Flux automatiques et connecteurs externes
             </span>
           </span>
         </Link>

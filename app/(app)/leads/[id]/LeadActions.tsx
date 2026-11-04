@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
-import { canLaunchSequence, SECTOR_LABEL, SECTOR_VAR, type Commercial, type Lead } from "@/lib/leads";
+import { SECTOR_LABEL, SECTOR_VAR, type Commercial, type Lead } from "@/lib/leads";
 import { startCall } from "@/lib/ringover-webphone";
 import type { MessageTemplate } from "@/lib/message-templates-server";
 import type { TemplateCategory } from "@/lib/message-templates-shared";
@@ -12,7 +12,7 @@ import type { TemplateCategory } from "@/lib/message-templates-shared";
 // Catégories « relance » : le bouton « Relance » ne montre QUE celles-ci ; le
 // bouton « Model email » montre tout le reste (décision 2026-08-20).
 const RELANCE_CATS: TemplateCategory[] = ["suivi_commercial", "relance"];
-import { launchSequence, setLeadNrp, stopAutoSequence } from "@/app/(app)/pipeline/actions";
+import { setLeadNrp } from "@/app/(app)/pipeline/actions";
 import EditContactModal from "./EditContactModal";
 import EmailModal from "./EmailModal";
 import MarkLostModal from "./MarkLostModal";
@@ -25,7 +25,6 @@ import styles from "./LeadDetail.module.scss";
 type Props = {
   lead: Lead;
   commerciaux: Commercial[];
-  n8nEnabled: boolean;
   // Capacité dérivée du profil du commercial connecté (auto selon le profil).
   // false → le click-to-call et la composition sont masqués (profil « Divers »).
   canUseRingover: boolean;
@@ -43,7 +42,7 @@ type Props = {
   optimivvDevis: { numero: string; signed: boolean } | null;
 };
 
-export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingover, smsTemplates, emailTemplates, templateVars, showNrp, nrpSmsBody, nrpEmailSubject, nrpEmailBody, optimivvDevis }: Props) {
+export default function LeadActions({ lead, commerciaux, canUseRingover, smsTemplates, emailTemplates, templateVars, showNrp, nrpSmsBody, nrpEmailSubject, nrpEmailBody, optimivvDevis }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [lostModalOpen, setLostModalOpen] = useState(false);
@@ -130,48 +129,6 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
     });
   };
 
-  const onLaunchAuto = () => {
-    if (
-      !confirm(
-        `Activer le mode automatique pour « ${lead.client} » ?\n\n` +
-          "4 emails Brevo seront enchaînés via n8n (J+0, J+1, J+4, J+9). " +
-          "La séquence s'arrête dès que le client signe, refuse, ou que vous repassez en mode manuel.",
-      )
-    )
-      return;
-    setBusy("auto");
-    startTransition(async () => {
-      const result = await launchSequence(lead.id);
-      setBusy(null);
-      if (!result.ok) {
-        alert(`Échec du démarrage : ${result.error}`);
-        return;
-      }
-      router.refresh();
-    });
-  };
-
-  const onSwitchManual = () => {
-    if (
-      !confirm(
-        `Passer « ${lead.client} » en mode manuel ?\n\n` +
-          "La séquence automatique sera interrompue avant le prochain email. " +
-          "Vous gérerez les relances vous-même.",
-      )
-    )
-      return;
-    setBusy("manual");
-    startTransition(async () => {
-      const result = await stopAutoSequence(lead.id);
-      setBusy(null);
-      if (!result.ok) {
-        alert(`Échec : ${result.error}`);
-        return;
-      }
-      router.refresh();
-    });
-  };
-
   const onLostDone = () => {
     setLostModalOpen(false);
     router.refresh();
@@ -187,13 +144,7 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
     router.refresh();
   };
 
-  const eligible = canLaunchSequence(lead, n8nEnabled);
   const closed = lead.status === "encaisse" || lead.status === "perdu";
-  // The Auto/Manuel toggle is shown whenever a sequence could be running or
-  // started. Manuel is the interrupt; Auto is the launcher.
-  const inSequenceZone =
-    n8nEnabled && (lead.status === "envoye" || lead.status === "ouvert");
-  const isAutoActive = inSequenceZone && lead.subEnvoi === "auto";
 
   return (
     <div className={styles.actions}>
@@ -299,40 +250,6 @@ export default function LeadActions({ lead, commerciaux, n8nEnabled, canUseRingo
           <Icon name="document" size={14} />{" "}
           {optimivvDevis.signed ? "Devis signé" : "Voir le devis"}
         </a>
-      )}
-      {(eligible || inSequenceZone) && (
-        <div
-          className={styles.modeToggle}
-          role="group"
-          aria-label="Mode de relance"
-        >
-          <button
-            type="button"
-            className={`${styles.btn} ${isAutoActive ? styles.btnPrimary : ""}`}
-            disabled={busy !== null || isAutoActive}
-            onClick={onLaunchAuto}
-            title="Lance la séquence n8n (4 emails Brevo)"
-            aria-pressed={isAutoActive}
-          >
-            <Icon name="zap" size={14} />
-            {busy === "auto" ? "Démarrage…" : "Automatique"}
-          </button>
-          <button
-            type="button"
-            className={`${styles.btn} ${!isAutoActive && inSequenceZone ? styles.btnPrimary : ""}`}
-            disabled={busy !== null || (!isAutoActive && !inSequenceZone)}
-            onClick={onSwitchManual}
-            title={
-              isAutoActive
-                ? "Interrompt la séquence automatique au prochain check"
-                : "Mode manuel actif — vous gérez les relances"
-            }
-            aria-pressed={!isAutoActive && inSequenceZone}
-          >
-            <Icon name="phone" size={14} />
-            {busy === "manual" ? "Arrêt…" : "Manuel"}
-          </button>
-        </div>
       )}
       <button
         type="button"

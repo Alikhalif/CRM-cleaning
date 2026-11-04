@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 import { auditLog } from "@/lib/audit";
-import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import { notify } from "@/lib/notifications";
 import { initiateCall } from "@/lib/ringover";
 import { resolveByProfile, resolveOwner } from "@/lib/routing";
@@ -14,7 +13,7 @@ import { countryFromPhone } from "@/lib/leads";
 import { currentUserHasImmobTravaux } from "@/lib/leads-server";
 import { encryptField } from "@/lib/crypto/field-encryption";
 import { isCurrentUserAdmin } from "@/lib/presence/guard";
-import type { Country, DiscoveryOutcome, LeadStatus, Sector, SubEnvoi, SubSignature } from "@/lib/leads";
+import type { Country, DiscoveryOutcome, LeadStatus, Sector, SubSignature } from "@/lib/leads";
 import type { Database } from "@/lib/supabase/database.types";
 
 type LeadUpdate = Database["public"]["Tables"]["leads"]["Update"];
@@ -193,19 +192,6 @@ export async function markDevisSentToClient(leadId: string): Promise<Result> {
     entityId: leadId,
     after: { status: "envoye", subEnvoi: "mano", via: "devis_optimivv" },
   });
-  return { ok: true };
-}
-
-export async function updateLeadSubEnvoi(id: string, value: SubEnvoi): Promise<Result> {
-  const supabase = await supabaseServer();
-  const updates: LeadUpdate = {
-    sub_envoi: value,
-    last_action_at: new Date().toISOString(),
-  };
-  const { error } = await supabase.from("leads").update(updates as never).eq("id", id);
-  if (error) return { ok: false, error: error.message };
-  revalidatePath("/pipeline");
-  await auditLog({ action: "lead.sub_envoi.set", entityType: "lead", entityId: id, after: { subEnvoi: value } });
   return { ok: true };
 }
 
@@ -847,132 +833,19 @@ export async function requestPhotos(
   return { ok: true };
 }
 
-// "Automatique" button — flips the lead to envoye·auto and triggers the
-// n8n WF2 workflow. The workflow polls /api/leads/:id/status between
-// each email; flipping sub_envoi back to 'mano' (via stopAutoSequence) is
-// what interrupts it. Gated by the runtime app_settings toggle so an admin
-// can disable it without a redeploy.
+// ── Envoi automatique des devis — RETIRÉ le 2026-11-04 ──────────────
 //
-// Required env to actually call n8n:
-//   N8N_WF2_TRIGGER_URL=https://n8n.example.com/webhook/relance-devis
-//   N8N_WF2_TRIGGER_SECRET=<same value as WF2_TRIGGER_SECRET on the n8n host>
-// If either is unset we still flip the DB state (so the UI works in dev) but
-// log a warning instead of POSTing.
-export async function launchSequence(id: string): Promise<Result> {
-  if (!(await isN8nSequenceEnabled())) {
-    return { ok: false, error: "Séquence n8n désactivée par l'administrateur." };
-  }
-  const supabase = await supabaseServer();
-
-  const { data: lead, error: fetchErr } = await supabase
-    .from("leads")
-    .select("id, status, sub_envoi, client_email, client_first_name, client_last_name, client_company, is_company, owner_id")
-    .eq("id", id)
-    .maybeSingle<{
-      id: string;
-      status: string;
-      sub_envoi: string | null;
-      client_email: string | null;
-      client_first_name: string | null;
-      client_last_name: string | null;
-      client_company: string | null;
-      is_company: boolean;
-      owner_id: string | null;
-    }>();
-  if (fetchErr || !lead) return { ok: false, error: "Lead introuvable." };
-  if (!lead.client_email) {
-    return { ok: false, error: "Email client manquant — séquence impossible." };
-  }
-  // Refuse if a sequence is already running for this lead — pressing Auto
-  // twice would spawn a parallel n8n execution and double the emails. The
-  // simple workflow has no idempotency table, so the guard lives here.
-  if (lead.status === "envoye" && lead.sub_envoi === "auto") {
-    return { ok: false, error: "Une séquence automatique est déjà en cours pour ce lead." };
-  }
-
-  const updates: LeadUpdate = {
-    status: "envoye",
-    sub_envoi: "auto",
-    last_action_label: "Séquence n8n lancée",
-    last_action_at: new Date().toISOString(),
-  };
-  const { error } = await supabase.from("leads").update(updates as never).eq("id", id);
-  if (error) return { ok: false, error: error.message };
-
-  // POST to n8n (best-effort: failures here don't roll back the DB flip —
-  // the commercial can re-trigger from the UI if needed, and the workflow
-  // is idempotent at the lead level via the `active` check).
-  const triggerUrl = process.env.N8N_WF2_TRIGGER_URL;
-  const triggerSecret = process.env.N8N_WF2_TRIGGER_SECRET;
-  if (triggerUrl && triggerSecret) {
-    let commercialName = "Notre équipe";
-    if (lead.owner_id) {
-      const { data: owner } = await supabase
-        .from("users")
-        .select("first_name, last_name")
-        .eq("id", lead.owner_id)
-        .maybeSingle<{ first_name: string | null; last_name: string | null }>();
-      const composed = [owner?.first_name, owner?.last_name].filter(Boolean).join(" ").trim();
-      if (composed) commercialName = composed;
-    }
-    const firstName =
-      (lead.is_company ? lead.client_company : lead.client_first_name) ?? "";
-    try {
-      const res = await fetch(triggerUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Trigger-Secret": triggerSecret,
-        },
-        body: JSON.stringify({
-          lead_id: lead.id,
-          client_email: lead.client_email,
-          client_first_name: firstName,
-          commercial_name: commercialName,
-        }),
-      });
-      if (!res.ok) {
-        console.warn(`[launchSequence] n8n returned ${res.status} for lead ${id}`);
-      }
-    } catch (err) {
-      console.warn(`[launchSequence] n8n trigger failed for lead ${id}:`, err);
-    }
-  } else {
-    console.warn("[launchSequence] N8N_WF2_TRIGGER_URL/SECRET unset — skipping n8n call.");
-  }
-
-  revalidatePath("/pipeline");
-  revalidatePath(`/leads/${id}`);
-  await auditLog({ action: "lead.sequence.launch", entityType: "lead", entityId: id });
-  return { ok: true };
-}
-
-// "Manuel" button — interrupts the auto-sequence. The workflow polls the
-// status endpoint between each email; flipping sub_envoi to 'mano' makes
-// the next poll return active=false, and the workflow exits cleanly at the
-// next check (within 24h–120h depending on which step it's on).
+// `launchSequence()` (séquence n8n WF2, 4 e-mails Brevo) et
+// `stopAutoSequence()` ont été supprimées, ainsi que `updateLeadSubEnvoi()`
+// qui portait le choix Mano / Auto.
 //
-// We don't kill the n8n execution itself — the workflow's own short-circuit
-// is enough and avoids needing an n8n API key in the CRM.
-export async function stopAutoSequence(id: string): Promise<Result> {
-  const supabase = await supabaseServer();
-  const updates: LeadUpdate = {
-    sub_envoi: "mano",
-    last_action_label: "Séquence interrompue — mode manuel",
-    last_action_at: new Date().toISOString(),
-  };
-  const { error } = await supabase.from("leads").update(updates as never).eq("id", id);
-  if (error) return { ok: false, error: error.message };
-  revalidatePath("/pipeline");
-  revalidatePath(`/leads/${id}`);
-  await auditLog({
-    action: "lead.sequence.stop",
-    entityType: "lead",
-    entityId: id,
-    after: { subEnvoi: "mano" },
-  });
-  return { ok: true };
-}
+// Décision client : un devis ne part JAMAIS tout seul. Il est préparé à
+// partir de la découverte, validé, puis envoyé par le commercial. Le passage
+// d'un dossier dans « Devis à réaliser » n'est qu'un signal de travail à
+// faire — il ne déclenche aucun envoi.
+//
+// La colonne `leads.sub_envoi` est CONSERVÉE : elle porte 23 lignes
+// d'historique. Plus rien ne l'expose, et plus rien n'y écrit « auto ».
 
 export type NewLeadInput = {
   isCompany: boolean;

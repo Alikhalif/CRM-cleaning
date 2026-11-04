@@ -309,7 +309,6 @@ export default function Comptabilite({ rows: allRows, entities, technicians }: P
               <th>Entité émettrice</th>
               <th className={styles.colDate}>Date</th>
               <th className={styles.colDate}>{tabType === "devis" ? "Validité" : "Échéance"}</th>
-              {tabType === "devis" && <th>Canal</th>}
               <th>Activité</th>
               <th>Intervenant</th>
               <th className={styles.tNum}>Total HT</th>
@@ -323,7 +322,6 @@ export default function Comptabilite({ rows: allRows, entities, technicians }: P
               <Row
                 key={r.doc.id}
                 row={r}
-                tabType={tabType}
                 isMenuOpen={openMenu === r.doc.id}
                 onToggleMenu={() => setOpenMenu(openMenu === r.doc.id ? null : r.doc.id)}
                 onDuplicate={() => onDuplicate(r.doc.id, r.doc.type)}
@@ -332,7 +330,7 @@ export default function Comptabilite({ rows: allRows, entities, technicians }: P
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={tabType === "devis" ? 12 : 11} className={styles.empty}>
+                <td colSpan={11} className={styles.empty}>
                   Aucun document ne correspond aux filtres.
                 </td>
               </tr>
@@ -370,14 +368,12 @@ function KpiCard({
 
 function Row({
   row,
-  tabType,
   isMenuOpen,
   onToggleMenu,
   onDuplicate,
   isBusy,
 }: {
   row: DocumentWithContext;
-  tabType: DocumentType;
   isMenuOpen: boolean;
   onToggleMenu: () => void;
   onDuplicate: () => void;
@@ -389,18 +385,6 @@ function Row({
   validUntil.setDate(validUntil.getDate() + 30);
 
   const docHref = doc.type === "devis" ? `/devis/${doc.id}` : `/factures/${doc.id}`;
-
-  // Canal column (devis only) — Mano / Auto / Manquant red badge if missing.
-  const canal =
-    doc.type === "devis"
-      ? lead.subEnvoi === "mano"
-        ? { label: "Mano", danger: false }
-        : lead.subEnvoi === "auto"
-          ? { label: "Auto", danger: false }
-          : doc.status !== "brouillon"
-            ? { label: "Manquant", danger: true }
-            : null
-      : null;
 
   return (
     <tr data-status={doc.status}>
@@ -423,16 +407,6 @@ function Row({
       </td>
       <td className={styles.colDate} data-label="Émis">{DATE.format(issued)}</td>
       <td className={styles.colDate}>{DATE.format(validUntil)}</td>
-      {tabType === "devis" && (
-        <td>
-          {canal && (
-            <span className={`${styles.canalBadge} ${canal.danger ? styles.canalDanger : ""}`}>
-              {canal.danger && <Icon name="alert" size={11} />}
-              {canal.label}
-            </span>
-          )}
-        </td>
-      )}
       <td data-label="Activité">
         <span
           className={styles.activityPill}

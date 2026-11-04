@@ -30,8 +30,10 @@ import type { Situation } from "../suivi-shared";
  *
  * La sortie se lit sur `leads.status` et sur lui seul. C'est le signal posé
  * par TOUS les chemins d'envoi réel — devis manuel (`intent === "send"`),
- * marquage « envoyé », envoi par e-mail, devis OPTIMIVV, séquence n8n — et
- * jamais par la simple création d'un brouillon. C'est donc exactement la
+ * marquage « envoyé », envoi par e-mail, devis OPTIMIVV — et jamais par la
+ * simple création d'un brouillon. Depuis le 2026-11-04 l'envoi est TOUJOURS
+ * déclenché par une personne : entrer dans cette liste ne fait jamais partir
+ * un devis. C'est donc exactement la
  * règle absolue du §5 : commencer ou finir la rédaction ne fait pas sortir le
  * dossier, seul l'envoi le fait.
  */

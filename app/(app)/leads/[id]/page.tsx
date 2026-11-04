@@ -25,7 +25,6 @@ import { getAllTechnicians, getLeadInterventionSchedule } from "@/lib/planificat
 import { leadTemplateVars, renderTemplate } from "@/lib/message-templates-shared";
 import MediaTab from "./MediaTab";
 import ConfirmationsCard from "./ConfirmationsCard";
-import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import CallNotesCard from "./CallNotesCard";
 import DiscoveryCard from "./DiscoveryCard";
 import { getGridBySlug } from "@/lib/pricing/grid-server";
@@ -78,7 +77,6 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   const [
     detail,
     commerciaux,
-    n8nEnabled,
     me,
     smsTemplates,
     emailTemplates,
@@ -94,7 +92,6 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   ] = await Promise.all([
     getLeadDetail(id),
     getAllCommerciaux(),
-    isN8nSequenceEnabled(),
     getCurrentUserProfile(),
     getActiveSmsTemplates(),
     getTemplatesForUser("email"),
@@ -242,16 +239,6 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
             <div className={styles.heroNameRow}>
               <h1 className={styles.heroName}>{lead.client}</h1>
               <span className={styles.heroId}>#{lead.shortId.replace(/^L-/, "")}</span>
-              {lead.subEnvoi && (
-                <span
-                  className={styles.heroChannelChip}
-                  data-channel={lead.subEnvoi}
-                  title={lead.subEnvoi === "auto" ? "Séquence n8n" : "Envoi manuel"}
-                >
-                  <Icon name={lead.subEnvoi === "auto" ? "zap" : "edit"} size={11} />
-                  {lead.subEnvoi === "auto" ? "Auto" : "Mano"}
-                </span>
-              )}
               {lead.isUrgent && (
                 <span className={styles.urgentTag}>
                   <Icon name="alert" size={11} /> Urgent
@@ -302,7 +289,6 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
           <LeadActions
             lead={lead}
             commerciaux={commerciaux}
-            n8nEnabled={n8nEnabled}
             canUseRingover={canUseRingover}
             smsTemplates={smsTemplates}
             emailTemplates={emailTemplates}
