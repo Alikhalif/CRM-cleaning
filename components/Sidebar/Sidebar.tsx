@@ -17,7 +17,18 @@ const THEME_KEY = "cgk-theme";
 // `roles` = slugs des rôles réellement détenus. Les entrées hors périmètre du
 // rôle ne sont pas désactivées : elles ne sont PAS rendues (décision client —
 // l'interface d'un commercial ne doit montrer que son métier).
-export default function Sidebar({ roles = [] }: { roles?: string[] }) {
+// Compteurs affichés en pastille sur une entrée de navigation. La clé
+// correspond au champ `badge` de `lib/nav.ts` — qui le déclarait depuis
+// l'origine sans que personne ne l'affiche (anomalie corrigée le 2026-11-04).
+export type NavBadges = { leadsUntreated?: number };
+
+export default function Sidebar({
+  roles = [],
+  badges,
+}: {
+  roles?: string[];
+  badges?: NavBadges;
+}) {
   const pathname = usePathname();
   const collapsed = useStoredValue(COLLAPSED_KEY, "0") === "1";
 
@@ -70,19 +81,38 @@ export default function Sidebar({ roles = [] }: { roles?: string[] }) {
             <ul>
               {items.map((item) => {
                 const active = pathname === item.href || pathname.startsWith(item.href + "/");
+                // Pastille « à rappeler ». Rendue même en sidebar repliée —
+                // c'est justement là qu'un compteur invisible serait inutile —
+                // et annoncée aux lecteurs d'écran par un libellé explicite.
+                const compte = item.badge ? badges?.[item.badge] ?? 0 : 0;
                 return (
                   <li key={item.href}>
                     <Link
                       href={item.href}
                       className={styles.navLink}
                       data-active={active ? "true" : "false"}
-                      title={collapsed ? item.label : undefined}
+                      title={
+                        compte > 0
+                          ? `${item.label} — ${compte} nouveau${compte > 1 ? "x" : ""} lead${compte > 1 ? "s" : ""} à rappeler`
+                          : collapsed ? item.label : undefined
+                      }
                       onClick={closeDrawer}
                     >
                       <span className={styles.navIcon}>
                         <Icon name={item.icon} size={18} />
+                        {compte > 0 && collapsed && (
+                          <span className={styles.navDot} aria-hidden="true" />
+                        )}
                       </span>
                       {!collapsed && <span className={styles.navLabel}>{item.label}</span>}
+                      {compte > 0 && !collapsed && (
+                        <span className={styles.navBadge}>
+                          {compte > 99 ? "99+" : compte}
+                          <span className={styles.srOnly}>
+                            {" "}lead{compte > 1 ? "s" : ""} à rappeler
+                          </span>
+                        </span>
+                      )}
                     </Link>
                   </li>
                 );

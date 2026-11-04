@@ -652,7 +652,9 @@ export type PipelineColumnKey =
 
 export const PIPELINE_COLUMNS: { status: PipelineColumnKey; label: string; hint?: string }[] = [
   { status: "lead",         label: "Lead entrant",       hint: "Nouveau lead, pas encore traité" },
-  { status: "envoye",       label: "Devis envoyé",       hint: "Sous-statut Mano ou Auto requis" },
+  // Résidu du choix de canal retiré le 2026-11-04 : l'infobulle réclamait
+  // encore un sous-statut « Mano ou Auto » qui n'existe plus.
+  { status: "envoye",       label: "Devis envoyé",       hint: "Devis parti au client, en attente d'ouverture" },
   { status: "ouvert",       label: "Devis ouvert",       hint: "Le client a ouvert le lien" },
   { status: "signe",        label: "Signé",              hint: "Sous-statut Sans/Avec acompte requis" },
   { status: "acompte_paye", label: "Acompte encaissé",   hint: "Glisser ici = marquer la facture d'acompte payée" },

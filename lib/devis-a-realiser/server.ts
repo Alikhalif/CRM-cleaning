@@ -43,6 +43,7 @@ type DocRow = {
   status: string;
   total_ttc: number | null;
   created_at: string;
+  updated_at: string;
 };
 
 type OptimivvRow = {
@@ -64,7 +65,11 @@ type ActionRow = { lead_id: string; type: string };
  * l'objet même est de ne rien laisser passer entre la découverte et l'envoi,
  * s'en tient à la date réelle.
  */
-type EtatInterne = EtatDevis & { preparationLe: string | null; brouillonId: string | null };
+type EtatInterne = EtatDevis & {
+  preparationLe: string | null;
+  brouillonId: string | null;
+  modifieLe: string | null;
+};
 
 async function etatDesDevis(leadIds: string[]): Promise<Map<string, EtatInterne>> {
   const out = new Map<string, EtatInterne>();
@@ -76,6 +81,7 @@ async function etatDesDevis(leadIds: string[]): Promise<Map<string, EtatInterne>
     const vide: EtatInterne = {
       brouillon: false, brouillonChiffre: false, optimivvNonEnvoye: false,
       photosEnAttente: false, preparationLe: null, brouillonId: null,
+      modifieLe: null,
     };
     out.set(id, vide);
     return vide;
@@ -87,7 +93,7 @@ async function etatDesDevis(leadIds: string[]): Promise<Map<string, EtatInterne>
       leadIds,
       (lot) => sb
         .from("documents")
-        .select("id, lead_id, status, total_ttc, created_at")
+        .select("id, lead_id, status, total_ttc, created_at, updated_at")
         .in("lead_id", lot)
         .eq("type", "devis")
         .returns<DocRow[]>(),
@@ -118,6 +124,7 @@ async function etatDesDevis(leadIds: string[]): Promise<Map<string, EtatInterne>
     if (!e.preparationLe || d.created_at < e.preparationLe) {
       e.preparationLe = d.created_at;
       e.brouillonId = d.id;
+      e.modifieLe = d.updated_at;
     }
   }
 
@@ -218,6 +225,7 @@ export async function getDevisARealiser(): Promise<DevisARealiserData> {
       decouverteLe: l.discoveryDoneAt ?? null,
       preparationLe: d?.preparationLe ?? null,
       devisId: d?.brouillonId ?? null,
+      modifieLe: d?.modifieLe ?? null,
       heures,
       urgence: urgenceDe(heures, seuils),
       statut: statutDevis(etat),

@@ -29,6 +29,14 @@ export type LeadPourGeneration = {
   etatSalete?: string | null;
   discoveryDetails?: Record<string, unknown> | null;
   discoveryDoneAt?: string | null;
+  /**
+   * « Contexte de l'intervention » (`leads.contexte_intervention`).
+   *
+   * Ce champ ne vit PAS dans `discovery_details` mais en colonne propre du
+   * lead : il faut donc le transmettre explicitement, sans quoi tout ce que le
+   * commercial écrit en texte libre est perdu à la génération.
+   */
+  contexteIntervention?: string | null;
 };
 
 const texte = (d: Record<string, unknown>, k: string): string | null => {
@@ -48,6 +56,7 @@ export function decouverteDepuisLead(l: LeadPourGeneration): Decouverte {
     // transport, ignorées par les autres gabarits.
     villeDepart: texte(details, "villeDepart"),
     villeArrivee: texte(details, "villeArrivee"),
+    contexteIntervention: l.contexteIntervention ?? null,
   };
 }
 

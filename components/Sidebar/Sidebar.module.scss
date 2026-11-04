@@ -94,6 +94,45 @@
   justify-content: center;
   width: 24px;
   flex-shrink: 0;
+  position: relative;
+}
+
+// ── Pastille « nouveaux leads à rappeler » ───────────────────────────
+//
+// Rouge d'alerte, pas la teinte de marque : c'est un retard de prise en
+// charge, pas une information. Elle pousse le libellé à gauche plutôt que de
+// le recouvrir (margin-left: auto), et reste lisible en thème sombre comme en
+// clair puisque --tone-danger est un token.
+.navBadge {
+  margin-left: auto;
+  flex-shrink: 0;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--tone-danger);
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+}
+
+// Sidebar repliée : plus de place pour un nombre, mais l'alerte ne doit pas
+// disparaître. Un point suffit à dire « il y a quelque chose ici ».
+.navDot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tone-danger);
+  box-shadow: 0 0 0 2px var(--bg-surface);
+}
+
+.srOnly {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
 
 .navLabel {

@@ -196,6 +196,130 @@ vrai("le dossier RESTE dans « Devis à réaliser » après génération",
   attendUnDevisDe(LE, "lead"));
 vrai("il n'en sort qu'après un envoi réel", !attendUnDevisDe(LE, "envoye"));
 
+console.log("\n== Lessivage des murs : UNIQUEMENT s'il est demandé ==");
+// Défaut constaté le 2026-11-04 : le garde testait `murs_aucun`, valeur
+// inexistante dans la liste MURS (`non` | `murs_traces` | `murs_lessivage`).
+// Un dossier où le commercial répondait « Non » produisait donc une ligne de
+// prestation « - Non. » et une réserve sur les murs.
+function pourMurs(valeur: string) {
+  const r = genererDepuisLead({
+    sector: "nettoyage", surfaceM2: 60, discoveryDoneAt: LE,
+    discoveryDetails: {
+      typeNettoyage: "approfondi", typeBienNet: "appartement",
+      murs: valeur, mursSurface: "totale",
+    },
+  });
+  if (!r.ok) throw new Error("génération refusée");
+  return r.contenu;
+}
+const mursNon = pourMurs("non");
+vrai("« Non » : aucune ligne de lessivage", !/lessivage des murs/i.test(mursNon.detail));
+vrai("« Non » : aucune réserve sur les murs", !/lessivage des murs/i.test(mursNon.reserves));
+vrai("« Non » : la valeur brute n'apparaît pas", !/^- Non\.$/m.test(mursNon.detail));
+const mursVide = pourMurs("");
+vrai("non renseigné : aucune ligne de lessivage", !/lessivage des murs/i.test(mursVide.detail));
+const mursOui = pourMurs("murs_lessivage");
+vrai("« Lessivage complet » : la prestation figure", /Lessivage des murs/.test(mursOui.detail));
+vrai("« Lessivage complet » : la réserve figure", /supports lavables/.test(mursOui.reserves));
+vrai("la surface concernée est traduite", /surface totale/.test(mursOui.detail));
+
+console.log("\n== Aucune clé technique ne fuit dans le texte client ==");
+// Défaut constaté en production (dossier L-1652) : le moteur cherchait les
+// équipements dans COMPLEMENTS au lieu d'EQUIPEMENTS, et le repli renvoyait la
+// clé brute — le devis portait « Nettoyage des équipements : opt_frigo. »
+const avecCles = genererDepuisLead({
+  sector: "nettoyage", surfaceM2: 20, discoveryDoneAt: LE,
+  discoveryDetails: {
+    typeNettoyage: "classique", typeBienNet: "studio",
+    equipements: ["opt_frigo"], plafonds: "oui", plafondsType: "plafonds_depoussierage",
+    plafondsSurface: "totale", etage: "1", ascenseur: "oui",
+    stationnement: "facile", occupation: "occupe",
+  },
+});
+vrai("génération produite", avecCles.ok);
+if (avecCles.ok) {
+  const t = `${avecCles.contenu.designation} ${avecCles.contenu.detail} ${avecCles.contenu.reserves}`;
+  vrai("l'équipement est traduit en clair", /réfrigérateur/i.test(t));
+  vrai("la clé « opt_frigo » n'apparaît pas", !t.includes("opt_frigo"));
+  vrai("l'étage est qualifié", /étage 1/.test(t));
+  vrai("le stationnement est qualifié", /stationnement facile/.test(t));
+  vrai("la surface de plafonds est traduite", /surface totale/.test(t));
+  // Garde-fou général : aucune valeur ressemblant à une clé technique.
+  vrai("aucun identifiant technique résiduel",
+    !/\b(opt_|murs_|plafonds_|vitrerie_|dio_)[a-z_]+/.test(t));
+}
+
+console.log("\n== Le contexte libre de la découverte est repris ==");
+// `contexte_intervention` est une colonne du lead, pas un champ de
+// `discovery_details` : il fallait le transmettre explicitement, sans quoi
+// tout le texte libre du commercial était perdu.
+const avecContexte = genererDepuisLead({
+  sector: "nettoyage", surfaceM2: 50, discoveryDoneAt: LE,
+  discoveryDetails: { typeNettoyage: "approfondi", typeBienNet: "appartement" },
+  contexteIntervention: "Intervention après départ du locataire, clés chez le gardien.",
+});
+vrai("génération produite", avecContexte.ok);
+if (avecContexte.ok) {
+  vrai("le contexte figure au détail",
+    avecContexte.contenu.detail.includes("clés chez le gardien"));
+  vrai("il est présenté comme une information, pas une prestation",
+    /Informations complémentaires communiquées/.test(avecContexte.contenu.detail));
+}
+const sansContexte = genererDepuisLead({
+  sector: "nettoyage", surfaceM2: 50, discoveryDoneAt: LE,
+  discoveryDetails: { typeNettoyage: "approfondi", typeBienNet: "appartement" },
+  contexteIntervention: "   ",
+});
+vrai("un contexte vide n'ajoute aucune rubrique",
+  sansContexte.ok && !/Informations complémentaires/.test(sansContexte.contenu.detail));
+
+console.log("\n== Vitrerie : les dix-sept champs de la découverte sont exploités ==");
+const vitrerie = genererDepuisLead({
+  sector: "nettoyage", surfaceM2: 90, discoveryDoneAt: LE,
+  discoveryDetails: {
+    typeNettoyage: "approfondi", typeBienNet: "maison",
+    vitrerie: "oui", vitrerieFenetres: 6, vitrerieBaies: 2,
+    vitreriePortesFenetres: 1, vitrerieVelux: 3, vitrerieVerandaM2: 12,
+    vitrerieFaces: "les_deux", vitrerieEncadrement: "alu",
+    vitrerieRails: "oui", vitrerieCoulisses: "oui",
+    vitrerieAcces: "vitrerie_acces_echelle", vitrerieEquipement: "oui",
+  },
+});
+vrai("génération produite", vitrerie.ok);
+if (vitrerie.ok) {
+  const d = vitrerie.contenu.detail;
+  vrai("les fenêtres sont comptées", /6 fenêtres classiques/.test(d));
+  vrai("les portes-fenêtres sont comptées", /1 porte-fenêtre/.test(d));
+  vrai("la véranda est reprise", /véranda 12 m²/.test(d));
+  vrai("les deux faces sont précisées", /faces intérieures et extérieures/.test(d));
+  vrai("le matériau des encadrements est repris", /Encadrements aluminium/.test(d));
+  vrai("rails et coulisses figurent", /rails et des coulisses/.test(d));
+  vrai("l'accès est précisé", /accès par échelle/i.test(d));
+  vrai("le besoin de nacelle est signalé", /nacelle ou échafaudage/i.test(d));
+  vrai("la réserve vitrerie est posée", /nacelle, échafaudage/.test(vitrerie.contenu.reserves));
+}
+
+console.log("\n== Transport : étages, ascenseurs et accès aux deux bouts ==");
+const transport = genererDepuisLead({
+  sector: "transport", discoveryDoneAt: LE,
+  discoveryDetails: {
+    typeObjet: "mobilier", quantiteObjets: 3,
+    villeEnlevement: "Paris", villeLivraison: "Lyon",
+    etageEnlevement: "4", ascenseurEnlevement: "non", accesEnlevement: "acces_difficile",
+    etageLivraison: "0", ascenseurLivraison: "oui",
+    descriptionObjets: "Deux armoires et un buffet ancien",
+  },
+});
+vrai("génération produite", transport.ok);
+if (transport.ok) {
+  const d = transport.contenu.detail;
+  vrai("l'enlèvement est détaillé", /enlèvement\s*:/i.test(d));
+  vrai("l'étage d'enlèvement figure", /étage 4/.test(d));
+  vrai("l'absence d'ascenseur figure", /sans ascenseur/.test(d));
+  vrai("la livraison est détaillée", /livraison\s*:/i.test(d));
+  vrai("le descriptif libre des objets est repris", /buffet ancien/.test(d));
+}
+
 console.log("\n== Le moteur est déterministe ==");
 // Deux appels sur la même découverte donnent le même texte. C'est ce qui rend
 // la régénération sans surprise — et c'est aussi pourquoi ce n'est pas un

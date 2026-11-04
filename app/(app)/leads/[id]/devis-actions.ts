@@ -152,6 +152,7 @@ export async function genererDevisDepuisDecouverte(
     etatSalete: lead.etatSalete ?? null,
     discoveryDetails: lead.discoveryDetails ?? null,
     discoveryDoneAt: lead.discoveryDoneAt ?? null,
+    contexteIntervention: lead.contexteIntervention ?? null,
   });
   if (!gen.ok) return { ok: false, error: MOTIF_LABEL[gen.motif] };
 

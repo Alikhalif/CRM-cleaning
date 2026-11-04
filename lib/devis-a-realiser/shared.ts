@@ -256,6 +256,14 @@ export type LigneDevis = {
    * vient d'un devis OPTIMIVV (autre table, autre écran).
    */
   devisId: string | null;
+  /**
+   * Dernière modification du brouillon (`documents.updated_at`).
+   *
+   * Distincte de `preparationLe`, qui est sa création : c'est elle qui dit si
+   * le commercial y a retouché quelque chose depuis, ou si le brouillon dort.
+   * Null quand aucun brouillon n'existe.
+   */
+  modifieLe: string | null;
   heures: number | null;
   urgence: Urgence;
   statut: StatutDevis;

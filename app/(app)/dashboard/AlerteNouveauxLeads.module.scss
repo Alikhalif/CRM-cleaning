@@ -1,0 +1,98 @@
+// Bandeau « NOUVEAU LEAD — À RAPPELER ».
+//
+// Couleurs prises aux tokens (--tone-danger), donc le thème sombre est un
+// simple échange à l'exécution — aucune valeur en dur ici.
+
+.bandeau {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-5);
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--tone-danger) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tone-danger) 45%, transparent);
+  // Filet plein à gauche : repère visuel immédiat, lisible même pour un
+  // utilisateur qui distingue mal le rouge du fond.
+  border-left: 4px solid var(--tone-danger);
+}
+
+.compteur {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 48px;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-md);
+  background: var(--tone-danger);
+  color: #fff;
+  font-size: var(--fs-xl);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.corps {
+  flex: 1;
+  min-width: 0;
+}
+
+.titre {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  color: var(--tone-danger);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.detail {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.action {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-md);
+  background: var(--tone-danger);
+  color: #fff;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover { filter: brightness(1.08); }
+}
+
+// ── Mobile ───────────────────────────────────────────────────────────
+// Le compteur et le titre restent sur la première ligne — c'est l'information
+// — et le bouton passe en pleine largeur avec la cible tactile de 44 px.
+@media (max-width: 768px) {
+  .bandeau {
+    flex-wrap: wrap;
+    gap: var(--sp-3);
+    padding: var(--sp-4);
+  }
+
+  .compteur {
+    min-width: 40px;
+    height: 40px;
+    font-size: var(--fs-lg);
+  }
+
+  .corps { flex-basis: calc(100% - 40px - var(--sp-3)); }
+
+  .action {
+    flex-basis: 100%;
+    min-height: 44px;
+  }
+}
