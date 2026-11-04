@@ -15,6 +15,11 @@ import {
 } from "@/lib/sous-traitance/contrats-shared";
 import { donneurOrdreDepuisEntite } from "@/lib/sous-traitance/variables";
 import { COUNTRIES, IDENTIFIANT_LEGAL } from "@/lib/leads";
+import {
+  confidentielDe,
+  demandePourDossier,
+  dossierSigneDe,
+} from "@/lib/generation/demande-depuis-dossier";
 
 let ko = 0;
 function vrai(nom: string, cond: boolean) {
@@ -184,6 +189,87 @@ const avecMorale = controlerEntite({
   representative_company_name: null,
 });
 vrai("la société représentante n'est pas exigée", avecMorale.utilisable);
+
+console.log("\n== Demande de tarif : la confidentialité est tenue par le TYPAGE ==");
+// Une demande part à PLUSIEURS prestataires, dont aucun n'est retenu. Elle ne
+// doit porter ni l'adresse complète, ni le nom du client, ni ses coordonnées,
+// ni le prix de vente.
+const dossierTest = {
+  mission: {
+    secteurSlug: "nettoyage",
+    adresse: "12 rue des Lilas",
+    codePostal: "77400",
+    ville: "Lagny-sur-Marne",
+    surfaceM2: 75,
+    volumeDebarras: "",
+    niveauDifficulte: "tres_sale",
+    dateSouhaitee: "2026-11-20",
+    etage: "3",
+    acces: "acces_difficile",
+    consignes: "Clés chez le gardien",
+  },
+  client: {
+    nom: "DUPONT",
+    prenom: "Jean",
+    societe: "",
+    telephone: "0612345678",
+    email: "jean.dupont@example.fr",
+    adresse: "12 rue des Lilas",
+    codePostal: "77400",
+    ville: "Lagny-sur-Marne",
+  },
+  prestations: [{ label: "Nettoyage approfondi" }, { label: "Désinfection" }],
+  signatureEntite: "OPTIMIVV NETTOYAGE",
+};
+
+const conf = confidentielDe(dossierTest);
+eq("le nom du client est dans la liste des secrets", conf.nomClient, "Jean DUPONT");
+eq("le téléphone aussi", conf.telephone, "0612345678");
+eq("le courriel aussi", conf.email, "jean.dupont@example.fr");
+vrai("la rue aussi", (conf.rue ?? "").includes("rue des Lilas"));
+
+const entree = dossierSigneDe(dossierTest);
+eq("seuls CP et ville sortent", entree.lieu, { cp: "77400", ville: "Lagny-sur-Marne" });
+vrai("aucune ligne ne porte de prix",
+  entree.lignes.every((l) => Object.keys(l).join() === "label"));
+
+const dmd = demandePourDossier(dossierTest);
+vrai("la demande est produite", dmd.ok);
+if (dmd.ok) {
+  const t = `${dmd.demande.objet}\n${dmd.demande.corps}`;
+  vrai("la rue n'apparaît pas", !t.includes("rue des Lilas"));
+  vrai("le nom du client n'apparaît pas", !t.includes("DUPONT"));
+  vrai("le prénom n'apparaît pas", !t.includes("Jean"));
+  vrai("le téléphone n'apparaît pas", !t.includes("0612345678"));
+  vrai("le courriel n'apparaît pas", !t.includes("example.fr"));
+  vrai("la ville, elle, apparaît", t.includes("Lagny-sur-Marne"));
+  vrai("le code postal apparaît", t.includes("77400"));
+  vrai("aucun montant", !/\d[\d\s.,]*\s*(€|EUR\b|euros?)/i.test(t));
+}
+
+console.log("\n== Un texte qui fuite est REFUSÉ, pas publié ==");
+// Si une valeur confidentielle ressortait, la fonction doit refuser de rendre
+// le texte plutôt que de le laisser partir.
+const piege = demandePourDossier({
+  ...dossierTest,
+  // La ville porte ici le nom du client : le contrôle doit le voir.
+  mission: { ...dossierTest.mission, ville: "DUPONT" },
+  client: { ...dossierTest.client, nom: "DUPONT", prenom: "" },
+});
+vrai("refus quand une valeur confidentielle ressort", !piege.ok);
+if (!piege.ok) {
+  vrai("le motif est explicite", piege.raison.includes("confidentielles"));
+  vrai("la fuite est nommée", piege.fuites.length > 0);
+}
+
+console.log("\n== Hors périmètre : aucune demande produite ==");
+for (const secteur of ["urgence", "enr", "renovation"]) {
+  const hs = demandePourDossier({
+    ...dossierTest,
+    mission: { ...dossierTest.mission, secteurSlug: secteur },
+  });
+  vrai(`« ${secteur} » refusé`, !hs.ok);
+}
 
 console.log(ko === 0 ? "\nTOUT PASSE\n" : `\n${ko} ECHEC(S)\n`);
 process.exit(ko === 0 ? 0 : 1);

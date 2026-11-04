@@ -14,6 +14,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
+import DemandeTarif from "./DemandeTarif";
 import {
   calculerTotaux,
   lignesDepuisCodes,
@@ -555,6 +556,18 @@ export default function ContratSousTraitance({
               auprès du prestataire avant d&apos;émettre le contrat.
             </p>
           )}
+
+          {/* ── Demande de tarif, à envoyer à plusieurs prestataires ─────
+              Le générateur existait depuis le 2026-10-31 sans aucun écran
+              pour l'atteindre. Il RÉDIGE, il n'envoie rien : l'envoi reste un
+              geste de la planificatrice, après relecture.
+
+              La demande ne porte NI l'adresse complète, NI le nom du client,
+              NI son téléphone, NI son courriel, NI le prix de vente. Le
+              générateur relit son propre texte et refuse de le rendre si une
+              seule de ces valeurs y ressort. */}
+          <DemandeTarif dossier={dossier} entite={entite} />
+
           {prestataire && !prestataire.utilisable && (
             <p className={styles.warn}>
               Fiche incomplète : {prestataire.manquants.join(", ")}. À compléter dans la

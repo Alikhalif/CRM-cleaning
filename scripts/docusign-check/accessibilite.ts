@@ -225,6 +225,21 @@ const CHAINES: Chaine[] = [
     rolesExclus: ["commercial"],
   },
   {
+    nom: "Demande de tarif aux prestataires (e-mails préparés)",
+    source: "lib/generation/demande-prestataire.ts",
+    symbole: "preparerDemande",
+    maillons: [
+      { f: "lib/generation/demande-depuis-dossier.ts", s: "preparerDemande" },
+      { f: "lib/generation/demande-depuis-dossier.ts", s: "contexteRedige" },
+      { f: "app/(app)/planification/[id]/DemandeTarif.tsx", s: "demandePourDossier" },
+      { f: "app/(app)/planification/[id]/ContratSousTraitance.tsx", s: "DemandeTarif" },
+      { f: "app/(app)/planification/[id]/page.tsx", s: "ContratSousTraitance" },
+    ],
+    route: "/planification",
+    roles: ["admin", "planification"],
+    rolesExclus: ["commercial"],
+  },
+  {
     nom: "Provenance marketing : permission résolue, non présumée",
     source: "lib/leads-server.ts",
     symbole: "currentUserCanSeeProvenance",
@@ -269,12 +284,14 @@ const APPELANTS_POSSIBLES = [
   "lib/generation/devis-depuis-decouverte.ts",
   "app/(app)/planification/[id]/ContratSousTraitance.tsx",
   "lib/sous-traitance/contrats-server.ts",
+  "app/(app)/planification/[id]/DemandeTarif.tsx",
 ];
 for (const m of [
   { module: "lib/generation/devis-contenu.ts", symbole: "genererContenuDevis" },
   { module: "lib/generation/devis-depuis-decouverte.ts", symbole: "genererDepuisLead" },
   { module: "lib/leads-non-traites-server.ts", symbole: "getLeadsNonTraites" },
   { module: "lib/sous-traitance/contrats-shared.ts", symbole: "classerPrestataires" },
+  { module: "lib/generation/demande-depuis-dossier.ts", symbole: "demandePourDossier" },
 ]) {
   const appelants = APPELANTS_POSSIBLES
     .filter((f) => f !== m.module)
@@ -282,17 +299,18 @@ for (const m of [
   vrai(`${m.module} a au moins un appelant (${appelants.length})`, appelants.length > 0);
 }
 
-// `demande-prestataire.ts` est TOUJOURS sans appelant. Le contrôle constate
-// l'état et le dit, pour qu'il ne passe pas pour conforme.
-console.log("\n== État connu, assumé : e-mails prestataires non branchés ==");
-const demandeBranchee = APPELANTS_POSSIBLES.some((f) =>
-  reference(f, "demande-prestataire") || reference(f, "redigerDemande"));
-console.log(
-  demandeBranchee
-    ? "  ok    lib/generation/demande-prestataire.ts est désormais branché"
-    : "  INFO  lib/generation/demande-prestataire.ts reste SANS APPELANT — "
-      + "non conforme, signalé, pas masqué",
-);
+// `demande-prestataire.ts` a été branché le 2026-11-04. Ce contrôle empêche
+// qu'il retombe en code mort : c'était son état pendant quatre jours.
+console.log("\n== E-mails prestataires : branchés ==");
+vrai("lib/generation/demande-prestataire.ts a un appelant",
+  reference("lib/generation/demande-depuis-dossier.ts", "preparerDemande"));
+vrai("le pont a lui-même un appelant d'interface",
+  reference("app/(app)/planification/[id]/DemandeTarif.tsx", "demandePourDossier"));
+vrai("le panneau est monté dans l'écran de contrat",
+  reference("app/(app)/planification/[id]/ContratSousTraitance.tsx", "DemandeTarif"));
+vrai("le double garde de confidentialité est traversé",
+  reference("lib/generation/demande-depuis-dossier.ts", "contexteRedige")
+  && reference("lib/generation/demande-prestataire.ts", "verifierFuites"));
 
 // ══════════════════════════════════════════════════════════════════════
 //  Navigation : toute entrée mène à une page qui existe
