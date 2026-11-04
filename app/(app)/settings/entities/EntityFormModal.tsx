@@ -33,6 +33,8 @@ function emptyInput(): EntityInput {
     defaultVatRate: 20,
     legalMentions: "",
     color: "#5b4bcc",
+    representativeName: "",
+    representativeTitle: "",
   };
 }
 
@@ -53,6 +55,8 @@ function fromExisting(e: LegalEntity): EntityInput {
     defaultVatRate: e.defaultVatRate,
     legalMentions: e.legalMentions,
     color: e.color,
+    representativeName: e.representativeName,
+    representativeTitle: e.representativeTitle,
   };
 }
 
@@ -256,6 +260,44 @@ export default function EntityFormModal({ existing, onClose, onDone }: Props) {
               />
             </label>
           </div>
+
+          {/* Représentant légal — exigé pour la sous-traitance.
+              Ces deux colonnes existaient en base depuis le 31 octobre sans
+              qu'aucun écran ne les renseigne : les sept sociétés du CRM
+              étaient donc toutes sans représentant, ce qui empêchait
+              d'émettre le moindre contrat de sous-traitance. */}
+          <div className={styles.row}>
+            <label className={styles.field}>
+              <span className={styles.label}>Représentant légal</span>
+              <input
+                type="text"
+                value={v.representativeName}
+                onChange={(e) => set("representativeName", e.target.value)}
+                className={styles.input}
+                placeholder="M. Jean DUPONT"
+                autoComplete="off"
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={styles.label}>Qualité du représentant</span>
+              <input
+                type="text"
+                value={v.representativeTitle}
+                onChange={(e) => set("representativeTitle", e.target.value)}
+                className={styles.input}
+                placeholder="Président, Gérant…"
+                autoComplete="off"
+              />
+            </label>
+          </div>
+          {/* `.subtitle` : petit texte atténué, déjà défini dans la feuille
+              réutilisée. Pas de classe inventée — `styles.hint` n'existe pas et
+              aurait rendu un paragraphe sans style. */}
+          <p className={styles.subtitle}>
+            Obligatoires pour émettre un contrat de sous-traitance : le bloc
+            « ENTRE LES SOUSSIGNÉS » identifie la partie qui s&apos;engage. Laissés
+            vides, les devis et factures continuent de fonctionner normalement.
+          </p>
 
           {/* Banking */}
           <div className={styles.row}>

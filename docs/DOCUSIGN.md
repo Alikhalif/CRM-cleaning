@@ -154,6 +154,35 @@ propre compte DocuSign, et les contrats partent au nom de celle qui les émet.
 
 Réservé au Super Admin : raccorder un compte engage la société.
 
+### Prérequis : le représentant légal
+
+Raccorder DocuSign ne suffit pas. Le contrat s'ouvre sur le bloc
+« ENTRE LES SOUSSIGNÉS », qui nomme la personne engageant la société — sans
+elle le document n'est pas opposable, et `controlerEntite()` refuse l'envoi
+avec le motif exact.
+
+Deux champs sont concernés, dans **Réglages › Sociétés émettrices**, sur la
+fiche de chaque société :
+
+| Champ | Exemple |
+|---|---|
+| Représentant légal | `M. Jean DUPONT` |
+| Qualité du représentant | `Président`, `Gérant`, `Directeur général` |
+
+> **À faire avant le premier envoi.** Les colonnes existent depuis la
+> migration `20261031000002`, mais aucun écran ne les renseignait jusqu'au
+> 2026-11-04 : **les sept sociétés du CRM en sont dépourvues**. Tant qu'elles
+> le restent, aucun contrat de sous-traitance ne peut partir, quelle que soit
+> la qualité du raccordement DocuSign.
+>
+> La liste des sociétés signale désormais chaque fiche incomplète. Les
+> valeurs ne sont pas devinables — elles doivent être saisies par quelqu'un
+> qui connaît les statuts de chaque société.
+
+Les deux champs restent facultatifs à l'enregistrement : les imposer aurait
+bloqué toute modification sans rapport sur les sept fiches existantes. Le
+refus intervient là où il compte, à l'émission du contrat.
+
 ### La limite de trente jours
 
 DocuSign limite le jeton de rafraîchissement à **30 jours**. Chaque
@@ -300,14 +329,23 @@ sans attendre le cron.
 
 ## 11. Ce qui n'a pas été testé
 
+```bash
+npm run check:docusign   # 151 assertions, hors réseau et hors base
+```
+
+Les suites sont dans [`scripts/docusign-check/`](../scripts/docusign-check/).
+Elles ne touchent ni la base ni DocuSign : elles sont donc lançables à tout
+moment, y compris avant un déploiement et sur une machine sans secret.
+
 | Testé | Comment |
 |---|---|
-| PKCE, `state`, expirations | 131 assertions, hors réseau |
+| PKCE, `state`, expirations | hors réseau |
 | HMAC Connect | signature valide, falsifiée, absente, clé absente |
 | Machine à états, non-régression des statuts | transitions, rejeu, désordre |
 | Idempotence, paliers de reprise | clés d'événement, attente croissante |
 | Lecture des deux formats Connect | récent et ancien |
-| TypeScript, ESLint | zéro erreur sur le dépôt |
+| Représentant légal → contrat | contrôle, variables, en-tête, instantané |
+| TypeScript, ESLint, build | zéro erreur sur le dépôt |
 
 | **Non testé** | Pourquoi |
 |---|---|

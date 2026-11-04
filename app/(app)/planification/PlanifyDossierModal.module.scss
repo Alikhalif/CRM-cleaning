@@ -213,3 +213,66 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+// ── Téléphone (≤768px) ─────────────────────────────────────────────────
+//
+// Douze modals partagent cette feuille et elle n'avait AUCUN point de
+// rupture : `.row` restait à deux colonnes à 375 px (soit ~160 px par
+// champ, labels tronqués), et les boutons tenaient ~34 px de haut là où la
+// cible tactile minimale est de 44 px. Le desktop (≥1025 px) ne change pas.
+@media (max-width: 768px) {
+  .overlay {
+    // Ancré en bas : le pouce atteint le pied de l'écran, pas son centre.
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal {
+    max-width: none;
+    max-height: 92vh;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    border-bottom: 0;
+  }
+
+  // Un champ par ligne : deux côte à côte ne sont plus saisissables.
+  .row {
+    grid-template-columns: 1fr;
+  }
+
+  .input {
+    // 16 px exactement : en dessous, iOS zoome à la prise de focus et
+    // l'utilisateur doit repincer pour revoir le formulaire.
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  .closeBtn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .flagChip {
+    min-height: 44px;
+  }
+
+  .btnGhost,
+  .btnPrimary {
+    // Les deux boutons se partagent la largeur : des cibles pleine hauteur
+    // valent mieux que deux petits boutons serrés à droite.
+    flex: 1;
+    min-height: 44px;
+  }
+}
+
+// Téléphone en paysage : la hauteur est la ressource rare. On retire le
+// sous-titre de l'en-tête — décoratif — et NON ceux du corps, qui portent
+// des explications nécessaires à la saisie.
+@media (max-width: 920px) and (orientation: landscape) {
+  .modal {
+    max-height: 96vh;
+  }
+
+  .header .subtitle {
+    display: none;
+  }
+}

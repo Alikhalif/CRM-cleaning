@@ -37,6 +37,8 @@ type EntityRow = {
   default_vat_rate: number;
   legal_mentions: string | null;
   color: string;
+  representative_name: string | null;
+  representative_title: string | null;
 };
 
 type EntityAddressJson = { line1?: string; postal_code?: string; city?: string };
@@ -61,6 +63,8 @@ function mapEntity(row: EntityRow): LegalEntity {
     legalMentions: row.legal_mentions ?? "",
     color: row.color,
     defaultActivities: [], // not used by DocumentView; skip the extra join
+    representativeName: row.representative_name ?? "",
+    representativeTitle: row.representative_title ?? "",
   };
 }
 
@@ -216,7 +220,8 @@ export async function getAllEntities(): Promise<LegalEntity[]> {
     .select(
       `id, legal_name, legal_form, siret, ape_code, vat_number,
        address, contact_email, contact_phone, iban, bic,
-       default_vat_rate, legal_mentions, color`,
+       default_vat_rate, legal_mentions, color,
+       representative_name, representative_title`,
     )
     .order("legal_name", { ascending: true });
   if (error || !data) return [];

@@ -75,6 +75,21 @@ export default function EntitiesList({ entities }: Props) {
                 <div className={styles.itemMetaMono}>
                   IBAN {e.iban} · BIC {e.bic}
                 </div>
+                {/* Le représentant légal conditionne la sous-traitance : le bloc
+                    « ENTRE LES SOUSSIGNÉS » du contrat identifie la partie qui
+                    s'engage. L'afficher ici évite d'ouvrir les sept fiches une
+                    à une pour savoir laquelle est prête. */}
+                {e.representativeName && e.representativeTitle ? (
+                  <div className={styles.itemMeta}>
+                    Représentée par {e.representativeName}, {e.representativeTitle}
+                  </div>
+                ) : (
+                  <div className={styles.itemMetaAlert}>
+                    <Icon name="alert" size={12} />
+                    Représentant légal à compléter — sans lui, cette société
+                    ne peut pas émettre de contrat de sous-traitance.
+                  </div>
+                )}
               </div>
               <div className={styles.itemActions}>
                 <button

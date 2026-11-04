@@ -29,6 +29,8 @@ export type EntityInput = {
   defaultVatRate: number;
   legalMentions: string;
   color: string;
+  representativeName: string;
+  representativeTitle: string;
 };
 
 export type Result = { ok: true; id?: string } | { ok: false; error: string };
@@ -64,6 +66,12 @@ function buildPayload(input: EntityInput): Omit<EntityInsert, "id"> {
     default_vat_rate: input.defaultVatRate,
     legal_mentions: input.legalMentions.trim() || null,
     color: input.color || "#5b4bcc",
+    // Volontairement PAS obligatoires côté formulaire : les sept sociétés
+    // existantes en sont dépourvues, et imposer le champ bloquerait une
+    // modification sans rapport. Le refus se fait là où il compte — à
+    // l'émission d'un contrat de sous-traitance, par `controlerEntite()`.
+    representative_name: input.representativeName.trim() || null,
+    representative_title: input.representativeTitle.trim() || null,
   };
 }
 

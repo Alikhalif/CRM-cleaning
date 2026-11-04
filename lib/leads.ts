@@ -450,6 +450,17 @@ export type LegalEntity = {
   legalMentions: string;
   color: string;
   defaultActivities: Sector[];
+  /**
+   * Représentant légal et sa qualité.
+   *
+   * Les colonnes existent depuis la migration `20261031000002` mais aucun
+   * écran ne les renseignait : les sept sociétés du CRM sont donc toutes sans
+   * représentant. C'est bloquant pour la sous-traitance — le bloc « ENTRE LES
+   * SOUSSIGNÉS » du contrat identifie la partie qui s'engage, et
+   * `controlerEntite()` refuse d'émettre sans lui.
+   */
+  representativeName: string;
+  representativeTitle: string;
 };
 
 // CDC §5.2 prestations — service catalogue.
