@@ -247,6 +247,15 @@ export type LigneDevis = {
   decouverteLe: string | null;
   /** Début de préparation du devis : création du brouillon. */
   preparationLe: string | null;
+  /**
+   * Brouillon de devis ouvrable, s'il existe.
+   *
+   * Sans lui, la liste annonçait « En préparation » sans donner accès au
+   * document : le commercial devait passer par la fiche du dossier pour le
+   * retrouver. Null quand aucun brouillon n'existe, ou quand la préparation
+   * vient d'un devis OPTIMIVV (autre table, autre écran).
+   */
+  devisId: string | null;
   heures: number | null;
   urgence: Urgence;
   statut: StatutDevis;

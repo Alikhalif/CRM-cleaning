@@ -1473,3 +1473,31 @@
 @media (max-width: 1024px) {
   .skelLayout { grid-template-columns: 1fr; }
 }
+
+// ── Bloc « Devis » de la fiche découverte ─────────────────────────────
+//
+// Ces boutons ne sont PAS dans `.actions`, donc la règle tactile posée plus
+// haut (`.actions .btn { min-height: 44px }`) ne les atteint pas. On la
+// repose ici : en mobilité, « Générer le devis » est un geste courant et doit
+// offrir la cible minimale de 44 px (Apple HIG / Material).
+.devisRow {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  // Une colonne : à 375 px, « Ouvrir le devis DEV-2026-0042 » et
+  // « Régénérer » côte à côte se chevauchaient.
+  .devisRow {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .devisRow .btn,
+  .devisBtn {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+}

@@ -21,15 +21,40 @@ export const metadata = { title: "Nouveau devis" };
 // client picker. The editor then has the lead's client ready to pre-
 // select — no manual "+ Créer un client" detour for the commercial.
 type PageProps = {
-  searchParams: Promise<{ lead?: string; client?: string; from?: string }>;
+  searchParams: Promise<{
+    lead?: string;
+    client?: string;
+    from?: string;
+    brouillon?: string;
+  }>;
 };
 
 export default async function NewQuotePage({ searchParams }: PageProps) {
-  const { lead: leadParam, client: clientParam, from: fromParam } = await searchParams;
+  const {
+    lead: leadParam,
+    client: clientParam,
+    from: fromParam,
+    brouillon: brouillonParam,
+  } = await searchParams;
 
-  // ?from=<devisId> — re-quote flow: seed the editor from an existing (usually
-  // refused) devis so the commercial can switch société and lower the price.
-  const prefill = fromParam ? await getDevisPrefill(fromParam) : null;
+  // Deux reprises possibles, qui lisent la MÊME source (`getDevisPrefill`) et
+  // ne diffèrent que par ce qu'elles font à l'enregistrement :
+  //
+  //   ?from=<devisId>      — re-devis moins cher : crée un SECOND document,
+  //                          sur une autre société, à un prix inférieur.
+  //   ?brouillon=<devisId> — modification : écrit EN PLACE dans le brouillon,
+  //                          sans nouveau numéro ni doublon dans
+  //                          « Devis à réaliser ». C'est le chemin de retour
+  //                          d'un devis préparé depuis la découverte.
+  //
+  // `brouillon` l'emporte si les deux sont fournis : écrire en place est le
+  // geste le moins destructeur des deux.
+  const sourceId = brouillonParam ?? fromParam;
+  const prefill = sourceId ? await getDevisPrefill(sourceId) : null;
+  // Pas de mode modification si le document est introuvable (mauvais
+  // identifiant, ou devis d'un autre commercial écarté par la RLS) : l'éditeur
+  // retombe alors sur la création classique plutôt que d'échouer à l'écriture.
+  const brouillonId = brouillonParam && prefill ? prefill.sourceId : null;
 
   // Resolve the lead first so the conversion can run before the clients
   // list is read. The rest of the bootstrap stays parallel.
@@ -54,6 +79,7 @@ export default async function NewQuotePage({ searchParams }: PageProps) {
       leadContext={leadCtx}
       preselectedClientId={clientParam ?? prefill?.clientId ?? convertedClientId ?? null}
       prefill={prefill}
+      brouillonId={brouillonId}
     />
   );
 }

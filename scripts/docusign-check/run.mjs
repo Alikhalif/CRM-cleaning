@@ -28,6 +28,7 @@ const SUITES = [
   { fichier: "integration.ts", titre: "Intégration DocuSign (OAuth/PKCE, HMAC, états, reprise)" },
   { fichier: "entites.ts", titre: "Sociétés émettrices (représentant légal → contrat)" },
   { fichier: "envoi-devis.ts", titre: "Envoi des devis (aucun envoi automatique)" },
+  { fichier: "generation-devis.ts", titre: "Génération du devis depuis la découverte" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "docusign-check-"));

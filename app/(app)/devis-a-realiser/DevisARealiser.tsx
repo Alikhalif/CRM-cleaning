@@ -300,9 +300,22 @@ export default function DevisARealiser({ data }: { data: DevisARealiserData }) {
                   </td>
 
                   <td data-label="Action" className={styles.right}>
-                    <Link href={`/leads/${l.leadId}`} className={styles.ouvrir}>
-                      Ouvrir le dossier
-                    </Link>
+                    {/* Quand un brouillon existe, on y mène directement : la
+                        colonne annonçait « En préparation » sans donner accès
+                        au document. */}
+                    <div className={styles.actionsLigne}>
+                      {l.devisId && (
+                        <Link href={`/devis/${l.devisId}`} className={styles.ouvrir}>
+                          Ouvrir le devis
+                        </Link>
+                      )}
+                      <Link
+                        href={`/leads/${l.leadId}`}
+                        className={`${styles.ouvrir} ${l.devisId ? styles.ouvrirSecondaire : ""}`}
+                      >
+                        Ouvrir le dossier
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}

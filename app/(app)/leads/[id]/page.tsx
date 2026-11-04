@@ -142,6 +142,12 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   const devisCount = documents.filter((d) => d.type === "devis").length;
   const docsCount = documents.length;
 
+  // Brouillon de devis en cours, s'il existe. La fiche découverte s'en sert
+  // pour proposer « Ouvrir le devis » plutôt que d'en préparer un second :
+  // c'est ce qui rend le bouton « Générer le devis » sans effet de doublon.
+  const devisBrouillon =
+    documents.find((d) => d.type === "devis" && d.status === "brouillon") ?? null;
+
   // ── Variables réelles (BDD) pour les templates SMS / email de relance ──
   // Acompte, montants et n° de devis viennent du dernier devis du lead ; à
   // défaut, l'acompte tombe sur l'acompte négocié puis le défaut du secteur.
@@ -369,7 +375,13 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
       {tab === "informations" && (
         <div className={styles.layout}>
           <main className={styles.main}>
-            <DiscoveryCard lead={lead} pricingGrid={pricingGrid} />
+            <DiscoveryCard
+              lead={lead}
+              pricingGrid={pricingGrid}
+              devisBrouillon={
+                devisBrouillon ? { id: devisBrouillon.id, num: devisBrouillon.num } : null
+              }
+            />
             {/* Confirmations des actions parties : mêmes données que
                 l'historique, aucune requête supplémentaire. */}
             <ConfirmationsCard timeline={timeline} leadId={lead.id} />

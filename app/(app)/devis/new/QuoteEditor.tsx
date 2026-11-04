@@ -19,7 +19,12 @@ import type {
   LeadContext,
   PrestationOption,
 } from "@/lib/devis-server";
-import { createDevis, type CreateDevisIntent, type DraftInput } from "./actions";
+import {
+  createDevis,
+  updateDevisBrouillon,
+  type CreateDevisIntent,
+  type DraftInput,
+} from "./actions";
 import LeadRecapPanel from "./LeadRecapPanel";
 import styles from "./QuoteEditor.module.scss";
 
@@ -52,6 +57,15 @@ type Props = {
   leadContext: LeadContext | null;
   preselectedClientId: string | null;
   prefill: DevisPrefill | null;
+  /**
+   * Brouillon repris pour MODIFICATION (`?brouillon=<id>`).
+   *
+   * Quand il est fourni, l'éditeur écrit en place au lieu de créer un second
+   * document : c'est ce qui permet de corriger un devis préparé depuis la
+   * découverte sans laisser deux brouillons dans « Devis à réaliser », et
+   * sans consommer un deuxième numéro.
+   */
+  brouillonId: string | null;
 };
 
 function today(): string {
@@ -117,8 +131,11 @@ export default function QuoteEditor({
   leadContext,
   preselectedClientId,
   prefill,
+  brouillonId,
 }: Props) {
   const router = useRouter();
+  // Mode « modification d'un brouillon » : même formulaire, écriture en place.
+  const modeModification = brouillonId !== null;
 
   const [draft, setDraft] = useState<Draft>(() =>
     buildInitialDraft(clients, entities, leadContext, preselectedClientId, prefill),
@@ -257,10 +274,19 @@ export default function QuoteEditor({
     };
 
     startTransition(async () => {
-      const result = await createDevis(payload, intent);
+      // En modification, on écrit EN PLACE. L'intention « envoyer » n'est pas
+      // proposée dans ce mode : l'envoi se fait depuis la fiche du document,
+      // où il vit déjà, pour ne pas dupliquer ce processus.
+      const result = brouillonId
+        ? await updateDevisBrouillon(brouillonId, payload)
+        : await createDevis(payload, intent);
       if (!result.ok) {
         setServerError(result.error);
         setSubmitting(null);
+        return;
+      }
+      if (brouillonId) {
+        router.push(`/devis/${brouillonId}`);
         return;
       }
       // Email send is best-effort when intent="send" — if Brevo refused,
@@ -312,7 +338,11 @@ export default function QuoteEditor({
       })),
     };
     startTransition(async () => {
-      const result = await createDevis(payload, "draft");
+      // Même règle qu'à l'enregistrement : en modification on met à jour le
+      // brouillon existant, sans en créer un second pour voir un aperçu.
+      const result = brouillonId
+        ? await updateDevisBrouillon(brouillonId, payload)
+        : await createDevis(payload, "draft");
       if (!result.ok) {
         setServerError(result.error);
         setSubmitting(null);
@@ -335,19 +365,30 @@ export default function QuoteEditor({
           Comptabilité
         </Link>
         <span aria-hidden="true">/</span>
-        <span>Nouveau devis</span>
+        <span>{modeModification ? "Modifier le brouillon" : "Nouveau devis"}</span>
       </nav>
       <header>
-        <h1 className={styles.title}>{prefill ? "Nouveau devis (moins cher)" : "Nouveau devis"}</h1>
+        <h1 className={styles.title}>
+          {modeModification
+            ? `Modifier le brouillon${prefill?.sourceNum ? ` ${prefill.sourceNum}` : ""}`
+            : prefill
+              ? "Nouveau devis (moins cher)"
+              : "Nouveau devis"}
+        </h1>
         <p className={styles.subtitle}>
-          Éditeur ligne par ligne · pré-rempli depuis le lead/client de contexte
+          {modeModification
+            ? "Les modifications remplacent le brouillon : aucun second devis n'est créé."
+            : "Éditeur ligne par ligne · pré-rempli depuis le lead/client de contexte"}
           {leadContext && (
             <> · contexte lead <strong>{leadContext.shortId}</strong> ({leadContext.clientName})</>
           )}
         </p>
       </header>
 
-      {prefill && (
+      {/* Le bandeau « re-devis moins cher » n'a pas de sens en modification :
+          la source du préremplissage est le brouillon lui-même, pas un devis
+          refusé. */}
+      {prefill && !modeModification && (
         <div
           role="status"
           style={{
@@ -660,11 +701,15 @@ export default function QuoteEditor({
             <div className={styles.actions}>
               <button
                 type="button"
-                className={styles.btnGhost}
+                className={modeModification ? styles.btnPrimary : styles.btnGhost}
                 disabled={submitting !== null}
                 onClick={() => submit("draft")}
               >
-                {submitting === "draft" ? "Enregistrement…" : "Sauvegarder brouillon"}
+                {submitting === "draft"
+                  ? "Enregistrement…"
+                  : modeModification
+                    ? "Enregistrer les modifications"
+                    : "Sauvegarder brouillon"}
               </button>
               <button
                 type="button"
@@ -674,15 +719,26 @@ export default function QuoteEditor({
               >
                 Aperçu PDF
               </button>
-              <button
-                type="button"
-                className={styles.btnPrimary}
-                disabled={submitting !== null}
-                onClick={() => submit("send")}
-              >
-                {submitting === "send" ? "Envoi…" : "Envoyer au client"}
-              </button>
+              {/* Pas d'envoi depuis ce mode : le devis part depuis sa fiche,
+                  où le processus existe déjà (e-mail, signature, « marquer
+                  envoyé »). Un second chemin d'envoi se désynchroniserait. */}
+              {!modeModification && (
+                <button
+                  type="button"
+                  className={styles.btnPrimary}
+                  disabled={submitting !== null}
+                  onClick={() => submit("send")}
+                >
+                  {submitting === "send" ? "Envoi…" : "Envoyer au client"}
+                </button>
+              )}
             </div>
+            {modeModification && (
+              <p className={styles.fieldHint} style={{ marginTop: "var(--sp-2)" }}>
+                L&apos;envoi au client se fait depuis la fiche du devis, après
+                enregistrement.
+              </p>
+            )}
           </section>
         </aside>
       </div>

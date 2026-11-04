@@ -166,6 +166,19 @@ export default function DocumentActions({ doc, lead, entity, emailTemplates = []
           <Icon name="check" size={14} /> Aperçu PDF
         </a>
 
+        {/* Un brouillon reste modifiable : c'est ce qui permet de corriger un
+            devis préparé automatiquement depuis la découverte sans en créer
+            un second. L'éditeur écrit EN PLACE (updateDevisBrouillon). */}
+        {isDevisDraft && (
+          <Link
+            href={`/devis/new?brouillon=${doc.id}`}
+            className={styles.btn}
+            title="Reprendre ce brouillon — lignes, montants et texte restent modifiables"
+          >
+            <Icon name="edit" size={14} /> Modifier
+          </Link>
+        )}
+
         {isDevisDraft && (
           <button
             type="button"

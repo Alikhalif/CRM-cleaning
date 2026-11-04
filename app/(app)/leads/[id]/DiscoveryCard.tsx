@@ -2,11 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Icon from "@/components/Icon/Icon";
 import RelativeTime from "@/components/RelativeTime/RelativeTime";
 import {
   autosaveDiscovery, recordDiscovery, saveDiscovery, setLeadActivity, switchToDiogene,
 } from "@/app/(app)/pipeline/actions";
+import { genererDevisDepuisDecouverte } from "./devis-actions";
+// Module PUR (aucune I/O) : il dit quelles activités la rédaction automatique
+// couvre, pour ne pas proposer un bouton qui refuserait de s'exécuter.
+import { activiteCouverte } from "@/lib/generation/devis-contenu";
 import {
   ACOMPTE_STEPS,
   DELAI_SOUHAITE,
@@ -46,6 +51,13 @@ type Props = {
   // Grille tarifaire de l'activité. null, ou en brouillon, = aucune
   // fourchette proposée. Le Super Admin seul décide de la publier.
   pricingGrid: PricingGrid | null;
+  /**
+   * Brouillon de devis déjà existant sur le dossier, s'il y en a un.
+   *
+   * C'est lui qui empêche le doublon : quand il est là, la découverte propose
+   * d'OUVRIR le devis, pas d'en préparer un second.
+   */
+  devisBrouillon: { id: string; num: string } | null;
 };
 
 // Heure d'enregistrement, fuseau FIXÉ : le serveur rend en UTC, le commercial
@@ -62,9 +74,12 @@ const field: React.CSSProperties = {
 };
 const lbl: React.CSSProperties = { display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: 4 };
 
-export default function DiscoveryCard({ lead, pricingGrid }: Props) {
+export default function DiscoveryCard({ lead, pricingGrid, devisBrouillon }: Props) {
   const router = useRouter();
   const leadId = lead.id;
+  // La rédaction automatique ne couvre que six activités (§2) : nettoyage,
+  // nettoyage difficile, Diogène, débarras, déménagement, transport.
+  const redactionDisponible = activiteCouverte(lead.sector);
 
   const isDebarras = lead.sector === "debarras";
   const isDemenagement = lead.sector === "demenagement";
@@ -236,6 +251,52 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
         setPayloadEnregistre(instantane);
       },
     );
+  };
+
+  // ── Générer le devis depuis la découverte ───────────────────────────
+  //
+  // Un seul clic : le contenu est rédigé à partir des champs réellement
+  // saisis, le devis est enregistré EN BROUILLON et le dossier s'affiche
+  // « En préparation » dans « Devis à réaliser ». Le commercial n'a plus à
+  // passer par cette liste pour commencer son devis.
+  //
+  // RIEN N'EST ENVOYÉ AU CLIENT. L'envoi reste un geste explicite, depuis la
+  // fiche du devis, après relecture.
+  //
+  // IDEMPOTENT : l'action serveur renvoie le brouillon existant plutôt que
+  // d'en créer un second. Écraser son contenu est un geste distinct, confirmé.
+  const [genere, setGenere] = useState<{
+    devisId: string;
+    num: string;
+    manquant: string[];
+    alertes: string[];
+  } | null>(null);
+
+  const onGenererDevis = (regenerer: boolean) => {
+    if (
+      regenerer
+      && !window.confirm(
+        `Régénérer le contenu du devis ${devisBrouillon?.num ?? ""} ?\n\n`
+        + "Le texte et le montant du brouillon seront remplacés par une rédaction "
+        + "refaite depuis la découverte. Le numéro du devis ne change pas, et rien "
+        + "n'est envoyé au client.",
+      )
+    ) {
+      return;
+    }
+
+    setError(null);
+    setGenere(null);
+    setBusy("devis");
+    startTransition(async () => {
+      const r = await genererDevisDepuisDecouverte(leadId, { regenerer });
+      setBusy(null);
+      if (!r.ok) { setError(r.error); return; }
+      setGenere({ devisId: r.devisId, num: r.num, manquant: r.manquant, alertes: r.alertes });
+      // La fiche se rafraîchit : le brouillon devient visible et le bouton
+      // bascule sur « Ouvrir le devis ».
+      router.refresh();
+    });
   };
 
   // ── Enregistrement automatique ──────────────────────────────────────
@@ -545,6 +606,85 @@ export default function DiscoveryCard({ lead, pricingGrid }: Props) {
             ? `✓ Enregistré à ${heureParis(enregistreA!)}`
             : "Enregistrer la découverte"}
       </button>
+
+      {/* ── Devis ────────────────────────────────────────────────────────
+          Le devis se prépare ICI, dans la continuité de la découverte. Le
+          bouton n'apparaît qu'une fois la découverte enregistrée (c'est elle
+          qui fournit la matière) et seulement sur les activités couvertes par
+          la rédaction automatique. */}
+      {redactionDisponible && enregistreA !== null && (
+        <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 12, marginBottom: 12 }}>
+          <div className={styles.muted} style={{ fontSize: "0.8125rem", marginBottom: 6 }}>Devis</div>
+
+          {devisBrouillon ? (
+            <div className={styles.devisRow}>
+              <Link
+                href={`/devis/${devisBrouillon.id}`}
+                className={`${styles.btn} ${styles.btnPrimary}`}
+              >
+                <Icon name="document" size={14} /> Ouvrir le devis {devisBrouillon.num}
+              </Link>
+              <button
+                type="button"
+                className={styles.btn}
+                disabled={busy !== null || modifieDepuis}
+                onClick={() => onGenererDevis(true)}
+                title={
+                  modifieDepuis
+                    ? "Enregistrez d'abord la découverte"
+                    : "Réécrit le contenu du brouillon à partir de la découverte"
+                }
+              >
+                {busy === "devis" ? "Rédaction…" : "Régénérer"}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className={`${styles.btn} ${styles.btnPrimary} ${styles.devisBtn}`}
+              disabled={busy !== null || modifieDepuis}
+              onClick={() => onGenererDevis(false)}
+              style={{ width: "100%", justifyContent: "center" }}
+              aria-live="polite"
+            >
+              {busy === "devis" ? "Rédaction du devis…" : "Générer le devis"}
+            </button>
+          )}
+
+          {modifieDepuis && (
+            <p className={styles.muted} style={{ fontSize: "0.75rem", marginTop: 6 }}>
+              Enregistrez la découverte pour que le devis reprenne vos dernières réponses.
+            </p>
+          )}
+
+          {genere && (
+            <div
+              role="status"
+              style={{
+                marginTop: 8, padding: "8px 10px", borderRadius: "var(--r-sm)",
+                background: "color-mix(in srgb, var(--tone-success) 10%, transparent)",
+                border: "1px solid color-mix(in srgb, var(--tone-success) 40%, transparent)",
+                fontSize: "0.8125rem", lineHeight: 1.5,
+              }}
+            >
+              Devis <strong>{genere.num}</strong> préparé en brouillon. Rien n&apos;a été
+              envoyé au client.
+              {genere.manquant.length > 0 && (
+                <>
+                  {" "}Absent de la découverte, donc non mentionné :{" "}
+                  {genere.manquant.join(", ")}.
+                </>
+              )}
+              {genere.alertes.length > 0 && (
+                <>
+                  {" "}
+                  <strong>À relire :</strong> {genere.alertes.join(" · ")}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 12, marginBottom: 12 }}>
         <div className={styles.muted} style={{ fontSize: "0.8125rem", marginBottom: 6 }}>Issue de la découverte</div>

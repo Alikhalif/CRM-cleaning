@@ -162,7 +162,7 @@ function buildPrefill(detail: LeadDetail): DevisPrefill {
  * recalcul courant. Rien n'est proposé si le moteur ne produit pas de prix —
  * un devis à 0 € vaut mieux qu'un devis faux.
  */
-async function montantRecommande(detail: LeadDetail): Promise<number | null> {
+export async function montantRecommande(detail: LeadDetail): Promise<number | null> {
   const l = detail.lead;
   if (l.priceRecommended != null && l.priceRecommended > 0) return l.priceRecommended;
 
