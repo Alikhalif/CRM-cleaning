@@ -157,6 +157,23 @@ export default function ContratSousTraitance({
   if (entite && !entite.utilisable) blocages.push(`compléter l'entité (${entite.manquants.join(", ")})`);
   if (prestataire && !prestataire.utilisable) blocages.push(`compléter la fiche du prestataire (${prestataire.manquants.join(", ")})`);
   if (totaux.totalHt <= 0) blocages.push("renseigner le tarif du sous-traitant");
+  // Ces deux-ci ne sont pas des champs de ce formulaire : ils viennent du
+  // dossier lui-même. Ils figurent pourtant dans la liste parce que le
+  // SERVEUR les exige — `resoudre()` déclare `mission_address` et
+  // `mission_date` obligatoires (lib/sous-traitance/variables.ts), et
+  // `genererContrat()` refuse sur `doc.manquantes` (actions.ts).
+  //
+  // Sans eux ici, la planificatrice complétait scrupuleusement tout ce que
+  // cette liste lui annonçait, cliquait, et se faisait refuser pour un motif
+  // qui ne lui avait jamais été affiché. Un bouton grisé doit dire TOUT ce
+  // qu'il attend, sinon il ment par omission.
+  //
+  // `.trim()` donne la parité exacte avec le `texte()` du résolveur, qui
+  // trime avant de juger un champ vide. Les deux valeurs sont des chaînes
+  // garanties côté serveur (`date` vient d'un ternaire, `adresse` d'un
+  // `join`), jamais `null` : pas de risque de TypeError ici.
+  if (!dossier.mission.adresse.trim()) blocages.push("renseigner l'adresse du chantier");
+  if (!dossier.mission.date.trim()) blocages.push("planifier la date d'intervention");
 
   function majLigne(i: number, patch: Partial<LignePrestation>) {
     setMontants((m) => ({ ...m, lignes: m.lignes.map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
