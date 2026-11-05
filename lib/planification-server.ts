@@ -186,6 +186,29 @@ export async function getAllDossiers(): Promise<DossierWithContext[]> {
     const docs = docsByLead.get(row.lead_id) ?? [];
     out.push({
       dossier: mapDossier(row),
+      // `canImmob` et `canProvenance` restent à false, et c'est DÉLIBÉRÉ —
+      // ce n'est pas un oubli.
+      //
+      // Le tableau de planification n'affiche ni l'annotation
+      // Immobilier/Travaux, ni la provenance marketing : aucun champ de son
+      // interface ne les rend. `LEAD_SELECT` ci-dessus ne va d'ailleurs même
+      // pas chercher les colonnes de provenance (`source_url`, `utm_*`,
+      // `gclid`, `landing_page`), ce que `LeadRowJoined` autorise puisqu'il
+      // les déclare optionnelles.
+      //
+      // Résoudre les droits ici coûterait un `auth.getUser()` plus une
+      // requête `user_roles` à chaque chargement de la page, pour peupler des
+      // champs que personne ne lit.
+      //
+      // Et la règle « admin ∪ planification » n'en souffre pas : la
+      // planificatrice voit bien la provenance, là où elle est affichée —
+      // la fiche du lead, servie par `getLeadDetail()`, qui appelle
+      // `currentUserCanSeeProvenance()`. `/leads` n'est pas dans
+      // `RESTRICTED_MODULES`, donc la fiche lui est accessible.
+      //
+      // Si un jour le tableau doit montrer la provenance, il faut les TROIS :
+      // étendre `LEAD_SELECT`, résoudre le droit ici, et ajouter le rendu.
+      // Faire seulement l'un des trois ne donne rien de visible.
       lead: mapLead(row.lead),
       technician: row.technician ? mapTechnician(row.technician, sectorMap) : undefined,
       devisDoc: docs.find((d) => d.type === "devis"),

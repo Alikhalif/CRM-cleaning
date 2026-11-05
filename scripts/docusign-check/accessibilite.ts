@@ -461,5 +461,75 @@ vrai("commercial + planification accède à /leads",
 vrai("un rôle inconnu n'ouvre rien de restreint",
   !canAccessPath(["role_inexistant"], "/comptabilite"));
 
+console.log("\n== Provenance marketing : visible là où elle est affichée ==");
+// CE QUE CETTE SECTION FIGE, et pourquoi.
+//
+// `lib/planification-server.ts` appelle `mapLead(row.lead)` sans argument,
+// donc `canProvenance = false`. J'ai d'abord pris cela pour un écart avec la
+// règle « admin ∪ planification » — à tort.
+//
+// La règle est bien respectée, mais ailleurs : la provenance n'est affichée
+// QUE sur la fiche du lead, servie par `getLeadDetail()`, qui résout le droit
+// côté serveur. Le tableau de planification, lui, n'affiche aucune
+// provenance ; y résoudre le droit ne peuplerait que des champs que personne
+// ne lit, au prix d'un `auth.getUser()` et d'une requête `user_roles` par
+// chargement.
+//
+// Ces assertions empêchent les deux dérives symétriques : qu'on retire la
+// résolution du droit là où la provenance est affichée (la planificatrice
+// perdrait un accès légitime), et qu'on croie à un oubli là où le `false` est
+// voulu.
+const LEADS_SERVER = "lib/leads-server.ts";
+const PLANIF_SERVER = "lib/planification-server.ts";
+
+// 1. Le droit est résolu côté serveur, par les rôles — jamais codé en dur.
+vrai("getLeadDetail() résout le droit via currentUserCanSeeProvenance()",
+  /getLeadDetail[\s\S]*currentUserCanSeeProvenance\(\)/.test(fichier(LEADS_SERVER)));
+vrai("le droit est accordé à admin ET à planification",
+  /roles\?\.slug === "admin" \|\| r\.roles\?\.slug === "planification"/.test(
+    fichier(LEADS_SERVER)));
+// 2. Fermé par défaut : un appelant qui oublie l'argument ne fuite rien.
+vrai("mapLead() a canProvenance = false par défaut",
+  reference(LEADS_SERVER, "canProvenance = false"));
+// 3. La fiche du lead affiche bien la provenance, et la planificatrice y accède.
+vrai("la fiche du lead affiche la provenance",
+  reference("app/(app)/leads/[id]/page.tsx", "sourceUrl"));
+vrai("la planificatrice accède à /leads",
+  canAccessPath(["planification"], "/leads"));
+vrai("le commercial n'obtient JAMAIS la provenance (ni admin ni planification)",
+  !canAccessPath(["commercial"], "/a-affecter")
+  && !/slug === "commercial"/.test(fichier(LEADS_SERVER)));
+// 4. Le `false` du tableau de planification est cohérent : les colonnes
+//    confidentielles ne sont même pas chargées, donc rien n'est lu puis jeté.
+//
+//    On extrait la VALEUR de la constante, sans fenêtre de caractères. Une
+//    première version cherchait les noms de colonnes dans les 800 caractères
+//    suivant `LEAD_SELECT` : elle trouvait le commentaire qui, dans
+//    `planification-server.ts`, cite justement ces colonnes pour expliquer
+//    qu'il ne les charge pas. Le test échouait sur sa propre documentation.
+const mSelect = /const LEAD_SELECT\s*=\s*([\s\S]*?);\n/.exec(fichier(PLANIF_SERVER));
+vrai("LEAD_SELECT a bien été extrait de planification-server.ts", mSelect !== null);
+const selectPlanif = mSelect?.[1] ?? "";
+// Garde-fou : si l'extraction renvoyait du vide, les assertions suivantes
+// passeraient toutes pour de mauvaises raisons.
+vrai("LEAD_SELECT extrait n'est pas vide", selectPlanif.length > 100);
+vrai("LEAD_SELECT extrait contient bien des colonnes attendues",
+  selectPlanif.includes("client_email") && selectPlanif.includes("short_id"));
+for (const col of ["source_url", "utm_source", "utm_medium", "utm_campaign",
+                   "utm_term", "utm_content", "gclid", "landing_page"]) {
+  vrai(`planification ne charge pas la colonne confidentielle ${col}`,
+    !selectPlanif.includes(col));
+}
+// 5. Et son interface n'en affiche aucune — sinon le `false` serait un bug.
+const VUES_PLANIF = existsSync("app/(app)/planification")
+  ? readdirSync("app/(app)/planification").filter((f) => f.endsWith(".tsx"))
+  : [];
+vrai("des vues de planification ont bien été inspectées", VUES_PLANIF.length > 0);
+for (const v of VUES_PLANIF) {
+  const t = fichier(`app/(app)/planification/${v}`);
+  vrai(`${v} n'affiche aucun champ de provenance`,
+    !/sourceUrl|utmSource|utmMedium|utmCampaign|utmTerm|utmContent|landingPage|\bgclid\b/.test(t));
+}
+
 console.log(ko === 0 ? "\nTOUT PASSE\n" : `\n${ko} ECHEC(S)\n`);
 process.exit(ko === 0 ? 0 : 1);
