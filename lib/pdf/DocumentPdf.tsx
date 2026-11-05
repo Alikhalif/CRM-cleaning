@@ -359,9 +359,18 @@ export default function DocumentPdf({ detail }: Props) {
         {/* ── Payment terms + IBAN ──────────────────────────────── */}
         <View style={styles.paymentBlock}>
           <Text style={styles.paymentLabel}>Conditions de paiement : {paymentTerm.label}</Text>
-          <Text style={styles.paymentLine}>
-            Coordonnées bancaires — IBAN {entity.iban} · BIC {entity.bic}
-          </Text>
+          {/* La ligne bancaire ne s'imprime que si l'IBAN existe.
+              Les champs IBAN/BIC ont été retirés de la fiche société le
+              2026-11-05 : sans cette garde, les sociétés qui n'en ont pas
+              imprimeraient « Coordonnées bancaires — IBAN  · BIC » sur chaque
+              facture, et plus personne ne pourrait le corriger depuis
+              l'interface. Le RIB circule désormais en pièce jointe. */}
+          {entity.iban?.trim() && (
+            <Text style={styles.paymentLine}>
+              Coordonnées bancaires — IBAN {entity.iban}
+              {entity.bic?.trim() ? ` · BIC ${entity.bic}` : ""}
+            </Text>
+          )}
           {doc.relatedDevisNum && (
             <Text style={styles.paymentLine}>Document lié : devis {doc.relatedDevisNum}</Text>
           )}

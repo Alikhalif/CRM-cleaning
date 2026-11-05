@@ -78,9 +78,15 @@ export default function EntitiesList({ entities }: Props) {
                 <div className={styles.itemMeta}>
                   {e.addressLine}, {e.postalCode} {e.city}
                 </div>
-                <div className={styles.itemMetaMono}>
-                  IBAN {e.iban} · BIC {e.bic}
-                </div>
+                {/* Affichée seulement si elle existe. Les champs ayant été
+                    retirés du formulaire, une ligne « IBAN · BIC » vide ne
+                    serait plus corrigeable et n'apprendrait rien. */}
+                {e.iban?.trim() && (
+                  <div className={styles.itemMetaMono}>
+                    IBAN {e.iban}
+                    {e.bic?.trim() ? ` · BIC ${e.bic}` : ""}
+                  </div>
+                )}
                 {/* Le représentant légal conditionne la sous-traitance : le bloc
                     « ENTRE LES SOUSSIGNÉS » du contrat identifie la partie qui
                     s'engage. L'afficher ici évite d'ouvrir les sept fiches une
