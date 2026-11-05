@@ -28,6 +28,18 @@
   --tone-warning: #f59e0b;
   --tone-danger:  #ef4444;
 
+  // Étapes du résumé du pipeline commercial — une teinte par étape.
+  //
+  // Jetons DÉDIÉS, et non réutilisation des couleurs de secteur : une étape
+  // n'est pas une activité, et emprunter --sector-debarras pour « Devis
+  // envoyés » ferait lire un secteur là où il y a une étape. Comme les tons
+  // sémantiques au-dessus, ces quatre teintes sont choisies pour rester
+  // lisibles en thème clair ET sombre, donc non redéfinies plus bas.
+  --pipeline-recus:      #2563eb; // bleu   — leads reçus
+  --pipeline-decouverte: #f59e0b; // orange — découverte effectuée
+  --pipeline-devis:      #8b5cf6; // violet — devis envoyés
+  --pipeline-signes:     #14c890; // vert   — devis signés
+
   // Surfaces / neutrals — light mode defaults
   --bg-app:        #f6f7fb;
   --bg-surface:    #ffffff;

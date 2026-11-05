@@ -143,6 +143,16 @@
   font-family: var(--font-mono);
 }
 
+/* Un manque bloquant pour la sous-traitance, pas une simple information :
+   la couleur d'avertissement le distingue des autres lignes de métadonnées. */
+.itemMetaAlert {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+  color: var(--tone-warning);
+}
+
 .itemActions {
   display: flex;
   align-items: center;

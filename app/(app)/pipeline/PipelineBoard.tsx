@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
+import PipelineSummary from "./PipelineSummary";
 import RelativeTime from "@/components/RelativeTime/RelativeTime";
 import { setStoredValue, useStoredValue } from "@/lib/client-store";
 import {
@@ -10,7 +11,6 @@ import {
   SECTOR_LABEL,
   SECTOR_VAR,
   formatEUR,
-  needsEnvoi,
   needsSignature,
   pipelineColumnFor,
   unpaidInvoiceId,
@@ -19,15 +19,12 @@ import {
   type LeadStatus,
   type PipelineColumnKey,
   type Sector,
-  type SubEnvoi,
   type SubSignature,
 } from "@/lib/leads";
 import LeadCard from "./LeadCard";
 import {
-  launchSequence as launchSequenceAction,
   setLeadNrp,
   updateLeadStatus,
-  updateLeadSubEnvoi,
   updateLeadSubSignature,
 } from "./actions";
 import { markDocumentPaid } from "@/app/(app)/_shared/document-actions";
@@ -43,12 +40,11 @@ const COLUMN_ORDER: Record<PipelineColumnKey, number> = {
 type Props = {
   initialLeads: Lead[];
   commerciaux: Commercial[];
-  n8nEnabled: boolean;
   // Secteurs visibles par l'utilisateur (restriction commerciale par activité).
   visibleSectors: Sector[];
 };
 
-export default function PipelineBoard({ initialLeads, commerciaux, n8nEnabled, visibleSectors }: Props) {
+export default function PipelineBoard({ initialLeads, commerciaux, visibleSectors }: Props) {
   // Local state seeded from the server fetch. Optimistic updates apply
   // immediately; the server action runs in a transition and rolls back on
   // error.
@@ -191,12 +187,6 @@ export default function PipelineBoard({ initialLeads, commerciaux, n8nEnabled, v
     );
   };
 
-  const setEnvoi = (id: string, value: SubEnvoi) =>
-    optimistic(
-      (curr) => curr.map((l) => (l.id === id ? { ...l, subEnvoi: value } : l)),
-      () => updateLeadSubEnvoi(id, value),
-    );
-
   const setSignature = (id: string, value: SubSignature) =>
     optimistic(
       (curr) => curr.map((l) => (l.id === id ? { ...l, subSignature: value } : l)),
@@ -220,33 +210,15 @@ export default function PipelineBoard({ initialLeads, commerciaux, n8nEnabled, v
       () => setLeadNrp(id, nrp),
     );
 
-  const launchSequence = (lead: Lead) => {
-    if (
-      !confirm(
-        `Lancer la séquence de relance n8n pour « ${lead.client} » ?\n\n` +
-          "4 emails Brevo seront programmés. La séquence s'arrête dès que le client signe ou répond.",
-      )
-    )
-      return;
-    optimistic(
-      (curr) =>
-        curr.map((l) =>
-          l.id === lead.id
-            ? {
-                ...l,
-                status: "envoye",
-                subEnvoi: "auto",
-                lastActionLabel: "Séquence n8n lancée",
-                lastActionAt: new Date().toISOString(),
-              }
-            : l,
-        ),
-      () => launchSequenceAction(lead.id),
-    );
-  };
-
   return (
     <>
+      {/* ── Résumé horizontal : quatre étapes, quatre chiffres ──────────
+          Nourri par `visibleLeads`, donc le MÊME ensemble que le Kanban et la
+          vue Liste au-dessous : la restriction d'activité s'y applique, et le
+          résumé ne peut pas raconter autre chose que ce que l'écran montre.
+          Le Kanban, la vue Liste et le Suivi commercial sont inchangés. */}
+      <PipelineSummary leads={visibleLeads} />
+
       <div className={styles.viewToolbar}>
         <div className={styles.viewToggle} role="tablist" aria-label="Affichage">
           <button
@@ -274,13 +246,7 @@ export default function PipelineBoard({ initialLeads, commerciaux, n8nEnabled, v
       </div>
 
       {view === "liste" ? (
-        <ListView
-          rows={flat}
-          ownersById={ownersById}
-          onMove={move}
-          onLaunchSequence={launchSequence}
-          n8nEnabled={n8nEnabled}
-        />
+        <ListView rows={flat} ownersById={ownersById} onMove={move} />
       ) : (
         <div className={styles.board}>
           {PIPELINE_COLUMNS.map((col) => {
@@ -345,11 +311,8 @@ export default function PipelineBoard({ initialLeads, commerciaux, n8nEnabled, v
                         setHoverColumn(null);
                       }}
                       onMove={move}
-                      onSetEnvoi={setEnvoi}
                       onSetSignature={setSignature}
                       onSetNrp={setNrp}
-                      onLaunchSequence={launchSequence}
-                      n8nEnabled={n8nEnabled}
                     />
                   ))}
                   {cards.length === 0 && (
@@ -374,11 +337,9 @@ type ListViewProps = {
   rows: Lead[];
   ownersById: Map<string, Commercial>;
   onMove: (id: string, target: PipelineColumnKey) => void;
-  onLaunchSequence: (lead: Lead) => void;
-  n8nEnabled: boolean;
 };
 
-function ListView({ rows, ownersById, onMove, onLaunchSequence, n8nEnabled }: ListViewProps) {
+function ListView({ rows, ownersById, onMove }: ListViewProps) {
   return (
     <div className={styles.listWrap}>
       <table className={styles.listTable}>
@@ -391,7 +352,6 @@ function ListView({ rows, ownersById, onMove, onLaunchSequence, n8nEnabled }: Li
             <th>Commercial</th>
             <th>Badges</th>
             <th>Dernière action</th>
-            <th aria-label="Action" />
           </tr>
         </thead>
         <tbody>
@@ -446,14 +406,6 @@ function ListView({ rows, ownersById, onMove, onLaunchSequence, n8nEnabled }: Li
                 </td>
                 <td>
                   <div className={styles.listBadges}>
-                    {needsEnvoi(lead) && (
-                      <span className={styles.listBadgeDanger}>Canal manquant</span>
-                    )}
-                    {!needsEnvoi(lead) && lead.subEnvoi && (
-                      <span className={styles.listBadge}>
-                        {lead.subEnvoi === "mano" ? "Mano" : "Auto"}
-                      </span>
-                    )}
                     {needsSignature(lead) && (
                       <span className={styles.listBadgeDanger}>Acompte ?</span>
                     )}
@@ -468,26 +420,12 @@ function ListView({ rows, ownersById, onMove, onLaunchSequence, n8nEnabled }: Li
                   <div>{lead.lastActionLabel}</div>
                   <RelativeTime iso={lead.lastActionAt} className={styles.muted} />
                 </td>
-                <td>
-                  {n8nEnabled &&
-                    (lead.status === "lead" ||
-                      (lead.status === "envoye" && lead.subEnvoi === "mano")) && (
-                    <button
-                      type="button"
-                      className={styles.listAction}
-                      onClick={() => onLaunchSequence(lead)}
-                      title="Lancer la séquence n8n"
-                    >
-                      <Icon name="zap" size={14} />
-                    </button>
-                  )}
-                </td>
               </tr>
             );
           })}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={8} className={styles.listEmpty}>
+              <td colSpan={7} className={styles.listEmpty}>
                 Aucun lead.
               </td>
             </tr>

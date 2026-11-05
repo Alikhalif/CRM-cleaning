@@ -253,3 +253,121 @@ Cordialement,`,
 
   return { ok: true, id: inserted.id, num: inserted.num, emailWarning };
 }
+
+// ══════════════════════════════════════════════════════════════════════
+//  Modification d'un brouillon, EN PLACE
+// ══════════════════════════════════════════════════════════════════════
+//
+// POURQUOI CETTE ACTION EXISTE. `createDevis` crée toujours un nouveau
+// document, et la reprise d'un devis (`?from=`) sert à en refaire un moins
+// cher — deux documents, c'est voulu dans ce cas. Mais un brouillon généré
+// depuis la découverte doit pouvoir être corrigé sans se dédoubler : sinon le
+// commercial qui ajuste un prix laisse deux brouillons derrière lui, visibles
+// tous les deux dans « Devis à réaliser ».
+//
+// Modifier en place évite aussi de consommer un second numéro de document —
+// la numérotation est sans trou par exigence comptable (CDC) : on ne crée ni
+// ne supprime un numéro pour une simple correction de texte.
+//
+// GARDE : seul un `brouillon` est modifiable. Un devis envoyé, ouvert, signé
+// ou refusé est figé — le `.eq("status", "brouillon")` le fait respecter par
+// la base, pas par une condition d'interface.
+export async function updateDevisBrouillon(
+  devisId: string,
+  draft: DraftInput,
+): Promise<Result> {
+  if (!devisId) return { ok: false, error: "Devis introuvable." };
+  if (!draft.entityId) return { ok: false, error: "Entité émettrice requise." };
+  if (draft.lines.length === 0) return { ok: false, error: "Au moins une ligne est requise." };
+  for (const l of draft.lines) {
+    if (!l.label.trim()) return { ok: false, error: "Chaque ligne doit avoir une description." };
+    if (l.quantity <= 0) return { ok: false, error: "La quantité doit être > 0." };
+    if (l.unitPriceHt < 0) return { ok: false, error: "Le prix unitaire ne peut pas être négatif." };
+  }
+
+  const supabase = await supabaseServer();
+
+  const { data: existant } = await supabase
+    .from("documents")
+    .select("id, num, type, status, lead_id")
+    .eq("id", devisId)
+    .maybeSingle<{ id: string; num: string; type: string; status: string; lead_id: string | null }>();
+  if (!existant) return { ok: false, error: "Devis introuvable." };
+  if (existant.type !== "devis") return { ok: false, error: "Ce document n'est pas un devis." };
+  if (existant.status !== "brouillon") {
+    return { ok: false, error: `Le devis ${existant.num} n'est plus un brouillon : il ne peut plus être modifié.` };
+  }
+
+  // Les totaux sont recalculés ici, comme à la création : une valeur venue du
+  // navigateur n'est jamais enregistrée telle quelle.
+  const totals = computeTotals(draft.lines);
+  const acompteAmount = draft.acomptePct > 0 ? round2((totals.totalTtc * draft.acomptePct) / 100) : null;
+  const soldeDu = acompteAmount !== null ? round2(totals.totalTtc - acompteAmount) : null;
+
+  const { data: pt } = await supabase
+    .from("payment_terms")
+    .select("id")
+    .eq("slug", draft.paymentTermSlug)
+    .maybeSingle<{ id: string }>();
+
+  const { error: upErr } = await supabase
+    .from("documents")
+    .update({
+      entity_id: draft.entityId,
+      issued_at: new Date(draft.issuedAt).toISOString(),
+      valid_until: new Date(draft.validUntil).toISOString(),
+      payment_term_id: pt?.id ?? null,
+      total_ht: totals.totalHt,
+      total_vat: totals.totalVat,
+      total_ttc: totals.totalTtc,
+      acompte_pct: draft.acomptePct > 0 ? draft.acomptePct : null,
+      acompte_amount: acompteAmount,
+      solde_du: soldeDu,
+      notes: draft.notes || null,
+    } as never)
+    .eq("id", devisId)
+    .eq("status", "brouillon");
+  if (upErr) return { ok: false, error: `Échec de la mise à jour : ${upErr.message}.` };
+
+  // Les lignes sont remplacées en bloc : réconcilier ligne à ligne demanderait
+  // un identifiant stable côté éditeur, qu'il n'a pas (ses `id` sont locaux).
+  const { error: delErr } = await supabase
+    .from("document_lines")
+    .delete()
+    .eq("document_id", devisId);
+  if (delErr) return { ok: false, error: `Échec du remplacement des lignes : ${delErr.message}.` };
+
+  const linePayloads: DocumentLineInsert[] = draft.lines.map((l, idx) => {
+    const lineHt = round2(l.quantity * l.unitPriceHt * (1 - l.discountPct / 100));
+    return {
+      document_id: devisId,
+      prestation_id: l.prestationId ?? null,
+      label: l.label,
+      quantity: l.quantity,
+      unit: l.unit,
+      unit_price_ht: l.unitPriceHt,
+      vat_rate: l.vatRate,
+      discount_pct: l.discountPct,
+      total_ht: lineHt,
+      order_index: idx,
+    };
+  });
+  const { error: linesErr } = await supabase
+    .from("document_lines")
+    .insert(linePayloads as never);
+  if (linesErr) return { ok: false, error: `Échec des lignes : ${linesErr.message}.` };
+
+  revalidatePath("/comptabilite");
+  revalidatePath("/devis-a-realiser");
+  revalidatePath(`/devis/${devisId}`);
+  if (existant.lead_id) revalidatePath(`/leads/${existant.lead_id}`);
+
+  await auditLog({
+    action: "document.update",
+    entityType: "document",
+    entityId: devisId,
+    after: { num: existant.num, type: "devis", status: "brouillon", totalTtc: totals.totalTtc },
+  });
+
+  return { ok: true, id: devisId, num: existant.num };
+}

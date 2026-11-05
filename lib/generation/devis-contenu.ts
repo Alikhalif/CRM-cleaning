@@ -14,13 +14,15 @@
 
 import { labelOf } from "@/lib/discovery-metier";
 import {
-  COMPLEMENTS, DEBARRAS_VOLUME, DIO_DECHETS, DIO_ENCOMBREMENT, DIO_VOLUME,
-  ETAT_GENERAL, EXTERIEUR_TYPE, MURS, PLAFONDS_TYPE,
-  SOLS, TRAITEMENTS_SOL, TYPE_BIEN_NETTOYAGE, TYPE_NETTOYAGE, VITRERIE_FACES,
+  DEBARRAS_VOLUME, DIO_DECHETS, DIO_ENCOMBREMENT, DIO_VOLUME,
+  EQUIPEMENTS, ETAGE, ETAT_GENERAL, EXTERIEUR_TYPE, MURS, OCCUPATION,
+  PLAFONDS_TYPE, SOLS, STATIONNEMENT, SURFACE_CONCERNEE, TRAITEMENTS_SOL,
+  TYPE_BIEN_NETTOYAGE, TYPE_NETTOYAGE, VITRERIE_FACES,
+  descriptifVitrerie,
 } from "@/lib/discovery-nettoyage";
 import {
-  EMBALLAGE, LOGEMENT_TYPE, OBJETS_SPECIFIQUES, TYPE_BIEN, VOLUME_DEMENAGEMENT,
-  TYPE_OBJET, OPTIONS_TRANSPORT,
+  ACCES, EMBALLAGE, LOGEMENT_TYPE, OBJETS_SPECIFIQUES, OUI_NON, TYPE_BIEN,
+  VOLUME_DEMENAGEMENT, TYPE_OBJET, OPTIONS_TRANSPORT,
 } from "@/lib/discovery-metier";
 
 /** Activités couvertes. Les autres sont hors périmètre (§2). */
@@ -52,7 +54,36 @@ export type Decouverte = {
   /** Ville du chantier, pour la désignation d'un déménagement. */
   villeDepart?: string | null;
   villeArrivee?: string | null;
+  /**
+   * « Contexte de l'intervention » saisi en découverte (`contexte_intervention`).
+   *
+   * Reporté dans le devis comme un ÉLÉMENT RELEVÉ, au même titre que l'étage
+   * ou le stationnement — jamais comme une prestation, puisque ce n'en est
+   * pas une. Le commercial relit le brouillon avant tout envoi : c'est là
+   * qu'il retire ce qui n'a pas à être lu par le client.
+   */
+  contexteIntervention?: string | null;
 };
+
+/**
+ * Ligne « informations complémentaires », commune aux quatre gabarits.
+ *
+ * Rendue uniquement si la découverte en porte une. Le texte est repris tel
+ * quel : rien n'est reformulé, donc rien n'est déformé.
+ */
+/** Champs de vitrerie tracés en source quand le descriptif les exploite. */
+const VITRERIE_CHAMPS = [
+  "vitrerieFenetres", "vitrerieBaies", "vitreriePortesFenetres", "vitrerieVelux",
+  "vitrerieVerandaM2", "vitrerieGrandesSurfacesM2", "vitrerieAutres",
+  "vitrerieFaces", "vitrerieEncadrement", "vitrerieRails", "vitrerieCoulisses",
+  "vitrerieAcces", "vitrerieEquipement", "vitrerieObservations",
+] as const;
+
+function lignesContexte(d: Decouverte): string[] {
+  const t = (d.contexteIntervention ?? "").trim();
+  if (!t) return [];
+  return ["", `Informations complémentaires communiquées : ${t}`];
+}
 
 // ── Petits outils de lecture ──────────────────────────────────────────
 
@@ -220,50 +251,95 @@ function nettoyage(d: Decouverte): ContenuDevis {
     );
   }
 
-  // Vitrerie : uniquement si demandée, avec les faces réellement retenues.
+  // Vitrerie : uniquement si demandée.
+  //
+  // DÉLÉGATION À `descriptifVitrerie()` (lib/discovery-nettoyage.ts), déjà
+  // utilisé par le préremplissage du devis OPTIMIVV. Il couvre les SEPT types
+  // de vitrages comptés, les faces, le matériau des encadrements, les rails,
+  // les coulisses, le niveau d'accès, le besoin de nacelle et les
+  // observations. La version locale n'en reprenait que quatre : un devis de
+  // vitrerie y perdait l'essentiel de son contenu, alors que la découverte
+  // porte dix-sept champs.
   if (oui(det, "vitrerie")) {
     note("vitrerie");
-    const faces = str(det, "vitrerieFaces");
-    const compte: string[] = [];
-    const f = num(det, "vitrerieFenetres");
-    const b = num(det, "vitrerieBaies");
-    const v = num(det, "vitrerieVelux");
-    const ver = num(det, "vitrerieVerandaM2");
-    if (f) compte.push(`${f} fenêtre${f > 1 ? "s" : ""}`);
-    if (b) compte.push(`${b} baie${b > 1 ? "s" : ""} vitrée${b > 1 ? "s" : ""}`);
-    if (v) compte.push(`${v} Velux`);
-    if (ver) compte.push(`${ver} m² de véranda`);
-    const detailFaces = faces
-      ? ` (${labelOf(VITRERIE_FACES, faces).toLowerCase()})`
-      : "";
-    taches.push(
-      compte.length
-        ? `Nettoyage des vitres et encadrements — ${compte.join(", ")}${detailFaces}.`
-        : `Nettoyage des vitres et des encadrements accessibles${detailFaces}.`,
-    );
+    const descriptif = descriptifVitrerie(det);
+    if (descriptif) {
+      // Une ligne par tâche : le détail est rendu en liste à puces, un bloc
+      // multiligne y casserait la mise en forme.
+      for (const ligne of descriptif.split("\n")) {
+        const t = ligne.trim();
+        if (t) taches.push(t);
+      }
+      for (const k of VITRERIE_CHAMPS) if (str(det, k) || num(det, k)) note(k);
+    } else {
+      // « Oui » coché sans aucun vitrage chiffré : on reste générique plutôt
+      // que d'inventer un décompte, et on le signale au commercial.
+      const faces = str(det, "vitrerieFaces");
+      taches.push(
+        `Nettoyage des vitres et des encadrements accessibles${
+          faces ? ` (${labelOf(VITRERIE_FACES, faces).toLowerCase()})` : ""
+        }.`,
+      );
+      manquant.push("détail de la vitrerie (nombre et type de vitrages)");
+    }
   }
 
   // Murs et plafonds : SEULEMENT si demandés (§3.4).
+  // ⚠️ La liste MURS vaut `non` | `murs_traces` | `murs_lessivage`. Le garde
+  // ne testait que `murs_aucun`, une valeur qui N'EXISTE PAS : un dossier où
+  // le commercial avait répondu « Non » au lessivage produisait donc une ligne
+  // de prestation « - Non. » ET une réserve sur les murs. C'était contraire à
+  // la règle « lessivage des murs uniquement lorsqu'il est demandé ».
   const murs = str(det, "murs");
-  if (murs && murs !== "murs_aucun") {
+  const mursDemande = murs !== "" && murs !== "non" && murs !== "murs_aucun";
+  if (mursDemande) {
     note("murs");
+    // `mursSurface` est un choix de la liste SURFACE_CONCERNEE : sans
+    // traduction, le devis affichait la clé (« totale », « partielle »).
     const surf = str(det, "mursSurface");
-    taches.push(`${cap(labelOf(MURS, murs))}${surf ? ` — ${surf}` : ""}.`);
+    if (surf) note("mursSurface");
+    const libelleSurf = surf ? (labelOf(SURFACE_CONCERNEE, surf) || surf).toLowerCase() : "";
+    taches.push(
+      `Lessivage des murs — ${(labelOf(MURS, murs) || murs).toLowerCase()}`
+      + `${libelleSurf ? `, surface ${libelleSurf}` : ""}.`,
+    );
   }
   if (oui(det, "plafonds")) {
     note("plafonds");
     const type = str(det, "plafondsType");
+    // La surface de plafonds saisie était ignorée : un devis de lessivage de
+    // plafonds sans surface ne dit pas l'ampleur du travail.
+    const surfPlaf = str(det, "plafondsSurface");
+    if (surfPlaf) note("plafondsSurface");
+    const libellePlaf = surfPlaf ? (labelOf(SURFACE_CONCERNEE, surfPlaf) || surfPlaf).toLowerCase() : "";
     taches.push(
-      type
-        ? `Nettoyage des plafonds (${labelOf(PLAFONDS_TYPE, type).toLowerCase()}).`
-        : "Nettoyage des plafonds.",
+      `Nettoyage des plafonds${type ? ` (${labelOf(PLAFONDS_TYPE, type).toLowerCase()})` : ""}`
+      + `${libellePlaf ? ` — surface ${libellePlaf}` : ""}.`,
+    );
+  }
+
+  // Débarras inclus dans une prestation de nettoyage. Le volume était saisi
+  // mais jamais repris : c'est pourtant lui qui dimensionne l'évacuation.
+  const volDebarras = str(det, "debarrasVolume");
+  if (volDebarras) {
+    note("debarrasVolume");
+    taches.push(
+      `Débarras et évacuation des encombrants — volume estimé `
+      + `${labelOf(DEBARRAS_VOLUME, volDebarras) || volDebarras}.`,
     );
   }
 
   const equipements = liste(det, "equipements");
   if (equipements.length) {
     note("equipements");
-    taches.push(`Nettoyage des équipements : ${equipements.map((e) => labelOf(COMPLEMENTS, e) || e).join(", ")}.`);
+    // ⚠️ La liste est EQUIPEMENTS, pas COMPLEMENTS. Avec la mauvaise liste,
+    // `labelOf` ne trouvait rien et le repli renvoyait la clé brute : des
+    // devis réels portaient « Nettoyage des équipements : opt_frigo. »
+    // (constaté sur le dossier L-1652 en production, 2026-11-04).
+    taches.push(
+      `Nettoyage des équipements : `
+      + `${equipements.map((e) => labelOf(EQUIPEMENTS, e) || e).map((s) => s.toLowerCase()).join(", ")}.`,
+    );
   }
 
   const exterieurs = liste(det, "exterieurTypes");
@@ -314,14 +390,33 @@ function nettoyage(d: Decouverte): ContenuDevis {
 
   // Accès : un fait d'organisation, pas une prestation.
   const contraintes: string[] = [];
+  // Les bonnes listes : ETAGE, OUI_NON et STATIONNEMENT. COMPLEMENTS ne
+  // contient aucune de ces valeurs — le devis affichait donc les clés brutes
+  // (« 1 », « facile ») au lieu de « 1er étage », « stationnement facile ».
   const etage = str(det, "etage");
   if (etage) {
     note("etage");
     const asc = str(det, "ascenseur");
-    contraintes.push(`${labelOf(COMPLEMENTS, etage) || etage}${asc === "non" ? " sans ascenseur" : asc === "oui" ? " avec ascenseur" : ""}`);
+    if (asc) note("ascenseur");
+    // ETAGE vaut ["0","RDC"], ["1","1"], … : le libellé brut donnerait
+    // « 1 avec ascenseur ». On le qualifie, sauf pour le rez-de-chaussée.
+    const brut = labelOf(ETAGE, etage) || etage;
+    const libelleEtage = brut === "RDC" ? "rez-de-chaussée" : `étage ${brut}`;
+    const libelleAsc =
+      asc === "non" ? " sans ascenseur"
+      : asc === "oui" ? " avec ascenseur"
+      : asc ? ` (${(labelOf(OUI_NON, asc) || asc).toLowerCase()})` : "";
+    contraintes.push(`${libelleEtage}${libelleAsc}`);
   }
   const stat = str(det, "stationnement");
-  if (stat) { note("stationnement"); contraintes.push(labelOf(COMPLEMENTS, stat) || stat); }
+  if (stat) {
+    note("stationnement");
+    contraintes.push(`stationnement ${(labelOf(STATIONNEMENT, stat) || stat).toLowerCase()}`);
+  }
+  // Logement occupé ou vide : saisi en découverte, jusqu'ici ignoré. Il change
+  // concrètement l'organisation du chantier.
+  const occ = str(det, "occupation");
+  if (occ) { note("occupation"); contraintes.push((labelOf(OCCUPATION, occ) || occ).toLowerCase()); }
 
   const detail = [
     "PRESTATION",
@@ -332,6 +427,7 @@ function nettoyage(d: Decouverte): ContenuDevis {
     "",
     PRODUITS_ECO,
     ...(contraintes.length ? ["", `Conditions d'accès relevées : ${contraintes.join(", ")}.`] : []),
+    ...lignesContexte(d),
   ].join("\n");
 
   // ── Réserves ─────────────────────────────────────────────────────
@@ -352,7 +448,9 @@ function nettoyage(d: Decouverte): ContenuDevis {
       + "proposition distincte.",
     );
   }
-  if (murs && murs !== "murs_aucun") {
+  // Même garde que pour la prestation : pas de réserve sur un lessivage qui
+  // n'a pas été demandé.
+  if (mursDemande) {
     reserves.push(
       "Le lessivage des murs est réalisé sur les supports lavables. Les "
       + "revêtements fragiles, dégradés ou non lessivables sont exclus.",
@@ -409,7 +507,7 @@ function debarras(d: Decouverte): ContenuDevis {
   if (str(det, "triDemande") === "oui") { sources.push("triDemande"); taches.push("Tri sélectif demandé par le client."); }
 
   const contraintes: string[] = [];
-  if (acces) { sources.push("acces"); contraintes.push(labelOf(COMPLEMENTS, acces) || acces); }
+  if (acces) { sources.push("acces"); contraintes.push((labelOf(ACCES, acces) || acces).toLowerCase()); }
   const etage = str(det, "etage");
   if (etage) { sources.push("etage"); contraintes.push(etage); }
 
@@ -421,6 +519,7 @@ function debarras(d: Decouverte): ContenuDevis {
     "DÉTAIL DES PRESTATIONS",
     ...taches.map((t) => `- ${t}`),
     ...(contraintes.length ? ["", `Conditions d'accès relevées : ${contraintes.join(", ")}.`] : []),
+    ...lignesContexte(d),
   ].join("\n");
 
   const reserves = [
@@ -512,6 +611,7 @@ function demenagement(d: Decouverte): ContenuDevis {
     "DÉTAIL DES PRESTATIONS",
     ...taches.map((t) => `- ${t}`),
     ...(contraintes.length ? ["", `Éléments relevés : ${contraintes.join(", ")}.`] : []),
+    ...lignesContexte(d),
   ].join("\n");
 
   const reserves = [
@@ -587,6 +687,35 @@ function transport(d: Decouverte): ContenuDevis {
     contraintes.push(labelOf(OPTIONS_TRANSPORT, o).toLowerCase());
   }
 
+  // Étages, ascenseurs et conditions d'accès aux DEUX extrémités. Ces six
+  // champs étaient saisis en découverte et jamais repris : c'est pourtant ce
+  // qui détermine le temps de manutention, donc le prix.
+  const bout = (libelle: string, cEtage: string, cAsc: string, cAcces: string) => {
+    const etage = str(det, cEtage);
+    const asc = str(det, cAsc);
+    const acces = str(det, cAcces);
+    const morceaux: string[] = [];
+    if (etage) { sources.push(cEtage); morceaux.push(`étage ${etage}`); }
+    if (asc) {
+      sources.push(cAsc);
+      morceaux.push(asc === "non" ? "sans ascenseur" : asc === "oui" ? "avec ascenseur" : asc);
+    }
+    if (acces) {
+      sources.push(cAcces);
+      morceaux.push((labelOf(ACCES, acces) || acces).toLowerCase());
+    }
+    if (morceaux.length) contraintes.push(`${libelle} : ${morceaux.join(", ")}`);
+  };
+  bout("enlèvement", "etageEnlevement", "ascenseurEnlevement", "accesEnlevement");
+  bout("livraison", "etageLivraison", "ascenseurLivraison", "accesLivraison");
+
+  // Descriptif libre des objets à transporter — repris tel quel.
+  const descObjets = str(det, "descriptionObjets");
+  if (descObjets) {
+    sources.push("descriptionObjets");
+    taches.push(`Éléments concernés : ${descObjets}`);
+  }
+
   const detail = [
     "PRESTATION",
     `Transport de ${libelleObjet}${villeE && villeL ? ` de ${villeE} vers ${villeL}` : ""}`
@@ -595,6 +724,7 @@ function transport(d: Decouverte): ContenuDevis {
     "DÉTAIL DES PRESTATIONS",
     ...taches.map((t) => `- ${t}`),
     ...(contraintes.length ? ["", `Éléments relevés : ${contraintes.join(", ")}.`] : []),
+    ...lignesContexte(d),
   ].join("\n");
 
   const reserves = [

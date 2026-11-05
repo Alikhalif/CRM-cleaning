@@ -164,6 +164,14 @@ export type EntiteEmettrice = {
   country?: string | null;
   representative_name?: string | null;
   representative_title?: string | null;
+  /**
+   * Société qui représente cette entité, quand la représentation légale est
+   * exercée par une personne morale (présidence ou gérance assurée par une
+   * société, holding).
+   *
+   * Null = représentation directe par une personne physique.
+   */
+  representative_company_name?: string | null;
 };
 
 /**
@@ -178,13 +186,33 @@ export type EntiteEmettrice = {
 export function donneurOrdreDepuisEntite(e: EntiteEmettrice): Record<string, string> {
   const t = (v: unknown) => (typeof v === "string" ? v.trim() : "");
   const identifiant = t(e.siren) || t(e.siret) || t(e.vat_number);
+
+  // ── Représentation par une personne morale ────────────────────────
+  //
+  // Une SAS peut avoir une société pour président, une SARL une société pour
+  // gérant. La formule juridique devient alors « la société X, représentée
+  // par la société Y, elle-même représentée par M. Z, en sa qualité de … ».
+  //
+  // On compose la chaîne DANS LA VARIABLE plutôt que de modifier le gabarit
+  // du contrat : le bloc « ENTRE LES SOUSSIGNÉS » est du texte juridique
+  // validé, et il dit déjà « Représentée par {{…}}, en sa qualité de {{…}} ».
+  // En y injectant « la société Y, elle-même représentée par M. Z », la
+  // phrase se lit juste, sans toucher une clause.
+  const personneMorale = t(e.representative_company_name);
+  const personnePhysique = t(e.representative_name);
+  const representant = personneMorale
+    ? personnePhysique
+      ? `la société ${personneMorale}, elle-même représentée par ${personnePhysique}`
+      : `la société ${personneMorale}`
+    : personnePhysique;
+
   return {
     principal_company_name: t(e.legal_name) || t(e.trade_name),
     principal_company_legal_form: t(e.legal_form),
     principal_company_siren: identifiant,
     principal_company_rcs: "",
     principal_company_address: t(e.address),
-    principal_company_representative: t(e.representative_name),
+    principal_company_representative: representant,
     principal_company_representative_title: t(e.representative_title),
   };
 }

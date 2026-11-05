@@ -16,7 +16,6 @@ import {
 import {
   aggregateByDay,
   caBySector,
-  channelStats,
   computeKpis,
   filterPrevious,
   filterSeries,
@@ -27,7 +26,6 @@ import {
   topCommerciaux,
   DASHBOARD_PERIODS,
   parsePeriod,
-  type Channel,
   type DailyMetric,
   type DashboardFilter,
 } from "@/lib/dashboard";
@@ -40,7 +38,6 @@ import styles from "./Dashboard.module.scss";
 // Périodes partagées avec le filtre global de la Topbar (source unique).
 const PERIODS = DASHBOARD_PERIODS;
 
-const CHANNELS: Channel[] = ["mano", "auto"];
 
 type Props = {
   series: DailyMetric[];
@@ -74,7 +71,7 @@ export default function Dashboard({
   devisARealiser,
 }: Props) {
   // Période + activité viennent de l'URL (source unique, partagée avec le
-  // filtre global de la Topbar). Le canal reste local (pas dans la Topbar).
+  // filtre global de la Topbar).
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -82,15 +79,19 @@ export default function Dashboard({
   const sectorRaw = searchParams.get("sector") ?? "all";
   const sector: Sector | "all" =
     sectorRaw === "all" || sectorRaw in SECTOR_LABEL ? (sectorRaw as Sector | "all") : "all";
-  const [channel, setChannel] = useState<Channel | "all">("all");
+  // Canal d'envoi : figé sur « tous ». L'envoi automatique des devis n'est
+  // plus retenu (décision du 2026-11-04), il n'existe donc plus qu'un seul
+  // canal et plus rien à filtrer. `channel` demeure dans `DashboardFilter`
+  // parce que c'est une clé d'agrégation de `lib/dashboard.ts` : la retirer
+  // imposerait de réécrire le moteur de KPI, hors du périmètre de ce
+  // correctif. Les 23 lignes historiques restent ainsi comptabilisées.
   const filter = useMemo<DashboardFilter>(
-    () => ({ period, sector, channel }),
-    [period, sector, channel],
+    () => ({ period, sector, channel: "all" as const }),
+    [period, sector],
   );
   // Le FilterBar appelle setFilter avec un filtre complet : on route les
-  // changements période/activité vers l'URL, le canal vers l'état local.
+  // changements période/activité vers l'URL.
   const setFilter = (f: DashboardFilter) => {
-    if (f.channel !== channel) setChannel(f.channel);
     if (f.period !== period || f.sector !== sector) {
       const params = new URLSearchParams(searchParams.toString());
       params.set("period", f.period);
@@ -107,7 +108,6 @@ export default function Dashboard({
   const daily = useMemo(() => aggregateByDay(filtered), [filtered]);
   const stages = useMemo(() => funnel(filtered), [filtered]);
   const sectors = useMemo(() => caBySector(filtered), [filtered]);
-  const channels = useMemo(() => channelStats(filtered), [filtered]);
   const top = useMemo(
     () => topCommerciaux(filtered, previous, commerciaux),
     [filtered, previous, commerciaux],
@@ -145,7 +145,7 @@ export default function Dashboard({
           <button
             type="button"
             className={styles.btnGhost}
-            onClick={() => exportCsv({ kpis, daily, top, channels, w, filter })}
+            onClick={() => exportCsv({ kpis, daily, top, w, filter })}
             title="Télécharger le rapport au format CSV"
           >
             <Icon name="document" size={14} /> Exporter
@@ -344,32 +344,17 @@ export default function Dashboard({
       {/* ── Classement commerciaux ──────────────────────────────── */}
       <CommerciauxTable rows={top} />
 
-      {/* ── Répartition du CA (back-office) + Canal Mano/Auto ────── */}
-      {/* Sans le camembert, la seconde carte occupe toute la largeur : on
-          retire la grille à deux colonnes plutôt que de laisser un vide. */}
-      <section className={isBackOffice ? styles.grid2Eq : undefined}>
-        {isBackOffice && (
+      {/* ── Répartition du CA (back-office) ──────────────────────── */}
+      {isBackOffice && (
+        <section>
           <div className={styles.card}>
             <header className={styles.cardHeader}>
               <h2 className={styles.h2}>CA signé par activité</h2>
             </header>
             <Donut slices={sectors} />
           </div>
-        )}
-
-        <div className={styles.card}>
-          <header className={styles.cardHeader}>
-            <div>
-              <h2 className={styles.h2}>Canal d&apos;envoi · Mano vs Auto</h2>
-              <p className={styles.cardHint}>Performance comparée des deux canaux sur la période</p>
-            </div>
-            <span className={styles.legendInline}>
-              {channels.reduce((s, c) => s + c.devisCount, 0)} devis tracés
-            </span>
-          </header>
-          <MaunoVsAutoCards stats={channels} />
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* ── Annotations (admin only) ─────────────────────────────── */}
       {isAdmin && annotations.length > 0 && <AnnotationsCard annotations={annotations} />}
@@ -450,30 +435,6 @@ function FilterBar({
         </fieldset>
       )}
 
-      <fieldset className={styles.filterGroup}>
-        <legend className={styles.filterLabel}>CANAL D&apos;ENVOI</legend>
-        <div className={styles.segmented}>
-          <button
-            type="button"
-            className={`${styles.segment} ${filter.channel === "all" ? styles.segmentOn : ""}`}
-            onClick={() => setFilter({ ...filter, channel: "all" })}
-            aria-pressed={filter.channel === "all"}
-          >
-            Tous
-          </button>
-          {CHANNELS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              className={`${styles.segment} ${filter.channel === c ? styles.segmentOn : ""}`}
-              onClick={() => setFilter({ ...filter, channel: c })}
-              aria-pressed={filter.channel === c}
-            >
-              {c === "mano" ? "Mano" : "Auto"}
-            </button>
-          ))}
-        </div>
-      </fieldset>
     </div>
   );
 }
@@ -739,7 +700,6 @@ function CommerciauxTable({ rows }: { rows: ReturnType<typeof topCommerciaux> })
               <th>PANIER MOYEN</th>
               <th>CA SIGNÉ</th>
               <th>VS PRÉC.</th>
-              <th>CANAL</th>
               <th>TENDANCE &amp; SCORE</th>
             </tr>
           </thead>
@@ -775,14 +735,6 @@ function CommerciauxTable({ rows }: { rows: ReturnType<typeof topCommerciaux> })
                   <DeltaInline value={r.caSignedDeltaPct} unit="%" />
                 </td>
                 <td>
-                  <span className={styles.channelChip} title="Mano">
-                    <Icon name="phone" size={11} /> {r.manoCount}
-                  </span>{" "}
-                  <span className={styles.channelChip} title="Auto">
-                    <Icon name="zap" size={11} /> {r.autoCount}
-                  </span>
-                </td>
-                <td>
                   <ScoreBar value={r.score} delta={r.caSignedDeltaPct} />
                 </td>
               </tr>
@@ -802,46 +754,6 @@ function ScoreBar({ value, delta }: { value: number; delta: number }) {
         {up ? "↑" : "↓"}{Math.abs(delta).toFixed(0)}%
       </span>
       <span className={styles.scoreNum2}>{value}<span className={styles.muted}>/100</span></span>
-    </div>
-  );
-}
-
-// ── Mano vs Auto comparison ──────────────────────────────────────────
-function MaunoVsAutoCards({ stats }: { stats: ReturnType<typeof channelStats> }) {
-  return (
-    <div className={styles.channels}>
-      {stats.map((s) => (
-        <div key={s.channel} className={styles.channelCard} data-channel={s.channel}>
-          <header className={styles.channelHead}>
-            <span className={styles.channelTitle}>
-              <Icon name={s.channel === "mano" ? "phone" : "zap"} size={14} />
-              {s.channel === "mano" ? "Mano" : "Auto"}
-            </span>
-            <span className={styles.channelCount}>{s.devisCount} devis</span>
-          </header>
-          <p className={styles.channelSub}>
-            {s.channel === "mano" ? "Envoi commercial après appel" : "Séquence email n8n"}
-          </p>
-          <div className={styles.channelKpis}>
-            <div>
-              <p className={styles.miniKpiLabel}>CA</p>
-              <p className={styles.miniKpiValue}>{formatKEUR(s.caSigned)}</p>
-            </div>
-            <div>
-              <p className={styles.miniKpiLabel}>SIGNÉS</p>
-              <p className={styles.miniKpiValue}>{s.signed}</p>
-            </div>
-            <div>
-              <p className={styles.miniKpiLabel}>PERDUS</p>
-              <p className={styles.miniKpiValue}>{s.lost}</p>
-            </div>
-            <div>
-              <p className={styles.miniKpiLabel}>TRANSFO</p>
-              <p className={styles.miniKpiValue}>{(s.conversion * 100).toFixed(1)} %</p>
-            </div>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
@@ -988,14 +900,13 @@ function exportCsv(input: {
   kpis: ReturnType<typeof computeKpis>;
   daily: ReturnType<typeof aggregateByDay>;
   top: ReturnType<typeof topCommerciaux>;
-  channels: ReturnType<typeof channelStats>;
   w: { startIso: string; endIso: string };
   filter: DashboardFilter;
 }) {
-  const { kpis, daily, top, channels, w, filter } = input;
+  const { kpis, daily, top, w, filter } = input;
   const periodLabel = PERIODS.find((p) => p.value === filter.period)?.label ?? filter.period;
   const sectorLabel = filter.sector === "all" ? "Toutes" : SECTOR_LABEL[filter.sector];
-  const channelLabel = filter.channel === "all" ? "Tous" : filter.channel === "mano" ? "Mano" : "Auto";
+
 
   const esc = (v: string | number) => {
     const s = String(v);
@@ -1009,7 +920,6 @@ function exportCsv(input: {
   lines.push(row(["Période", periodLabel]));
   lines.push(row(["Du", w.startIso, "au", w.endIso]));
   lines.push(row(["Activité", sectorLabel]));
-  lines.push(row(["Canal d'envoi", channelLabel]));
   lines.push(blank);
 
   lines.push(row(["KPIs"]));
@@ -1036,7 +946,7 @@ function exportCsv(input: {
   lines.push(blank);
 
   lines.push(row(["Classement commerciaux"]));
-  lines.push(row(["#", "Commercial", "Leads", "Devis", "Signés", "Perdus", "Taux", "Panier moyen (€)", "CA signé (€)", "CA précédent (€)", "Vs préc. (%)", "Mano", "Auto", "Score"]));
+  lines.push(row(["#", "Commercial", "Leads", "Devis", "Signés", "Perdus", "Taux", "Panier moyen (€)", "CA signé (€)", "CA précédent (€)", "Vs préc. (%)", "Score"]));
   top.forEach((c, i) => {
     lines.push(
       row([
@@ -1051,28 +961,12 @@ function exportCsv(input: {
         c.caSigned.toFixed(2),
         c.caSignedPrev.toFixed(2),
         isFinite(c.caSignedDeltaPct) ? c.caSignedDeltaPct.toFixed(2) : "n/a",
-        c.manoCount,
-        c.autoCount,
         c.score,
       ]),
     );
   });
   lines.push(blank);
 
-  lines.push(row(["Canal d'envoi · Mano vs Auto"]));
-  lines.push(row(["Canal", "Devis", "Signés", "Perdus", "Transfo", "CA signé (€)"]));
-  for (const c of channels) {
-    lines.push(
-      row([
-        c.channel === "mano" ? "Mano" : "Auto",
-        c.devisCount,
-        c.signed,
-        c.lost,
-        `${(c.conversion * 100).toFixed(2)} %`,
-        c.caSigned.toFixed(2),
-      ]),
-    );
-  }
 
   const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);

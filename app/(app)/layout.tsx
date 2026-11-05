@@ -9,6 +9,7 @@ import RolePreviewMain from "@/components/RolePreview/RolePreviewMain";
 import Sidebar from "@/components/Sidebar/Sidebar";
 import Topbar from "@/components/Topbar/Topbar";
 import { getUnreadCount } from "@/lib/notifications";
+import { getLeadsNonTraites } from "@/lib/leads-non-traites-server";
 import { getCurrentUserProfile } from "@/lib/users-server";
 import { isAdminRole, isPlannerRole } from "@/lib/access-shared";
 import { profileCapabilities } from "@/lib/leads";
@@ -18,9 +19,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Proxy redirects unauthenticated traffic before we get here, so user
   // should always be present — but Topbar is defensive and renders a
   // sign-out fallback if not.
-  const [user, unreadCount] = await Promise.all([
+  // `getLeadsNonTraites` alimente la pastille « à rappeler » de la navigation.
+  // Son périmètre vient de la RLS : chaque utilisateur compte ses propres
+  // dossiers, sans paramètre de rôle. Elle est enveloppée dans `cache()`, donc
+  // le tableau de bord la relit dans le même rendu sans requête de plus.
+  const [user, unreadCount, nonTraites] = await Promise.all([
     getCurrentUserProfile(),
     getUnreadCount(),
+    getLeadsNonTraites(),
   ]);
 
   // Le webphone Ringover n'est monté que pour les profils qui téléphonent
@@ -42,7 +48,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className={styles.shell}>
-      <Sidebar roles={roleSlugs} />
+      <Sidebar roles={roleSlugs} badges={{ leadsUntreated: nonTraites.total }} />
       <div className={styles.main}>
         <Topbar user={user} unreadCount={unreadCount} />
         <RolePreviewBanner />

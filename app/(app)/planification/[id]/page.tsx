@@ -8,6 +8,7 @@ import {
   getPrestataires,
 } from "@/lib/sous-traitance/contrats-server";
 import { optionsModeles } from "@/lib/sous-traitance/contrats-shared";
+import { getEtatsDocuSign, getSignaturesDuDossier } from "@/lib/docusign/lecture-server";
 import ContratSousTraitance from "./ContratSousTraitance";
 import styles from "./DossierDetail.module.scss";
 
@@ -39,6 +40,14 @@ export default async function DossierPage({
     getPrestataires(),
     getEntitesEmettrices(),
     getContratsDuDossier(id),
+  ]);
+
+  // État du raccordement DocuSign (§6) et signatures en cours. Les deux
+  // lectures dépendent de ce qui précède : les entités pour les états, les
+  // contrats pour les enveloppes.
+  const [etatsDocuSign, signatures] = await Promise.all([
+    getEtatsDocuSign(entites.map((e) => e.id)),
+    getSignaturesDuDossier(contrats.map((c) => c.id)),
   ]);
 
   const dateFr = dossier.mission.date
@@ -148,6 +157,8 @@ export default async function DossierPage({
         entites={entites}
         modeles={optionsModeles()}
         contrats={contrats}
+        etatsDocuSign={etatsDocuSign}
+        signatures={signatures}
       />
     </div>
   );

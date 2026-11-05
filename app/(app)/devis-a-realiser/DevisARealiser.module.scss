@@ -202,6 +202,40 @@
 }
 .ouvrir:hover { filter: brightness(1.08); }
 
+// Deux actions possibles sur une ligne : le devis en brouillon, quand il
+// existe, et le dossier. Le conteneur les espace et les empile proprement en
+// mode carte ; sans lui les deux pastilles se touchaient.
+// Rappel des deux familles de dossiers de la liste. Texte sobre : il explique
+// les onglets qui le suivent, il ne doit pas leur voler la vedette.
+.deuxCategories {
+  margin: 0 0 var(--sp-3);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+
+  strong { color: var(--text-primary); }
+}
+
+.actionsLigne {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+// Quand les deux liens coexistent, le dossier passe en second plan : l'action
+// attendue est d'ouvrir le devis.
+.ouvrirSecondaire {
+  background: transparent;
+  color: var(--color-brand-600);
+  border: 1px solid var(--border-strong);
+}
+
+@media (max-width: 768px) {
+  .actionsLigne { flex-direction: column; align-items: stretch; }
+  .deuxCategories { font-size: var(--fs-xs); }
+}
+
 // ══════════════════════════════════════════════════════════════════════
 //  Tablette — ≤1024px : le tableau devient des cartes
 // ══════════════════════════════════════════════════════════════════════

@@ -77,6 +77,7 @@ type EntiteRow = {
   country: string | null;
   representative_name: string | null;
   representative_title: string | null;
+  representative_company_name: string | null;
   is_active: boolean | null;
 };
 
@@ -124,7 +125,7 @@ export async function getEntitesEmettrices(): Promise<EntiteChoisissable[]> {
   const complet = await supabase
     .from("legal_entities")
     .select(
-      "id, legal_name, trade_name, legal_form, siren, siret, vat_number, address, country, representative_name, representative_title, is_active",
+      "id, legal_name, trade_name, legal_form, siren, siret, vat_number, address, country, representative_name, representative_title, representative_company_name, is_active",
     )
     .is("deleted_at", null)
     .order("legal_name")
@@ -147,6 +148,7 @@ export async function getEntitesEmettrices(): Promise<EntiteChoisissable[]> {
       country: null,
       representative_name: null,
       representative_title: null,
+      representative_company_name: null,
       is_active: true,
     }));
   } else {
@@ -168,6 +170,7 @@ export async function getEntitesEmettrices(): Promise<EntiteChoisissable[]> {
         country: r.country,
         representative_name: r.representative_name,
         representative_title: r.representative_title,
+        representative_company_name: r.representative_company_name,
       };
       return { ...e, ...controlerEntite(e) };
     });
@@ -183,6 +186,13 @@ type PrestataireRow = {
   initials: string;
   email: string | null;
   is_active: boolean;
+  // Donnees d'appariement DEJA PRESENTES sur `technicians`, et jusqu'ici
+  // jamais lues par cet ecran : le menu de la planificatrice listait les
+  // prestataires a plat, sans dire lequel couvre la prestation ni le secteur.
+  sectors: string[] | null;
+  service_departments: string[] | null;
+  skills: string[] | null;
+  base_postal_code: string | null;
   profil: {
     raison_sociale: string | null;
     nom_commercial: string | null;
@@ -209,10 +219,39 @@ type PrestataireRow = {
  */
 export async function getPrestataires(): Promise<PrestataireChoisissable[]> {
   const supabase = await supabaseServer();
+
+  // Historique : nombre d'interventions déjà confiées. Il ne sert pas à
+  // classer d'autorité — c'est à la planificatrice de juger — mais à ne plus
+  // choisir à l'aveugle entre un prestataire éprouvé et un inconnu.
+  const interventions = new Map<string, number>();
+  const { data: passees } = await supabase
+    .from("dossiers")
+    .select("technician_id");
+  // Cast explicite : la combinaison `.select()` restreint + `.returns<>()` fait
+  // retomber l'inférence de postgrest-js sur `never` ici. Même frontière, même
+  // convention que les `as never` du dépôt côté écriture.
+  for (const d of (passees ?? []) as { technician_id: string | null }[]) {
+    if (d.technician_id) {
+      interventions.set(d.technician_id, (interventions.get(d.technician_id) ?? 0) + 1);
+    }
+  }
+
+  // ⚠️ `technicians.sectors` contient les IDENTIFIANTS des activités, pas
+  // leurs slugs — vérifié en production le 2026-11-04 : les quatre fiches
+  // portent des UUID. Comparer directement au slug du dossier ne
+  // correspondrait JAMAIS, et l'écran afficherait des UUID à la
+  // planificatrice. On traduit donc ici, une fois.
+  const slugParActivite = new Map<string, string>();
+  const { data: activites } = await supabase.from("activities").select("id, slug");
+  for (const a of (activites ?? []) as { id: string; slug: string | null }[]) {
+    if (a.slug) slugParActivite.set(a.id, a.slug);
+  }
+
   const { data } = await supabase
     .from("technicians")
     .select(
-      "id, name, initials, email, is_active, profil:subcontractor_profiles(raison_sociale, nom_commercial, siren, siret, adresse, cp_ville, dirigeant, phone)",
+      "id, name, initials, email, is_active, sectors, service_departments, skills, base_postal_code, "
+      + "profil:subcontractor_profiles(raison_sociale, nom_commercial, siren, siret, adresse, cp_ville, dirigeant, phone)",
     )
     .eq("is_active", true)
     .order("name")
@@ -240,7 +279,18 @@ export async function getPrestataires(): Promise<PrestataireChoisissable[]> {
       siren: p?.siren ?? null,
       siret: p?.siret ?? null,
       adresse,
+      cpVille: p?.cp_ville ?? null,
       dirigeant: p?.dirigeant ?? null,
+      // Traduits en slugs : lisibles à l'écran, et comparables au secteur du
+      // dossier. Un identifiant sans activité correspondante est écarté
+      // plutôt qu'affiché brut.
+      secteurs: (r.sectors ?? [])
+        .map((id) => slugParActivite.get(id) ?? "")
+        .filter(Boolean),
+      departements: r.service_departments ?? [],
+      competences: r.skills ?? [],
+      codePostalBase: r.base_postal_code ?? null,
+      nbInterventions: interventions.get(r.id) ?? 0,
       manquants,
       utilisable: manquants.length === 0,
     };
@@ -275,9 +325,29 @@ type DossierRow = {
     type_service: string | null;
     notes: string | null;
     discovery_details: Record<string, unknown> | null;
+    // Niveau de difficulte et creneau SOUHAITE par le client (jamais une
+    // intervention confirmee) : la planificatrice en a besoin pour organiser.
+    etat_salete: string | null;
+    wanted_date: string | null;
+    wanted_slot: string | null;
     activity: { slug: string; name: string | null } | null;
   } | null;
 };
+
+// Lecture tolerante de `discovery_details` : ce JSONB porte des chaines, des
+// nombres ou rien du tout selon le champ et l'anciennete du dossier.
+function texteDetail(d: Record<string, unknown> | null, k: string): string {
+  const v = d?.[k];
+  if (typeof v === "string") return v.trim();
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  return "";
+}
+
+function nombreDetail(d: Record<string, unknown> | null, k: string): number | null {
+  const v = d?.[k];
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
 
 function partieAdresse(v: unknown): { rue: string; cp: string; ville: string; etage: string; acces: string } {
   if (typeof v === "string") return { rue: v.trim(), cp: "", ville: "", etage: "", acces: "" };
@@ -312,7 +382,7 @@ export async function getDossierContrat(dossierId: string): Promise<DossierContr
        lead:leads(
          id, short_id, is_company, client_first_name, client_last_name, client_company,
          client_email, client_phone, client_address, country, surface_m2, type_service, notes,
-         discovery_details,
+         discovery_details, etat_salete, wanted_date, wanted_slot,
          activity:activities(slug, name)
        )`,
     )
@@ -376,6 +446,7 @@ export async function getDossierContrat(dossierId: string): Promise<DossierContr
     mission: {
       reference: lead.short_id,
       type: lead.activity?.name ?? lead.activity?.slug ?? "",
+      secteurSlug: lead.activity?.slug ?? "",
       date: d.planned_at ? d.planned_at.slice(0, 10) : "",
       heureDebut: d.planned_at ? d.planned_at.slice(11, 16) : "",
       dureeHeures: d.duration_hours == null ? null : Number(d.duration_hours),
@@ -387,6 +458,17 @@ export async function getDossierContrat(dossierId: string): Promise<DossierContr
       consignes: lead.type_service ?? "",
       surfaceM2: lead.surface_m2 == null ? null : Number(lead.surface_m2),
       notes: [d.notes, lead.notes].filter(Boolean).join("\n"),
+      // Champs repris de la découverte, jusqu'ici absents de la fiche de
+      // mission alors qu'ils y étaient attendus : la planificatrice devait
+      // ouvrir la fiche lead pour les lire.
+      nbPieces: nombreDetail(lead.discovery_details, "nbPieces"),
+      ascenseur: texteDetail(lead.discovery_details, "ascenseur"),
+      volumeDebarras:
+        texteDetail(lead.discovery_details, "debarrasVolume")
+        || texteDetail(lead.discovery_details, "volume"),
+      niveauDifficulte: (lead.etat_salete ?? "").trim(),
+      dateSouhaitee: (lead.wanted_date ?? "").trim(),
+      creneauSouhaite: (lead.wanted_slot ?? "").trim(),
     },
     technicianIdAffecte: d.technician_id,
     // Vitrerie : le texte exact que porte le devis, pour que la planificatrice
@@ -460,6 +542,15 @@ export function construireContexte(
       mission_access_conditions: d.mission.acces,
       mission_client_instructions: d.mission.consignes,
       mission_status: d.statut,
+      // Repris de la découverte : le bon de mission les porte désormais, au
+      // lieu d'obliger la planificatrice à rouvrir la fiche lead.
+      mission_rooms: d.mission.nbPieces ?? "",
+      mission_elevator: d.mission.ascenseur,
+      mission_clearance_volume: d.mission.volumeDebarras,
+      mission_difficulty: d.mission.niveauDifficulte,
+      // Souhait du client, distinct de la date planifiée.
+      mission_wanted_date: d.mission.dateSouhaitee,
+      mission_wanted_slot: d.mission.creneauSouhaite,
       ...(saisie.complements ?? {}),
     },
     prestataire: {

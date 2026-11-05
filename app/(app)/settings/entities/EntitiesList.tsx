@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/Icon/Icon";
-import type { LegalEntity } from "@/lib/leads";
+import { COUNTRY_LABEL, IDENTIFIANT_LEGAL, type LegalEntity } from "@/lib/leads";
 import EntityFormModal from "./EntityFormModal";
 import { deleteEntity } from "./actions";
 import styles from "./Entities.module.scss";
@@ -67,7 +67,13 @@ export default function EntitiesList({ entities }: Props) {
                   <span className={styles.itemForm}>{e.legalForm}</span>
                 </div>
                 <div className={styles.itemMeta}>
-                  SIRET {e.siret} · APE {e.apeCode} · TVA {e.vatNumber}
+                  {/* L'identifiant légal porte le libellé du PAYS : « SIRET »
+                      n'a aucun sens pour une société suisse ou canadienne. */}
+                  {COUNTRY_LABEL[e.country]} · {IDENTIFIANT_LEGAL[e.country].label}{" "}
+                  {e.siren || <span className={styles.itemMetaAlert}>à compléter</span>}
+                  {e.country === "FR" && e.siret ? ` · SIRET ${e.siret}` : ""}
+                  {e.apeCode ? ` · APE ${e.apeCode}` : ""}
+                  {e.vatNumber ? ` · TVA ${e.vatNumber}` : ""}
                 </div>
                 <div className={styles.itemMeta}>
                   {e.addressLine}, {e.postalCode} {e.city}
@@ -75,6 +81,25 @@ export default function EntitiesList({ entities }: Props) {
                 <div className={styles.itemMetaMono}>
                   IBAN {e.iban} · BIC {e.bic}
                 </div>
+                {/* Le représentant légal conditionne la sous-traitance : le bloc
+                    « ENTRE LES SOUSSIGNÉS » du contrat identifie la partie qui
+                    s'engage. L'afficher ici évite d'ouvrir les sept fiches une
+                    à une pour savoir laquelle est prête. */}
+                {e.representativeName && e.representativeTitle ? (
+                  <div className={styles.itemMeta}>
+                    {/* Représentation par une personne morale : la formule
+                        affichée est celle que portera le contrat. */}
+                    {e.representativeCompanyName
+                      ? `Représentée par la société ${e.representativeCompanyName}, elle-même représentée par ${e.representativeName}, ${e.representativeTitle}`
+                      : `Représentée par ${e.representativeName}, ${e.representativeTitle}`}
+                  </div>
+                ) : (
+                  <div className={styles.itemMetaAlert}>
+                    <Icon name="alert" size={12} />
+                    Représentant légal à compléter — sans lui, cette société
+                    ne peut pas émettre de contrat de sous-traitance.
+                  </div>
+                )}
               </div>
               <div className={styles.itemActions}>
                 <button

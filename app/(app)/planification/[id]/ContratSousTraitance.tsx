@@ -14,6 +14,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
+import DemandeTarif from "./DemandeTarif";
 import {
   calculerTotaux,
   lignesDepuisCodes,
@@ -27,6 +28,7 @@ import { UNITE_LABEL, type Unite } from "@/lib/sous-traitance/prestations";
 import type { ModeleContrat } from "@/lib/sous-traitance/clauses";
 import {
   STATUT_CONTRAT_LABEL,
+  classerPrestataires,
   estFige,
   type ContratResume,
   type DocumentAssemble,
@@ -41,7 +43,10 @@ import {
   emettreContrat,
   enregistrerContrat,
   envoyerEnSignature,
+  resynchroniserSignature,
+  urlPieceArchivee,
 } from "./actions";
+import type { EtatConnexion, SignatureContrat } from "@/lib/docusign/vues";
 import styles from "./DossierDetail.module.scss";
 
 type Props = {
@@ -50,13 +55,17 @@ type Props = {
   entites: EntiteChoisissable[];
   modeles: OptionModele[];
   contrats: ContratResume[];
+  /** État du raccordement DocuSign, par entité juridique (§6). */
+  etatsDocuSign: Record<string, EtatConnexion>;
+  /** Signatures en cours ou achevées, par contrat. */
+  signatures: SignatureContrat[];
 };
 
 const euros = (n: number | null) =>
   n == null ? "—" : n.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 
 export default function ContratSousTraitance({
-  dossier, prestataires, entites, modeles, contrats,
+  dossier, prestataires, entites, modeles, contrats, etatsDocuSign, signatures,
 }: Props) {
   // Le contrat déjà engagé sur ce dossier, s'il existe.
   const engage = contrats.find((c) => estFige(c.statut));
@@ -85,8 +94,56 @@ export default function ContratSousTraitance({
   const [message, setMessage] = useState<{ ton: "ok" | "ko" | "info"; texte: string } | null>(null);
   const [enCours, demarrer] = useTransition();
 
+  const signatureDe = (contractId: string): SignatureContrat | null =>
+    signatures.find((s) => s.contractId === contractId) ?? null;
+
+  // Raccordement de l'entité SÉLECTIONNÉE : c'est lui qui décide si le bouton
+  // d'envoi peut être actif (§6). Montrer un bouton qui échouerait à l'appel
+  // serait pire que l'absence de bouton.
+  const docusign = entityId ? etatsDocuSign[entityId] ?? null : null;
+  const configGlobale = Object.values(etatsDocuSign)[0] ?? null;
+
+  function onResynchroniser(envelopeId: string) {
+    demarrer(async () => {
+      setMessage(null);
+      const r = await resynchroniserSignature(envelopeId);
+      setMessage(r.ok
+        ? { ton: "ok", texte: r.message ?? "État mis à jour." }
+        : { ton: "ko", texte: r.error });
+    });
+  }
+
+  function onTelecharger(storagePath: string) {
+    demarrer(async () => {
+      setMessage(null);
+      const r = await urlPieceArchivee(storagePath);
+      if (!r.ok) { setMessage({ ton: "ko", texte: r.error }); return; }
+      // URL signée, valable une heure : on l'ouvre sans jamais la conserver.
+      window.open(r.url, "_blank", "noopener,noreferrer");
+    });
+  }
+
   const prestataire = prestataires.find((p) => p.technicianId === technicianId) ?? null;
   const entite = entites.find((e) => e.id === entityId) ?? null;
+
+  // ── Recherche des prestataires référencés ────────────────────────────
+  //
+  // Classement sur ce qui est RÉELLEMENT en base : activité couverte,
+  // département d'intervention, dossier administratif, historique. Rien sur la
+  // disponibilité — le CRM n'a aucun calendrier de sous-traitant, et inventer
+  // un « disponible » serait pire que de ne rien dire.
+  const classes = useMemo(
+    () => classerPrestataires(prestataires, {
+      secteur: dossier.mission.secteurSlug,
+      codePostal: dossier.mission.codePostal || dossier.client.codePostal,
+    }),
+    [prestataires, dossier.mission.secteurSlug, dossier.mission.codePostal, dossier.client.codePostal],
+  );
+  const correspondants = classes.filter((x) => x.corr.correspond);
+  const autres = classes.filter((x) => !x.corr.correspond);
+  const correspondanceChoisie = classes.find(
+    (x) => x.prestataire.technicianId === technicianId,
+  )?.corr ?? null;
   const optionModele = modeles.find((m) => m.valeur === modele) ?? null;
   const totaux = useMemo(() => calculerTotaux(montants), [montants]);
 
@@ -199,6 +256,39 @@ export default function ContratSousTraitance({
         </p>
       )}
 
+      {/* ── État du raccordement DocuSign (§6) ─────────────────────── */}
+      {configGlobale && !configGlobale.configure && (
+        <p className={styles.warn}>
+          <strong>Signature électronique non configurée.</strong> Variables absentes :{" "}
+          {configGlobale.manquant.join(", ")}. Les contrats se génèrent et se
+          téléchargent, mais aucun envoi en signature n&apos;est possible.
+        </p>
+      )}
+      {configGlobale?.configure && !configGlobale.chiffrementActif && (
+        <p className={styles.error}>
+          <strong>FIELD_ENCRYPTION_KEY absente.</strong> Le raccordement DocuSign est
+          refusé : les jetons ne pourraient pas être chiffrés.
+        </p>
+      )}
+      {configGlobale?.configure && configGlobale.chiffrementActif && entityId && docusign && (
+        docusign.connecte ? (
+          <p className={styles.info}>
+            DocuSign raccordé — compte {docusign.compte} ·{" "}
+            environnement <strong>{docusign.environnement === "demo" ? "bac à sable" : "production"}</strong>
+            {docusign.joursAvantReautorisation != null && docusign.joursAvantReautorisation <= 7
+              ? ` · ⚠️ réautorisation nécessaire dans ${docusign.joursAvantReautorisation} jour(s)`
+              : ""}
+          </p>
+        ) : (
+          <p className={styles.warn}>
+            L&apos;entité sélectionnée n&apos;est pas raccordée à DocuSign
+            {docusign.derniereErreur ? ` (${docusign.derniereErreur})` : ""}. Un Super
+            Admin doit l&apos;autoriser depuis Réglages › Sociétés. Le contrat peut être
+            généré et téléchargé en attendant.
+          </p>
+        )
+      )}
+
       {/* ── Contrats déjà émis ──────────────────────────────────────── */}
       {contrats.length > 0 && (
         <div className={styles.contratList}>
@@ -228,11 +318,19 @@ export default function ContratSousTraitance({
                 >
                   <Icon name="document" size={14} /> PDF
                 </a>
-                {c.signedPdfPath && (
-                  <span className={styles.muted}>Contrat signé archivé</span>
-                )}
-                {["pret_a_envoyer", "envoye"].includes(c.statut) && (
-                  <button type="button" className={styles.link} onClick={() => onEnvoyer(c.id)} disabled={enCours}>
+                {/* L'envoi n'est proposé que si l'entité est RÉELLEMENT
+                    raccordée et qu'aucune enveloppe n'est déjà en cours. */}
+                {["pret_a_envoyer"].includes(c.statut) && !signatureDe(c.id) && (
+                  <button
+                    type="button" className={styles.link}
+                    onClick={() => onEnvoyer(c.id)}
+                    disabled={enCours || !(c.entityId && etatsDocuSign[c.entityId]?.connecte)}
+                    title={
+                      c.entityId && etatsDocuSign[c.entityId]?.connecte
+                        ? "Créer l'enveloppe DocuSign et l'envoyer aux deux signataires"
+                        : "Entité non raccordée à DocuSign"
+                    }
+                  >
                     Envoyer à la signature
                   </button>
                 )}
@@ -242,6 +340,69 @@ export default function ContratSousTraitance({
                   </button>
                 )}
               </div>
+
+              {/* ── État de la signature électronique ──────────────── */}
+              {(() => {
+                const sig = signatureDe(c.id);
+                if (!sig) return null;
+                return (
+                  <div className={styles.signature} data-ton={sig.ton}>
+                    <div className={styles.signatureHaut}>
+                      <span className={styles.signatureStatut} data-ton={sig.ton}>
+                        {sig.statutLabel}
+                      </span>
+                      <span className={styles.contratMeta}>
+                        DocuSign · {sig.envelopeId}
+                      </span>
+                      <button
+                        type="button" className={styles.link}
+                        onClick={() => onResynchroniser(sig.envelopeId)}
+                        disabled={enCours}
+                        title="Relire l'état réel chez DocuSign"
+                      >
+                        Actualiser
+                      </button>
+                    </div>
+
+                    {sig.signataires.length > 0 && (
+                      <ul className={styles.signataires}>
+                        {sig.signataires.map((s) => (
+                          <li key={s.email}>
+                            <strong>{s.nom ?? s.email}</strong>
+                            <span className={styles.contratMeta}>
+                              {" "}· {s.statut}
+                              {s.signeLe ? ` le ${new Date(s.signeLe).toLocaleString("fr-FR")}` : ""}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {sig.archiveLe ? (
+                      <div className={styles.contratActions}>
+                        {sig.pieces.map((piece) => (
+                          <button
+                            key={piece.id} type="button" className={styles.link}
+                            onClick={() => onTelecharger(piece.storagePath)}
+                            disabled={enCours}
+                          >
+                            <Icon name="document" size={14} />{" "}
+                            {piece.documentType === "certificat_signature"
+                              ? "Certificat de signature"
+                              : "Contrat signé"}
+                          </button>
+                        ))}
+                      </div>
+                    ) : sig.statut === "signe_toutes_parties" ? (
+                      <p className={styles.warn}>
+                        Signé chez DocuSign, archivage en cours. Les pièces apparaîtront
+                        ici dès leur téléchargement.
+                        {sig.archivageErreur ? ` Dernière erreur : ${sig.archivageErreur}` : ""}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })()}
             </div>
           ))}
         </div>
@@ -260,18 +421,38 @@ export default function ContratSousTraitance({
           <div className={styles.formGrid}>
             <label>
               Prestataire
+              {/* Les prestataires qui couvrent l'activité ET le département du
+                  chantier remontent en tête, avec le motif du classement.
+                  Aucun n'est masqué : une fiche incomplète se complète, elle
+                  ne doit pas disparaître de la liste. */}
               <select
                 className={styles.select}
                 value={technicianId}
                 onChange={(e) => setTechnicianId(e.target.value)}
               >
                 <option value="">— Sélectionner —</option>
-                {prestataires.map((p) => (
-                  <option key={p.technicianId} value={p.technicianId}>
-                    {p.raisonSociale ?? p.nom}
-                    {p.utilisable ? "" : " (fiche incomplète)"}
-                  </option>
-                ))}
+                {correspondants.length > 0 && (
+                  <optgroup label="Correspondent à la mission">
+                    {correspondants.map(({ prestataire: p, corr }) => (
+                      <option key={p.technicianId} value={p.technicianId}>
+                        {p.raisonSociale ?? p.nom}
+                        {corr.motifs.length ? ` — ${corr.motifs.join(", ")}` : ""}
+                        {p.utilisable ? "" : " · fiche incomplète"}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {autres.length > 0 && (
+                  <optgroup label="Autres prestataires référencés">
+                    {autres.map(({ prestataire: p, corr }) => (
+                      <option key={p.technicianId} value={p.technicianId}>
+                        {p.raisonSociale ?? p.nom}
+                        {corr.motifs.length ? ` — ${corr.motifs.join(", ")}` : ""}
+                        {p.utilisable ? "" : " · fiche incomplète"}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </label>
             <label>
@@ -309,8 +490,84 @@ export default function ContratSousTraitance({
                 <dt className={styles.k}>Courriel</dt>
                 <dd className={styles.v}>{prestataire.email ?? <span className={styles.vide}>—</span>}</dd>
               </div>
+              <div>
+                <dt className={styles.k}>Téléphone</dt>
+                <dd className={styles.v}>{prestataire.telephone ?? <span className={styles.vide}>—</span>}</dd>
+              </div>
+              {/* Activités, zone et compétences : lues sur la fiche technicien,
+                  où elles étaient déjà saisies sans jamais être affichées ici. */}
+              <div>
+                <dt className={styles.k}>Activités couvertes</dt>
+                <dd className={styles.v}>
+                  {prestataire.secteurs.length > 0
+                    ? prestataire.secteurs.join(", ")
+                    : <span className={styles.vide}>aucune déclarée</span>}
+                </dd>
+              </div>
+              <div>
+                <dt className={styles.k}>Secteur géographique</dt>
+                <dd className={styles.v}>
+                  {prestataire.departements.length > 0
+                    ? `départements ${prestataire.departements.join(", ")}`
+                    : prestataire.codePostalBase
+                      ? `rattaché au ${prestataire.codePostalBase}`
+                      : <span className={styles.vide}>aucun déclaré</span>}
+                </dd>
+              </div>
+              {prestataire.competences.length > 0 && (
+                <div>
+                  <dt className={styles.k}>Compétences</dt>
+                  <dd className={styles.v}>{prestataire.competences.join(", ")}</dd>
+                </div>
+              )}
+              <div>
+                <dt className={styles.k}>Historique</dt>
+                <dd className={styles.v}>
+                  {prestataire.nbInterventions > 0
+                    ? `${prestataire.nbInterventions} intervention${prestataire.nbInterventions > 1 ? "s" : ""} confiée${prestataire.nbInterventions > 1 ? "s" : ""}`
+                    : <span className={styles.vide}>jamais encore missionné</span>}
+                </dd>
+              </div>
+              <div>
+                <dt className={styles.k}>Correspondance mission</dt>
+                <dd className={styles.v}>
+                  {correspondanceChoisie?.correspond
+                    ? "Activité et secteur couverts"
+                    : correspondanceChoisie?.motifs.length
+                      ? correspondanceChoisie.motifs.join(" · ")
+                      : <span className={styles.vide}>non vérifiable</span>}
+                </dd>
+              </div>
+              <div>
+                <dt className={styles.k}>Statut administratif</dt>
+                <dd className={styles.v}>
+                  {prestataire.utilisable
+                    ? "Dossier complet"
+                    : `À compléter : ${prestataire.manquants.join(", ")}`}
+                </dd>
+              </div>
             </dl>
           )}
+          {/* La disponibilité n'est PAS affichée : le CRM ne porte aucun
+              calendrier de sous-traitant. L'annoncer serait une invention. */}
+          {prestataire && (
+            <p className={styles.muted}>
+              La disponibilité n&apos;est pas suivie dans le CRM : à confirmer
+              auprès du prestataire avant d&apos;émettre le contrat.
+            </p>
+          )}
+
+          {/* ── Demande de tarif, à envoyer à plusieurs prestataires ─────
+              Le générateur existait depuis le 2026-10-31 sans aucun écran
+              pour l'atteindre. Il RÉDIGE, il n'envoie rien : l'envoi reste un
+              geste de la planificatrice, après relecture.
+
+              La demande ne porte NI l'adresse complète, NI le nom du client,
+              NI son téléphone, NI son courriel, NI le prix de vente. Le
+              générateur relit son propre texte et refuse de le rendre si une
+              seule de ces valeurs y ressort. */}
+          <DemandeTarif dossier={dossier} entite={entite} />
+
           {prestataire && !prestataire.utilisable && (
             <p className={styles.warn}>
               Fiche incomplète : {prestataire.manquants.join(", ")}. À compléter dans la

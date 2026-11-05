@@ -25,7 +25,6 @@ import { getAllTechnicians, getLeadInterventionSchedule } from "@/lib/planificat
 import { leadTemplateVars, renderTemplate } from "@/lib/message-templates-shared";
 import MediaTab from "./MediaTab";
 import ConfirmationsCard from "./ConfirmationsCard";
-import { isN8nSequenceEnabled } from "@/lib/app-settings";
 import CallNotesCard from "./CallNotesCard";
 import DiscoveryCard from "./DiscoveryCard";
 import { getGridBySlug } from "@/lib/pricing/grid-server";
@@ -78,7 +77,6 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   const [
     detail,
     commerciaux,
-    n8nEnabled,
     me,
     smsTemplates,
     emailTemplates,
@@ -94,7 +92,6 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
   ] = await Promise.all([
     getLeadDetail(id),
     getAllCommerciaux(),
-    isN8nSequenceEnabled(),
     getCurrentUserProfile(),
     getActiveSmsTemplates(),
     getTemplatesForUser("email"),
@@ -144,6 +141,12 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
 
   const devisCount = documents.filter((d) => d.type === "devis").length;
   const docsCount = documents.length;
+
+  // Brouillon de devis en cours, s'il existe. La fiche découverte s'en sert
+  // pour proposer « Ouvrir le devis » plutôt que d'en préparer un second :
+  // c'est ce qui rend le bouton « Générer le devis » sans effet de doublon.
+  const devisBrouillon =
+    documents.find((d) => d.type === "devis" && d.status === "brouillon") ?? null;
 
   // ── Variables réelles (BDD) pour les templates SMS / email de relance ──
   // Acompte, montants et n° de devis viennent du dernier devis du lead ; à
@@ -242,16 +245,6 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
             <div className={styles.heroNameRow}>
               <h1 className={styles.heroName}>{lead.client}</h1>
               <span className={styles.heroId}>#{lead.shortId.replace(/^L-/, "")}</span>
-              {lead.subEnvoi && (
-                <span
-                  className={styles.heroChannelChip}
-                  data-channel={lead.subEnvoi}
-                  title={lead.subEnvoi === "auto" ? "Séquence n8n" : "Envoi manuel"}
-                >
-                  <Icon name={lead.subEnvoi === "auto" ? "zap" : "edit"} size={11} />
-                  {lead.subEnvoi === "auto" ? "Auto" : "Mano"}
-                </span>
-              )}
               {lead.isUrgent && (
                 <span className={styles.urgentTag}>
                   <Icon name="alert" size={11} /> Urgent
@@ -302,7 +295,6 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
           <LeadActions
             lead={lead}
             commerciaux={commerciaux}
-            n8nEnabled={n8nEnabled}
             canUseRingover={canUseRingover}
             smsTemplates={smsTemplates}
             emailTemplates={emailTemplates}
@@ -383,7 +375,13 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
       {tab === "informations" && (
         <div className={styles.layout}>
           <main className={styles.main}>
-            <DiscoveryCard lead={lead} pricingGrid={pricingGrid} />
+            <DiscoveryCard
+              lead={lead}
+              pricingGrid={pricingGrid}
+              devisBrouillon={
+                devisBrouillon ? { id: devisBrouillon.id, num: devisBrouillon.num } : null
+              }
+            />
             {/* Confirmations des actions parties : mêmes données que
                 l'historique, aucune requête supplémentaire. */}
             <ConfirmationsCard timeline={timeline} leadId={lead.id} />

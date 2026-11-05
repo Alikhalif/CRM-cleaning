@@ -7,7 +7,6 @@ import { supabaseServer } from "./supabase/server";
 // row is missing so first-deploy paths don't crash.
 
 export const APP_SETTING_KEYS = {
-  n8nSequenceEnabled: "n8n_sequence_enabled",
   // Seuils d'ancienneté de la vue « Devis à réaliser », en heures (§6 du
   // cahier du 2026-11-03). Ce sont des seuils d'AFFICHAGE : les modifier
   // change une couleur, jamais un montant.
@@ -17,7 +16,6 @@ export const APP_SETTING_KEYS = {
 
 // Defaults applied when the row is missing or the value is malformed.
 const DEFAULTS: Record<string, unknown> = {
-  [APP_SETTING_KEYS.n8nSequenceEnabled]: false,
   [APP_SETTING_KEYS.devisSeuilVertH]: 2,
   [APP_SETTING_KEYS.devisSeuilOrangeH]: 24,
 };
@@ -63,7 +61,7 @@ export async function getNumberSetting(key: string): Promise<number> {
   }
 }
 
-// Convenience for the most common call site.
-export async function isN8nSequenceEnabled(): Promise<boolean> {
-  return getBooleanSetting(APP_SETTING_KEYS.n8nSequenceEnabled);
-}
+// Le drapeau `n8n_sequence_enabled` et son lecteur `isN8nSequenceEnabled()`
+// ont été retirés le 2026-11-04 avec l'envoi automatique des devis. La ligne
+// correspondante reste en base, sans lecteur : aucune migration n'est
+// nécessaire, et rien ne la consulte plus.

@@ -279,3 +279,38 @@
   color: var(--text-primary);
   white-space: pre-wrap;
 }
+
+// ── État de la signature électronique ─────────────────────────────────
+.signature {
+  margin-top: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--border-strong);
+  background: var(--bg-surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 100%;
+}
+.signature[data-ton="ok"] { border-left-color: var(--tone-success); }
+.signature[data-ton="attente"] { border-left-color: var(--tone-warning); }
+.signature[data-ton="alerte"], .signature[data-ton="erreur"] { border-left-color: var(--tone-danger); }
+
+.signatureHaut {
+  display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+}
+.signatureStatut { font-size: 0.85rem; font-weight: 700; color: var(--text-primary); }
+.signatureStatut[data-ton="ok"] { color: var(--tone-success); }
+.signatureStatut[data-ton="attente"] { color: var(--tone-warning); }
+.signatureStatut[data-ton="alerte"], .signatureStatut[data-ton="erreur"] { color: var(--tone-danger); }
+
+.signataires {
+  margin: 0; padding-left: var(--sp-5);
+  font-size: 0.82rem; color: var(--text-primary);
+  li { margin-bottom: 2px; }
+}
+
+@media (max-width: 768px) {
+  .signatureHaut { flex-direction: column; align-items: flex-start; gap: 4px; }
+}

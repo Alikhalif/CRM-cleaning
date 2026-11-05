@@ -1,7 +1,11 @@
 import "server-only";
 import { supabaseServer } from "./supabase/server";
 import { selectEnLotsTolerant } from "@/lib/supabase/batch";
-import { mapLead, type LeadRowJoined } from "./leads-server";
+import {
+  currentUserCanSeeProvenance,
+  mapLead,
+  type LeadRowJoined,
+} from "./leads-server";
 import type { DocumentWithContext } from "./documents-shared";
 import type {
   CrmDocument,
@@ -37,6 +41,11 @@ type EntityRow = {
   default_vat_rate: number;
   legal_mentions: string | null;
   color: string;
+  representative_name: string | null;
+  representative_title: string | null;
+  representative_company_name: string | null;
+  country: string | null;
+  siren: string | null;
 };
 
 type EntityAddressJson = { line1?: string; postal_code?: string; city?: string };
@@ -61,6 +70,14 @@ function mapEntity(row: EntityRow): LegalEntity {
     legalMentions: row.legal_mentions ?? "",
     color: row.color,
     defaultActivities: [], // not used by DocumentView; skip the extra join
+    representativeName: row.representative_name ?? "",
+    representativeTitle: row.representative_title ?? "",
+    representativeCompanyName: row.representative_company_name ?? "",
+    // Repli sur la France : la colonne est `not null` en base, mais une
+    // lecture degradee (colonne absente avant migration) ne doit pas casser
+    // l'affichage d'une facture.
+    country: (row.country as LegalEntity["country"]) ?? "FR",
+    siren: row.siren ?? "",
   };
 }
 
@@ -119,6 +136,9 @@ const PAYMENT_TERM_BY_SECTOR: Record<Sector, PaymentTermSlug> = {
 // Returns DocumentWithContext rows from documents-shared.ts.
 export async function getAllDocumentsWithContext(): Promise<DocumentWithContext[]> {
   const supabase = await supabaseServer();
+  // Résolu une seule fois pour tous les documents de la page (cf. le
+  // commentaire au point d'usage). `cache()` garantit un appel par requête.
+  const canProvenance = await currentUserCanSeeProvenance();
   const { data, error } = await supabase
     .from("documents")
     .select(
@@ -178,9 +198,21 @@ export async function getAllDocumentsWithContext(): Promise<DocumentWithContext[
   for (const row of data as unknown as DocumentRowJoined[]) {
     if (!row.entity || !row.lead) continue;
     const baseDoc = mapDocumentBase(row);
-    // Comptabilité = surface admin/planificateur uniquement (matrice des rôles) :
-    // la provenance (canal « apporteur ») y reste visible pour le filtrage.
-    const uiLead = mapLead(row.lead, false, true);
+    // Provenance marketing : RÉSOLUE, plus présumée.
+    //
+    // Cette ligne passait `true` en dur, au motif que la Comptabilité est
+    // réservée au back-office. C'est vrai aujourd'hui — `/comptabilite` est
+    // dans `RESTRICTED_MODULES` et son `layout.tsx` appelle
+    // `requireBackOffice()` — donc il n'y avait pas de fuite. Mais c'était une
+    // HYPOTHÈSE sur l'appelant, pas un contrôle : le jour où cette fonction
+    // sert une autre page, la provenance d'un lead fuite vers un commercial
+    // sans que rien ne l'arrête.
+    //
+    // On interroge donc la même source de vérité que la fiche lead,
+    // `currentUserCanSeeProvenance()` (admin ∪ planification). Elle est
+    // enveloppée dans `cache()` : le coût est d'un appel par requête HTTP,
+    // pas par document.
+    const uiLead = mapLead(row.lead, false, canProvenance);
     const uiEntity = mapEntity(row.entity);
     // HT réellement stocké sur le document (exact, y compris pour un devis à
     // TVA mixte). Repli sur le strip TVA-secteur uniquement pour d'anciens
@@ -216,7 +248,8 @@ export async function getAllEntities(): Promise<LegalEntity[]> {
     .select(
       `id, legal_name, legal_form, siret, ape_code, vat_number,
        address, contact_email, contact_phone, iban, bic,
-       default_vat_rate, legal_mentions, color`,
+       default_vat_rate, legal_mentions, color, country, siren,
+       representative_name, representative_title, representative_company_name`,
     )
     .order("legal_name", { ascending: true });
   if (error || !data) return [];

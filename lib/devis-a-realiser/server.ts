@@ -38,10 +38,12 @@ import {
 export type { DevisARealiserData } from "./shared";
 
 type DocRow = {
+  id: string;
   lead_id: string | null;
   status: string;
   total_ttc: number | null;
   created_at: string;
+  updated_at: string;
 };
 
 type OptimivvRow = {
@@ -63,16 +65,23 @@ type ActionRow = { lead_id: string; type: string };
  * l'objet même est de ne rien laisser passer entre la découverte et l'envoi,
  * s'en tient à la date réelle.
  */
-async function etatDesDevis(leadIds: string[]): Promise<Map<string, EtatDevis & { preparationLe: string | null }>> {
-  const out = new Map<string, EtatDevis & { preparationLe: string | null }>();
+type EtatInterne = EtatDevis & {
+  preparationLe: string | null;
+  brouillonId: string | null;
+  modifieLe: string | null;
+};
+
+async function etatDesDevis(leadIds: string[]): Promise<Map<string, EtatInterne>> {
+  const out = new Map<string, EtatInterne>();
   if (leadIds.length === 0) return out;
 
   const lire = (id: string) => {
     const e = out.get(id);
     if (e) return e;
-    const vide = {
+    const vide: EtatInterne = {
       brouillon: false, brouillonChiffre: false, optimivvNonEnvoye: false,
-      photosEnAttente: false, preparationLe: null as string | null,
+      photosEnAttente: false, preparationLe: null, brouillonId: null,
+      modifieLe: null,
     };
     out.set(id, vide);
     return vide;
@@ -84,7 +93,7 @@ async function etatDesDevis(leadIds: string[]): Promise<Map<string, EtatDevis & 
       leadIds,
       (lot) => sb
         .from("documents")
-        .select("lead_id, status, total_ttc, created_at")
+        .select("id, lead_id, status, total_ttc, created_at, updated_at")
         .in("lead_id", lot)
         .eq("type", "devis")
         .returns<DocRow[]>(),
@@ -109,8 +118,14 @@ async function etatDesDevis(leadIds: string[]): Promise<Map<string, EtatDevis & 
     // Un brouillon chiffré est rédigé, pas seulement ouvert : c'est ce qui
     // distingue « en préparation » de « prêt à envoyer » (§5-2 et §5-4).
     if (d.total_ttc != null && Number(d.total_ttc) > 0) e.brouillonChiffre = true;
-    // Début de préparation = création du PREMIER brouillon (§11).
-    if (!e.preparationLe || d.created_at < e.preparationLe) e.preparationLe = d.created_at;
+    // Début de préparation = création du PREMIER brouillon (§11). Le lien de
+    // la liste pointe vers ce même brouillon : celui que le commercial a
+    // commencé, pas un doublon plus récent.
+    if (!e.preparationLe || d.created_at < e.preparationLe) {
+      e.preparationLe = d.created_at;
+      e.brouillonId = d.id;
+      e.modifieLe = d.updated_at;
+    }
   }
 
   for (const d of opt.rows) {
@@ -209,6 +224,8 @@ export async function getDevisARealiser(): Promise<DevisARealiserData> {
       arriveeLe: l.receivedAt,
       decouverteLe: l.discoveryDoneAt ?? null,
       preparationLe: d?.preparationLe ?? null,
+      devisId: d?.brouillonId ?? null,
+      modifieLe: d?.modifieLe ?? null,
       heures,
       urgence: urgenceDe(heures, seuils),
       statut: statutDevis(etat),

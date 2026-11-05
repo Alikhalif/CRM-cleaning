@@ -2,10 +2,18 @@ import { NextResponse, type NextRequest } from "next/server";
 import crypto from "node:crypto";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 
-// GET /api/leads/:id/status — tiny read-only endpoint used by the simple
-// n8n WF2 workflow between each email send. Bearer-auth via N8N_TO_CRM_BEARER.
-// Returns { status } so n8n's IF node can short-circuit the sequence when
-// the lead has already moved to signe/perdu/encaisse.
+// GET /api/leads/:id/status — endpoint en lecture seule interrogé par le
+// workflow n8n WF2 entre deux envois d'e-mail. Authentification Bearer via
+// N8N_TO_CRM_BEARER.
+//
+// ⚠️ COUPE-CIRCUIT (2026-11-04). L'envoi automatique des devis n'est plus
+// retenu : `active` renvoie désormais TOUJOURS false. Toute séquence encore
+// en vol chez n8n s'arrêtera d'elle-même à sa prochaine interrogation, sans
+// qu'il faille toucher au workflow.
+//
+// L'endpoint est conservé plutôt que supprimé : un 404 ferait boucler ou
+// échouer bruyamment un workflow résiduel, là où un « inactif » franc le fait
+// sortir proprement.
 
 export const runtime = "nodejs";
 
@@ -43,21 +51,18 @@ export async function GET(
   const supabase = await supabaseServiceRole();
   const { data, error } = await supabase
     .from("leads")
-    .select("status, sub_envoi")
+    .select("status")
     .eq("id", id)
-    .maybeSingle<{ status: string; sub_envoi: string | null }>();
+    .maybeSingle<{ status: string }>();
   if (error || !data) {
     return NextResponse.json({ ok: false, error: "Lead not found" }, { status: 404 });
   }
-  // `active` is the single field the n8n workflow needs. It's false when
-  // the lead reached a terminal state (signe/perdu/encaisse) OR when the
-  // commercial flipped sub_envoi back to 'mano' — that's the "Manual" button
-  // interrupting the auto-sequence.
-  const terminal = ["signe", "perdu", "encaisse"];
-  const active = !terminal.includes(data.status) && data.sub_envoi === "auto";
+  // `active` est le seul champ dont le workflow a besoin pour décider s'il
+  // continue. Il vaut false en toutes circonstances : plus aucun devis ne
+  // part automatiquement. Le statut réel reste renvoyé à titre informatif.
   return NextResponse.json({
     status: data.status,
-    sub_envoi: data.sub_envoi,
-    active,
+    active: false,
+    stopped_reason: "automatic_sending_disabled",
   });
 }

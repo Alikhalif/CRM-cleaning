@@ -9,14 +9,11 @@ import {
   PIPELINE_COLUMNS,
   SECTOR_LABEL,
   SECTOR_VAR,
-  canLaunchSequence,
   formatEUR,
-  needsEnvoi,
   needsSignature,
   type Commercial,
   type Lead,
   type PipelineColumnKey,
-  type SubEnvoi,
   type SubSignature,
 } from "@/lib/leads";
 import styles from "./LeadCard.module.scss";
@@ -28,11 +25,8 @@ type Props = {
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
   onMove: (id: string, target: PipelineColumnKey) => void;
-  onSetEnvoi: (id: string, value: SubEnvoi) => void;
   onSetSignature: (id: string, value: SubSignature) => void;
   onSetNrp: (id: string, nrp: boolean) => void;
-  onLaunchSequence: (lead: Lead) => void;
-  n8nEnabled: boolean;
 };
 
 export default function LeadCard({
@@ -42,16 +36,11 @@ export default function LeadCard({
   onDragStart,
   onDragEnd,
   onMove,
-  onSetEnvoi,
   onSetSignature,
   onSetNrp,
-  onLaunchSequence,
-  n8nEnabled,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const sequenceEligible = canLaunchSequence(lead, n8nEnabled);
-  const missingEnvoi = needsEnvoi(lead);
   const missingSignature = needsSignature(lead);
 
   // % d'acompte affiché sur les cartes de leads SIGNÉS (demande client) :
@@ -147,14 +136,6 @@ export default function LeadCard({
               NRP
             </span>
           )}
-          {missingEnvoi && (
-            <span className={`${styles.badge} ${styles.badgeDanger}`}>
-              <Icon name="alert" size={11} /> Canal manquant
-            </span>
-          )}
-          {!missingEnvoi && lead.subEnvoi && (
-            <span className={styles.badge}>{lead.subEnvoi === "mano" ? "Mano" : "Auto"}</span>
-          )}
           {missingSignature && (
             <span className={`${styles.badge} ${styles.badgeDanger}`}>
               <Icon name="alert" size={11} /> Acompte ?
@@ -181,31 +162,8 @@ export default function LeadCard({
         {lead.lastActionLabel} · <RelativeTime iso={lead.lastActionAt} />
       </p>
 
-      {sequenceEligible && (
-        <button
-          type="button"
-          className={styles.sequenceBtn}
-          onClick={() => onLaunchSequence(lead)}
-        >
-          <Icon name="zap" size={14} /> Lancer séquence
-        </button>
-      )}
-
       {menuOpen && (
         <div className={styles.menu} role="menu">
-          {sequenceEligible && (
-            <button
-              type="button"
-              className={styles.menuItem}
-              onClick={() => {
-                setMenuOpen(false);
-                onLaunchSequence(lead);
-              }}
-            >
-              <Icon name="zap" size={14} /> Lancer séquence
-            </button>
-          )}
-
           <button
             type="button"
             className={styles.menuItem}
@@ -216,32 +174,6 @@ export default function LeadCard({
           >
             {lead.isNrp ? "Retirer NRP" : "Marquer NRP (ne répond pas)"}
           </button>
-
-          {(lead.status === "envoye" || lead.status === "ouvert") && (
-            <>
-              <div className={styles.menuLabel}>Canal d&apos;envoi</div>
-              <button
-                type="button"
-                className={styles.menuItem}
-                onClick={() => {
-                  onSetEnvoi(lead.id, "mano");
-                  setMenuOpen(false);
-                }}
-              >
-                {lead.subEnvoi === "mano" && <Icon name="check" size={14} />} Mano
-              </button>
-              <button
-                type="button"
-                className={styles.menuItem}
-                onClick={() => {
-                  onSetEnvoi(lead.id, "auto");
-                  setMenuOpen(false);
-                }}
-              >
-                {lead.subEnvoi === "auto" && <Icon name="check" size={14} />} Auto
-              </button>
-            </>
-          )}
 
           {lead.status === "signe" && (
             <>

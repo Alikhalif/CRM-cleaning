@@ -75,6 +75,24 @@ export default function DevisARealiser({ data }: { data: DevisARealiserData }) {
         </div>
       </section>
 
+      {/* ── Les deux catégories de la liste ───────────────────────────
+          Consigne du 2026-11-04 : la liste porte DEUX familles de dossiers,
+          et il faut que ça se voie. Elles sont déjà distinguées par les
+          statuts ci-dessous — on l'écrit, plutôt que d'ajouter un second
+          découpage qui dirait la même chose autrement. */}
+      <p className={styles.deuxCategories}>
+        <strong>
+          À générer ({data.compteurs.parStatut.a_realiser + data.compteurs.parStatut.attente_infos})
+        </strong>{" "}
+        — découverte terminée, aucun devis préparé : ouvrez le dossier et cliquez
+        « Générer le devis ».
+        {"  ·  "}
+        <strong>
+          Brouillons à finaliser ({data.compteurs.parStatut.en_preparation + data.compteurs.parStatut.pret_a_envoyer})
+        </strong>{" "}
+        — un devis existe en brouillon : reprenez-le, corrigez-le, puis envoyez-le.
+      </p>
+
       {/* ── Onglets par statut ────────────────────────────────────── */}
       <div className={styles.onglets} role="tablist" aria-label="Statut du devis">
         <button
@@ -220,6 +238,7 @@ export default function DevisARealiser({ data }: { data: DevisARealiserData }) {
                 <th scope="col">Découverte</th>
                 <th scope="col">Attente</th>
                 <th scope="col">Statut</th>
+                <th scope="col">Dernière modif.</th>
                 <th scope="col" className={styles.right}>Action</th>
               </tr>
             </thead>
@@ -299,10 +318,33 @@ export default function DevisARealiser({ data }: { data: DevisARealiserData }) {
                     )}
                   </td>
 
+                  {/* Dernière retouche du brouillon. « — » signifie qu'aucun
+                      brouillon n'existe encore : le devis reste à générer. */}
+                  <td data-label="Dernière modif.">
+                    {l.modifieLe ? (
+                      <span className={styles.cellPrincipale}>{moment(l.modifieLe)}</span>
+                    ) : (
+                      <span className={styles.manque}>devis à générer</span>
+                    )}
+                  </td>
+
                   <td data-label="Action" className={styles.right}>
-                    <Link href={`/leads/${l.leadId}`} className={styles.ouvrir}>
-                      Ouvrir le dossier
-                    </Link>
+                    {/* Quand un brouillon existe, on y mène directement : la
+                        colonne annonçait « En préparation » sans donner accès
+                        au document. */}
+                    <div className={styles.actionsLigne}>
+                      {l.devisId && (
+                        <Link href={`/devis/${l.devisId}`} className={styles.ouvrir}>
+                          Ouvrir le devis
+                        </Link>
+                      )}
+                      <Link
+                        href={`/leads/${l.leadId}`}
+                        className={`${styles.ouvrir} ${l.devisId ? styles.ouvrirSecondaire : ""}`}
+                      >
+                        Ouvrir le dossier
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}
