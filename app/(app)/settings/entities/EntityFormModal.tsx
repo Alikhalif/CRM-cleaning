@@ -35,8 +35,6 @@ function emptyInput(): EntityInput {
     city: "",
     contactEmail: "",
     contactPhone: "",
-    iban: "",
-    bic: "",
     defaultVatRate: 20,
     legalMentions: "",
     color: "#5b4bcc",
@@ -62,8 +60,6 @@ function fromExisting(e: LegalEntity): EntityInput {
     city: e.city,
     contactEmail: e.contactEmail,
     contactPhone: e.contactPhone,
-    iban: e.iban,
-    bic: e.bic,
     defaultVatRate: e.defaultVatRate,
     legalMentions: e.legalMentions,
     color: e.color,
@@ -378,28 +374,22 @@ export default function EntityFormModal({ existing, onClose, onDone }: Props) {
             vides, les devis et factures continuent de fonctionner normalement.
           </p>
 
-          {/* Banking */}
-          <div className={styles.row}>
-            <label className={styles.field}>
-              <span className={styles.label}>IBAN</span>
-              <input
-                type="text"
-                value={v.iban}
-                onChange={(e) => set("iban", e.target.value)}
-                className={styles.input}
-                placeholder="FR76 ..."
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.label}>BIC</span>
-              <input
-                type="text"
-                value={v.bic}
-                onChange={(e) => set("bic", e.target.value)}
-                className={styles.input}
-              />
-            </label>
-          </div>
+          {/* ── Coordonnées bancaires : RETIRÉES du formulaire ───────────
+              Décision du 2026-11-05. Les devis annoncent « RIB en pièce
+              jointe » : les coordonnées bancaires circulent par ce document,
+              pas par la fiche société.
+
+              ⚠️ LES COLONNES `iban` ET `bic` NE SONT PAS SUPPRIMÉES, et
+              `buildPayload` ne les écrit plus du tout. Deux sociétés (CGK
+              Énergie et CGK Services) ont un IBAN réel enregistré qui
+              s'imprime sur leurs factures : écrire une chaîne vide à chaque
+              modification l'aurait effacé. En ne touchant pas aux colonnes,
+              ces valeurs survivent intactes.
+
+              Les PDF n'affichent la ligne bancaire que si l'IBAN est
+              renseigné — sans quoi les cinq sociétés sans IBAN auraient
+              imprimé « Coordonnées bancaires — IBAN · BIC » sans plus
+              personne pour le corriger depuis l'interface. */}
 
           {/* Branding */}
           <div className={styles.row}>

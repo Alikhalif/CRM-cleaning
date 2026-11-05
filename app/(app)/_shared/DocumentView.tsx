@@ -161,11 +161,23 @@ export default async function DocumentView({ detail }: Props) {
           <div className={styles.terms}>
             <p className={styles.termsLabel}>Conditions de paiement</p>
             <p>{PAYMENT_TERMS[doc.paymentTermSlug].label}</p>
-            <p className={styles.termsBank}>
-              Règlement par virement sur le compte&nbsp;:
-              <br />
-              <span className={styles.mono}>{maskIban(entity.iban)}</span> · BIC {entity.bic}
-            </p>
+            {/* Même garde que sur les PDF : pas d'IBAN enregistré, pas de
+                ligne. Les champs ayant été retirés de la fiche société le
+                2026-11-05, l'afficher vide annoncerait un virement sur un
+                compte inexistant. Le RIB circule en pièce jointe. */}
+            {entity.iban?.trim() ? (
+              <p className={styles.termsBank}>
+                Règlement par virement sur le compte&nbsp;:
+                <br />
+                <span className={styles.mono}>{maskIban(entity.iban)}</span>
+                {entity.bic?.trim() ? ` · BIC ${entity.bic}` : ""}
+              </p>
+            ) : (
+              <p className={styles.termsBank}>
+                Règlement par virement — coordonnées bancaires transmises par
+                RIB en pièce jointe.
+              </p>
+            )}
             {lead.lostReason && doc.type === "devis" && doc.status === "refuse" && (
               <p className={styles.termsRefuse}>Motif de refus : {lead.lostReason}</p>
             )}

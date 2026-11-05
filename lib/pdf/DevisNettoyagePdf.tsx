@@ -274,7 +274,15 @@ export default function DevisNettoyagePdf({ detail }: Props) {
             <View style={S.bullet}><View style={{ ...S.dot, marginTop: 3 }} /><Text style={S.bulletText}>Acompte à la commande : {doc.acomptePct ?? 30} %</Text></View>
             <View style={S.bullet}><View style={{ ...S.dot, marginTop: 3 }} /><Text style={S.bulletText}>Solde à réception de la facture</Text></View>
             <View style={S.bullet}><View style={{ ...S.dot, marginTop: 3 }} /><Text style={S.bulletText}>Paiement par virement bancaire (RIB en pièce jointe) ou lien de paiement sécurisé</Text></View>
-            <Text style={{ fontSize: 8, color: MUT, marginTop: 6 }}>IBAN {entity.iban} · BIC {entity.bic}</Text>
+            {/* Même garde que sur le document générique : pas d'IBAN, pas de
+                ligne. Le devis annonce « RIB en pièce jointe » juste au-dessus,
+                la promesse reste tenue. */}
+            {entity.iban?.trim() && (
+              <Text style={{ fontSize: 8, color: MUT, marginTop: 6 }}>
+                IBAN {entity.iban}
+                {entity.bic?.trim() ? ` · BIC ${entity.bic}` : ""}
+              </Text>
+            )}
 
             <Text style={{ ...S.colTitle, marginTop: 18 }}>Acceptation du devis</Text>
             <Text style={S.para}>

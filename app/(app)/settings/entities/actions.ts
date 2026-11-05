@@ -24,8 +24,6 @@ export type EntityInput = {
   city: string;
   contactEmail: string;
   contactPhone: string;
-  iban: string;
-  bic: string;
   defaultVatRate: number;
   legalMentions: string;
   color: string;
@@ -77,8 +75,13 @@ function buildPayload(input: EntityInput): Omit<EntityInsert, "id"> {
     },
     contact_email: input.contactEmail.trim() || null,
     contact_phone: input.contactPhone.trim() || null,
-    iban: input.iban.replace(/\s/g, "") || "",
-    bic: input.bic.trim() || "",
+    // iban / bic : VOLONTAIREMENT ABSENTS de la charge utile.
+    //
+    // Les champs ont été retirés du formulaire le 2026-11-05 (le RIB circule
+    // en pièce jointe du devis). Les colonnes, elles, restent : deux sociétés
+    // ont un IBAN réel qui s'imprime sur leurs factures. Ne pas les écrire
+    // ICI est ce qui préserve ces valeurs — y mettre une chaîne vide les
+    // aurait effacées à la première modification de la fiche.
     default_vat_rate: input.defaultVatRate,
     legal_mentions: input.legalMentions.trim() || null,
     color: input.color || "#5b4bcc",
