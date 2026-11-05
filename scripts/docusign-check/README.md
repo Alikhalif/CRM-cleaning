@@ -40,6 +40,33 @@ La contrepartie doit être dite : elles ne prouvent **rien** sur le
 raccordement réel. Un OAuth qui aboutit, une enveloppe acceptée par DocuSign,
 un webhook reçu en production — cela se vérifie sur l'environnement, pas ici.
 
+## Le contrôle des colonnes des `.select()`
+
+Le lanceur termine par
+[`scripts/check-selects/check-selects.py`](../check-selects/check-selects.py),
+qui compare chaque chaîne `.select("…")` du dépôt au schéma réel lu dans
+`lib/supabase/database.types.ts`.
+
+Il existe parce que le contenu d'un littéral de chaîne échappe à **tous** les
+contrôles du dépôt. Le 2026-11-05, `lib/sous-traitance/contrats-server.ts`
+demandait `activity:activities(slug, name)` alors que la colonne s'appelle
+`label`. PostgREST répondait `400 / 42703`, l'erreur était ignorée, la
+fonction retournait `null`, et la page traduisait ce `null` en `notFound()` :
+les **onze** fiches `/planification/<id>` affichaient « 404 This page could
+not be found » pendant que le serveur journalisait « 200 ». Le build passait.
+Le lint passait. La fonctionnalité avait été déclarée livrée.
+
+Deux limites à connaître :
+
+- il ne vaut que si `database.types.ts` est à jour — après une migration,
+  régénérer les types **avant** de lancer le contrôle ;
+- les `.select()` construits par interpolation ou par une fonction ne sont pas
+  vérifiables statiquement. Ils sont listés à part pour revue manuelle, jamais
+  déclarés conformes en silence.
+
+Sans interpréteur Python, le contrôle s'annonce **NON EXÉCUTÉ** et ne compte
+pas comme réussi.
+
 ## Les deux suites
 
 ### `integration.ts` — 23 sections

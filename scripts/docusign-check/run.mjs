@@ -74,11 +74,45 @@ try {
   rmSync(sortie, { recursive: true, force: true });
 }
 
+// ── Contrôle des colonnes nommées dans les `.select()` ────────────────
+//
+// Pourquoi ici, et pourquoi en Python : les suites ci-dessus vérifient la
+// logique TypeScript, mais le contenu d'une chaîne `.select("…")` échappe à
+// `tsc`, à ESLint et au build. Le 2026-11-05, un `activities(slug, name)`
+// — la colonne s'appelle `label` — a mis les onze fiches
+// `/planification/<id>` en 404 alors que le serveur journalisait 200, avec
+// un build et un lint tous deux verts.
+//
+// Le script ne lit que des fichiers locaux : ni réseau, ni base, ni secret.
+// Il respecte donc la portée annoncée en tête de ce lanceur.
+console.log(`\n${"═".repeat(70)}\n  Colonnes nommées dans les \`.select()\`\n${"═".repeat(70)}`);
+const verifSelects = join(racine, "scripts", "check-selects", "check-selects.py");
+let lance = false;
+for (const python of ["python", "python3", "py"]) {
+  try {
+    execFileSync(python, [verifSelects, racine], { cwd: racine, stdio: "inherit" });
+    lance = true;
+    break;
+  } catch (e) {
+    // ENOENT = cet interpréteur n'existe pas ici : on essaie le suivant.
+    // Tout autre code = le contrôle a bien tourné et il a ÉCHOUÉ.
+    if (e && e.code === "ENOENT") continue;
+    lance = true;
+    echecs++;
+    break;
+  }
+}
+if (!lance) {
+  // Un contrôle sauté doit se voir. Il ne compte pas comme réussi.
+  console.log("  NON EXÉCUTÉ — aucun interpréteur Python trouvé (python, python3, py).");
+  console.log("  Ce contrôle n'est donc PAS validé sur cette machine.");
+}
+
 console.log(`\n${"═".repeat(70)}`);
 if (echecs === 0) {
-  console.log(`  ${SUITES.length} suites — TOUT PASSE`);
+  console.log(`  ${SUITES.length} suites${lance ? " + colonnes des select" : ""} — TOUT PASSE`);
 } else {
-  console.log(`  ${echecs} suite(s) en échec sur ${SUITES.length}`);
+  console.log(`  ${echecs} échec(s)`);
 }
 console.log("═".repeat(70));
 process.exit(echecs === 0 ? 0 : 1);
