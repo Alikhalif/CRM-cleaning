@@ -10,7 +10,12 @@ import {
   type LegalEntity,
   type LegalForm,
 } from "@/lib/leads";
-import { createEntity, updateEntity, type EntityInput } from "./actions";
+import { createEntity, updateEntity } from "./actions";
+// `EntityInput` vient du module PUR, pas de `actions.ts` : un fichier
+// `"use server"` ne peut rien exporter d'autre que des fonctions async, type
+// compris — s'y réexporter un type provoque un `ReferenceError` à
+// l'évaluation du module côté serveur.
+import type { EntityInput } from "@/lib/entities-shared";
 // Reuses the shared modal stylesheet — same overlay/footer pattern.
 import styles from "@/app/(app)/planification/PlanifyDossierModal.module.scss";
 

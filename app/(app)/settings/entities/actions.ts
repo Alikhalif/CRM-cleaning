@@ -11,9 +11,24 @@ import {
   type EntityInput,
 } from "@/lib/entities-shared";
 
-// `EntityInput` est réexporté : le formulaire l'importe depuis ce fichier
-// depuis l'origine, et déplacer la logique ne doit pas casser son import.
-export type { EntityInput };
+// ⚠️ NE RIEN RÉEXPORTER D'ICI, PAS MÊME UN TYPE.
+//
+// Ce fichier portait `export type { EntityInput };` pour que le formulaire
+// garde son import historique. TypeScript efface bien cette ligne — mais le
+// chargeur d'actions serveur de Turbopack énumère les exports du module et a
+// émis une liaison de réexport pour `EntityInput`, symbole qui n'existe pas à
+// l'exécution :
+//
+//   ReferenceError: EntityInput is not defined
+//     at module evaluation (… settings/entities/page/actions.js)
+//
+// L'erreur survenait à l'ÉVALUATION du module, donc au premier POST du
+// formulaire — et ni `tsc`, ni ESLint, ni `npm run build` ne l'ont vue : le
+// build compile sans jamais évaluer ce module.
+//
+// La règle est donc stricte : un module `"use server"` n'exporte QUE des
+// fonctions asynchrones. Les types vivent dans `lib/entities-shared.ts`, d'où
+// les consommateurs les importent directement.
 
 // Admin-only CRUD on legal_entities. RLS already enforces admin-write via
 // the existing "legal_entities writable by admin" policy, so non-admin

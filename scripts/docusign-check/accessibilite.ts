@@ -19,7 +19,7 @@
 // qu'un humain l'a parcouru. Les étapes d'écriture en base restent à valider
 // dans l'application.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { canAccessPath } from "@/lib/access-shared";
 import { NAV_GROUPS } from "@/lib/nav";
 
@@ -328,6 +328,73 @@ vrai("le panneau est monté dans l'écran de contrat",
 vrai("le double garde de confidentialité est traversé",
   reference("lib/generation/demande-depuis-dossier.ts", "contexteRedige")
   && reference("lib/generation/demande-prestataire.ts", "verifierFuites"));
+
+// ══════════════════════════════════════════════════════════════════════
+//  Modules "use server" : aucune RÉEXPORTATION
+// ══════════════════════════════════════════════════════════════════════
+//
+// Bug du 2026-11-05, sur le formulaire des sociétés émettrices :
+//
+//   ReferenceError: EntityInput is not defined
+//     at module evaluation (… settings/entities/page/actions.js)
+//
+// Un `export type { EntityInput };` avait été ajouté dans un fichier
+// `"use server"`. TypeScript efface bien cette ligne, mais le chargeur
+// d'actions serveur énumère les exports du module et émet une liaison de
+// réexport pour un symbole qui n'existe plus à l'exécution.
+//
+// ⚠️ LA DISTINCTION EST FINE, ET IMPORTANTE :
+//
+//   export type Result = { … };     DÉCLARATION locale → effacée → OK.
+//                                   24 des 30 fichiers du dépôt le font,
+//                                   en production, sans problème.
+//   export type { Foo };            RÉEXPORTATION → liaison émise → CASSE.
+//   export { bar } from "./x";      idem.
+//   export * from "./x";            idem.
+//
+// Ce contrôle ne traque donc QUE les réexportations. Interdire les
+// déclarations de type casserait 24 fichiers qui marchent.
+//
+// Et il existe parce que RIEN d'autre ne l'a vu : `tsc`, ESLint et
+// `npm run build` sont tous passés au vert. Le build compile le module sans
+// jamais l'évaluer ; l'erreur n'apparaît qu'au premier appel réel.
+
+console.log("\n== Modules « use server » : aucune réexportation ==");
+{
+  const racine = ".";
+  const aVisiter = ["app", "lib"];
+  const fichiers: string[] = [];
+  const parcourir = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const chemin = `${dir}/${e.name}`;
+      if (e.isDirectory()) {
+        if (e.name === "node_modules" || e.name.startsWith(".")) continue;
+        parcourir(chemin);
+      } else if (e.name.endsWith(".ts") || e.name.endsWith(".tsx")) {
+        fichiers.push(chemin);
+      }
+    }
+  };
+  for (const d of aVisiter) parcourir(`${racine}/${d}`);
+
+  const serveur = fichiers.filter((f) => /^\s*"use server"/m.test(fichier(f)));
+  vrai(`des modules « use server » sont bien trouvés (${serveur.length})`, serveur.length > 10);
+
+  // Réexportations : `export {` ou `export type {` ou `export *`, en début de
+  // ligne. Une déclaration (`export type Foo =`) ne correspond pas.
+  const fautifs = serveur.filter((f) =>
+    /^export\s+(type\s+)?\{/m.test(fichier(f)) || /^export\s+\*/m.test(fichier(f)));
+  if (fautifs.length > 0) for (const f of fautifs) console.log(`        → ${f}`);
+  vrai("aucune réexportation dans un module « use server »", fautifs.length === 0);
+
+  // Le fichier qui portait le bug, nommément.
+  const coupable = "./app/(app)/settings/entities/actions.ts";
+  vrai("settings/entities/actions.ts ne réexporte plus de type",
+    !/^export\s+type\s+\{/m.test(fichier(coupable)));
+  vrai("et le formulaire prend EntityInput dans le module pur",
+    reference("app/(app)/settings/entities/EntityFormModal.tsx",
+      'from "@/lib/entities-shared"'));
+}
 
 // ══════════════════════════════════════════════════════════════════════
 //  Navigation : toute entrée mène à une page qui existe
