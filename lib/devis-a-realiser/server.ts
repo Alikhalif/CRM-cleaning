@@ -9,8 +9,18 @@ import "server-only";
 //
 //   • la tenancy vient de la RLS Postgres. `getAllLeads()` ne porte aucun
 //     filtre `owner_id` — un commercial ne reçoit que ses dossiers parce que
-//     la base les lui restreint. Le superviseur et le Super Admin voient plus
-//     large pour la même raison, sans code de branchement ;
+//     la base les lui restreint. Le Super Admin et la planification voient
+//     plus large pour la même raison, sans code de branchement ;
+//
+//     ⚠️ Correction du 2026-11-05 : ce commentaire affirmait que « le
+//     superviseur » voyait plus large ici. C'est FAUX. La politique « leads
+//     visible to owner / admin / planner » (20260515000005_init_rls.sql) ne
+//     cite pas le rôle `superviseur` : par cette route, un superviseur ne
+//     reçoit que ses propres dossiers — en pratique aucun. C'est conforme à
+//     l'Option A (fermé par défaut) ; sa vision élargie passe exclusivement
+//     par le module Superviseur, où le périmètre est appliqué explicitement
+//     (lib/supervision-perimetre.ts). Ne pas « réparer » cela en ajoutant une
+//     politique RLS pour le superviseur : ce serait une autorisation globale ;
 //   • le filtre d'ACTIVITÉ est appliqué ici, côté serveur, exactement comme
 //     dans `getSuiviData()` : les dossiers hors périmètre ne sont jamais
 //     envoyés au navigateur ;

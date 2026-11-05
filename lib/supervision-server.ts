@@ -1,9 +1,15 @@
 import "server-only";
-import { supabaseServer } from "./supabase/server";
 import { supabaseServiceRole } from "./supabase/service";
-import { getCurrentUserProfile } from "./users-server";
 import { COUNTRY_LABEL, type Country } from "./leads";
 import type { Periode, SupRow } from "./supervision-shared";
+import {
+  dossierDansPerimetre,
+  motifExclusion,
+  perimetreConfigure,
+  type MotifExclusion,
+  type Perimetre,
+} from "./supervision-perimetre";
+import { getPerimetreSuperviseur, getUnivers } from "./supervision-perimetre-server";
 export { PERIODE_LABEL, PERIODES, type Periode } from "./supervision-shared";
 
 // Centre de supervision commerciale. LECTURE SEULE, agrégée : le dirigeant doit
@@ -13,16 +19,12 @@ export { PERIODE_LABEL, PERIODES, type Periode } from "./supervision-shared";
 // ne reçoit pas les lignes des autres pays — elles ne quittent pas la machine.
 // Masquer dans l'interface ne suffirait pas (consigne explicite).
 //
+// ⚠️ FERMÉ PAR DÉFAUT depuis le lot 1 (décision client 2026-11-05) : sans
+// périmètre configuré, ZÉRO ligne. Les règles sont dans
+// lib/supervision-perimetre.ts ; ce module ne fait que les appliquer.
+//
 // Aucune donnée inventée : un indicateur qui ne peut pas être calculé de façon
 // fiable renvoie null, et l'interface affiche « donnée indisponible ».
-
-export type SupervisionScope = {
-  // Listes vides = aucune restriction sur cet axe.
-  countries: string[];
-  activityIds: string[];
-  ownerIds: string[];
-  canIntervene: boolean;
-};
 
 
 type LeadRow = {
@@ -56,31 +58,14 @@ export type SupervisionData = {
     activites: { id: string; label: string }[];
     commerciaux: { id: string; label: string }[];
   };
-  scope: SupervisionScope;
+  perimetre: Perimetre;
+  // Faux → périmètre non configuré : zéro ligne, et l'interface doit le DIRE.
+  configure: boolean;
+  // Dossiers écartés du périmètre et POURQUOI. Un dossier hors périmètre ne
+  // disparaît pas en silence : le compteur permet au Super Admin de voir
+  // qu'il reste des leads que personne ne supervise.
+  ecartes: { motif: Exclude<MotifExclusion, null>; nombre: number }[];
 };
-
-export async function getSupervisionScope(): Promise<SupervisionScope | null> {
-  const me = await getCurrentUserProfile();
-  if (!me) return null;
-  const roles = (me.roles ?? []).map((r) => r.slug);
-  // Le Super Admin voit tout : périmètre vide sur les trois axes.
-  if (roles.includes("admin")) {
-    return { countries: [], activityIds: [], ownerIds: [], canIntervene: true };
-  }
-  if (!roles.includes("superviseur")) return null;
-  const sb = await supabaseServer();
-  const { data } = await sb
-    .from("supervisor_scopes")
-    .select("countries, activity_ids, owner_ids, can_intervene")
-    .eq("user_id", me.id)
-    .maybeSingle<{ countries: string[]; activity_ids: string[]; owner_ids: string[]; can_intervene: boolean }>();
-  return {
-    countries: data?.countries ?? [],
-    activityIds: data?.activity_ids ?? [],
-    ownerIds: data?.owner_ids ?? [],
-    canIntervene: Boolean(data?.can_intervene),
-  };
-}
 
 // Devise de référence par pays. Aucune conversion automatique : additionner
 // des euros et des francs suisses sans taux daté donnerait un chiffre faux.
@@ -104,10 +89,25 @@ function bornes(p: Periode): { debut: Date; fin: Date } {
   return { debut, fin };
 }
 
-export async function getSupervisionData(periode: Periode): Promise<SupervisionData | null> {
-  const scope = await getSupervisionScope();
-  if (!scope) return null;
+const VIDE = (periode: Periode, perimetre: Perimetre): SupervisionData => ({
+  periode,
+  rows: [],
+  flux: [],
+  filtres: { pays: [], activites: [], commerciaux: [] },
+  perimetre,
+  configure: false,
+  ecartes: [],
+});
 
+export async function getSupervisionData(periode: Periode): Promise<SupervisionData | null> {
+  const perimetre = await getPerimetreSuperviseur();
+  if (!perimetre) return null;
+
+  // FERMÉ PAR DÉFAUT : on n'interroge même pas la base. Rien n'est lu, donc
+  // rien ne peut fuir — et l'interface reçoit de quoi expliquer pourquoi.
+  if (!perimetreConfigure(perimetre)) return VIDE(periode, perimetre);
+
+  const univers = await getUnivers();
   const { debut, fin } = bornes(periode);
   // Service-role : la supervision agrège l'activité de TOUTE l'équipe, ce que
   // la RLS « mine » interdirait. Le périmètre est appliqué juste en dessous,
@@ -142,13 +142,31 @@ export async function getSupervisionData(periode: Periode): Promise<SupervisionD
   );
 
   // ── Périmètre appliqué AVANT tout calcul ─────────────────────────────
-  const dansScope = (l: LeadRow): boolean => {
-    if (scope.countries.length && !scope.countries.includes(l.country ?? "")) return false;
-    if (scope.activityIds.length && !scope.activityIds.includes(l.activity_id ?? "")) return false;
-    if (scope.ownerIds.length && !scope.ownerIds.includes(l.owner_id ?? "")) return false;
-    return true;
-  };
-  const tousLeads = (leadsRes.data ?? []).filter(dansScope);
+  //
+  // Les règles vivent dans lib/supervision-perimetre.ts : exclusion des
+  // activités hors des deux familles supervisées (pour tout le monde, Super
+  // Admin compris), puis pays, commercial et activité autorisés. Un axe vide
+  // ne laisse rien passer.
+  const aFiltrer = (l: LeadRow) => ({
+    pays: l.country,
+    activityId: l.activity_id,
+    activiteSlug: l.activity_id ? (actById.get(l.activity_id)?.slug ?? null) : null,
+    ownerId: l.owner_id,
+  });
+
+  const tousLeads: LeadRow[] = [];
+  const motifs = new Map<Exclude<MotifExclusion, null>, number>();
+  for (const l of leadsRes.data ?? []) {
+    const d = aFiltrer(l);
+    if (dossierDansPerimetre(perimetre, d, univers)) {
+      tousLeads.push(l);
+      continue;
+    }
+    // Hors périmètre : on retient POURQUOI, sans conserver la moindre donnée
+    // du dossier. Un compteur n'est pas une fuite, un silence est un risque.
+    const motif = motifExclusion(perimetre, d, univers);
+    if (motif) motifs.set(motif, (motifs.get(motif) ?? 0) + 1);
+  }
   const idsScope = new Set(tousLeads.map((l) => l.id));
 
   const dansPeriode = (iso: string | null | undefined): boolean => {
@@ -266,6 +284,10 @@ export async function getSupervisionData(periode: Periode): Promise<SupervisionD
       activites: uniques(tousLeads.map((l) => l.activity_id)).map((id) => ({ id, label: actById.get(id)?.label ?? "—" })),
       commerciaux: uniques(tousLeads.map((l) => l.owner_id)).map((id) => ({ id, label: userById.get(id) ?? "—" })),
     },
-    scope,
+    perimetre,
+    configure: true,
+    ecartes: [...motifs.entries()]
+      .map(([motif, nombre]) => ({ motif, nombre }))
+      .sort((a, b) => b.nombre - a.nombre),
   };
 }

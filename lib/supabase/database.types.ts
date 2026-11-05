@@ -4329,7 +4329,11 @@ export type Database = {
         Row: {
           activity_ids: string[]
           can_intervene: boolean
+          can_reassign: boolean
+          can_request_action: boolean
+          can_set_priority: boolean
           countries: string[]
+          include_unassigned: boolean
           owner_ids: string[]
           updated_at: string
           updated_by: string | null
@@ -4338,7 +4342,11 @@ export type Database = {
         Insert: {
           activity_ids?: string[]
           can_intervene?: boolean
+          can_reassign?: boolean
+          can_request_action?: boolean
+          can_set_priority?: boolean
           countries?: string[]
+          include_unassigned?: boolean
           owner_ids?: string[]
           updated_at?: string
           updated_by?: string | null
@@ -4347,7 +4355,11 @@ export type Database = {
         Update: {
           activity_ids?: string[]
           can_intervene?: boolean
+          can_reassign?: boolean
+          can_request_action?: boolean
+          can_set_priority?: boolean
           countries?: string[]
+          include_unassigned?: boolean
           owner_ids?: string[]
           updated_at?: string
           updated_by?: string | null

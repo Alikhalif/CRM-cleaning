@@ -70,6 +70,9 @@ export const RESTRICTED_MODULES: { prefix: string; scope: Exclude<ModuleScope, "
   { prefix: "/a-affecter", scope: "backOffice" },
   // ── Paramétrage & pilotage d'équipe (Super Admin) ─────────────────────
   { prefix: "/settings", scope: "backOffice" }, // les pages internes gardent leur propre garde admin
+  // Périmètres des superviseurs : attribuer un accès est un acte
+  // d'administration. Préfixe plus long que `/settings`, donc il gagne.
+  { prefix: "/settings/superviseurs", scope: "admin" },
   { prefix: "/commerciaux", scope: "admin" },
   { prefix: "/presence", scope: "admin" },
   // Politique tarifaire : le client exige d'en être le seul décideur.

@@ -50,6 +50,11 @@ type AuditLogInsert = Database["public"]["Tables"]["audit_logs"]["Insert"];
 //   subcontract.contract.sent       — envoyé en signature
 //   subcontract.contract.signed     — signature des deux parties aboutie
 //   subcontract.contract.cancelled  — annulé avec motif
+//   supervisor.scope.set    — périmètre d'un superviseur attribué / modifié /
+//                             révoqué (pays, activités, commerciaux, droits).
+//                             `after.perimetre_effectif` dit si l'accès est
+//                             réellement ouvert : une révocation est un `set`
+//                             à vide, et doit rester lisible comme telle.
 export type AuditAction = string;
 export type AuditEntityType =
   | "lead" | "document" | "dossier" | "client" | "user"

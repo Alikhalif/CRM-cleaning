@@ -1,0 +1,480 @@
+// Périmètres des superviseurs — écran Super Admin.
+//
+// Desktop d'abord (≥1025px = référence), puis les paliers du dépôt :
+// 640-1024 en deux colonnes, ≤768 en pile avec des cibles tactiles de 44px
+// (le Super Admin configure parfois depuis un téléphone — « mobile is a
+// release criterion », consigne client du 2026-10-13).
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-6);
+}
+
+.ariane {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+
+  a {
+    color: var(--color-brand-500);
+    text-decoration: none;
+  }
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  margin: 0;
+  max-width: 76ch;
+  line-height: 1.5;
+}
+
+// ── Bandeaux ──────────────────────────────────────────────────────────
+
+.regle,
+.alerteMigration {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: flex-start;
+  padding: var(--sp-4);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-secondary, var(--text-muted));
+  line-height: 1.5;
+  max-width: 100ch;
+
+  strong { color: var(--text-primary); }
+  svg { flex: 0 0 auto; margin-top: 2px; }
+}
+
+.regle {
+  border-left: 3px solid var(--color-brand-500);
+}
+
+.alerteMigration {
+  border-left: 3px solid var(--tone-warning);
+
+  code {
+    font-size: 0.8125em;
+    padding: 1px 4px;
+    border-radius: var(--r-sm);
+    background: var(--bg-elevated);
+  }
+}
+
+.vide {
+  color: var(--text-muted);
+  line-height: 1.6;
+
+  a { color: var(--color-brand-500); }
+}
+
+// ── Liste des superviseurs ────────────────────────────────────────────
+
+.liste {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.carte {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  background: var(--bg-surface);
+  overflow: hidden;
+
+  // Un périmètre inactif se voit immédiatement dans la liste : c'est celui
+  // qui demande une action du Super Admin.
+  &[data-actif="false"] {
+    border-left: 3px solid var(--tone-warning);
+  }
+}
+
+.entete {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.2fr) auto auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+
+  &:hover { background: var(--bg-elevated); }
+}
+
+.identite {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  strong { font-size: var(--fs-sm); }
+}
+
+.email {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.etat {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  padding: 2px var(--sp-2);
+  border-radius: 999px;
+  white-space: nowrap;
+
+  &[data-actif="true"] {
+    color: var(--tone-success);
+    background: color-mix(in srgb, var(--tone-success) 14%, transparent);
+  }
+  &[data-actif="false"] {
+    color: var(--tone-warning);
+    background: color-mix(in srgb, var(--tone-warning) 16%, transparent);
+  }
+}
+
+.resume {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.modifie {
+  font-size: var(--fs-xs);
+  color: var(--tone-warning);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.corps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  padding: 0 var(--sp-4) var(--sp-4);
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--sp-4);
+}
+
+// ── Sections ──────────────────────────────────────────────────────────
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.sectionEntete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.sectionTitre {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.aide {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1.5;
+  max-width: 90ch;
+}
+
+.toutRien {
+  display: inline-flex;
+  gap: var(--sp-2);
+
+  button {
+    background: none;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+    padding: 2px var(--sp-2);
+    font-size: var(--fs-xs);
+    color: var(--color-brand-500);
+    cursor: pointer;
+
+    &:hover:not(:disabled) { background: var(--bg-elevated); }
+    &:disabled { opacity: 0.45; cursor: default; }
+  }
+}
+
+// ── Cases à cocher ────────────────────────────────────────────────────
+
+.case {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-1) 0;
+  cursor: pointer;
+  min-width: 0;
+
+  input {
+    margin-top: 3px;
+    accent-color: var(--color-brand-500);
+    flex: 0 0 auto;
+    width: 15px;
+    height: 15px;
+  }
+
+  &[data-fort="true"] .caseLabel {
+    font-weight: 700;
+  }
+
+  &[data-petit="true"] .caseLabel {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+  }
+
+  // Branche partiellement cochée : le libellé le dit, sans tricher avec une
+  // case à moitié cochée que personne ne sait interpréter.
+  &[data-partielle="true"] .caseLabel::after {
+    content: " · partielle";
+    color: var(--tone-warning);
+    font-weight: 600;
+    font-size: var(--fs-xs);
+  }
+}
+
+.caseLabel {
+  display: block;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+}
+
+.caseDetail {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1.45;
+  max-width: 80ch;
+}
+
+.cases {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--sp-1) var(--sp-4);
+}
+
+// ── Familles et branches ──────────────────────────────────────────────
+
+.famille {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  padding: var(--sp-3);
+  margin-top: var(--sp-2);
+  background: var(--bg-elevated);
+}
+
+.familleEntete {
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.branches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--sp-3);
+}
+
+.branche {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.secteurs {
+  display: flex;
+  flex-direction: column;
+  padding-left: var(--sp-5);
+}
+
+.brancheAbsente {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--r-sm);
+  opacity: 0.85;
+}
+
+.brancheNom {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.brancheManque {
+  font-size: var(--fs-xs);
+  color: var(--tone-warning);
+  line-height: 1.45;
+}
+
+// ── Commerciaux / droits ──────────────────────────────────────────────
+
+.comptes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0 var(--sp-4);
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: var(--sp-2);
+}
+
+.nonAttribues {
+  margin-top: var(--sp-2);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.droits {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--sp-2) var(--sp-5);
+}
+
+// ── Messages et actions ───────────────────────────────────────────────
+
+.avertissement,
+.succes,
+.erreur {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+}
+
+.avertissement { color: var(--tone-warning); }
+.succes { color: var(--tone-success); }
+.erreur { color: var(--tone-danger); }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border-subtle);
+
+  button {
+    font-size: var(--fs-sm);
+    padding: var(--sp-2) var(--sp-4);
+    border-radius: var(--r-md);
+    cursor: pointer;
+    border: 1px solid var(--border-subtle);
+
+    &:disabled { opacity: 0.45; cursor: default; }
+  }
+}
+
+.primaire {
+  background: var(--color-brand-500);
+  border-color: var(--color-brand-500) !important;
+  color: #fff;
+}
+
+.secondaire {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.danger {
+  background: none;
+  color: var(--tone-danger);
+  border-color: color-mix(in srgb, var(--tone-danger) 45%, transparent) !important;
+}
+
+.maj {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+// ── 640-1024 : deux colonnes ──────────────────────────────────────────
+
+@media (max-width: 1024px) {
+  .entete {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    row-gap: var(--sp-1);
+  }
+
+  .resume { grid-column: 1 / -1; }
+
+  .droits,
+  .branches {
+    grid-template-columns: 1fr;
+  }
+}
+
+// ── ≤768 : pile + cibles tactiles 44px ────────────────────────────────
+
+@media (max-width: 768px) {
+  .page { padding: var(--sp-4); }
+
+  .entete {
+    grid-template-columns: 1fr auto;
+    padding: var(--sp-3);
+    min-height: 44px;
+  }
+
+  .etat { grid-column: 1; }
+  .modifie { grid-column: 1 / -1; }
+
+  .cases,
+  .comptes {
+    grid-template-columns: 1fr;
+  }
+
+  // 44px minimum sur tout ce qui se touche (Apple HIG / Material).
+  .case {
+    min-height: 44px;
+    align-items: center;
+    padding: var(--sp-2) 0;
+
+    input { width: 20px; height: 20px; margin-top: 0; }
+  }
+
+  .toutRien button {
+    min-height: 36px;
+    padding: var(--sp-1) var(--sp-3);
+  }
+
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+
+    button { min-height: 44px; width: 100%; }
+  }
+
+  .maj { margin-left: 0; }
+
+  .comptes { max-height: none; }
+}
