@@ -2637,6 +2637,7 @@ export type Database = {
           legal_mentions: string | null
           legal_name: string
           logo_url: string | null
+          representative_company_name: string | null
           representative_name: string | null
           representative_title: string | null
           siren: string | null
@@ -2670,6 +2671,7 @@ export type Database = {
           legal_mentions?: string | null
           legal_name: string
           logo_url?: string | null
+          representative_company_name?: string | null
           representative_name?: string | null
           representative_title?: string | null
           siren?: string | null
@@ -2703,6 +2705,7 @@ export type Database = {
           legal_mentions?: string | null
           legal_name?: string
           logo_url?: string | null
+          representative_company_name?: string | null
           representative_name?: string | null
           representative_title?: string | null
           siren?: string | null

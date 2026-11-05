@@ -63,21 +63,7 @@ function validate(input: EntityInput): string | null {
   return null;
 }
 
-/**
- * Charge utile d'écriture.
- *
- * `representative_company_name` est ajoutée par la migration
- * `20261104000001`, pas encore poussée au moment où ce code est écrit : les
- * types générés (`lib/supabase/database.types.ts`) l'ignorent donc. On élargit
- * le type ici plutôt que de retoucher à la main un fichier généré, qui serait
- * écrasé au prochain `supabase gen types`. Après `npx supabase db push` et
- * régénération, cette intersection devient redondante et peut disparaître.
- */
-type EntityPayload = Omit<EntityInsert, "id"> & {
-  representative_company_name: string | null;
-};
-
-function buildPayload(input: EntityInput): EntityPayload {
+function buildPayload(input: EntityInput): Omit<EntityInsert, "id"> {
   return {
     legal_name: input.legalName.trim(),
     legal_form: input.legalForm,
