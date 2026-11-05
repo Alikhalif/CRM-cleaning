@@ -330,7 +330,7 @@ type DossierRow = {
     etat_salete: string | null;
     wanted_date: string | null;
     wanted_slot: string | null;
-    activity: { slug: string; name: string | null } | null;
+    activity: { slug: string; label: string } | null;
   } | null;
 };
 
@@ -375,7 +375,7 @@ function partieAdresse(v: unknown): { rue: string; cp: string; ville: string; et
 export async function getDossierContrat(dossierId: string): Promise<DossierContrat | null> {
   const supabase = await supabaseServer();
 
-  const { data: d } = await supabase
+  const { data: d, error } = await supabase
     .from("dossiers")
     .select(
       `id, lead_id, status, technician_id, planned_at, duration_hours, notes, address,
@@ -383,11 +383,41 @@ export async function getDossierContrat(dossierId: string): Promise<DossierContr
          id, short_id, is_company, client_first_name, client_last_name, client_company,
          client_email, client_phone, client_address, country, surface_m2, type_service, notes,
          discovery_details, etat_salete, wanted_date, wanted_slot,
-         activity:activities(slug, name)
+         activity:activities(slug, label)
        )`,
     )
     .eq("id", dossierId)
     .maybeSingle<DossierRow>();
+
+  // ⚠️ NE JAMAIS JETER L'ERREUR À LA POUBELLE ICI.
+  //
+  // Cette fonction retournait `null` indifféremment pour « le dossier n'existe
+  // pas » et « la requête a échoué », et l'appelant
+  // (app/(app)/planification/[id]/page.tsx) traduit `null` par `notFound()`.
+  //
+  // Le 2026-11-05, le select demandait `activities(slug, name)` alors que la
+  // colonne s'appelle `label`. PostgREST répondait donc :
+  //
+  //   400 — {"code":"42703","message":"column activities_2.name does not exist"}
+  //
+  // L'erreur étant ignorée, un dossier parfaitement valide affichait « 404
+  // This page could not be found » tandis que le serveur journalisait
+  // « GET /planification/<id> 200 ». Aucune trace, nulle part, de la vraie
+  // cause : il a fallu rejouer la requête à la main contre la base pour la
+  // trouver. Ni `tsc`, ni ESLint, ni `npm run build` ne lisent l'intérieur
+  // d'une chaîne `.select()` — c'est donc le seul filet possible.
+  //
+  // On continue de retourner `null` (le 404 reste préférable à un écran
+  // d'erreur pour la planificatrice), mais la cause est désormais écrite dans
+  // les logs du conteneur.
+  if (error) {
+    console.error(
+      `[contrats] getDossierContrat(${dossierId}) : la requête a échoué — ` +
+        `${error.code ?? "?"} ${error.message}. Le dossier existe peut-être : ` +
+        `ce n'est PAS un 404 légitime.`,
+    );
+    return null;
+  }
 
   if (!d || !d.lead) return null;
   const lead = d.lead;
@@ -445,7 +475,7 @@ export async function getDossierContrat(dossierId: string): Promise<DossierContr
     },
     mission: {
       reference: lead.short_id,
-      type: lead.activity?.name ?? lead.activity?.slug ?? "",
+      type: lead.activity?.label ?? lead.activity?.slug ?? "",
       secteurSlug: lead.activity?.slug ?? "",
       date: d.planned_at ? d.planned_at.slice(0, 10) : "",
       heureDebut: d.planned_at ? d.planned_at.slice(11, 16) : "",
