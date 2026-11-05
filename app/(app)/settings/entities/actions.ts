@@ -4,100 +4,25 @@ import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
 import type { Database } from "@/lib/supabase/database.types";
-import { COUNTRY_LABEL, IDENTIFIANT_LEGAL, type Country, type LegalForm } from "@/lib/leads";
+import {
+  buildPayload,
+  texte,
+  validate,
+  type EntityInput,
+} from "@/lib/entities-shared";
+
+// `EntityInput` est réexporté : le formulaire l'importe depuis ce fichier
+// depuis l'origine, et déplacer la logique ne doit pas casser son import.
+export type { EntityInput };
 
 // Admin-only CRUD on legal_entities. RLS already enforces admin-write via
 // the existing "legal_entities writable by admin" policy, so non-admin
 // callers get a clear error from Postgres.
 
-type EntityInsert = Database["public"]["Tables"]["legal_entities"]["Insert"];
 type EntityUpdate = Database["public"]["Tables"]["legal_entities"]["Update"];
-
-export type EntityInput = {
-  legalName: string;
-  legalForm: LegalForm;
-  siret: string;
-  apeCode: string;
-  vatNumber: string;
-  addressLine: string;
-  postalCode: string;
-  city: string;
-  contactEmail: string;
-  contactPhone: string;
-  defaultVatRate: number;
-  legalMentions: string;
-  color: string;
-  representativeName: string;
-  representativeTitle: string;
-  representativeCompanyName: string;
-  country: Country;
-  /** Identifiant légal national. Cf. `IDENTIFIANT_LEGAL` dans lib/leads.ts. */
-  siren: string;
-};
 
 export type Result = { ok: true; id?: string } | { ok: false; error: string };
 
-function validate(input: EntityInput): string | null {
-  if (!input.legalName.trim()) return "Raison sociale requise.";
-  if (!input.legalForm) return "Forme juridique requise.";
-  if (!input.country) return "Pays d'établissement requis.";
-
-  // Le SIRET à 14 chiffres n'existe QU'EN FRANCE. La règle précédente
-  // s'appliquait à toutes les sociétés : aucune entité suisse, belge,
-  // luxembourgeoise ou canadienne ne pouvait être enregistrée, alors que le
-  // CRM opère dans ces cinq pays. On ne l'exige donc qu'en France, et on
-  // demande ailleurs l'identifiant légal national.
-  if (input.country === "FR") {
-    if (!/^\d{14}$/.test(input.siret.replace(/\s/g, ""))) {
-      return "SIRET invalide (14 chiffres attendus pour une société française).";
-    }
-  } else if (!input.siren.trim() && !input.siret.trim() && !input.vatNumber.trim()) {
-    const l = IDENTIFIANT_LEGAL[input.country].label;
-    return `Identifiant légal requis (${l}) pour une société ${COUNTRY_LABEL[input.country]}.`;
-  }
-  if (input.defaultVatRate < 0 || input.defaultVatRate > 100) {
-    return "Taux de TVA invalide (0–100).";
-  }
-  return null;
-}
-
-function buildPayload(input: EntityInput): Omit<EntityInsert, "id"> {
-  return {
-    legal_name: input.legalName.trim(),
-    legal_form: input.legalForm,
-    siret: input.siret.replace(/\s/g, ""),
-    ape_code: input.apeCode.trim(),
-    vat_number: input.vatNumber.trim(),
-    address: {
-      line1: input.addressLine.trim() || null,
-      postal_code: input.postalCode.trim() || null,
-      city: input.city.trim() || null,
-    },
-    contact_email: input.contactEmail.trim() || null,
-    contact_phone: input.contactPhone.trim() || null,
-    // iban / bic : VOLONTAIREMENT ABSENTS de la charge utile.
-    //
-    // Les champs ont été retirés du formulaire le 2026-11-05 (le RIB circule
-    // en pièce jointe du devis). Les colonnes, elles, restent : deux sociétés
-    // ont un IBAN réel qui s'imprime sur leurs factures. Ne pas les écrire
-    // ICI est ce qui préserve ces valeurs — y mettre une chaîne vide les
-    // aurait effacées à la première modification de la fiche.
-    default_vat_rate: input.defaultVatRate,
-    legal_mentions: input.legalMentions.trim() || null,
-    color: input.color || "#5b4bcc",
-    // Volontairement PAS obligatoires côté formulaire : les sept sociétés
-    // existantes en sont dépourvues, et imposer le champ bloquerait une
-    // modification sans rapport. Le refus se fait là où il compte — à
-    // l'émission d'un contrat de sous-traitance, par `controlerEntite()`.
-    representative_name: input.representativeName.trim() || null,
-    representative_title: input.representativeTitle.trim() || null,
-    // Représentation par une personne morale : optionnelle, et c'est voulu.
-    // La plupart des sociétés sont représentées par une personne physique.
-    representative_company_name: input.representativeCompanyName.trim() || null,
-    country: input.country,
-    siren: input.siren.replace(/\s/g, "") || null,
-  };
-}
 
 export async function createEntity(input: EntityInput): Promise<Result> {
   const err = validate(input);
@@ -116,7 +41,7 @@ export async function createEntity(input: EntityInput): Promise<Result> {
     action: "entity.create",
     entityType: "user",
     entityId: data.id,
-    after: { legalName: input.legalName.trim() },
+    after: { legalName: texte(input.legalName) },
   });
   return { ok: true, id: data.id };
 }
@@ -137,7 +62,7 @@ export async function updateEntity(id: string, input: EntityInput): Promise<Resu
     action: "entity.update",
     entityType: "user",
     entityId: id,
-    after: { legalName: input.legalName.trim() },
+    after: { legalName: texte(input.legalName) },
   });
   return { ok: true };
 }

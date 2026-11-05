@@ -186,7 +186,8 @@ const CHAINES: Chaine[] = [
     source: "lib/sous-traitance/variables.ts",
     symbole: "representative_company_name",
     maillons: [
-      { f: "app/(app)/settings/entities/actions.ts", s: "representative_company_name" },
+      { f: "lib/entities-shared.ts", s: "representative_company_name" },
+      { f: "app/(app)/settings/entities/actions.ts", s: "buildPayload" },
       { f: "app/(app)/settings/entities/EntityFormModal.tsx", s: "representativeCompanyName" },
       { f: "app/(app)/settings/entities/EntitiesList.tsx", s: "representativeCompanyName" },
       { f: "lib/documents-server.ts", s: "representativeCompanyName" },
@@ -204,7 +205,7 @@ const CHAINES: Chaine[] = [
       { f: "app/(app)/settings/entities/EntityFormModal.tsx", s: "IDENTIFIANT_LEGAL" },
       { f: "app/(app)/settings/entities/EntityFormModal.tsx", s: "Pays d&apos;établissement" },
       { f: "app/(app)/settings/entities/EntitiesList.tsx", s: "IDENTIFIANT_LEGAL" },
-      { f: "app/(app)/settings/entities/actions.ts", s: "IDENTIFIANT_LEGAL" },
+      { f: "lib/entities-shared.ts", s: "IDENTIFIANT_LEGAL" },
     ],
     route: "/settings/entities",
     roles: ["admin"],

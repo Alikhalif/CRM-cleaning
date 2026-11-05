@@ -26,21 +26,37 @@ import type { Json } from "./supabase/database.types";
 export type { DocumentDetail, DocumentWithContext, AccountingKpis } from "./documents-shared";
 export { computeAccountingKpis } from "./documents-shared";
 
+// Ligne de `legal_entities` telle que la BASE la rend.
+//
+// ⚠️ LA NULLABILITÉ DOIT REFLÉTER EXACTEMENT LE SCHÉMA. Ce type déclarait
+// `ape_code`, `vat_number`, `iban`, `bic` et `color` comme des `string` alors
+// que les cinq colonnes sont NULLABLES. Le compilateur, à qui on avait menti,
+// ne demandait donc aucune garde : la valeur `null` traversait `mapEntity`,
+// puis le type `LegalEntity` qui promet `string`, puis le formulaire — et
+// explosait à la première méthode de chaîne appelée dessus.
+//
+// C'est le bug de production du 2026-11-05 :
+//   TypeError: Cannot read properties of null (reading 'replace')
+// sur `input.iban.replace(...)` dans `buildPayload`, pour les cinq sociétés
+// dont l'IBAN est nul.
+//
+// Un type de frontière qui ment est pire qu'une absence de type : il éteint
+// la seule alarme qui aurait servi.
 type EntityRow = {
   id: string;
   legal_name: string;
   legal_form: LegalForm;
   siret: string;
-  ape_code: string;
-  vat_number: string;
+  ape_code: string | null;
+  vat_number: string | null;
   address: Json | null;
   contact_email: string | null;
   contact_phone: string | null;
-  iban: string;
-  bic: string;
-  default_vat_rate: number;
+  iban: string | null;
+  bic: string | null;
+  default_vat_rate: number | null;
   legal_mentions: string | null;
-  color: string;
+  color: string | null;
   representative_name: string | null;
   representative_title: string | null;
   representative_company_name: string | null;
@@ -56,19 +72,24 @@ function mapEntity(row: EntityRow): LegalEntity {
     id: row.id,
     legalName: row.legal_name,
     legalForm: row.legal_form,
-    siret: row.siret,
-    apeCode: row.ape_code,
-    vatNumber: row.vat_number,
+    siret: row.siret ?? "",
+    // `?? ""` sur CHAQUE colonne nullable : le type `LegalEntity` promet des
+    // `string` à toute l'application, et c'est ici — le point de passage
+    // unique entre la base et l'interface — que la promesse se tient.
+    apeCode: row.ape_code ?? "",
+    vatNumber: row.vat_number ?? "",
     addressLine: a.line1 ?? "",
     postalCode: a.postal_code ?? "",
     city: a.city ?? "",
     contactEmail: row.contact_email ?? "",
     contactPhone: row.contact_phone ?? "",
-    iban: row.iban,
-    bic: row.bic,
-    defaultVatRate: Number(row.default_vat_rate),
+    iban: row.iban ?? "",
+    bic: row.bic ?? "",
+    defaultVatRate: Number(row.default_vat_rate ?? 20),
     legalMentions: row.legal_mentions ?? "",
-    color: row.color,
+    // Repli sur la couleur de marque : une pastille sans couleur casserait
+    // l'affichage de la liste des sociétés.
+    color: row.color ?? "#5b4bcc",
     defaultActivities: [], // not used by DocumentView; skip the extra join
     representativeName: row.representative_name ?? "",
     representativeTitle: row.representative_title ?? "",

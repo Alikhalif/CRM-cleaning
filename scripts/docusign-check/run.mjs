@@ -32,6 +32,7 @@ const SUITES = [
   { fichier: "prestataires.ts", titre: "Recherche prestataires et représentation des sociétés" },
   { fichier: "accessibilite.ts", titre: "Accessibilité depuis l'interface et cloisonnement des rôles" },
   { fichier: "pipeline-resume.ts", titre: "Résumé horizontal du pipeline commercial" },
+  { fichier: "societes-emettrices.ts", titre: "Sociétés émettrices (null-safety, règles par pays)" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "docusign-check-"));
