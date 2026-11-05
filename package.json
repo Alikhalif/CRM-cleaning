@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "check:docusign": "node scripts/docusign-check/run.mjs",
-    "check:superviseur": "node scripts/superviseur-check/run.mjs"
+    "check:superviseur": "node scripts/superviseur-check/run.mjs",
+    "check:devis": "node scripts/devis-redaction-check/run.mjs"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",

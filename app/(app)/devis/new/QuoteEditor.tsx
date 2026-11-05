@@ -26,6 +26,7 @@ import {
   type DraftInput,
 } from "./actions";
 import LeadRecapPanel from "./LeadRecapPanel";
+import RedactionAssistee from "./RedactionAssistee";
 import styles from "./QuoteEditor.module.scss";
 
 type DraftLine = {
@@ -185,6 +186,31 @@ export default function QuoteEditor({
 
   const removeLine = (id: string) =>
     setDraft((d) => ({ ...d, lines: d.lines.filter((l) => l.id !== id) }));
+
+  // §17.5 — « Régénérer le titre ». La DÉSIGNATION du devis est portée par
+  // le libellé de la première ligne de prestation : c'est ce que
+  // `genererDevisDepuisDecouverte` y écrit, et ce que le PDF affiche.
+  //
+  // Si le brouillon n'a aucune ligne — cas d'un devis repris à la main —
+  // le titre n'a nulle part où aller : on en crée une, à zéro euro, pour
+  // ne pas perdre le texte. Aucun montant n'est jamais déduit du titre
+  // (interdiction 17 du §19).
+  const setTitrePrestation = (titre: string) =>
+    setDraft((d) => {
+      if (d.lines.length === 0) {
+        return {
+          ...d,
+          lines: [{
+            id: makeLineId(), label: titre, quantity: 1, unit: "forfait",
+            unitPriceHt: 0, vatRate: 20, discountPct: 0,
+          }],
+        };
+      }
+      return {
+        ...d,
+        lines: d.lines.map((l, i) => (i === 0 ? { ...l, label: titre } : l)),
+      };
+    });
 
   const addLine = (prestation?: PrestationOption) => {
     const line: DraftLine = prestation
@@ -642,6 +668,15 @@ export default function QuoteEditor({
             </div>
           </section>
 
+          {/* ── Rédaction assistée (§17) ──────────────────────────────── */}
+          <RedactionAssistee
+            brouillonId={brouillonId}
+            notes={draft.notes}
+            titre={draft.lines[0]?.label ?? ""}
+            onNotes={(t) => set("notes", t)}
+            onTitre={setTitrePrestation}
+          />
+
           {/* ── Notes ────────────────────────────────────────────────── */}
           <section className={styles.card}>
             <h2 className={styles.h2}>Notes</h2>
@@ -649,8 +684,8 @@ export default function QuoteEditor({
               value={draft.notes}
               onChange={(e) => set("notes", e.target.value)}
               className={styles.textarea}
-              rows={3}
-              placeholder="Conditions particulières, mentions complémentaires…"
+              rows={16}
+              placeholder="PRESTATION · DÉTAIL DE LA PRESTATION · RÉSERVES — ou conditions particulières."
             />
           </section>
         </div>

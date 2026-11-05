@@ -92,16 +92,31 @@ export const MOTIF_LABEL: Record<MotifRefus, string> = {
 };
 
 /**
- * Notes du document : le DÉTAIL puis les RÉSERVES, avec leurs intitulés.
+ * Notes du document : la STRUCTURE OBLIGATOIRE en trois blocs (§2, §22).
+ *
+ *   PRESTATION              titre en majuscules + introduction professionnelle
+ *   DÉTAIL DE LA PRESTATION sections techniques numérotées
+ *   RÉSERVES                clauses adaptées au chantier
  *
  * Le modèle de devis générique n'a qu'un champ libre (`documents.notes`),
- * rendu tel quel dans le PDF. Les intitulés sont donc portés par le texte
- * lui-même — c'est ce qui permet de faire figurer les trois blocs sans
- * toucher à la mise en page du PDF. La DÉSIGNATION, elle, devient le libellé
- * de la ligne de prestation.
+ * rendu tel quel dans le PDF : les intitulés sont donc portés par le texte
+ * lui-même, ce qui permet de faire figurer les trois blocs sans toucher à la
+ * mise en page. La désignation sert aussi de libellé à la ligne de
+ * prestation — elle est répétée ici parce que le §22 exige que le bloc
+ * PRESTATION porte le titre ET l'introduction.
+ *
+ * ⚠️ AVANT : cette fonction préfixait « DÉTAIL DE LA PRESTATION » à un texte
+ * qui commençait déjà par « PRESTATION » puis « DÉTAIL DES PRESTATIONS ». Le
+ * devis portait donc deux intitulés concurrents, et aucune introduction.
  */
 export function notesDevis(c: ContenuDevis): string {
   const blocs: string[] = [];
+
+  const prestation = [c.designation, "", c.introduction.trim()]
+    .filter((l, i) => i === 1 || l.trim())
+    .join("\n");
+  blocs.push(`PRESTATION\n\n${prestation}`);
+
   if (c.detail.trim()) blocs.push(`DÉTAIL DE LA PRESTATION\n\n${c.detail.trim()}`);
   if (c.reserves.trim()) blocs.push(`RÉSERVES\n\n${c.reserves.trim()}`);
   return blocs.join("\n\n");

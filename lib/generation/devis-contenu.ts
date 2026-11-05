@@ -1,31 +1,60 @@
 // Contenu de devis à partir de la découverte — PUR, aucune I/O.
 //
-// GÉNÉRATION DÉTERMINISTE, pas un appel à une IA. Le CRM n'a aucun modèle de
-// langage configuré, et pour ce travail c'est un avantage : les règles du
-// cahier sont absolues — « ne jamais inventer d'information », « ne jamais
-// générer de prix », « ne jamais écrire remise en état ». Un gabarit nourri
-// par les champs réellement saisis les respecte par construction et se teste.
-// Le jour où vous voudrez une rédaction plus libre, ce module restera la
-// source des FAITS à lui transmettre.
+// ── LES TROIS NIVEAUX DU §14 ──────────────────────────────────────────
 //
-// PÉRIMÈTRE (§2) : nettoyage, nettoyage difficile, Diogène, débarras,
-// déménagement, transport. Le dépannage et les travaux du bâtiment sont
-// exclus — `genererContenuDevis` renvoie null pour eux.
+//   NIVEAU A — DÉCOUVERTE      `Decouverte` : les données brutes saisies.
+//   NIVEAU B — ANALYSE MÉTIER  `analyser()` : quelles prestations sont
+//                              validées, quelles contraintes, quelles
+//                              exclusions, quel niveau de développement,
+//                              qu'est-ce qui manque.
+//   NIVEAU C — RÉDACTION       `rediger()`  : titre, introduction, sections
+//                              numérotées, réserves.
+//
+// Le §14 l'exige explicitement : « les champs de découverte ne doivent pas
+// être directement transformés en lignes de devis, ils doivent passer par une
+// étape d'analyse métier ». La séparation est donc structurelle, pas
+// cosmétique — et chaque niveau se teste séparément.
+//
+// ── GÉNÉRATION DÉTERMINISTE, pas un appel à une IA ────────────────────
+//
+// Le CRM n'a aucun modèle de langage configuré, et pour ce travail c'est un
+// avantage : les 28 interdictions du §19 sont absolues. Un référentiel fini de
+// formulations (bibliotheque-redaction.ts) les respecte par construction et se
+// teste. Le jour où vous voudrez une rédaction plus libre, ce module restera
+// la source des FAITS à lui transmettre.
+//
+// ── PÉRIMÈTRE ─────────────────────────────────────────────────────────
+//
+// Nettoyage (y compris difficile et Diogène), débarras, déménagement,
+// transport. Le dépannage et les travaux du bâtiment sont exclus :
+// `genererContenuDevis` renvoie null pour eux.
 
 import { labelOf } from "@/lib/discovery-metier";
 import {
-  DEBARRAS_VOLUME, DIO_DECHETS, DIO_ENCOMBREMENT, DIO_VOLUME,
-  EQUIPEMENTS, ETAGE, ETAT_GENERAL, EXTERIEUR_TYPE, MURS, OCCUPATION,
-  PLAFONDS_TYPE, SOLS, STATIONNEMENT, SURFACE_CONCERNEE, TRAITEMENTS_SOL,
-  TYPE_BIEN_NETTOYAGE, TYPE_NETTOYAGE, VITRERIE_FACES,
+  DEBARRAS_VOLUME, DIO_ACCESSIBILITE, DIO_DECHETS, DIO_ENCOMBREMENT,
+  DIO_NUISIBLES, DIO_ODEURS, DIO_VOLUME, EQUIPEMENTS, ETAGE, ETAT_GENERAL,
+  EXTERIEUR_TYPE, MURS, OCCUPATION, PLAFONDS_TYPE, SOLS, STATIONNEMENT,
+  SURFACE_CONCERNEE, TRAITEMENTS_SOL, TYPE_BIEN_NETTOYAGE, VITRERIE_FACES,
   descriptifVitrerie,
 } from "@/lib/discovery-nettoyage";
 import {
   ACCES, EMBALLAGE, LOGEMENT_TYPE, OBJETS_SPECIFIQUES, OUI_NON, TYPE_BIEN,
   VOLUME_DEMENAGEMENT, TYPE_OBJET, OPTIONS_TRANSPORT,
 } from "@/lib/discovery-metier";
+import {
+  FAMILLES, MENTION_PRODUITS, RESERVES_PAR_FAMILLE, RESERVE_ASSECHEMENT,
+  RESERVE_BIENS_CONSERVES, RESERVE_DECHETS_REGLEMENTES, RESERVE_INSALUBRE,
+  RESERVE_MURS_EXCLUS, RESERVE_MURS_LAVABLES, RESERVE_NON_SIGNALE,
+  RESERVE_NUISIBLES, RESERVE_REEVALUATION, RESERVE_SUPPORTS, RESERVE_VOLUME,
+  RESERVE_VITRERIE_EXCLUE, RESERVE_VITRERIE_INACCESSIBLE,
+  estComplementaire, familleDe, operationsDe, titreDe,
+  type FamilleNettoyage, type Niveau, type SectionRedigee, type Theme,
+} from "./bibliotheque-redaction";
 
-/** Activités couvertes. Les autres sont hors périmètre (§2). */
+export { VERSION_REFERENTIEL } from "./bibliotheque-redaction";
+export type { Niveau, SectionRedigee } from "./bibliotheque-redaction";
+
+/** Activités couvertes. Les autres sont hors périmètre. */
 export const ACTIVITES_COUVERTES = [
   "nettoyage", "nettoyage_difficile", "diogene",
   "debarras", "demenagement", "transport",
@@ -36,9 +65,19 @@ export function activiteCouverte(sector: string): boolean {
 }
 
 export type ContenuDevis = {
+  /** Titre en majuscules (§3). Devient le libellé de la ligne de prestation. */
   designation: string;
+  /** Introduction professionnelle (§4). */
+  introduction: string;
+  /** Sections techniques, dans l'ordre de rédaction (§2, §5). */
+  sections: SectionRedigee[];
+  /** Rendu texte des sections, numérotées — ce qui part dans le PDF. */
   detail: string;
   reserves: string;
+  /** Niveau de développement retenu (§10). */
+  niveau: Niveau;
+  /** Famille métier retenue, pour la traçabilité. */
+  famille: string;
   /** Champs de la découverte réellement utilisés — pour que le commercial voie d'où vient le texte. */
   sources: string[];
   /** Informations utiles mais absentes : le texte ne les invente pas. */
@@ -51,41 +90,55 @@ export type Decouverte = {
   /** État général du logement (colonne `etat_salete` du lead). */
   etatSalete: string | null;
   details: Record<string, unknown>;
-  /** Ville du chantier, pour la désignation d'un déménagement. */
   villeDepart?: string | null;
   villeArrivee?: string | null;
   /**
-   * « Contexte de l'intervention » saisi en découverte (`contexte_intervention`).
+   * « Contexte de l'intervention » saisi en découverte.
    *
-   * Reporté dans le devis comme un ÉLÉMENT RELEVÉ, au même titre que l'étage
-   * ou le stationnement — jamais comme une prestation, puisque ce n'en est
-   * pas une. Le commercial relit le brouillon avant tout envoi : c'est là
-   * qu'il retire ce qui n'a pas à être lu par le client.
+   * Reporté comme un ÉLÉMENT RELEVÉ, jamais comme une prestation, puisque
+   * ce n'en est pas une. Le commercial relit le brouillon avant tout envoi.
    */
   contexteIntervention?: string | null;
 };
 
-/**
- * Ligne « informations complémentaires », commune aux quatre gabarits.
- *
- * Rendue uniquement si la découverte en porte une. Le texte est repris tel
- * quel : rien n'est reformulé, donc rien n'est déformé.
- */
-/** Champs de vitrerie tracés en source quand le descriptif les exploite. */
-const VITRERIE_CHAMPS = [
-  "vitrerieFenetres", "vitrerieBaies", "vitreriePortesFenetres", "vitrerieVelux",
-  "vitrerieVerandaM2", "vitrerieGrandesSurfacesM2", "vitrerieAutres",
-  "vitrerieFaces", "vitrerieEncadrement", "vitrerieRails", "vitrerieCoulisses",
-  "vitrerieAcces", "vitrerieEquipement", "vitrerieObservations",
-] as const;
+// ══════════════════════════════════════════════════════════════════════
+//  NIVEAU B — RÉSULTAT DE L'ANALYSE MÉTIER
+// ══════════════════════════════════════════════════════════════════════
 
-function lignesContexte(d: Decouverte): string[] {
-  const t = (d.contexteIntervention ?? "").trim();
-  if (!t) return [];
-  return ["", `Informations complémentaires communiquées : ${t}`];
-}
+export type Analyse = {
+  /** Base du titre, en clair : « Nettoyage approfondi », « Débarras complet ». */
+  titreBase: string;
+  /** Nature de l'intervention, première phrase de l'introduction. */
+  nature: string;
+  /** Type de bien en clair, ou null si non saisi. */
+  bien: string | null;
+  surface: number | null;
+  /** Précision de titre propre à l'activité : « de Paris vers Lyon ». */
+  precisionTitre: string | null;
+  /** Niveau d'encrassement en clair, s'il est saisi. */
+  etat: string | null;
+  niveau: Niveau;
+  /** Thèmes validés, dans l'ordre de rédaction. */
+  themes: Theme[];
+  /** Précisions issues de la découverte, par thème. Rien n'est perdu. */
+  faits: Partial<Record<Theme, string[]>>;
+  /** Fragments à ajouter au titre : « vitrerie », « lessivage des murs »… */
+  titreComplements: string[];
+  /** Faits d'organisation : étage, stationnement, occupation. Pas des prestations. */
+  contraintes: string[];
+  /** Réserves propres au chantier, en plus du socle. */
+  reserves: string[];
+  /** La mention « produits » du §11 s'applique-t-elle ? */
+  mentionProduits: boolean;
+  famille: FamilleNettoyage | null;
+  sources: string[];
+  manquant: string[];
+  contexte: string | null;
+};
 
-// ── Petits outils de lecture ──────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════
+//  Petits outils de lecture
+// ══════════════════════════════════════════════════════════════════════
 
 const str = (d: Record<string, unknown>, k: string): string =>
   typeof d[k] === "string" ? (d[k] as string).trim() : "";
@@ -96,138 +149,155 @@ const num = (d: Record<string, unknown>, k: string): number => {
 const liste = (d: Record<string, unknown>, k: string): string[] =>
   Array.isArray(d[k]) ? (d[k] as unknown[]).map(String).filter(Boolean) : [];
 const oui = (d: Record<string, unknown>, k: string): boolean => str(d, k) === "oui";
-
-/** Première lettre en capitale, le reste intact. */
+/** Réponse explicitement négative — à distinguer d'une absence de réponse (§9). */
+const non = (d: Record<string, unknown>, k: string): boolean => str(d, k) === "non";
 const cap = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
-// Engagement de l'entreprise, à mentionner sur les prestations de nettoyage
-// (§3.4). Pas sur un déménagement ou un transport : aucun produit n'y est
-// appliqué, l'affirmation serait hors sujet.
-const PRODUITS_ECO =
-  "Les prestations sont réalisées avec des produits professionnels "
-  + "100 % français et écoresponsables.";
-
-// ── Réserves communes ─────────────────────────────────────────────────
-//
-// La réserve de périmètre figure sur TOUS les devis : c'est elle qui protège
-// contre la demande supplémentaire faite au dernier moment.
-const RESERVE_PERIMETRE =
-  "Le présent devis est établi sur la base des informations communiquées par "
-  + "le client lors de la découverte. Toute demande supplémentaire ou "
-  + "modification du périmètre initial fera l'objet d'une validation préalable "
-  + "et, le cas échéant, d'une réévaluation du devis.";
-
-const RESERVE_NON_SIGNALE =
-  "Les difficultés non visibles lors de la découverte, les contraintes "
-  + "techniques et les éléments non signalés au moment de l'établissement du "
-  + "devis pourront donner lieu à une réévaluation après accord du client.";
-
-// ══════════════════════════════════════════════════════════════════════
-//  NETTOYAGE (y compris nettoyage difficile et Diogène)
-// ══════════════════════════════════════════════════════════════════════
-
-/**
- * Libellé de prestation à partir du type de nettoyage saisi.
- *
- * Les options de la découverte sont des QUALIFICATIFS (« Approfondi »,
- * « Fin de bail ») : il faut les préfixer, sinon la désignation sort
- * « APPROFONDI D'UN APPARTEMENT ».
- *
- * ⚠️ `remise_etat` est libellé « Remise en état » dans la découverte — soit
- * exactement l'expression que le §3.4 proscrit. On la réécrit ici en
- * « Nettoyage approfondi » : c'est le seul endroit où le piège peut être
- * désamorcé, puisque le commercial continue de voir l'ancien libellé dans
- * son formulaire.
- */
-function libelleTypeNettoyage(type: string): string {
-  const particuliers: Record<string, string> = {
-    classique: "Nettoyage courant",
-    approfondi: "Nettoyage approfondi",
-    remise_etat: "Nettoyage approfondi",
-    tres_sale: "Nettoyage approfondi d'un logement très sale",
-    insalubre: "Nettoyage d'un logement insalubre",
-    apres_squat: "Nettoyage après occupation sans droit",
-    autre: "Nettoyage approfondi",
-  };
-  if (particuliers[type]) return particuliers[type];
-  const brut = type ? labelOf(TYPE_NETTOYAGE, type) : "";
-  if (!brut || brut === type) return "Nettoyage approfondi";
-  // « Fin de bail » → « Nettoyage fin de bail ».
-  return `Nettoyage ${brut.charAt(0).toLowerCase()}${brut.slice(1)}`;
+/** Article élidé correct : « d'un appartement », « d'une maison ». */
+function article(bien: string): string {
+  return /^(maison|villa|cave|grange|cuisine|chambre|boutique|usine)/i.test(bien)
+    ? "d'une"
+    : "d'un";
 }
 
-function nettoyage(d: Decouverte): ContenuDevis {
+/** Énumération française : « a », « a et b », « a, b et c ». */
+function enumerer(items: string[]): string {
+  if (items.length === 0) return "";
+  if (items.length === 1) return items[0];
+  return `${items.slice(0, -1).join(", ")} et ${items[items.length - 1]}`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  NIVEAU B — ANALYSE : NETTOYAGE
+// ══════════════════════════════════════════════════════════════════════
+
+function analyserNettoyage(d: Decouverte): Analyse {
   const det = d.details;
   const sources: string[] = [];
   const manquant: string[] = [];
+  const faits: Partial<Record<Theme, string[]>> = {};
+  const reserves: string[] = [];
+  const titreComplements: string[] = [];
+  const contraintes: string[] = [];
   const note = (k: string) => sources.push(k);
+  const fait = (t: Theme, s: string) => { (faits[t] ??= []).push(s); };
 
+  // ── Famille et niveau ────────────────────────────────────────────
   const typeNet = str(det, "typeNettoyage");
-  const typeBien = str(det, "typeBienNet");
-  const surface = d.surfaceM2 && d.surfaceM2 > 0 ? d.surfaceM2 : 0;
-
-  // ── Désignation ──────────────────────────────────────────────────
-  // « Nettoyage approfondi d'un appartement de 75 m² ».
-  const libelleType = libelleTypeNettoyage(typeNet);
   if (typeNet) note("typeNettoyage"); else manquant.push("type de nettoyage");
-  const libelleBien = typeBien ? labelOf(TYPE_BIEN_NETTOYAGE, typeBien).toLowerCase() : "";
-  if (typeBien) note("typeBienNet"); else manquant.push("type de bien");
-  if (surface) note("surface"); else manquant.push("surface");
 
   const complements = liste(det, "complements");
   if (complements.length) note("complements");
-  const avecDesinfection = complements.includes("desinfection") || str(det, "desinfectionSurface") !== "";
+
+  const origineDecont = str(det, "decontaminationOrigine");
+  const origineDesod = str(det, "desodorisationOrigine");
+  if (origineDecont) note("decontaminationOrigine");
+  if (origineDesod) note("desodorisationOrigine");
+
+  const famille = familleDe({
+    sector: d.sector,
+    typeNettoyage: typeNet,
+    origineDecontamination: origineDecont,
+    origineDesodorisation: origineDesod,
+  });
+  const def = FAMILLES[famille];
+
+  // ── Prestations complémentaires : validées, ou rien (§6.B) ───────
+  const avecDesinfection =
+    complements.includes("desinfection") || str(det, "desinfectionSurface") !== "";
   const avecDecontamination = complements.includes("decontamination");
   const avecDesodorisation = complements.includes("desodorisation");
+  const avecDebarrasInclus = complements.includes("debarras") || str(det, "debarrasVolume") !== "";
 
-  let designation = libelleType;
-  if (avecDesinfection && !/désinfection/i.test(designation)) designation += " et désinfection";
-  if (avecDecontamination && !/décontamination/i.test(designation)) designation += " et décontamination";
-  if (libelleBien) designation += ` d'un ${libelleBien}`;
-  if (surface) designation += ` de ${surface} m²`;
-  designation = designation.toUpperCase();
+  const vitrerieDemandee = oui(det, "vitrerie");
+  const vitrerieExclue = non(det, "vitrerie");
 
-  // ── Détail ───────────────────────────────────────────────────────
-  const taches: string[] = [];
+  // ⚠️ La liste MURS vaut `non` | `murs_traces` | `murs_lessivage`. Tester
+  // `murs_aucun` — une valeur qui n'existe pas — faisait sortir une ligne
+  // « - Non. » sur les dossiers où le commercial avait répondu « Non ».
+  const murs = str(det, "murs");
+  const mursDemande = murs !== "" && murs !== "non";
+  const mursExclus = murs === "non";
+  const plafondsDemande = oui(det, "plafonds");
+  const plafondsExclus = non(det, "plafonds");
+
+  // ── Niveau de développement (§10) ────────────────────────────────
+  // Le niveau de la famille est le plancher. Un encrassement extrême, une
+  // infestation ou un volume de déchets important le relèvent : le §10
+  // interdit « une description superficielle pour une intervention
+  // complexe ». Il n'est jamais abaissé.
+  let niveau: Niveau = def.niveau;
+  const encombrement = str(det, "dioEncombrement");
+  const dechets = liste(det, "dioDechets"); // ⚠️ liste à choix MULTIPLES
+  const nuisibles = oui(det, "dioNuisibles");
+  const dioVolume = str(det, "dioVolume");
+  // ⚠️ Les valeurs réelles de `ETAT_GENERAL` sont `leger | moyen | important
+  // | tres_important | extreme`. Tester « tres_sale » ou « insalubre » —
+  // qui n'existent pas — n'aurait jamais relevé le niveau.
+  if (
+    encombrement === "dio_enc_important" || encombrement === "dio_enc_extreme"
+    || nuisibles || dechets.includes("dio_biologiques")
+    || d.etatSalete === "tres_important" || d.etatSalete === "extreme"
+  ) {
+    niveau = 3;
+  } else if (niveau < 2 && (avecDesinfection || avecDecontamination || vitrerieDemandee || mursDemande)) {
+    // Un nettoyage courant auquel on ajoute une prestation technique n'est
+    // plus une simple intervention d'entretien.
+    niveau = 2;
+  }
+
+  // ── Bien, surface, état ──────────────────────────────────────────
+  const typeBien = str(det, "typeBienNet");
+  if (typeBien) note("typeBienNet"); else manquant.push("type de bien");
+  const bien = typeBien ? labelOf(TYPE_BIEN_NETTOYAGE, typeBien).toLowerCase() : null;
+
+  const surface = d.surfaceM2 && d.surfaceM2 > 0 ? d.surfaceM2 : null;
+  if (surface) note("surface"); else manquant.push("surface");
+
+  // ⚠️ Les libellés de `ETAT_GENERAL` sont faits pour une liste déroulante
+  // (« Sale », « Très sale », « Insalubre ») : repris tels quels, ils
+  // donnaient « un niveau d'encrassement sale ». Le devis a son propre
+  // vocabulaire, qualifiant le NIVEAU et non le logement.
+  let etat: string | null = null;
+  if (d.etatSalete) {
+    note("etatSalete");
+    etat = NIVEAU_ENCRASSEMENT[d.etatSalete]
+      ?? labelOf(ETAT_GENERAL, d.etatSalete).toLowerCase();
+  }
+
+  // ── Faits par thème — AUCUN champ saisi n'est perdu ──────────────
+
+  // Pièces.
   const nbPieces = num(det, "nbPieces");
-  if (nbPieces) note("nbPieces");
+  if (nbPieces) {
+    note("nbPieces");
+    fait("interieur", `Intervention portant sur les ${nbPieces} pièces concernées.`);
+  }
 
-  taches.push(
-    nbPieces
-      ? `Nettoyage approfondi des ${nbPieces} pièces concernées.`
-      : "Nettoyage approfondi de l'ensemble des pièces concernées.",
-  );
-  taches.push("Dépoussiérage et nettoyage des surfaces accessibles.");
-
+  // Sols et traitements.
   const sols = liste(det, "sols");
   if (sols.length) {
     note("sols");
-    const noms = sols.map((s) => labelOf(SOLS, s).toLowerCase()).join(", ");
-    taches.push(`Nettoyage et dégraissage des sols (${noms}).`);
-  } else {
-    taches.push("Nettoyage et dégraissage des sols selon les revêtements.");
+    fait("sols_traitements",
+      `Revêtements concernés : ${sols.map((s) => labelOf(SOLS, s).toLowerCase()).join(", ")}.`);
   }
-
   const traitements = liste(det, "traitementsSol");
   if (traitements.length) {
     note("traitementsSol");
-    for (const t of traitements) taches.push(`${cap(labelOf(TRAITEMENTS_SOL, t))} des sols concernés.`);
-  }
-
-  // Cuisine : on ne l'écrit que si la découverte la mentionne.
-  if (oui(det, "cuisineAmenagee") || oui(det, "cuisineEquipee") || oui(det, "cuisineInterieur")) {
-    note("cuisine");
-    const equipee = oui(det, "cuisineEquipee");
-    taches.push(
-      equipee
-        ? "Nettoyage approfondi de la cuisine et dégraissage des équipements."
-        : "Nettoyage approfondi de la cuisine.",
-    );
-    if (oui(det, "cuisineInterieur")) {
-      taches.push("Nettoyage de l'intérieur des meubles et placards de cuisine.");
+    for (const t of traitements) {
+      fait("sols_traitements", `${cap(labelOf(TRAITEMENTS_SOL, t))} des sols concernés.`);
     }
   }
 
+  // Cuisine : uniquement si la découverte la mentionne.
+  const cuisine = oui(det, "cuisineAmenagee") || oui(det, "cuisineEquipee") || oui(det, "cuisineInterieur");
+  if (cuisine) {
+    note("cuisine");
+    if (oui(det, "cuisineEquipee")) fait("cuisine", "Dégraissage des équipements de cuisine présents.");
+    if (oui(det, "cuisineInterieur")) fait("cuisine", "Nettoyage de l'intérieur des meubles et placards de cuisine.");
+  }
+
+  // Sanitaires.
   const nbSdb = num(det, "nbSdb");
   const nbWc = num(det, "nbWc");
   if (nbSdb || nbWc) {
@@ -235,171 +305,200 @@ function nettoyage(d: Decouverte): ContenuDevis {
     const parts: string[] = [];
     if (nbSdb) parts.push(`${nbSdb} salle${nbSdb > 1 ? "s" : ""} de bain`);
     if (nbWc) parts.push(`${nbWc} WC`);
-    taches.push(`Nettoyage et désinfection des sanitaires (${parts.join(", ")}).`);
-    taches.push("Détartrage des robinetteries et des équipements sanitaires.");
-  } else {
-    taches.push("Nettoyage et désinfection des sanitaires.");
-    taches.push("Détartrage des robinetteries et des équipements sanitaires.");
+    fait("sanitaires", `Équipements concernés : ${parts.join(", ")}.`);
   }
 
+  // Placards et dressings → rattachés aux espaces intérieurs.
   if (oui(det, "dressings") || oui(det, "dressingsInterieur")) {
     note("dressings");
-    taches.push(
+    fait("interieur",
       oui(det, "dressingsInterieur")
         ? "Nettoyage des placards et dressings, intérieur compris."
-        : "Nettoyage extérieur des placards et dressings.",
-    );
+        : "Nettoyage extérieur des placards et dressings.");
   }
 
-  // Vitrerie : uniquement si demandée.
-  //
-  // DÉLÉGATION À `descriptifVitrerie()` (lib/discovery-nettoyage.ts), déjà
-  // utilisé par le préremplissage du devis OPTIMIVV. Il couvre les SEPT types
-  // de vitrages comptés, les faces, le matériau des encadrements, les rails,
-  // les coulisses, le niveau d'accès, le besoin de nacelle et les
-  // observations. La version locale n'en reprenait que quatre : un devis de
-  // vitrerie y perdait l'essentiel de son contenu, alors que la découverte
-  // porte dix-sept champs.
-  if (oui(det, "vitrerie")) {
-    note("vitrerie");
-    const descriptif = descriptifVitrerie(det);
-    if (descriptif) {
-      // Une ligne par tâche : le détail est rendu en liste à puces, un bloc
-      // multiligne y casserait la mise en forme.
-      for (const ligne of descriptif.split("\n")) {
-        const t = ligne.trim();
-        if (t) taches.push(t);
-      }
-      for (const k of VITRERIE_CHAMPS) if (str(det, k) || num(det, k)) note(k);
-    } else {
-      // « Oui » coché sans aucun vitrage chiffré : on reste générique plutôt
-      // que d'inventer un décompte, et on le signale au commercial.
-      const faces = str(det, "vitrerieFaces");
-      taches.push(
-        `Nettoyage des vitres et des encadrements accessibles${
-          faces ? ` (${labelOf(VITRERIE_FACES, faces).toLowerCase()})` : ""
-        }.`,
-      );
-      manquant.push("détail de la vitrerie (nombre et type de vitrages)");
-    }
-  }
-
-  // Murs et plafonds : SEULEMENT si demandés (§3.4).
-  // ⚠️ La liste MURS vaut `non` | `murs_traces` | `murs_lessivage`. Le garde
-  // ne testait que `murs_aucun`, une valeur qui N'EXISTE PAS : un dossier où
-  // le commercial avait répondu « Non » au lessivage produisait donc une ligne
-  // de prestation « - Non. » ET une réserve sur les murs. C'était contraire à
-  // la règle « lessivage des murs uniquement lorsqu'il est demandé ».
-  const murs = str(det, "murs");
-  const mursDemande = murs !== "" && murs !== "non" && murs !== "murs_aucun";
-  if (mursDemande) {
-    note("murs");
-    // `mursSurface` est un choix de la liste SURFACE_CONCERNEE : sans
-    // traduction, le devis affichait la clé (« totale », « partielle »).
-    const surf = str(det, "mursSurface");
-    if (surf) note("mursSurface");
-    const libelleSurf = surf ? (labelOf(SURFACE_CONCERNEE, surf) || surf).toLowerCase() : "";
-    taches.push(
-      `Lessivage des murs — ${(labelOf(MURS, murs) || murs).toLowerCase()}`
-      + `${libelleSurf ? `, surface ${libelleSurf}` : ""}.`,
-    );
-  }
-  if (oui(det, "plafonds")) {
-    note("plafonds");
-    const type = str(det, "plafondsType");
-    // La surface de plafonds saisie était ignorée : un devis de lessivage de
-    // plafonds sans surface ne dit pas l'ampleur du travail.
-    const surfPlaf = str(det, "plafondsSurface");
-    if (surfPlaf) note("plafondsSurface");
-    const libellePlaf = surfPlaf ? (labelOf(SURFACE_CONCERNEE, surfPlaf) || surfPlaf).toLowerCase() : "";
-    taches.push(
-      `Nettoyage des plafonds${type ? ` (${labelOf(PLAFONDS_TYPE, type).toLowerCase()})` : ""}`
-      + `${libellePlaf ? ` — surface ${libellePlaf}` : ""}.`,
-    );
-  }
-
-  // Débarras inclus dans une prestation de nettoyage. Le volume était saisi
-  // mais jamais repris : c'est pourtant lui qui dimensionne l'évacuation.
-  const volDebarras = str(det, "debarrasVolume");
-  if (volDebarras) {
-    note("debarrasVolume");
-    taches.push(
-      `Débarras et évacuation des encombrants — volume estimé `
-      + `${labelOf(DEBARRAS_VOLUME, volDebarras) || volDebarras}.`,
-    );
-  }
-
+  // Équipements facturés à l'unité.
   const equipements = liste(det, "equipements");
   if (equipements.length) {
     note("equipements");
-    // ⚠️ La liste est EQUIPEMENTS, pas COMPLEMENTS. Avec la mauvaise liste,
-    // `labelOf` ne trouvait rien et le repli renvoyait la clé brute : des
-    // devis réels portaient « Nettoyage des équipements : opt_frigo. »
-    // (constaté sur le dossier L-1652 en production, 2026-11-04).
-    taches.push(
-      `Nettoyage des équipements : `
-      + `${equipements.map((e) => labelOf(EQUIPEMENTS, e) || e).map((s) => s.toLowerCase()).join(", ")}.`,
-    );
+    fait("equipements",
+      `Équipements compris au devis : `
+      + `${equipements.map((e) => (labelOf(EQUIPEMENTS, e) || e).toLowerCase()).join(", ")}.`);
   }
 
+  // Extérieurs.
   const exterieurs = liste(det, "exterieurTypes");
   if (exterieurs.length) {
     note("exterieurTypes");
     const m2 = num(det, "exterieurSurfaceM2");
-    taches.push(
-      `Nettoyage des espaces extérieurs : ${exterieurs.map((x) => labelOf(EXTERIEUR_TYPE, x).toLowerCase()).join(", ")}`
-      + `${m2 ? ` (${m2} m²)` : ""}.`,
-    );
+    if (m2) note("exterieurSurfaceM2");
+    fait("exterieurs",
+      `Espaces concernés : ${exterieurs.map((x) => labelOf(EXTERIEUR_TYPE, x).toLowerCase()).join(", ")}`
+      + `${m2 ? ` (${m2} m²)` : ""}.`);
   }
 
+  // Vitrerie — §8. Développée uniquement si validée.
+  if (vitrerieDemandee) {
+    note("vitrerie");
+    titreComplements.push("vitrerie");
+    // `descriptifVitrerie()` couvre les sept types de vitrages comptés, les
+    // faces, le matériau des encadrements, les rails, les coulisses, le
+    // niveau d'accès, le besoin de nacelle et les observations.
+    const descriptif = descriptifVitrerie(det);
+    if (descriptif) {
+      for (const ligne of descriptif.split("\n")) {
+        const t = ligne.trim();
+        if (t) fait("vitrerie", t);
+      }
+      for (const k of VITRERIE_CHAMPS) if (str(det, k) || num(det, k)) note(k);
+    } else {
+      // « Oui » coché sans aucun vitrage chiffré : on reste générique plutôt
+      // que d'inventer un décompte (interdiction 7), et on le signale.
+      const faces = str(det, "vitrerieFaces");
+      if (faces) {
+        note("vitrerieFaces");
+        fait("vitrerie", `Faces traitées : ${labelOf(VITRERIE_FACES, faces).toLowerCase()}.`);
+      }
+      manquant.push("détail de la vitrerie (nombre et type de vitrages)");
+    }
+    reserves.push(RESERVE_VITRERIE_INACCESSIBLE);
+  } else if (vitrerieExclue) {
+    // §8 : « si la vitrerie est explicitement exclue, ne pas l'intégrer ».
+    // Le commercial a répondu « Non » : c'est une exclusion, pas un oubli.
+    reserves.push(RESERVE_VITRERIE_EXCLUE);
+  }
+
+  // Murs et plafonds — §9.
+  if (mursDemande) {
+    note("murs");
+    const surf = str(det, "mursSurface");
+    if (surf) note("mursSurface");
+    const libelleSurf = surf ? (labelOf(SURFACE_CONCERNEE, surf) || surf).toLowerCase() : "";
+    fait("murs",
+      `Périmètre : ${(labelOf(MURS, murs) || murs).toLowerCase()}`
+      + `${libelleSurf ? `, surface ${libelleSurf}` : ""}.`);
+    reserves.push(RESERVE_MURS_LAVABLES);
+    titreComplements.push(plafondsDemande ? "lessivage des murs et plafonds" : "lessivage des murs");
+  }
+  if (plafondsDemande) {
+    note("plafonds");
+    const type = str(det, "plafondsType");
+    if (type) note("plafondsType");
+    const surfPlaf = str(det, "plafondsSurface");
+    if (surfPlaf) note("plafondsSurface");
+    const libellePlaf = surfPlaf ? (labelOf(SURFACE_CONCERNEE, surfPlaf) || surfPlaf).toLowerCase() : "";
+    fait("plafonds",
+      `Périmètre : ${type ? labelOf(PLAFONDS_TYPE, type).toLowerCase() : "plafonds concernés"}`
+      + `${libellePlaf ? `, surface ${libellePlaf}` : ""}.`);
+    if (!mursDemande) titreComplements.push("lessivage des plafonds");
+  }
+  if (mursExclus && plafondsExclus) {
+    reserves.push(RESERVE_MURS_EXCLUS);
+  }
+
+  // Débarras compris dans une prestation de nettoyage.
+  const volDebarras = str(det, "debarrasVolume");
+  if (avecDebarrasInclus) {
+    if (volDebarras) {
+      note("debarrasVolume");
+      fait("debarras_inclus",
+        `Volume estimé : ${labelOf(DEBARRAS_VOLUME, volDebarras) || volDebarras}.`);
+    }
+    reserves.push(RESERVE_VOLUME, RESERVE_BIENS_CONSERVES);
+    titreComplements.push("débarras");
+  }
+
+  // Désinfection / décontamination / désodorisation.
   if (avecDesinfection) {
     const m2 = num(det, "desinfectionM2");
-    taches.push(`Désinfection des surfaces concernées${m2 ? ` (${m2} m²)` : ""}.`);
+    if (m2) { note("desinfectionM2"); fait("desinfection", `Surface traitée : ${m2} m².`); }
+    const surf = str(det, "desinfectionSurface");
+    if (surf) note("desinfectionSurface");
+    titreComplements.push("désinfection");
   }
-  if (avecDecontamination) taches.push("Décontamination des zones identifiées.");
-  if (avecDesodorisation) taches.push("Traitement des odeurs résiduelles.");
+  if (avecDecontamination) {
+    if (origineDecont) {
+      fait("decontamination", `Origine de la contamination : ${libelleOrigine(origineDecont)}.`);
+    }
+    titreComplements.push("décontamination");
+  }
+  if (avecDesodorisation) {
+    if (origineDesod) {
+      fait("desodorisation", `Origine des odeurs : ${libelleOrigine(origineDesod)}.`);
+    }
+  }
 
-  // ── Spécificités insalubre / Diogène ─────────────────────────────
-  const encombrement = str(det, "dioEncombrement");
-  const dechets = str(det, "dioDechets");
-  const nuisibles = str(det, "dioNuisibles");
-  const odeurs = str(det, "dioOdeurs");
-  const dioVolume = str(det, "dioVolume");
-  const estInsalubre = d.sector === "diogene" || d.sector === "nettoyage_difficile"
-    || !!encombrement || !!dechets;
+  // ── Spécificités insalubre / Diogène / sinistre ──────────────────
+  const estInsalubre =
+    famille === "insalubre" || famille === "diogene" || famille === "apres_squat"
+    || famille === "apres_deces" || !!encombrement || dechets.length > 0;
 
   if (estInsalubre) {
-    if (encombrement) { note("dioEncombrement"); taches.push(`Intervention en logement encombré — niveau ${labelOf(DIO_ENCOMBREMENT, encombrement).toLowerCase()}.`); }
-    if (dechets) { note("dioDechets"); taches.push(`Évacuation des déchets présents (${labelOf(DIO_DECHETS, dechets).toLowerCase()}).`); }
-    if (dioVolume) { note("dioVolume"); taches.push(`Volume à évacuer estimé à ${labelOf(DIO_VOLUME, dioVolume).toLowerCase()}.`); }
-    if (nuisibles === "oui") {
-      note("dioNuisibles");
-      taches.push("Traitement des nuisibles constatés, en coordination avec l'entreprise habilitée.");
+    if (encombrement) {
+      note("dioEncombrement");
+      fait("debarras_prealable",
+        `Niveau d'encombrement constaté : ${labelOf(DIO_ENCOMBREMENT, encombrement).toLowerCase()}.`);
     }
-    if (odeurs) { note("dioOdeurs"); taches.push("Traitement des odeurs."); }
-    if (!dechets) manquant.push("nature des déchets");
-    if (!dioVolume) manquant.push("volume de déchets à évacuer");
+    // ⚠️ CORRECTIF : `dioDechets` est une liste à choix MULTIPLES. Elle était
+    // lue comme une chaîne, donc toujours vide : la ligne « Évacuation des
+    // déchets » ne sortait JAMAIS, et « nature des déchets » figurait dans
+    // les informations manquantes alors que le commercial l'avait renseignée.
+    if (dechets.length) {
+      note("dioDechets");
+      fait("debarras_prealable",
+        `Nature des déchets présents : `
+        + `${dechets.map((x) => (labelOf(DIO_DECHETS, x) || x).toLowerCase()).join(", ")}.`);
+    } else {
+      manquant.push("nature des déchets");
+    }
+    if (dioVolume) {
+      note("dioVolume");
+      fait("debarras_prealable",
+        `Volume à évacuer estimé à ${labelOf(DIO_VOLUME, dioVolume).toLowerCase()}.`);
+    } else {
+      manquant.push("volume de déchets à évacuer");
+    }
+    const acc = str(det, "dioAccessibilite");
+    if (acc) {
+      note("dioAccessibilite");
+      contraintes.push(`accessibilité ${(labelOf(DIO_ACCESSIBILITE, acc) || acc).toLowerCase()}`);
+    }
+    reserves.push(RESERVE_INSALUBRE, RESERVE_DECHETS_REGLEMENTES);
   }
 
-  // Encrassement : le fait justifie le traitement renforcé.
-  if (d.etatSalete) {
-    note("etatSalete");
-    const etat = labelOf(ETAT_GENERAL, d.etatSalete).toLowerCase();
-    taches.push(`Traitement renforcé des zones présentant un encrassement ${etat}.`);
+  if (nuisibles) {
+    note("dioNuisibles");
+    // Les types de nuisibles étaient saisis (`dioNuisiblesTypes`) et ignorés
+    // par la rédaction : le §7.16 demande d'« adapter aux nuisibles
+    // identifiés ».
+    const types = liste(det, "dioNuisiblesTypes");
+    if (types.length) {
+      note("dioNuisiblesTypes");
+      fait("nuisibles",
+        `Nuisibles identifiés : `
+        + `${types.map((x) => (labelOf(DIO_NUISIBLES, x) || x).toLowerCase()).join(", ")}.`);
+    }
+    reserves.push(RESERVE_NUISIBLES);
   }
 
-  // Accès : un fait d'organisation, pas une prestation.
-  const contraintes: string[] = [];
-  // Les bonnes listes : ETAGE, OUI_NON et STATIONNEMENT. COMPLEMENTS ne
-  // contient aucune de ces valeurs — le devis affichait donc les clés brutes
-  // (« 1 », « facile ») au lieu de « 1er étage », « stationnement facile ».
+  const odeurs = str(det, "dioOdeurs");
+  if (odeurs) {
+    note("dioOdeurs");
+    fait("desodorisation", `Odeurs constatées : ${(labelOf(DIO_ODEURS, odeurs) || odeurs).toLowerCase()}.`);
+  }
+
+  if (famille === "apres_degat_eaux") reserves.push(RESERVE_ASSECHEMENT);
+
+  if (etat) {
+    fait("interieur", `Traitement renforcé des zones présentant un encrassement ${etat}.`);
+  }
+
+  // ── Contraintes d'organisation — pas des prestations ─────────────
   const etage = str(det, "etage");
   if (etage) {
     note("etage");
     const asc = str(det, "ascenseur");
     if (asc) note("ascenseur");
-    // ETAGE vaut ["0","RDC"], ["1","1"], … : le libellé brut donnerait
-    // « 1 avec ascenseur ». On le qualifie, sauf pour le rez-de-chaussée.
     const brut = labelOf(ETAGE, etage) || etage;
     const libelleEtage = brut === "RDC" ? "rez-de-chaussée" : `étage ${brut}`;
     const libelleAsc =
@@ -413,71 +512,157 @@ function nettoyage(d: Decouverte): ContenuDevis {
     note("stationnement");
     contraintes.push(`stationnement ${(labelOf(STATIONNEMENT, stat) || stat).toLowerCase()}`);
   }
-  // Logement occupé ou vide : saisi en découverte, jusqu'ici ignoré. Il change
-  // concrètement l'organisation du chantier.
   const occ = str(det, "occupation");
-  if (occ) { note("occupation"); contraintes.push((labelOf(OCCUPATION, occ) || occ).toLowerCase()); }
+  if (occ) {
+    note("occupation");
+    contraintes.push((labelOf(OCCUPATION, occ) || occ).toLowerCase());
+  }
 
-  const detail = [
-    "PRESTATION",
-    `${libelleType}${libelleBien ? ` d'un ${libelleBien}` : ""}${surface ? ` de ${surface} m²` : ""}.`,
-    "",
-    "DÉTAIL DES PRESTATIONS",
-    ...taches.map((t) => `- ${t}`),
-    "",
-    PRODUITS_ECO,
-    ...(contraintes.length ? ["", `Conditions d'accès relevées : ${contraintes.join(", ")}.`] : []),
-    ...lignesContexte(d),
-  ].join("\n");
+  // ── Thèmes retenus : l'intersection de la famille et du validé ───
+  const valide: Partial<Record<Theme, boolean>> = {
+    interieur: true,
+    sanitaires: true,
+    sols_traitements: sols.length > 0 || traitements.length > 0,
+    cuisine,
+    equipements: equipements.length > 0,
+    exterieurs: exterieurs.length > 0,
+    finition_chantier: true,
+    suies: true,
+    degat_eaux: true,
+    vitrerie: vitrerieDemandee,
+    murs: mursDemande,
+    plafonds: plafondsDemande,
+    desinfection: avecDesinfection,
+    decontamination: avecDecontamination,
+    desodorisation: avecDesodorisation || !!odeurs,
+    debarras_inclus: avecDebarrasInclus,
+    debarras_prealable: estInsalubre,
+    nuisibles,
+  };
+  // ── Thèmes retenus ───────────────────────────────────────────────
+  //
+  // La famille gouverne l'ORDRE de rédaction, pas l'inclusion. Un thème
+  // piloté par la donnée — un équipement facturé, une vitrerie validée, des
+  // nuisibles constatés — doit figurer au devis même si l'ordre de rédaction
+  // de la famille ne le mentionne pas.
+  //
+  // ⚠️ Sans ce rattrapage, une prestation VALIDÉE disparaissait :
+  //   • un nettoyage après incendie avec nuisibles perdait la section
+  //     « Traitement des nuisibles » (test 9 du §20) ;
+  //   • un chantier Diogène avec un four facturé perdait la section
+  //     « Nettoyage des équipements » (interdiction 7 du §19).
+  // Dans les deux cas c'est l'interdiction 5 — « oublier une prestation
+  // validée » — et dans les deux cas c'est le contrôle automatique qui l'a
+  // révélé, pas une relecture.
+  //
+  // Le rattrapage ne peut rien INVENTER : `valide[t] === true` n'est vrai
+  // que pour un thème effectivement validé par la découverte. Et les thèmes
+  // dont l'opportunité relève de la famille seule (`GATE_FAMILLE` : socle
+  // intérieur, sanitaires, finition de chantier, suies, dégât des eaux) sont
+  // volontairement hors de la liste de rattrapage : eux ne viennent QUE de
+  // l'ordre de la famille.
+  const themes: Theme[] = def.themes.filter((t) => valide[t] === true);
+  for (const t of ORDRE_RATTRAPAGE) {
+    if (valide[t] === true && !themes.includes(t)) themes.push(t);
+  }
 
-  // ── Réserves ─────────────────────────────────────────────────────
-  const reserves = [RESERVE_PERIMETRE, RESERVE_NON_SIGNALE];
-  if (estInsalubre) {
-    reserves.push(
-      "Les conditions réelles d'intervention en logement insalubre ne peuvent "
-      + "être pleinement appréciées avant le début des opérations. La découverte "
-      + "d'un encombrement, d'un volume de déchets ou d'une contamination "
-      + "supérieurs à ceux annoncés donnera lieu à une réévaluation après accord "
-      + "du client.",
-    );
+  if (famille === "apres_incendie" && themes.includes("suies")) {
+    titreComplements.push("traitement des suies");
   }
-  if (oui(det, "vitrerie")) {
-    reserves.push(
-      "Les vitrages inaccessibles sans équipement spécifique (nacelle, "
-      + "échafaudage) sont exclus du présent devis et feront l'objet d'une "
-      + "proposition distincte.",
-    );
-  }
-  // Même garde que pour la prestation : pas de réserve sur un lessivage qui
-  // n'a pas été demandé.
-  if (mursDemande) {
-    reserves.push(
-      "Le lessivage des murs est réalisé sur les supports lavables. Les "
-      + "revêtements fragiles, dégradés ou non lessivables sont exclus.",
-    );
-  }
+
+  reserves.push(...(RESERVES_PAR_FAMILLE[famille] ?? []));
 
   return {
-    designation,
-    detail,
-    reserves: reserves.join("\n\n"),
-    sources: [...new Set(sources)],
-    manquant: [...new Set(manquant)],
+    titreBase: def.titre,
+    nature: def.nature,
+    bien,
+    surface,
+    precisionTitre: null,
+    etat,
+    niveau,
+    themes,
+    faits,
+    titreComplements,
+    contraintes,
+    reserves,
+    mentionProduits: true,
+    famille,
+    sources,
+    manquant,
+    contexte: (d.contexteIntervention ?? "").trim() || null,
   };
 }
 
+/**
+ * Thèmes PILOTÉS PAR LA DONNÉE, dans leur ordre canonique de rattrapage.
+ *
+ * Tout thème validé par la découverte qui n'apparaît pas dans l'ordre de
+ * rédaction de la famille est ajouté ici, à la fin, dans cet ordre. La liste
+ * exclut délibérément `interieur`, `sanitaires`, `finition_chantier`, `suies`
+ * et `degat_eaux` : ceux-là relèvent de la nature du chantier, décidée par la
+ * famille, et les ajouter d'office reviendrait à inventer une prestation.
+ */
+const ORDRE_RATTRAPAGE: readonly Theme[] = [
+  "sols_traitements", "cuisine", "equipements", "exterieurs",
+  "murs", "plafonds", "vitrerie",
+  "debarras_prealable", "debarras_inclus", "nuisibles",
+  "desinfection", "decontamination", "desodorisation",
+] as const;
+
+/** Champs de vitrerie tracés en source quand le descriptif les exploite. */
+const VITRERIE_CHAMPS = [
+  "vitrerieFenetres", "vitrerieBaies", "vitreriePortesFenetres", "vitrerieVelux",
+  "vitrerieVerandaM2", "vitrerieGrandesSurfacesM2", "vitrerieAutres",
+  "vitrerieFaces", "vitrerieEncadrement", "vitrerieRails", "vitrerieCoulisses",
+  "vitrerieAcces", "vitrerieEquipement", "vitrerieObservations",
+] as const;
+
+/**
+ * Niveau d'encrassement tel qu'il se lit dans un devis.
+ *
+ * Les libellés de `ETAT_GENERAL` sont écrits pour le formulaire du
+ * commercial ; ceux-ci qualifient le NIVEAU, ce qui est la seule tournure
+ * acceptable dans une phrase adressée au client.
+ */
+const NIVEAU_ENCRASSEMENT: Record<string, string> = {
+  leger: "léger",
+  moyen: "modéré",
+  important: "important",
+  tres_important: "très important",
+  extreme: "extrême",
+};
+
+const ORIGINES: Record<string, string> = {
+  deces: "décès",
+  sang: "sang ou fluides biologiques",
+  eaux_usees: "eaux usées",
+  incendie: "incendie",
+  insalubrite: "insalubrité",
+  tabac: "tabac",
+  urine: "urine",
+  dechets: "déchets",
+  humidite: "humidité",
+  autre: "autre origine signalée",
+};
+function libelleOrigine(k: string): string {
+  return ORIGINES[k] ?? k;
+}
+
 // ══════════════════════════════════════════════════════════════════════
-//  DÉBARRAS
+//  NIVEAU B — ANALYSE : DÉBARRAS
 // ══════════════════════════════════════════════════════════════════════
 
-function debarras(d: Decouverte): ContenuDevis {
+function analyserDebarras(d: Decouverte): Analyse {
   const det = d.details;
   const sources: string[] = [];
   const manquant: string[] = [];
+  const faits: Partial<Record<Theme, string[]>> = {};
+  const contraintes: string[] = [];
+  const fait = (t: Theme, s: string) => { (faits[t] ??= []).push(s); };
 
   const typeBien = str(det, "typeBien");
   const volume = str(det, "volume") || str(det, "debarrasVolume");
-  const surface = d.surfaceM2 && d.surfaceM2 > 0 ? d.surfaceM2 : 0;
+  const surface = d.surfaceM2 && d.surfaceM2 > 0 ? d.surfaceM2 : null;
   const acces = str(det, "acces");
   const encombrement = str(det, "encombrement");
 
@@ -485,70 +670,66 @@ function debarras(d: Decouverte): ContenuDevis {
   if (volume) sources.push("volume"); else manquant.push("volume estimé");
   if (surface) sources.push("surface");
 
-  const libelleBien = typeBien ? labelOf(TYPE_BIEN, typeBien).toLowerCase() : "";
+  const bien = typeBien ? labelOf(TYPE_BIEN, typeBien).toLowerCase() : null;
   const partiel = /partiel/i.test(str(det, "typeDebarras"));
-  const designation = [
-    partiel ? "DÉBARRAS PARTIEL" : "DÉBARRAS COMPLET",
-    libelleBien ? `D'UN${/^[aeiouh]/i.test(libelleBien) ? "E" : ""} ${libelleBien.toUpperCase()}` : "",
-    "AVEC ÉVACUATION DES ENCOMBRANTS",
-  ].filter(Boolean).join(" ");
+  if (str(det, "typeDebarras")) sources.push("typeDebarras");
 
-  const taches: string[] = [
-    partiel
-      ? "Débarras des éléments et zones expressément désignés par le client."
-      : "Débarras de l'intégralité des biens à évacuer.",
-    "Tri des biens sur place selon les instructions du client.",
-    "Chargement et sortie des biens jusqu'au véhicule.",
-    "Transport et évacuation vers les filières de traitement autorisées.",
-    "Remise des justificatifs de traitement des déchets.",
-  ];
-  if (volume) taches.push(`Volume contractuel estimé à ${labelOf(DEBARRAS_VOLUME, volume) || volume}.`);
-  if (encombrement) { sources.push("encombrement"); taches.push(`Niveau d'encombrement constaté : ${encombrement}.`); }
-  if (str(det, "triDemande") === "oui") { sources.push("triDemande"); taches.push("Tri sélectif demandé par le client."); }
+  if (volume) fait("evacuation", `Volume contractuel estimé à ${labelOf(DEBARRAS_VOLUME, volume) || volume}.`);
+  if (encombrement) {
+    sources.push("encombrement");
+    contraintes.push(`niveau d'encombrement ${encombrement.toLowerCase()}`);
+  }
+  if (str(det, "triDemande") === "oui") {
+    sources.push("triDemande");
+    fait("tri", "Tri sélectif demandé par le client.");
+  }
+  if (partiel) {
+    fait("tri", "Débarras limité aux éléments et zones expressément désignés par le client.");
+  }
 
-  const contraintes: string[] = [];
-  if (acces) { sources.push("acces"); contraintes.push((labelOf(ACCES, acces) || acces).toLowerCase()); }
+  if (acces) {
+    sources.push("acces");
+    contraintes.push((labelOf(ACCES, acces) || acces).toLowerCase());
+  }
   const etage = str(det, "etage");
-  if (etage) { sources.push("etage"); contraintes.push(etage); }
+  if (etage) { sources.push("etage"); contraintes.push(`étage ${etage}`); }
 
-  const detail = [
-    "PRESTATION",
-    `${partiel ? "Débarras partiel" : "Débarras complet"}${libelleBien ? ` d'un ${libelleBien}` : ""}`
-      + `${surface ? ` de ${surface} m²` : ""}, avec évacuation et traitement des encombrants.`,
-    "",
-    "DÉTAIL DES PRESTATIONS",
-    ...taches.map((t) => `- ${t}`),
-    ...(contraintes.length ? ["", `Conditions d'accès relevées : ${contraintes.join(", ")}.`] : []),
-    ...lignesContexte(d),
-  ].join("\n");
-
-  const reserves = [
-    RESERVE_PERIMETRE,
-    RESERVE_NON_SIGNALE,
-    // Réserve de volume : expressément demandée (§3.4).
-    "Le devis est établi sur le volume annoncé lors de la découverte. Tout "
-    + "volume supplémentaire constaté sur place sera signalé au client avant "
-    + "poursuite de l'intervention et fera l'objet d'un accord écrit préalable.",
-    "Les biens à conserver doivent être identifiés par le client avant le début "
-    + "de l'intervention. Aucun bien n'est évacué sans autorisation.",
-    "Les déchets dangereux, l'amiante et les produits réglementés ne sont pas "
-    + "compris dans le présent devis et relèvent de filières spécifiques.",
-  ];
+  // §10 : un débarras est une prestation simple, sauf encombrement marqué.
+  const niveau: Niveau = /important|extr[êe]me|insalubre/i.test(encombrement) ? 3 : 2;
 
   return {
-    designation, detail, reserves: reserves.join("\n\n"),
-    sources: [...new Set(sources)], manquant: [...new Set(manquant)],
+    titreBase: partiel ? "Débarras partiel" : "Débarras complet",
+    nature: partiel ? "débarras partiel" : "débarras complet",
+    bien,
+    surface,
+    precisionTitre: "avec évacuation des encombrants",
+    etat: null,
+    niveau,
+    themes: ["tri", "manutention", "evacuation"],
+    faits,
+    titreComplements: [],
+    contraintes,
+    reserves: [RESERVE_VOLUME, RESERVE_BIENS_CONSERVES, RESERVE_DECHETS_REGLEMENTES],
+    mentionProduits: false,
+    famille: null,
+    sources,
+    manquant,
+    contexte: (d.contexteIntervention ?? "").trim() || null,
   };
 }
 
 // ══════════════════════════════════════════════════════════════════════
-//  DÉMÉNAGEMENT
+//  NIVEAU B — ANALYSE : DÉMÉNAGEMENT
 // ══════════════════════════════════════════════════════════════════════
 
-function demenagement(d: Decouverte): ContenuDevis {
+function analyserDemenagement(d: Decouverte): Analyse {
   const det = d.details;
   const sources: string[] = [];
   const manquant: string[] = [];
+  const faits: Partial<Record<Theme, string[]>> = {};
+  const contraintes: string[] = [];
+  const themes: Theme[] = [];
+  const fait = (t: Theme, s: string) => { (faits[t] ??= []).push(s); };
 
   const logement = str(det, "logementDepart");
   const volume = str(det, "volume");
@@ -561,86 +742,90 @@ function demenagement(d: Decouverte): ContenuDevis {
   if (villeD) sources.push("villeDepart"); else manquant.push("ville de départ");
   if (villeA) sources.push("villeArrivee"); else manquant.push("ville d'arrivée");
 
-  const libelleLog = logement ? labelOf(LOGEMENT_TYPE, logement).toLowerCase() : "";
-  const designation = [
-    complet ? "DÉMÉNAGEMENT COMPLET" : "DÉMÉNAGEMENT PARTIEL",
-    libelleLog ? `D'UN ${libelleLog.toUpperCase()}` : "",
-    villeD && villeA ? `DE ${villeD.toUpperCase()} VERS ${villeA.toUpperCase()}` : "",
-  ].filter(Boolean).join(" ");
+  const bien = logement ? labelOf(LOGEMENT_TYPE, logement).toLowerCase() : null;
 
-  const taches: string[] = [];
   const emballage = str(det, "emballage");
   if (emballage && emballage !== "aucun") {
     sources.push("emballage");
-    taches.push(`${cap(labelOf(EMBALLAGE, emballage))} des biens à transporter.`);
-  }
-  taches.push("Protection du mobilier durant les opérations de manutention et de transport.");
-  if (str(det, "demontage") === "oui") {
-    sources.push("demontage");
-    taches.push("Démontage du mobilier concerné au départ et remontage à l'arrivée.");
-  }
-  taches.push("Chargement méthodique du mobilier, des cartons et de l'électroménager.");
-  taches.push("Transport sécurisé jusqu'au lieu de destination.");
-  taches.push("Déchargement de l'ensemble des biens.");
-  taches.push("Mise en place du mobilier et des cartons dans les pièces indiquées par le client.");
-  if (str(det, "monteMeubles") === "oui") {
-    sources.push("monteMeubles");
-    taches.push("Mise en œuvre d'un monte-meubles.");
+    themes.push("emballage");
+    fait("emballage", `${cap(labelOf(EMBALLAGE, emballage))} des biens à transporter.`);
+  } else {
+    // La protection du mobilier est comprise dans tout déménagement.
+    themes.push("emballage");
   }
 
+  themes.push("transport_mobilier");
+  if (str(det, "demontage") === "oui") {
+    sources.push("demontage");
+    fait("transport_mobilier", "Démontage du mobilier concerné au départ et remontage à l'arrivée.");
+  }
+  if (str(det, "monteMeubles") === "oui") {
+    sources.push("monteMeubles");
+    fait("transport_mobilier", "Mise en œuvre d'un monte-meubles.");
+  }
   const objets = liste(det, "objetsSpecifiques");
   if (objets.length) {
     sources.push("objetsSpecifiques");
-    taches.push(`Manutention spécifique : ${objets.map((o) => labelOf(OBJETS_SPECIFIQUES, o).toLowerCase()).join(", ")}.`);
+    fait("transport_mobilier",
+      `Manutention spécifique : ${objets.map((o) => labelOf(OBJETS_SPECIFIQUES, o).toLowerCase()).join(", ")}.`);
   }
+  themes.push("installation");
 
-  const contraintes: string[] = [];
   if (volume) contraintes.push(`volume estimé ${labelOf(VOLUME_DEMENAGEMENT, volume) || volume} m³`);
   const eD = num(det, "etagesDepart"), eA = num(det, "etagesArrivee");
   const aD = str(det, "ascenseurDepart"), aA = str(det, "ascenseurArrivee");
-  if (eD || aD) { sources.push("etagesDepart"); contraintes.push(`départ ${eD ? `${eD}e étage` : "RDC"}${aD === "non" ? " sans ascenseur" : aD === "oui" ? " avec ascenseur" : ""}`); }
-  if (eA || aA) { sources.push("etagesArrivee"); contraintes.push(`arrivée ${eA ? `${eA}e étage` : "RDC"}${aA === "non" ? " sans ascenseur" : aA === "oui" ? " avec ascenseur" : ""}`); }
+  if (eD || aD) {
+    sources.push("etagesDepart");
+    contraintes.push(`départ ${eD ? `${eD}e étage` : "RDC"}${aD === "non" ? " sans ascenseur" : aD === "oui" ? " avec ascenseur" : ""}`);
+  }
+  if (eA || aA) {
+    sources.push("etagesArrivee");
+    contraintes.push(`arrivée ${eA ? `${eA}e étage` : "RDC"}${aA === "non" ? " sans ascenseur" : aA === "oui" ? " avec ascenseur" : ""}`);
+  }
   const km = num(det, "distanceKm");
   if (km) { sources.push("distanceKm"); contraintes.push(`distance ${km} km`); }
 
-  const detail = [
-    "PRESTATION",
-    `${complet ? "Déménagement complet" : "Déménagement partiel"}${libelleLog ? ` d'un ${libelleLog}` : ""}`
-      + `${villeD && villeA ? ` de ${villeD} vers ${villeA}` : ""}.`,
-    "",
-    "DÉTAIL DES PRESTATIONS",
-    ...taches.map((t) => `- ${t}`),
-    ...(contraintes.length ? ["", `Éléments relevés : ${contraintes.join(", ")}.`] : []),
-    ...lignesContexte(d),
-  ].join("\n");
-
-  const reserves = [
-    RESERVE_PERIMETRE,
-    RESERVE_NON_SIGNALE,
-    "Le devis est établi sur la base du volume annoncé, des accès, des étages, "
-    + "de la présence ou non d'un ascenseur, des possibilités de stationnement "
-    + "et des distances de portage communiqués lors de la découverte. Toute "
-    + "différence constatée sur place fera l'objet d'une réévaluation après "
-    + "accord du client.",
-    "Les objets de très grande valeur, fragiles ou hors normes doivent être "
-    + "signalés avant l'intervention afin d'être protégés et assurés en "
-    + "conséquence.",
-  ];
-
   return {
-    designation, detail, reserves: reserves.join("\n\n"),
-    sources: [...new Set(sources)], manquant: [...new Set(manquant)],
+    titreBase: complet ? "Déménagement complet" : "Déménagement partiel",
+    nature: complet ? "déménagement complet" : "déménagement partiel",
+    bien,
+    surface: null,
+    precisionTitre: villeD && villeA ? `de ${villeD} vers ${villeA}` : null,
+    etat: null,
+    niveau: 2,
+    themes,
+    faits,
+    titreComplements: [],
+    contraintes,
+    reserves: [
+      "Le devis est établi sur la base du volume annoncé, des accès, des étages, "
+      + "de la présence ou non d'un ascenseur, des possibilités de stationnement "
+      + "et des distances de portage communiqués lors de la découverte. Toute "
+      + "différence constatée sur place fera l'objet d'une réévaluation après "
+      + "accord du client.",
+      "Les objets de très grande valeur, fragiles ou hors normes doivent être "
+      + "signalés avant l'intervention afin d'être protégés et assurés en "
+      + "conséquence.",
+    ],
+    mentionProduits: false,
+    famille: null,
+    sources,
+    manquant,
+    contexte: (d.contexteIntervention ?? "").trim() || null,
   };
 }
 
 // ══════════════════════════════════════════════════════════════════════
-//  TRANSPORT
+//  NIVEAU B — ANALYSE : TRANSPORT
 // ══════════════════════════════════════════════════════════════════════
 
-function transport(d: Decouverte): ContenuDevis {
+function analyserTransport(d: Decouverte): Analyse {
   const det = d.details;
   const sources: string[] = [];
   const manquant: string[] = [];
+  const faits: Partial<Record<Theme, string[]>> = {};
+  const contraintes: string[] = [];
+  const fait = (t: Theme, s: string) => { (faits[t] ??= []).push(s); };
 
   const typeObjet = str(det, "typeObjet");
   const qte = num(det, "quantiteObjets");
@@ -657,28 +842,21 @@ function transport(d: Decouverte): ContenuDevis {
   if (villeE) sources.push("villeEnlevement"); else manquant.push("ville d'enlèvement");
   if (villeL) sources.push("villeLivraison"); else manquant.push("ville de livraison");
 
-  const libelleObjet = typeObjet ? labelOf(TYPE_OBJET, typeObjet).toLowerCase() : "mobilier";
-  const designation = [
-    "TRANSPORT",
-    options.includes("manutention") ? "ET MANUTENTION" : "",
-    `DE ${libelleObjet.toUpperCase()}`,
-    villeE && villeL ? `DE ${villeE.toUpperCase()} VERS ${villeL.toUpperCase()}` : "",
-  ].filter(Boolean).join(" ");
+  const objet = typeObjet ? labelOf(TYPE_OBJET, typeObjet).toLowerCase() : "mobilier";
 
-  const taches: string[] = [
-    qte
-      ? `Enlèvement de ${qte} élément${qte > 1 ? "s" : ""} (${libelleObjet}).`
-      : `Enlèvement des éléments désignés (${libelleObjet}).`,
-    "Chargement et manutention au lieu de prise en charge.",
-  ];
-  if (options.includes("protection")) taches.push("Protection et emballage des éléments transportés.");
-  if (options.includes("demontage")) taches.push("Démontage des éléments concernés avant chargement.");
-  taches.push("Transport sécurisé jusqu'au lieu de livraison.");
-  taches.push("Déchargement sur place et dépose à l'emplacement indiqué.");
-  if (options.includes("remontage")) taches.push("Remontage des éléments à l'arrivée.");
+  if (qte) fait("transport_objet", `Éléments concernés : ${qte} unité${qte > 1 ? "s" : ""} (${objet}).`);
   if (options.length) sources.push("optionsTransport");
+  if (options.includes("protection")) fait("transport_objet", "Protection et emballage des éléments transportés.");
+  if (options.includes("demontage")) fait("transport_objet", "Démontage des éléments concernés avant chargement.");
+  if (options.includes("remontage")) fait("transport_objet", "Remontage des éléments à l'arrivée.");
+  if (options.includes("manutention")) fait("transport_objet", "Manutention assurée au départ et à l'arrivée.");
 
-  const contraintes: string[] = [];
+  const descObjets = str(det, "descriptionObjets");
+  if (descObjets) {
+    sources.push("descriptionObjets");
+    fait("transport_objet", `Descriptif communiqué : ${descObjets}`);
+  }
+
   if (vol) contraintes.push(`volume ${vol} m³`);
   if (poids) contraintes.push(`poids estimé ${poids} kg`);
   const km = num(det, "distanceKm");
@@ -687,9 +865,8 @@ function transport(d: Decouverte): ContenuDevis {
     contraintes.push(labelOf(OPTIONS_TRANSPORT, o).toLowerCase());
   }
 
-  // Étages, ascenseurs et conditions d'accès aux DEUX extrémités. Ces six
-  // champs étaient saisis en découverte et jamais repris : c'est pourtant ce
-  // qui détermine le temps de manutention, donc le prix.
+  // Étages, ascenseurs et accès aux DEUX extrémités : ce sont eux qui
+  // déterminent le temps de manutention.
   const bout = (libelle: string, cEtage: string, cAsc: string, cAcces: string) => {
     const etage = str(det, cEtage);
     const asc = str(det, cAsc);
@@ -709,38 +886,228 @@ function transport(d: Decouverte): ContenuDevis {
   bout("enlèvement", "etageEnlevement", "ascenseurEnlevement", "accesEnlevement");
   bout("livraison", "etageLivraison", "ascenseurLivraison", "accesLivraison");
 
-  // Descriptif libre des objets à transporter — repris tel quel.
-  const descObjets = str(det, "descriptionObjets");
-  if (descObjets) {
-    sources.push("descriptionObjets");
-    taches.push(`Éléments concernés : ${descObjets}`);
+  return {
+    titreBase: options.includes("manutention") ? "Transport et manutention" : "Transport",
+    nature: "transport",
+    bien: objet,
+    surface: null,
+    precisionTitre: villeE && villeL ? `de ${villeE} vers ${villeL}` : null,
+    etat: null,
+    niveau: 1,
+    themes: ["transport_objet"],
+    faits,
+    titreComplements: [],
+    contraintes,
+    reserves: [
+      "Le devis est établi sur la base du volume, du poids, des accès et des "
+      + "conditions de manutention communiqués lors de la découverte. Toute "
+      + "difficulté de manutention ou d'accès non signalée fera l'objet d'une "
+      + "réévaluation après accord du client.",
+      "Les objets de très grande valeur ou nécessitant une garantie spécifique "
+      + "doivent être déclarés avant le transport.",
+    ],
+    mentionProduits: false,
+    famille: null,
+    sources,
+    manquant,
+    contexte: (d.contexteIntervention ?? "").trim() || null,
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  NIVEAU B — entrée publique de l'analyse
+// ══════════════════════════════════════════════════════════════════════
+
+export function analyser(d: Decouverte): Analyse | null {
+  if (!activiteCouverte(d.sector)) return null;
+  switch (d.sector) {
+    case "debarras": return analyserDebarras(d);
+    case "demenagement": return analyserDemenagement(d);
+    case "transport": return analyserTransport(d);
+    default: return analyserNettoyage(d);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  NIVEAU C — RÉDACTION
+// ══════════════════════════════════════════════════════════════════════
+
+/**
+ * Titre principal (§3).
+ *
+ *   PRESTATION PRINCIPALE + NATURE DU CHANTIER + COMPLÉMENTS IMPORTANTS
+ *
+ * Règles tenues : pas de répétition (un complément déjà nommé dans le titre
+ * de base est ignoré), pas de longueur excessive (trois compléments au plus),
+ * et jamais de prestation non validée — `titreComplements` n'est alimenté que
+ * par des prestations validées.
+ */
+export function construireTitre(a: Analyse): string {
+  const morceaux = [a.titreBase];
+  if (a.bien) morceaux.push(`${article(a.bien)} ${a.bien}`);
+  if (a.surface) morceaux.push(`de ${a.surface} m²`);
+  if (a.precisionTitre) morceaux.push(a.precisionTitre);
+
+  const base = morceaux.join(" ");
+  // Pas de répétition : « avec désinfection » ne s'ajoute pas à un titre qui
+  // dit déjà « et désinfection ».
+  const nouveaux = a.titreComplements
+    .filter((c) => !base.toLowerCase().includes(c.toLowerCase()))
+    .slice(0, 3);
+
+  const titre = nouveaux.length ? `${base} avec ${enumerer(nouveaux)}` : base;
+  return titre.toUpperCase();
+}
+
+/** Prose courte par thème, pour la deuxième phrase de l'introduction (§4). */
+const PROSE: Partial<Record<Theme, string>> = {
+  interieur: "le nettoyage minutieux des espaces intérieurs",
+  sols_traitements: "le traitement des sols",
+  cuisine: "le nettoyage approfondi et le dégraissage de la cuisine",
+  sanitaires: "le nettoyage approfondi des équipements sanitaires",
+  equipements: "le nettoyage des équipements compris au devis",
+  exterieurs: "le nettoyage des espaces extérieurs",
+  finition_chantier: "le nettoyage de finition après travaux",
+  debarras_prealable: "le débarras préalable du logement",
+  nuisibles: "le traitement des nuisibles",
+  vitrerie: "la vitrerie comprise dans le périmètre de l'intervention",
+  murs: "le lessivage des murs",
+  plafonds: "le nettoyage des plafonds",
+  desinfection: "la désinfection des surfaces concernées",
+  decontamination: "la décontamination des zones identifiées",
+  desodorisation: "le traitement des odeurs",
+  debarras_inclus: "l'évacuation des encombrants",
+  suies: "le traitement des suies et résidus de combustion",
+  degat_eaux: "le traitement consécutif au dégât des eaux",
+  tri: "le tri des biens",
+  manutention: "la manutention et le chargement",
+  evacuation: "l'évacuation vers les filières autorisées",
+  emballage: "la protection des biens",
+  transport_mobilier: "le chargement et le transport",
+  installation: "le déchargement et la mise en place",
+  transport_objet: "l'enlèvement, le transport et la livraison",
+};
+
+/**
+ * Introduction professionnelle (§4).
+ *
+ * Deux phrases. La première situe le bien et la nature de l'intervention ; la
+ * seconde annonce les principales opérations. Le §4 l'exige concise : elle ne
+ * reprend pas toutes les informations de découverte et ne répète pas les
+ * sections détaillées — quatre opérations au plus y sont citées.
+ */
+export function construireIntroduction(a: Analyse): string {
+  const bien = a.bien ? ` ${article(a.bien)} ${a.bien}` : "";
+  const surface = a.surface ? ` d'environ ${a.surface} m²` : "";
+  const etat = a.etat ? ` présentant un niveau d'encrassement ${a.etat}` : "";
+  const lieu = a.precisionTitre && !a.precisionTitre.startsWith("avec")
+    ? ` ${a.precisionTitre}`
+    : "";
+
+  const phrase1 = `Intervention de ${a.nature}${bien}${surface}${lieu}${etat}.`;
+
+  // Le modèle du §4 cite trois opérations du socle puis, « ainsi que », la
+  // prestation complémentaire — « ainsi que la vitrerie comprise dans le
+  // périmètre de l'intervention ». C'est elle qui distingue ce devis des
+  // autres : la prendre dans l'ordre des thèmes la ferait tomber hors des
+  // quatre citées dès que le chantier compte plusieurs pièces.
+  const socle = a.themes.filter((t) => !estComplementaire(t));
+  const complementaires = a.themes.filter((t) => estComplementaire(t));
+  const retenues = [...socle.slice(0, 3), ...complementaires.slice(0, 1)]
+    .map((t) => PROSE[t])
+    .filter((p): p is string => !!p);
+  if (retenues.length === 0) return phrase1;
+  const phrase2 =
+    retenues.length === 1
+      ? `La prestation comprend ${retenues[0]}.`
+      : `La prestation comprend ${retenues.slice(0, -1).join(", ")} ainsi que ${retenues[retenues.length - 1]}.`;
+
+  return `${phrase1}\n\n${phrase2}`;
+}
+
+/**
+ * Sections techniques numérotées (§2, §5).
+ *
+ * Chaque thème validé donne UNE section : les opérations du référentiel pour
+ * le niveau retenu, puis les précisions tirées de la découverte. L'ordre est
+ * celui de la famille — pour un chantier Diogène, c'est l'ordre imposé par le
+ * §7.8 : débarras, nettoyage, désinfection, décontamination.
+ */
+export function construireSections(a: Analyse): SectionRedigee[] {
+  const sections: SectionRedigee[] = [];
+  const dejaEcrites = new Set<string>();
+
+  for (const theme of a.themes) {
+    const operations: string[] = [];
+    for (const op of operationsDe(theme, a.niveau)) {
+      // Anti-répétition globale (§10, §19.18) : une opération écrite dans une
+      // section ne se répète pas dans une autre.
+      const cle = normaliser(op);
+      if (dejaEcrites.has(cle)) continue;
+      dejaEcrites.add(cle);
+      operations.push(op);
+    }
+    for (const f of a.faits[theme] ?? []) {
+      const cle = normaliser(f);
+      if (dejaEcrites.has(cle)) continue;
+      dejaEcrites.add(cle);
+      operations.push(f);
+    }
+    if (operations.length === 0) continue;
+    sections.push({ titre: titreDe(theme), operations });
   }
 
-  const detail = [
-    "PRESTATION",
-    `Transport de ${libelleObjet}${villeE && villeL ? ` de ${villeE} vers ${villeL}` : ""}`
-      + `${options.includes("manutention") ? ", avec manutention" : ""}.`,
-    "",
-    "DÉTAIL DES PRESTATIONS",
-    ...taches.map((t) => `- ${t}`),
-    ...(contraintes.length ? ["", `Éléments relevés : ${contraintes.join(", ")}.`] : []),
-    ...lignesContexte(d),
-  ].join("\n");
+  return sections;
+}
 
-  const reserves = [
-    RESERVE_PERIMETRE,
-    RESERVE_NON_SIGNALE,
-    "Le devis est établi sur la base du volume, du poids, des accès et des "
-    + "conditions de manutention communiqués lors de la découverte. Toute "
-    + "difficulté de manutention ou d'accès non signalée fera l'objet d'une "
-    + "réévaluation après accord du client.",
-    "Les objets de très grande valeur ou nécessitant une garantie spécifique "
-    + "doivent être déclarés avant le transport.",
-  ];
+function normaliser(s: string): string {
+  return s.toLowerCase().replace(/[^a-zàâäéèêëîïôöùûüç0-9]+/g, " ").trim();
+}
 
+/** Réserves du devis (§12) : socle commun, puis réserves du chantier. */
+export function construireReserves(a: Analyse): string {
+  const socle = [RESERVE_REEVALUATION, RESERVE_NON_SIGNALE];
+  if (a.niveau >= 2 && a.mentionProduits) socle.push(RESERVE_SUPPORTS);
+  // Dédoublonnage : une même réserve peut être poussée par deux chemins.
+  const toutes = [...socle, ...a.reserves];
+  return [...new Set(toutes)].join("\n\n");
+}
+
+/** Rendu texte des sections, numérotées — ce qui part dans le PDF. */
+export function rendreDetail(a: Analyse, sections: SectionRedigee[]): string {
+  const lignes: string[] = [];
+  sections.forEach((s, i) => {
+    if (i > 0) lignes.push("");
+    lignes.push(`${i + 1}. ${s.titre}`);
+    lignes.push("");
+    for (const op of s.operations) lignes.push(`- ${op}`);
+  });
+
+  if (a.mentionProduits) {
+    lignes.push("", MENTION_PRODUITS);
+  }
+  if (a.contraintes.length) {
+    lignes.push("", `Conditions d'accès relevées : ${a.contraintes.join(", ")}.`);
+  }
+  if (a.contexte) {
+    lignes.push("", `Informations complémentaires communiquées : ${a.contexte}`);
+  }
+  return lignes.join("\n");
+}
+
+/** NIVEAU C — rédaction complète à partir d'une analyse. */
+export function rediger(a: Analyse): ContenuDevis {
+  const sections = construireSections(a);
   return {
-    designation, detail, reserves: reserves.join("\n\n"),
-    sources: [...new Set(sources)], manquant: [...new Set(manquant)],
+    designation: construireTitre(a),
+    introduction: construireIntroduction(a),
+    sections,
+    detail: rendreDetail(a, sections),
+    reserves: construireReserves(a),
+    niveau: a.niveau,
+    famille: a.famille ?? a.titreBase,
+    sources: [...new Set(a.sources)],
+    manquant: [...new Set(a.manquant)],
   };
 }
 
@@ -751,29 +1118,59 @@ function transport(d: Decouverte): ContenuDevis {
 /**
  * Contenu de devis à partir d'une découverte enregistrée.
  *
- * `null` = activité hors périmètre (§2 : dépannage et travaux exclus). On ne
- * produit rien plutôt qu'un texte inadapté.
+ * `null` = activité hors périmètre. On ne produit rien plutôt qu'un texte
+ * inadapté.
  */
 export function genererContenuDevis(d: Decouverte): ContenuDevis | null {
-  if (!activiteCouverte(d.sector)) return null;
-  switch (d.sector) {
-    case "debarras": return debarras(d);
-    case "demenagement": return demenagement(d);
-    case "transport": return transport(d);
-    default: return nettoyage(d); // nettoyage, nettoyage_difficile, diogene
-  }
+  const a = analyser(d);
+  return a ? rediger(a) : null;
 }
 
-// ── Garde-fous de rédaction (§3.4) ────────────────────────────────────
+/**
+ * Régénération à un niveau de développement imposé (§17, boutons 2 et 3).
+ *
+ * Le niveau ne peut qu'être relevé par rapport à ce que l'analyse a déduit :
+ * le §10 interdit de produire une description superficielle pour une
+ * intervention complexe, et ce n'est pas à un bouton d'interface de passer
+ * outre.
+ */
+export function genererAuNiveau(d: Decouverte, niveau: Niveau): ContenuDevis | null {
+  const a = analyser(d);
+  if (!a) return null;
+  return rediger({ ...a, niveau: Math.max(a.niveau, niveau) as Niveau });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  Garde-fous de rédaction (§19)
+// ══════════════════════════════════════════════════════════════════════
 
 /** Expressions proscrites, et ce qu'il faut écrire à la place. */
 export const INTERDITS: { motif: RegExp; raison: string }[] = [
+  // Interdiction 20.
   { motif: /remise\s+en\s+(é|e)tat/i, raison: "« remise en état » est proscrit : écrire « nettoyage approfondi » ou « nettoyage complet »" },
-  // Aucun prix ne doit apparaître dans le contenu généré.
-  { motif: /\d[\d\s.,]*\s*(€|EUR\b|euros?)/i, raison: "aucun prix ne doit figurer dans le contenu généré" },
+  // Interdiction 16 : aucun prix dans le contenu généré.
+  { motif: /\d[\d\s.,]*\s*(€|EUR\b|euros?|CHF\b|francs?\s+suisses?|\$|CAD\b)/i, raison: "aucun prix ne doit figurer dans le contenu généré" },
+  // Interdictions 21, 22, 23.
   { motif: /engagements?\s+de\s+l'entreprise/i, raison: "rubrique « Engagements de l'entreprise » non autorisée" },
   { motif: /objectif\s+final/i, raison: "rubrique « Objectif final » non autorisée" },
   { motif: /conditions\s+de\s+r(è|e)glement/i, raison: "rubrique « Conditions de règlement » non autorisée" },
+  // Interdiction 26 : aucune promesse de résultat sanitaire.
+  //
+  // ⚠️ Le motif ne doit relever que les promesses POSITIVES. Une première
+  // version cherchait « garantie d'absence » et se déclenchait donc sur la
+  // réserve du §7.9 — « ni une expertise, ni une garantie d'absence totale
+  // d'agents biologiques » — qui dit exactement le contraire. Un garde-fou
+  // qui sanctionne la clause protectrice est pire qu'absent : il pousse à la
+  // retirer.
+  {
+    motif: /(d(é|e)sinfection|d(é|e)contamination|st(é|e)rilisation)\s+(totale|compl(è|e)te|int(é|e)grale)|(é|e)limination\s+totale\s+des|100\s*%\s*(sain|st(é|e)rile|d(é|e)sinfect)|nous\s+garantissons|garantit\s+(l'absence|une\s+absence|un\s+r(é|e)sultat)|r(é|e)sultat\s+sanitaire\s+garanti/i,
+    raison: "aucune promesse de résultat sanitaire absolu n'est autorisée",
+  },
+  // Interdiction 27 : une prestation prévue n'est jamais présentée comme faite.
+  {
+    motif: /(a\s+(é|e)t(é|e)\s+(r(é|e)alis|nettoy|d(é|e)sinfect|d(é|e)contamin|trait))|(travaux\s+r(é|e)alis(é|e)s)|(intervention\s+r(é|e)alis(é|e)e\s+le\b)/i,
+    raison: "le devis décrit une prestation À RÉALISER : ne pas la présenter comme déjà exécutée",
+  },
 ];
 
 /**
@@ -784,7 +1181,138 @@ export const INTERDITS: { motif: RegExp; raison: string }[] = [
  * main dans le champ modifiable, et le devis ne doit pas partir avec.
  */
 export function verifierRedaction(c: ContenuDevis): { ok: boolean; alertes: string[] } {
-  const texte = `${c.designation}\n${c.detail}\n${c.reserves}`;
+  const texte = `${c.designation}\n${c.introduction}\n${c.detail}\n${c.reserves}`;
   const alertes = INTERDITS.filter((i) => i.motif.test(texte)).map((i) => i.raison);
+
+  // Interdictions 11 à 15 : aucune prestation complémentaire ne doit
+  // apparaître si elle n'a pas été validée. Le contrôle est structurel —
+  // il compare les sections rédigées aux thèmes que l'analyse a retenus.
   return { ok: alertes.length === 0, alertes };
+}
+
+/**
+ * Contrôle structurel : aucune section complémentaire non validée (§6.B).
+ *
+ * Complète `verifierRedaction`, qui ne voit que du texte. Ici on vérifie que
+ * toute section issue d'un thème complémentaire correspond bien à un thème
+ * retenu par l'analyse — c'est la garantie mécanique des interdictions 11
+ * à 15, et le test 13 du §20 s'appuie dessus.
+ */
+export function aucunThemeComplementaireNonValide(
+  a: Analyse,
+  sections: SectionRedigee[],
+): { ok: boolean; fautifs: string[] } {
+  const autorises = new Set(a.themes.map((t) => titreDe(t)));
+  const fautifs = sections
+    .map((s) => s.titre)
+    .filter((titre) => !autorises.has(titre));
+  // Un titre de section hors analyse est nécessairement une invention.
+  const complementairesNonValides = fautifs.filter((titre) =>
+    (Object.keys(OPERATIONS_TITRES) as Theme[]).some(
+      (t) => OPERATIONS_TITRES[t] === titre && estComplementaire(t),
+    ),
+  );
+  return {
+    ok: fautifs.length === 0,
+    fautifs: complementairesNonValides.length ? complementairesNonValides : fautifs,
+  };
+}
+
+/** Index titre → thème, pour le contrôle structurel ci-dessus. */
+const OPERATIONS_TITRES: Record<Theme, string> = (() => {
+  const themes: Theme[] = [
+    "interieur", "cuisine", "sanitaires", "sols_traitements", "equipements",
+    "exterieurs", "finition_chantier", "debarras_prealable", "nuisibles",
+    "vitrerie", "murs", "plafonds", "desinfection", "decontamination",
+    "desodorisation", "debarras_inclus", "suies", "degat_eaux",
+    "tri", "manutention", "evacuation", "emballage", "transport_mobilier",
+    "installation", "transport_objet",
+  ];
+  const out = {} as Record<Theme, string>;
+  for (const t of themes) out[t] = titreDe(t);
+  return out;
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+//  §17.4 — CORRIGER LES RÉPÉTITIONS
+// ══════════════════════════════════════════════════════════════════════
+
+/**
+ * Supprime les puces en double d'un descriptif, et renumérote les sections.
+ *
+ * S'applique au TEXTE du devis, y compris modifié à la main : c'est tout
+ * l'intérêt du bouton du §17.4, puisque le moteur, lui, ne produit jamais de
+ * doublon (le contrôle `18 — aucune opération répétée` le prouve). Ce sont les
+ * ajouts successifs d'un commercial qui en créent.
+ *
+ * CE QU'ELLE NE FAIT PAS : reformuler. Deux phrases qui disent la même chose
+ * autrement sont conservées toutes les deux — les départager demanderait de
+ * juger du sens, et le §19.19 interdit d'appauvrir un descriptif. Seules les
+ * puces STRICTEMENT identiques, à la casse, aux accents et à la ponctuation
+ * près, sont retirées.
+ *
+ * Elle préserve l'ordre, les intitulés de blocs, les lignes vides et tout ce
+ * qui n'est pas une puce.
+ */
+export function corrigerRepetitions(texte: string): { texte: string; retirees: number } {
+  const lignes = texte.split("\n");
+  const vues = new Set<string>();
+  const sortie: string[] = [];
+  let retirees = 0;
+  let numero = 0;
+
+  for (const ligne of lignes) {
+    const puce = /^\s*[-•*]\s+(.*\S)\s*$/.exec(ligne);
+    if (puce) {
+      const cle = normaliser(puce[1]);
+      // Une puce vide de contenu signifiant n'est pas dédoublonnée.
+      if (cle.length >= 8) {
+        if (vues.has(cle)) { retirees++; continue; }
+        vues.add(cle);
+      }
+      sortie.push(ligne);
+      continue;
+    }
+    // Section numérotée : on renumérote, puisque des suppressions peuvent
+    // avoir vidé une section entière plus haut.
+    const section = /^(\s*)(\d+)\.\s+(.*)$/.exec(ligne);
+    if (section) {
+      numero++;
+      sortie.push(`${section[1]}${numero}. ${section[3]}`);
+      continue;
+    }
+    sortie.push(ligne);
+  }
+
+  // Une section dont toutes les puces ont disparu ne doit pas rester en
+  // titre orphelin.
+  const nettoye: string[] = [];
+  for (let i = 0; i < sortie.length; i++) {
+    const estSection = /^\s*\d+\.\s+\S/.test(sortie[i]);
+    if (estSection) {
+      // La section garde-t-elle au moins une puce avant la section suivante ?
+      let aUnePuce = false;
+      for (let j = i + 1; j < sortie.length; j++) {
+        if (/^\s*\d+\.\s+\S/.test(sortie[j])) break;
+        if (/^\s*[-•*]\s+\S/.test(sortie[j])) { aUnePuce = true; break; }
+      }
+      if (!aUnePuce) {
+        // On saute le titre ET la ligne vide qui le suit.
+        if (sortie[i + 1] !== undefined && sortie[i + 1].trim() === "") i++;
+        continue;
+      }
+    }
+    nettoye.push(sortie[i]);
+  }
+
+  // Renumérotation finale, après retrait des sections vidées.
+  let n = 0;
+  const final = nettoye.map((l) => {
+    const s = /^(\s*)(\d+)\.\s+(.*)$/.exec(l);
+    if (!s) return l;
+    n++;
+    return `${s[1]}${n}. ${s[3]}`;
+  });
+
+  return { texte: final.join("\n"), retirees };
 }

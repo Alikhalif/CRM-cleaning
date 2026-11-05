@@ -1,0 +1,114 @@
+// Rédaction assistée (§17). Aucune couleur en dur : tous les tons passent par
+// les variables de thème, donc le panneau suit le mode sombre sans réglage.
+
+.panneau {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--bg-surface);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.tete { display: flex; flex-direction: column; gap: var(--sp-1); }
+
+.h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.sousTitre {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.boutons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.bouton {
+  flex: 0 1 auto;
+  min-height: 30px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-brand-500);
+    color: var(--color-brand-500);
+  }
+  &:disabled { opacity: 0.55; cursor: default; }
+}
+
+.annuler {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: 30px;
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+
+  &:hover { color: var(--text-primary); border-color: var(--text-muted); }
+}
+
+.info, .erreur {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+.info { color: var(--text-muted); }
+.erreur { color: var(--tone-danger); }
+
+.bloc {
+  border-left: 3px solid var(--tone-info);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface-2);
+  padding: var(--sp-3);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--text-primary);
+
+  &[data-tone="warning"] { border-left-color: var(--tone-warning); }
+  &[data-tone="danger"]  { border-left-color: var(--tone-danger); }
+
+  strong { display: block; margin-bottom: var(--sp-1); font-weight: 650; }
+  p { margin: 0 0 var(--sp-2); color: var(--text-muted); }
+  ul { margin: 0; padding-left: var(--sp-4); }
+  li { margin-bottom: 2px; }
+}
+
+// ── Mobile : cibles tactiles de 44 px et boutons pleine largeur ────────
+@media (max-width: 768px) {
+  .panneau { padding: var(--sp-3); }
+
+  .boutons { flex-direction: column; }
+
+  .bouton,
+  .annuler {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+    font-size: var(--fs-sm);
+  }
+}
