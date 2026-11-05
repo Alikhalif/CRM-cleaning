@@ -6,6 +6,85 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @docs/SPEC.md
 
+## Git / GitHub — règles permanentes (client, 2026-11-05)
+
+**Ces règles prévalent sur tout comportement par défaut. Elles s'appliquent à
+chaque intervention sur `Alikhalif/CRM-cleaning`.**
+
+### `main` est la seule cible de publication
+
+- `main` est l'unique branche de développement et de livraison.
+- Tout changement destiné à être conservé sur GitHub est intégré dans `main`.
+- **Ne jamais pousser vers `feature/*`, `develop`, `master` ou toute autre
+  branche sans autorisation explicite du client.**
+- Ne jamais créer ni utiliser une branche alternative pour publier du code
+  sans son accord. Si une branche de travail temporaire est nécessaire
+  (sécurité, test), demander avant de la créer.
+
+### Avant toute modification
+
+1. Vérifier le dépôt actif et son remote `origin`.
+2. `git fetch origin`.
+3. Identifier la branche courante et le dernier commit de `origin/main`.
+4. Vérifier les modifications locales non commitées.
+5. Préserver intégralement fichiers modifiés, sauvegardes et secrets.
+
+**Si le répertoire de travail contient des modifications non commitées, ne
+jamais les écraser.** Idem pour les worktrees existants (`git worktree list`).
+
+### Commit et push
+
+1. Modifier. 2. Exécuter les tests pertinents. 3. Relire `git diff`.
+4. Commit clair et professionnel. 5. Vérifier que c'est prêt pour `main`.
+6. **Demander la confirmation explicite du client avant chaque `git push`.**
+7. Après confirmation, publier **exclusivement vers `origin/main`**.
+8. Vérifier que `origin/main` contient le nouveau commit.
+
+**Jamais** de `git push --force`, `git reset --hard` ni de réécriture
+d'historique sans autorisation explicite.
+
+Si `main` est protégée ou qu'une Pull Request est obligatoire : **arrêter** et
+demander la procédure. (`gh` n'est pas installé sur ce poste : la protection
+de branche n'est pas vérifiable localement, seul un push refusé la révélera.)
+
+### Protection de la production
+
+Le CRM tourne sur un VPS Infomaniak sous Docker (voir **Deployment**).
+
+- Ne jamais redémarrer, reconstruire ni supprimer un conteneur de production
+  sans autorisation.
+- Ne jamais modifier `.env` ni `.env.docusign`, ne jamais exposer un secret.
+  Préserver `FIELD_ENCRYPTION_KEY`.
+- Ne jamais appliquer une migration Supabase (`supabase db push`) sans
+  validation explicite.
+- **`git push` n'est PAS un déploiement.** Ne pas confondre les deux : pousser
+  ne met rien en production, et déployer demande une autorisation distincte.
+
+### Rapport après chaque intervention
+
+Fournir systématiquement : branche utilisée · fichiers modifiés · tests
+effectués et résultats · identifiant du commit · état du push vers `main` ·
+état du déploiement en production.
+
+### Arrêt et demande de confirmation
+
+En cas de conflit, de modification locale non sauvegardée, d'échec des tests
+ou de risque pour la production : **arrêter l'opération et demander
+confirmation**.
+
+### ⚠️ Point ouvert — la branche suivie par le VPS
+
+Le VPS déploie depuis **`feature/docusign-sandbox`**
+(`/mnt/data/apps/crm/cleaning-crm-docusign`), pas depuis `main`. Les deux ont
+été réconciliées le 2026-11-05 (`origin/main` = `015afcb`, merge de la branche
+de fonctionnalité), mais **le VPS n'a pas été rebasculé sur `main`**.
+
+Tant que ce n'est pas tranché par le client, un commit poussé sur `main`
+n'atteint pas la production. À décider : faire suivre `main` au VPS, ou
+continuer à y publier la branche de fonctionnalité — ce second choix exigeant
+alors une autorisation explicite à chaque push, puisque la règle l'interdit
+par défaut.
+
 ## Stack
 
 Next.js 16.2.6 (App Router, Turbopack), React 19.2, TypeScript (strict), Sass (SCSS modules). Backend is Supabase (Postgres + Auth + Storage + Realtime) via `@supabase/ssr`. Two PDF engines (see **PDF generation**). Transactional email via Brevo, telephony via Ringover. No test runner is configured.
