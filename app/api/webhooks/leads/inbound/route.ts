@@ -5,7 +5,7 @@ import { supabaseServiceRole } from "@/lib/supabase/service";
 import { auditLog } from "@/lib/audit";
 import { notify, notifyRole } from "@/lib/notifications";
 import { resolveOwner } from "@/lib/routing";
-import { encryptField } from "@/lib/crypto/field-encryption";
+import { encryptField, isFieldEncryptionConfigured } from "@/lib/crypto/field-encryption";
 import { sendLeadCentralizationEmail } from "@/lib/leads-centralization";
 import { countryFromPhone, COUNTRIES, SECTOR_LABEL, type Country, type Sector } from "@/lib/leads";
 
@@ -414,6 +414,53 @@ export async function POST(request: Request) {
     payload.source_url, payload.page_url, payload.form_url, payload.referrer, payload.page_origine,
   );
 
+  // Provenance marketing : fail-closed, mais SANS perdre le lead.
+  //
+  // Si la clé de chiffrement manque, deux options se présentaient, toutes deux
+  // mauvaises : écrire la provenance en clair — exactement ce que le
+  // chiffrement existe pour empêcher, et un commercial lit ses propres lignes
+  // via la clé anon — ou laisser `encryptField()` lever, ce qui rendrait un 500
+  // à n8n, déclencherait ses reprises, puis finirait par JETER un lead payé.
+  //
+  // On prend la troisième : le lead entre, sa provenance reste vide, et
+  // l'incident est journalisé ici et tracé dans l'audit (`provenanceChiffree`).
+  // Un lead sans provenance se répare à la main ; un lead perdu, non.
+  const chiffrementActif = isFieldEncryptionConfigured();
+  if (!chiffrementActif) {
+    console.error(
+      "[webhooks/leads/inbound] FIELD_ENCRYPTION_KEY absente ou invalide : la provenance "
+        + "marketing de ce lead n'est PAS enregistrée. Elle n'est pas écrite en clair non "
+        + "plus. Rétablissez la clé — les leads suivants la conserveront.",
+    );
+  }
+  const provenance: {
+    gclid: string | null;
+    utm_source: string | null;
+    utm_campaign: string | null;
+    utm_term: string | null;
+    utm_medium: string | null;
+    utm_content: string | null;
+    source_url: string | null;
+  } = chiffrementActif
+    ? {
+        gclid: payload.gclid ? encryptField(payload.gclid) : null,
+        utm_source: payload.utm_source ? encryptField(payload.utm_source) : null,
+        utm_campaign: payload.utm_campaign ? encryptField(payload.utm_campaign) : null,
+        utm_term: payload.utm_term ? encryptField(payload.utm_term) : null,
+        utm_medium: payload.utm_medium ? encryptField(payload.utm_medium) : null,
+        utm_content: payload.utm_content ? encryptField(payload.utm_content) : null,
+        source_url: cleanSourceUrl ? encryptField(cleanSourceUrl) : null,
+      }
+    : {
+        gclid: null,
+        utm_source: null,
+        utm_campaign: null,
+        utm_term: null,
+        utm_medium: null,
+        utm_content: null,
+        source_url: null,
+      };
+
   // ── Insert the lead ───────────────────────────────────────────────
   const insertPayload = {
     short_id: shortId,
@@ -448,15 +495,9 @@ export async function POST(request: Request) {
     // Provenance marketing — CONFIDENTIELLE (chaîne d'arrivée §5-8) : chiffrée au
     // repos (A14) pour qu'une lecture directe via la clé anon (un commercial lit
     // ses propres lignes) ne révèle ni l'URL d'origine, ni la campagne, ni le
-    // gclid. Sans FIELD_ENCRYPTION_KEY, encryptField renvoie le texte clair
-    // (rétrocompatible) — rien ne casse.
-    gclid: payload.gclid ? encryptField(payload.gclid) : null,
-    utm_source: payload.utm_source ? encryptField(payload.utm_source) : null,
-    utm_campaign: payload.utm_campaign ? encryptField(payload.utm_campaign) : null,
-    utm_term: payload.utm_term ? encryptField(payload.utm_term) : null,
-    utm_medium: payload.utm_medium ? encryptField(payload.utm_medium) : null,
-    utm_content: payload.utm_content ? encryptField(payload.utm_content) : null,
-    source_url: cleanSourceUrl ? encryptField(cleanSourceUrl) : null,
+    // gclid. Résolue plus haut : vide si le chiffrement est indisponible, jamais
+    // en clair.
+    ...provenance,
     // Secteur déménagement : départ / arrivée / volume / date souhaitée.
     move_from_city: normalize(payload.depart_ville ?? "") || null,
     move_from_postal: normalize(payload.depart_cp ?? "") || null,
@@ -510,6 +551,10 @@ export async function POST(request: Request) {
       source: payload.source_slug,
       activity: payload.activity_slug,
       external_id: payload.external_id ?? null,
+      // Trace permanente : à false, la provenance de ce lead a été
+      // volontairement laissée vide faute de clé de chiffrement. C'est ce qui
+      // permet, plus tard, de retrouver exactement les leads concernés.
+      provenanceChiffree: chiffrementActif,
     },
   });
 

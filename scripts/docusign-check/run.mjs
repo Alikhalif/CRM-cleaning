@@ -33,6 +33,7 @@ const SUITES = [
   { fichier: "accessibilite.ts", titre: "Accessibilité depuis l'interface et cloisonnement des rôles" },
   { fichier: "pipeline-resume.ts", titre: "Résumé horizontal du pipeline commercial" },
   { fichier: "societes-emettrices.ts", titre: "Sociétés émettrices (null-safety, règles par pays)" },
+  { fichier: "chiffrement.ts", titre: "Chiffrement des champs confidentiels (fail-closed)" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "docusign-check-"));
@@ -52,6 +53,13 @@ try {
           "--platform=node",
           "--format=cjs",
           "--alias:@=.",
+          // `server-only` est fourni par Next.js et ne se résout pas ici. Ce
+          // n'est qu'un garde-fou de COMPILATION (il casse le build s'il est
+          // importé depuis un composant client), sans comportement à
+          // l'exécution : le neutraliser permet de tester un module serveur
+          // purement calculatoire comme lib/crypto/field-encryption.ts, sans
+          // rien relâcher dans le build de l'application.
+          "--alias:server-only=./scripts/docusign-check/stubs/server-only.ts",
           `--outfile=${bundle}`,
           "--log-level=warning",
         ],

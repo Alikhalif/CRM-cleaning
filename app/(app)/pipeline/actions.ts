@@ -11,7 +11,7 @@ import { sendBrevoEmail, sendBrevoSms } from "@/lib/brevo";
 import { buildPhotoRequestEmail, buildPhotoRequestSms } from "@/lib/templates";
 import { countryFromPhone } from "@/lib/leads";
 import { currentUserHasImmobTravaux } from "@/lib/leads-server";
-import { encryptField } from "@/lib/crypto/field-encryption";
+import { encryptField, isFieldEncryptionConfigured } from "@/lib/crypto/field-encryption";
 import { isCurrentUserAdmin } from "@/lib/presence/guard";
 import type { Country, DiscoveryOutcome, LeadStatus, Sector, SubSignature } from "@/lib/leads";
 import type { Database } from "@/lib/supabase/database.types";
@@ -1267,6 +1267,23 @@ export async function updateImmobTravauxAnnotation(
 ): Promise<Result> {
   if (!(await currentUserHasImmobTravaux())) {
     return { ok: false, error: "Accès refusé : permission immob_travaux requise." };
+  }
+  // Refus en amont, et VOLONTAIREMENT avant de regarder le contenu.
+  //
+  // Le cas évident est l'écriture en clair d'une annotation non vide. Le cas
+  // dangereux est l'inverse : `decryptField()` rend "" quand la clé manque,
+  // l'éditeur affiche donc un champ VIDE là où la base contient une annotation
+  // chiffrée, et un simple enregistrement écrirait `null` par la branche
+  // `trimmed ? … : null` ci-dessous — sans jamais passer par `encryptField()`,
+  // donc sans que le fail-closed ne s'applique. La valeur d'origine serait
+  // définitivement perdue. D'où ce garde-fou avant toute lecture du contenu.
+  if (!isFieldEncryptionConfigured()) {
+    return {
+      ok: false,
+      error: "FIELD_ENCRYPTION_KEY absente ou invalide : l'annotation confidentielle ne "
+        + "peut être ni chiffrée ni modifiée sans risque d'écraser la valeur existante. "
+        + "Contactez l'administrateur avant de réessayer.",
+    };
   }
   const supabase = await supabaseServer();
   // A14 — chiffrement applicatif au repos : la colonne ne contient jamais le

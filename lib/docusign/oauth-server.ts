@@ -257,6 +257,19 @@ export async function terminerAutorisation(input: {
   }
   if (!compte) return { ok: false, error: "Aucun compte DocuSign exploitable sur cet utilisateur." };
 
+  // Second contrôle du chiffrement, après celui de `demarrerAutorisation()`.
+  // Il n'est pas redondant : entre le départ vers DocuSign et ce retour de
+  // callback, le serveur a pu être redémarré avec un environnement différent.
+  // Sans ce refus, `encryptField()` lèverait quelques lignes plus bas et
+  // l'utilisateur récolterait un « 500 » au lieu d'un motif lisible.
+  if (!isFieldEncryptionConfigured()) {
+    return {
+      ok: false,
+      error: "FIELD_ENCRYPTION_KEY n'est plus configurée. Les jetons DocuSign ne peuvent pas "
+        + "être chiffrés : le raccordement est refusé et la connexion existante est conservée.",
+    };
+  }
+
   const maintenant = Date.now();
   const ligne = {
     entity_id: etat.entity_id,
@@ -280,17 +293,46 @@ export async function terminerAutorisation(input: {
     updated_at: new Date(maintenant).toISOString(),
   };
 
-  // Réautoriser REMPLACE la connexion : l'index unique partiel garantit une
-  // seule ligne active par entité et par environnement.
-  await sb
+  // Réautoriser REMPLACE la connexion : l'index unique partiel
+  // `uq_dsc_entity_env (entity_id, environment) where revoked_at is null`
+  // n'admet qu'une seule ligne ACTIVE par entité et par environnement.
+  //
+  // L'ordre n'est donc pas un choix : insérer avant de révoquer violerait cet
+  // index. Mais révoquer d'abord ouvre une fenêtre — si l'insertion échoue,
+  // l'entité se retrouve sans AUCUN raccordement alors qu'elle en avait un
+  // qui fonctionnait, et il faut une réautorisation humaine pour s'en
+  // remettre. PostgREST ne donne pas de transaction sur deux appels, alors on
+  // compense : on retient les lignes qu'on vient de révoquer, et on les
+  // rétablit si l'insertion échoue.
+  const { data: revoquees } = await sb
     .from("docusign_connections")
     .update({ revoked_at: new Date(maintenant).toISOString() } as never)
     .eq("entity_id", etat.entity_id)
     .eq("environment", config.environnement)
-    .is("revoked_at", null);
+    .is("revoked_at", null)
+    .select("id");
 
   const { error: errIns } = await sb.from("docusign_connections").insert(ligne as never);
-  if (errIns) return { ok: false, error: `Enregistrement de la connexion impossible : ${errIns.message}` };
+  if (errIns) {
+    // Retour à l'état antérieur. S'il n'y avait pas de connexion active,
+    // cette boucle ne fait rien — c'est le cas d'un premier raccordement.
+    let retabli = true;
+    for (const r of ((revoquees ?? []) as { id: string }[])) {
+      const { error } = await sb
+        .from("docusign_connections")
+        .update({ revoked_at: null } as never)
+        .eq("id", r.id);
+      if (error) retabli = false;
+    }
+    return {
+      ok: false,
+      error: `Enregistrement de la connexion impossible : ${errIns.message}`
+        + (retabli
+          ? ""
+          : " De plus, l'ancien raccordement n'a pas pu être rétabli : une réautorisation "
+            + "DocuSign est nécessaire."),
+    };
+  }
 
   return {
     ok: true,
@@ -376,6 +418,33 @@ export async function accesPourEntite(
     };
   }
 
+  // UN SEUL contrôle du chiffrement, et il est placé AVANT toute lecture de
+  // jeton. L'ordre est le correctif ; le contrôle, lui, existait déjà.
+  //
+  // Il se trouvait plus bas, juste avant l'écriture des jetons renouvelés.
+  // Trop tard, et le motif affiché était faux : sans clé valide,
+  // `decryptField()` rend "". Le chemin « jeton encore valide » renvoyait
+  // donc un `Bearer` VIDE — DocuSign répondait 401 sans que la clé soit
+  // jamais nommée — et le rafraîchissement postait un `refresh_token` VIDE,
+  // d'où un 400 et un `last_error` « rafraîchissement refusé (HTTP 400) »
+  // qui envoie l'exploitant réautoriser alors que seule la clé manque. Le
+  // garde-fou d'écriture n'était même plus atteint dans ce scénario.
+  //
+  // Ici, un seul refus couvre les trois usages de la clé : les deux
+  // déchiffrements et l'écriture. `noterErreur` parce que `last_error` est ce
+  // que la fiche dossier affiche — l'exploitant doit y lire la cause réelle,
+  // pas une fausse piste. La connexion reste en place : elle redevient
+  // utilisable dès la clé rétablie, sans réautorisation DocuSign.
+  if (!isFieldEncryptionConfigured()) {
+    await noterErreur(c.id, "FIELD_ENCRYPTION_KEY absente ou invalide : jetons inutilisables");
+    return {
+      ok: false,
+      error: "FIELD_ENCRYPTION_KEY absente ou invalide : les jetons DocuSign ne peuvent être "
+        + "ni déchiffrés ni renouvelés. Le raccordement est conservé et redeviendra utilisable "
+        + "dès que la clé sera rétablie.",
+    };
+  }
+
   if (!jetonAExpire(c.expires_at)) {
     return {
       ok: true,
@@ -436,6 +505,9 @@ export async function accesPourEntite(
     return jeton;
   }
 
+  // Le chiffrement a déjà été contrôlé en tête de cette fonction, avant le
+  // déchiffrement du jeton de rafraîchissement. Pas de second contrôle ici :
+  // ce serait du bruit, et c'est surtout ici qu'il arrivait trop tard.
   const maintenant = Date.now();
   const sb = await supabaseServiceRole();
   await sb

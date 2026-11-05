@@ -13,11 +13,31 @@ import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 // La clé vient de FIELD_ENCRYPTION_KEY (32 octets, en hex 64 car. ou en base64).
 // Enveloppe stockée : "encv1:<iv_b64>:<tag_b64>:<ciphertext_b64>".
 //
-// Rétrocompatibilité (additif, ne casse rien) : une valeur SANS le préfixe
-// `encv1:` est traitée comme du texte clair hérité — les anciennes annotations
-// restent lisibles et seront re-chiffrées au prochain enregistrement. Tant que
-// FIELD_ENCRYPTION_KEY n'est pas fournie, l'écriture reste en clair (le CRM
-// fonctionne comme avant) : la protection au repos s'active dès que la clé existe.
+// ── FAIL-CLOSED À L'ÉCRITURE (2026-11-05) ────────────────────────────
+//
+// `encryptField()` LÈVE une erreur quand la clé est absente ou invalide. Il
+// renvoyait auparavant le texte clair, avec un seul avertissement console, au
+// nom de la rétrocompatibilité. Ce repli était un piège :
+//
+//   • l'avertissement passe inaperçu dans les journaux d'un serveur de
+//     développement, et `warnOnce` ne l'émet qu'UNE fois par processus ;
+//   • un `.env.local` dont la clé est mal formée (par exemple 30 caractères,
+//     qui ne décodent pas en 32 octets) pointait ici sur la base de
+//     PRODUCTION : chaque enregistrement y écrivait la provenance marketing et
+//     l'annotation Immobilier/Travaux EN CLAIR, précisément ce que le
+//     commercial ne doit jamais voir ;
+//   • une colonne en clair ne se rattrape pas après coup — on ne sait plus
+//     quelles lignes ont fuité sans les inspecter une par une.
+//
+// Une écriture refusée se voit et se corrige. Une écriture en clair ne se voit
+// pas. C'est tout l'arbitrage, et il va désormais dans ce sens.
+//
+// La LECTURE reste tolérante, et ce n'est pas une incohérence : une valeur sans
+// le préfixe `encv1:` est du texte clair hérité, rendu tel quel — les anciennes
+// annotations restent lisibles et seront chiffrées au prochain enregistrement.
+// Faire lever `decryptField()` transformerait un champ illisible en page en
+// erreur : la confidentialité n'y gagnerait rien, puisqu'il ne renvoie jamais
+// de chiffré brut.
 
 const PREFIX = "encv1:";
 
@@ -45,16 +65,40 @@ export function isFieldEncryptionConfigured(): boolean {
   return loadKey() !== null;
 }
 
-// Chiffre une valeur en clair. Sans clé configurée → renvoie le texte clair tel
-// quel (avertissement une fois) pour ne casser aucun flux existant.
+/**
+ * Chiffrement indisponible : clé absente, mal formée, ou de longueur autre que
+ * 32 octets.
+ *
+ * Classe dédiée pour que les appelants distinguent ce refus d'une panne
+ * réseau ou d'une erreur Postgres, et affichent un message exploitable plutôt
+ * qu'un « 500 ». Le message ne contient JAMAIS la clé ni sa valeur — seule la
+ * contrainte de format attendue.
+ */
+export class FieldEncryptionUnavailableError extends Error {
+  readonly code = "FIELD_ENCRYPTION_UNAVAILABLE";
+
+  constructor() {
+    super(
+      "FIELD_ENCRYPTION_KEY absente ou invalide : le champ confidentiel ne peut pas être "
+        + "chiffré, l'écriture est donc refusée. Attendu : 32 octets, soit 64 caractères "
+        + "hexadécimaux, soit du base64 décodant sur 32 octets.",
+    );
+    this.name = "FieldEncryptionUnavailableError";
+  }
+}
+
+/**
+ * Chiffre une valeur en clair.
+ *
+ * @throws {FieldEncryptionUnavailableError} si la clé est absente ou invalide.
+ *   Aucun repli en texte clair : voir l'arbitrage en tête de fichier. Les
+ *   appelants doivent soit vérifier `isFieldEncryptionConfigured()` en amont et
+ *   refuser proprement, soit laisser remonter l'erreur — jamais l'avaler.
+ */
 export function encryptField(plaintext: string): string {
   const key = loadKey();
   if (!key) {
-    warnOnce(
-      "[field-encryption] FIELD_ENCRYPTION_KEY absente : champ confidentiel stocké EN CLAIR. " +
-        "Définissez une clé de 32 octets (hex 64 car. ou base64) pour activer le chiffrement au repos.",
-    );
-    return plaintext;
+    throw new FieldEncryptionUnavailableError();
   }
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
