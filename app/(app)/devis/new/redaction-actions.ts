@@ -28,6 +28,7 @@
 
 import { supabaseServer } from "@/lib/supabase/server";
 import { getLeadDetail } from "@/lib/leads-server";
+import { mentionProduitsPourEntite } from "@/lib/generation/mentions-produits-server";
 import {
   MOTIF_LABEL,
   decouverteDepuisLead,
@@ -75,9 +76,9 @@ async function leadDuDevis(devisId: string) {
   const supabase = await supabaseServer();
   const { data, error } = await supabase
     .from("documents")
-    .select("id, lead_id")
+    .select("id, lead_id, entity_id")
     .eq("id", devisId)
-    .maybeSingle<{ id: string; lead_id: string | null }>();
+    .maybeSingle<{ id: string; lead_id: string | null; entity_id: string | null }>();
   if (error || !data) return { ok: false as const, error: "Devis introuvable." };
   if (!data.lead_id) {
     return {
@@ -89,7 +90,7 @@ async function leadDuDevis(devisId: string) {
   }
   const detail = await getLeadDetail(data.lead_id);
   if (!detail) return { ok: false as const, error: "Dossier introuvable." };
-  return { ok: true as const, lead: detail.lead };
+  return { ok: true as const, lead: detail.lead, entityId: data.entity_id };
 }
 
 export async function redigerDevis(
@@ -109,6 +110,10 @@ export async function redigerDevis(
     discoveryDetails: lead.discoveryDetails ?? null,
     discoveryDoneAt: lead.discoveryDoneAt ?? null,
     contexteIntervention: lead.contexteIntervention ?? null,
+    // C1 — la mention suit la société émettrice DU DEVIS, pas une valeur
+    // globale. Une régénération ne doit pas y réintroduire une affirmation
+    // que cette société n'a pas déclarée.
+    mentionProduits: await mentionProduitsPourEntite(r.entityId),
   };
 
   // Les deux refus possibles sont explicites : on ne produit jamais un texte

@@ -6,7 +6,8 @@ import {
   genererAuNiveau, genererContenuDevis,
 } from "@/lib/generation/devis-contenu";
 import { notesDevis } from "@/lib/generation/devis-depuis-decouverte";
-import { MENTION_PRODUITS, RESERVE_REEVALUATION } from "@/lib/generation/bibliotheque-redaction";
+import { RESERVE_REEVALUATION } from "@/lib/generation/bibliotheque-redaction";
+import { SUGGESTION_HISTORIQUE } from "@/lib/generation/mentions-produits";
 import { bilan, contient, decouverteNettoyage, eq, faux, titre, vrai } from "./commun";
 
 // Le dossier de référence du §4 : appartement de 90 m², encrassement
@@ -24,7 +25,15 @@ const REFERENCE = decouverteNettoyage(
     vitrerieFenetres: 6,
     vitrerieFaces: "les_deux",
   },
-  { surfaceM2: 90, etatSalete: "important" },
+  {
+    surfaceM2: 90,
+    etatSalete: "important",
+    // C1 — la société émettrice de ce dossier de référence a déclaré sa
+    // mention. Déclarée ici et non dans `decouverteNettoyage()` : si le
+    // helper la posait pour tous les fixtures, on reconstituerait le défaut
+    // « mention partout » et plus aucun contrôle ne verrait sa disparition.
+    mentionProduits: SUGGESTION_HISTORIQUE,
+  },
 );
 
 // ══════════════════════════════════════════════════════════════════════
@@ -314,20 +323,28 @@ vrai("le bloc PRESTATION porte l'introduction", notes.includes(c.introduction.sp
 // ══════════════════════════════════════════════════════════════════════
 titre("§11 et §12 — mentions et réserves");
 
-vrai("la mention « produits » du §11 est reprise mot pour mot", c.detail.includes(MENTION_PRODUITS));
+// C1 (2026-11-06) : la mention n'est plus posée en dur par le moteur, elle est
+// DÉCLARÉE par la société. Le contrôle n'est pas supprimé — il prouve toujours
+// qu'une mention déclarée est reprise mot pour mot — mais le fixture doit
+// désormais la déclarer, comme le fera le Super Admin dans Réglages.
+vrai("une mention déclarée est reprise mot pour mot", c.detail.includes(SUGGESTION_HISTORIQUE));
 vrai(
   "la clause de réévaluation du §12.2 est reprise mot pour mot",
   c.reserves.includes(RESERVE_REEVALUATION),
 );
 
+// Mention DÉCLARÉE, et pourtant absente : ce n'est pas du nettoyage. Sans la
+// déclarer, ce contrôle passerait trivialement — plus rien ne prouverait que
+// le moteur l'écarte sur une activité de déménagement.
 const demenagement = genererContenuDevis({
+  mentionProduits: SUGGESTION_HISTORIQUE,
   sector: "demenagement", surfaceM2: null, etatSalete: null,
   details: { logementDepart: "appartement_t3", volume: "20-30", typeDemenagement: "complet" },
   villeDepart: "Paris", villeArrivee: "Lyon",
 });
 faux(
   "pas de mention « produits de nettoyage » sur un déménagement",
-  (demenagement?.detail ?? "").includes(MENTION_PRODUITS),
+  (demenagement?.detail ?? "").includes(SUGGESTION_HISTORIQUE),
 );
 vrai(
   "la clause de réévaluation figure aussi sur un déménagement",

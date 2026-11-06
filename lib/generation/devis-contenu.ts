@@ -42,7 +42,7 @@ import {
   VOLUME_DEMENAGEMENT, TYPE_OBJET, OPTIONS_TRANSPORT,
 } from "@/lib/discovery-metier";
 import {
-  FAMILLES, MENTION_PRODUITS, RESERVES_PAR_FAMILLE, RESERVE_ASSECHEMENT,
+  FAMILLES, RESERVES_PAR_FAMILLE, RESERVE_ASSECHEMENT,
   RESERVE_BIENS_CONSERVES, RESERVE_DECHETS_REGLEMENTES, RESERVE_INSALUBRE,
   RESERVE_MURS_EXCLUS, RESERVE_MURS_LAVABLES, RESERVE_NON_SIGNALE,
   RESERVE_NUISIBLES, RESERVE_REEVALUATION, RESERVE_SUPPORTS, RESERVE_VOLUME,
@@ -112,6 +112,15 @@ export type Decouverte = {
    * ce n'en est pas une. Le commercial relit le brouillon avant tout envoi.
    */
   contexteIntervention?: string | null;
+  /**
+   * Mention des produits de la société émettrice, déjà résolue.
+   *
+   * Transmise plutôt que lue : ce module est PUR et ne connaît ni
+   * `app_settings` ni `legal_entities`. La résolution vit dans
+   * `lib/generation/mentions-produits.ts` et l'appel dans l'action serveur,
+   * qui est le seul endroit sachant quelle société émet le devis.
+   */
+  mentionProduits?: string | null;
 };
 
 // ══════════════════════════════════════════════════════════════════════
@@ -159,7 +168,18 @@ export type Analyse = {
   /** Réserves propres au chantier, en plus du socle. */
   reserves: string[];
   /** La mention « produits » du §11 s'applique-t-elle ? */
-  mentionProduits: boolean;
+  /**
+   * Mention des produits d'entretien, ou `null` si la société n'en déclare
+   * aucune (C1 du 2026-11-06).
+   *
+   * ⚠️ C'ÉTAIT UN BOOLÉEN POSÉ À `true` EN DUR. La phrase « 100 % français et
+   * écoresponsables » s'imprimait donc sur les devis des sept sociétés, dans
+   * les cinq pays, sans qu'aucune règle métier ne l'autorise. Elle est
+   * désormais saisie par société dans Réglages › Intégrations, et son absence
+   * est le défaut : une mention manquante ne coûte rien, une mention fausse
+   * engage l'entreprise.
+   */
+  mentionProduits: string | null;
   famille: FamilleNettoyage | null;
   sources: string[];
   manquant: string[];
@@ -760,7 +780,8 @@ function analyserNettoyage(d: Decouverte): Analyse {
     observations,
     etats,
     reserves,
-    mentionProduits: true,
+    // C1 — plus de `true` en dur : ce que la société a déclaré, ou rien.
+    mentionProduits: (d.mentionProduits ?? "").trim() || null,
     famille,
     sources,
     manquant,
@@ -887,7 +908,7 @@ function analyserDebarras(d: Decouverte): Analyse {
     etats: {},
     contraintes,
     reserves: [RESERVE_VOLUME, RESERVE_BIENS_CONSERVES, RESERVE_DECHETS_REGLEMENTES],
-    mentionProduits: false,
+    mentionProduits: null,
     famille: null,
     sources,
     manquant,
@@ -986,7 +1007,7 @@ function analyserDemenagement(d: Decouverte): Analyse {
       + "signalés avant l'intervention afin d'être protégés et assurés en "
       + "conséquence.",
     ],
-    mentionProduits: false,
+    mentionProduits: null,
     famille: null,
     sources,
     manquant,
@@ -1087,7 +1108,7 @@ function analyserTransport(d: Decouverte): Analyse {
       "Les objets de très grande valeur ou nécessitant une garantie spécifique "
       + "doivent être déclarés avant le transport.",
     ],
-    mentionProduits: false,
+    mentionProduits: null,
     famille: null,
     sources,
     manquant,
@@ -1248,7 +1269,14 @@ function normaliser(s: string): string {
 /** Réserves du devis (§12) : socle commun, puis réserves du chantier. */
 export function construireReserves(a: Analyse): string {
   const socle = [RESERVE_REEVALUATION, RESERVE_NON_SIGNALE];
-  if (a.niveau >= 2 && a.mentionProduits) socle.push(RESERVE_SUPPORTS);
+  // ⚠️ CETTE RÉSERVE ÉTAIT ACCROCHÉE À `mentionProduits`, qui valait `true`
+  // pour toute la famille nettoyage : la condition signifiait donc « nettoyage
+  // au niveau 2 ou plus ». Maintenant que la mention est un texte facultatif,
+  // garder ce test aurait fait disparaître la réserve des dégradations
+  // préexistantes de tous les devis dont la société n'a pas déclaré de
+  // mention — une régression silencieuse sur une clause qui protège
+  // l'entreprise. Le lien est donc rétabli là où il est réel : la famille.
+  if (a.niveau >= 2 && a.famille !== null) socle.push(RESERVE_SUPPORTS);
   // Dédoublonnage : une même réserve peut être poussée par deux chemins.
   const toutes = [...socle, ...a.reserves];
   return [...new Set(toutes)].join("\n\n");
@@ -1265,7 +1293,7 @@ export function rendreDetail(a: Analyse, sections: SectionRedigee[]): string {
   });
 
   if (a.mentionProduits) {
-    lignes.push("", MENTION_PRODUITS);
+    lignes.push("", a.mentionProduits);
   }
   if (a.contraintes.length) {
     lignes.push("", `Conditions d'accès relevées : ${a.contraintes.join(", ")}.`);

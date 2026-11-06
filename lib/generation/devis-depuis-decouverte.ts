@@ -37,6 +37,13 @@ export type LeadPourGeneration = {
    * commercial écrit en texte libre est perdu à la génération.
    */
   contexteIntervention?: string | null;
+  /**
+   * Mention des produits de la société émettrice, DÉJÀ RÉSOLUE (C1).
+   *
+   * Résolue par l'appelant parce que lui seul sait quelle société émet : le
+   * moteur est pur, et `legal_entity_activities` ne se lit pas ici.
+   */
+  mentionProduits?: string | null;
 };
 
 const texte = (d: Record<string, unknown>, k: string): string | null => {
@@ -57,6 +64,7 @@ export function decouverteDepuisLead(l: LeadPourGeneration): Decouverte {
     villeDepart: texte(details, "villeDepart"),
     villeArrivee: texte(details, "villeArrivee"),
     contexteIntervention: l.contexteIntervention ?? null,
+    mentionProduits: l.mentionProduits ?? null,
   };
 }
 

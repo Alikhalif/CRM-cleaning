@@ -708,18 +708,22 @@ export function titreDe(theme: Theme): string {
 // ══════════════════════════════════════════════════════════════════════
 
 /**
- * Mention des produits (§11), reprise MOT POUR MOT.
+ * ⚠️ LA MENTION DES PRODUITS N'EST PLUS UNE CONSTANTE DE LA BIBLIOTHÈQUE.
  *
- * ⚠️ Le §11 précise : « elle doit être appliquée uniquement lorsque
- * l'entreprise concernée utilise effectivement des produits répondant à ces
- * caractéristiques ». Il n'existe aujourd'hui AUCUN indicateur de ce type sur
- * les sociétés émettrices (`legal_entities`) : la mention est donc portée sur
- * les prestations de nettoyage de toutes les sociétés, comme avant. La rendre
- * conditionnelle demande une colonne et une décision — voir le journal.
+ * Elle était ici, et `analyserNettoyage()` la posait en dur : la phrase
+ * « produits 100 % français et écoresponsables » partait donc sur les devis
+ * des sept sociétés du CRM, dans les cinq pays, sans qu'aucune règle métier
+ * ne l'autorise. C'est une affirmation sur l'origine et sur le caractère
+ * environnemental d'un produit : elle engage la société qui l'écrit.
+ *
+ * Depuis la correction C1 du 2026-11-06, elle se saisit PAR SOCIÉTÉ dans
+ * Réglages › Intégrations, elle est stockée dans `app_settings`, et son
+ * absence est le défaut. Le texte historique survit comme SUGGESTION de
+ * saisie — `SUGGESTION_HISTORIQUE` dans lib/generation/mentions-produits.ts —
+ * et il n'est jamais appliqué tout seul.
+ *
+ * Ne pas réintroduire de constante ici : ce serait reconstituer le défaut.
  */
-export const MENTION_PRODUITS =
-  "Intervention réalisée avec des produits de nettoyage 100 % français et "
-  + "écoresponsables, adaptés aux surfaces et aux opérations prévues.";
 
 /** Clause de réévaluation (§12.2), reprise MOT POUR MOT. */
 export const RESERVE_REEVALUATION =

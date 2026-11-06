@@ -1,9 +1,37 @@
 import Link from "next/link";
 import Icon from "@/components/Icon/Icon";
 import { getCurrentUserProfile } from "@/lib/users-server";
+import { supabaseServer } from "@/lib/supabase/server";
+import { toutesLesMentions } from "@/lib/generation/mentions-produits-server";
+import MentionsProduits, { type SocieteMention } from "./MentionsProduits";
 import styles from "./Integrations.module.scss";
 
 export const metadata = { title: "Intégrations" };
+
+/**
+ * Sociétés émettrices et leur mention de produits (C1).
+ *
+ * Lecture par la session : la RLS de `legal_entities` s'applique, et cette
+ * page est de toute façon réservée au Super Admin.
+ */
+async function societesEtMentions(): Promise<SocieteMention[]> {
+  const supabase = await supabaseServer();
+  const [{ data }, mentions] = await Promise.all([
+    supabase
+      .from("legal_entities")
+      .select("id, legal_name, country")
+      .is("deleted_at", null)
+      .order("legal_name")
+      .returns<{ id: string; legal_name: string | null; country: string | null }[]>(),
+    toutesLesMentions(),
+  ]);
+  return (data ?? []).map((e) => ({
+    id: e.id,
+    nom: e.legal_name ?? "sans dénomination",
+    pays: e.country,
+    mention: mentions[e.id] ?? "",
+  }));
+}
 
 export default async function IntegrationsPage() {
   const profile = await getCurrentUserProfile();
@@ -47,6 +75,8 @@ export default async function IntegrationsPage() {
           l'envoi automatique des devis. On conserve la page et une note
           explicite plutôt qu'un écran vide : un administrateur qui vient y
           chercher le réglage doit comprendre qu'il a disparu volontairement. */}
+      <MentionsProduits societes={await societesEtMentions()} />
+
       <section className={styles.card}>
         <div className={styles.cardHead}>
           <div>

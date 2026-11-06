@@ -144,3 +144,104 @@
   color: var(--text-secondary);
   line-height: 1.5;
 }
+
+/* ── Mentions des produits d'entretien, par société (C1, 2026-11-06) ── */
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+}
+
+.champMention {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.labelMention {
+  display: block;
+  margin-bottom: var(--sp-1);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.paysMention {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.textareaMention {
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  resize: vertical;
+}
+
+.ligneMention {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.compteurMention {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.lienMention {
+  padding: 0;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--accent);
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.avertMention,
+.erreurMention,
+.okMention {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-start;
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.avertMention { color: var(--warning, #b45309); }
+.erreurMention { color: var(--danger, #b91c1c); }
+.okMention { color: var(--success, #15803d); }
+
+.btnMention {
+  align-self: flex-start;
+  padding: var(--sp-2) var(--sp-4);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+
+  &:disabled { opacity: 0.5; cursor: default; }
+}
+
+/* ≤768px : cibles tactiles de 44px (règle mobile du dépôt). */
+@media (max-width: 768px) {
+  .btnMention { min-height: 44px; }
+  .lienMention { min-height: 44px; }
+  .ligneMention { flex-wrap: wrap; }
+}

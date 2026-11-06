@@ -26,6 +26,7 @@ import { auditLog } from "@/lib/audit";
 import { supabaseServer } from "@/lib/supabase/server";
 import { getLeadDetail } from "@/lib/leads-server";
 import { montantRecommande } from "@/lib/devis/prefill";
+import { mentionProduitsPourEntite } from "@/lib/generation/mentions-produits-server";
 import { ensureClientFromLead } from "@/app/(app)/clients/new/actions";
 import {
   createDevis,
@@ -145,21 +146,12 @@ export async function genererDevisDepuisDecouverte(
     };
   }
 
-  // ── 2. Rédaction, à partir des seuls champs saisis ────────────────
-  const gen = genererDepuisLead({
-    sector: lead.sector,
-    surfaceM2: lead.surfaceM2 ?? null,
-    etatSalete: lead.etatSalete ?? null,
-    discoveryDetails: lead.discoveryDetails ?? null,
-    discoveryDoneAt: lead.discoveryDoneAt ?? null,
-    contexteIntervention: lead.contexteIntervention ?? null,
-  });
-  if (!gen.ok) return { ok: false, error: MOTIF_LABEL[gen.motif] };
-
-  // ── 3. Client, société émettrice, montant ─────────────────────────
-  const conv = await ensureClientFromLead(leadId);
-  if (!conv.ok) return { ok: false, error: conv.error };
-
+  // ── 2. Société émettrice — AVANT la rédaction ─────────────────────
+  //
+  // Remontée ici le 2026-11-06 (C1) : c'est la société qui porte la mention
+  // des produits d'entretien, et le moteur en a besoin pour rédiger. La
+  // résolution est inchangée — `leads.entity_id`, à défaut l'entité par
+  // défaut de l'activité.
   const entite = await resoudreEntite(leadId);
   if (!entite) {
     return {
@@ -167,6 +159,24 @@ export async function genererDevisDepuisDecouverte(
       error: "Aucune société émettrice n'est enregistrée : créez-en une dans Réglages › Sociétés émettrices.",
     };
   }
+
+  // ── 3. Rédaction, à partir des seuls champs saisis ────────────────
+  const gen = genererDepuisLead({
+    sector: lead.sector,
+    surfaceM2: lead.surfaceM2 ?? null,
+    etatSalete: lead.etatSalete ?? null,
+    discoveryDetails: lead.discoveryDetails ?? null,
+    discoveryDoneAt: lead.discoveryDoneAt ?? null,
+    contexteIntervention: lead.contexteIntervention ?? null,
+    // `null` tant que la société n'a pas déclaré de mention : aucune
+    // affirmation sur l'origine ou le caractère écologique des produits
+    // n'est portée par défaut.
+    mentionProduits: await mentionProduitsPourEntite(entite.entityId),
+  });
+  if (!gen.ok) return { ok: false, error: MOTIF_LABEL[gen.motif] };
+
+  const conv = await ensureClientFromLead(leadId);
+  if (!conv.ok) return { ok: false, error: conv.error };
 
   // Montant HT issu du moteur tarifaire — jamais du texte généré, qui n'a pas
   // le droit de contenir un prix. `null` quand aucun barème ne s'applique ou
