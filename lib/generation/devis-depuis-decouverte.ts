@@ -101,22 +101,39 @@ export const MOTIF_LABEL: Record<MotifRefus, string> = {
  * Le modèle de devis générique n'a qu'un champ libre (`documents.notes`),
  * rendu tel quel dans le PDF : les intitulés sont donc portés par le texte
  * lui-même, ce qui permet de faire figurer les trois blocs sans toucher à la
- * mise en page. La désignation sert aussi de libellé à la ligne de
- * prestation — elle est répétée ici parce que le §22 exige que le bloc
- * PRESTATION porte le titre ET l'introduction.
+ * mise en page.
  *
- * ⚠️ AVANT : cette fonction préfixait « DÉTAIL DE LA PRESTATION » à un texte
- * qui commençait déjà par « PRESTATION » puis « DÉTAIL DES PRESTATIONS ». Le
- * devis portait donc deux intitulés concurrents, et aucune introduction.
+ * ── LE CONTRAT DE DONNÉES, ET POURQUOI LA DÉSIGNATION N'EST PAS ICI ──
+ *
+ *   `designation` → libellé de la PREMIÈRE LIGNE de prestation
+ *                   (`document_lines[0].label`)
+ *   `introduction`, `detail`, `reserves` → `documents.notes`
+ *
+ * La désignation est toujours portée par le libellé de la ligne, sur les deux
+ * chemins qui la produisent : `genererDevisDepuisDecouverte` l'y écrit
+ * (leads/[id]/devis-actions.ts) et `setTitrePrestation` l'y maintient dans
+ * l'éditeur (devis/new/QuoteEditor.tsx), en créant la ligne au besoin. C'est
+ * ce libellé que le PDF imprime.
+ *
+ * La reprendre en tête des notes la faisait donc figurer DEUX FOIS sur le même
+ * document, à quelques centimètres d'écart : une fois comme libellé de ligne,
+ * une fois comme première ligne du bloc PRESTATION. Le §22 demande que ce bloc
+ * porte « le titre et l'introduction » — le titre y est, mais à sa place, dans
+ * le libellé. Arbitrage client du 2026-11-06.
+ *
+ * Le bloc PRESTATION disparaît quand l'introduction est vide, comme les deux
+ * autres : un intitulé seul, sans texte dessous, se lit comme un trou.
+ *
+ * ⚠️ AVANT (deux défauts successifs) : cette fonction préfixait « DÉTAIL DE LA
+ * PRESTATION » à un texte qui commençait déjà par « PRESTATION » puis
+ * « DÉTAIL DES PRESTATIONS » — deux intitulés concurrents et aucune
+ * introduction. Puis, corrigé, elle a dupliqué la désignation.
  */
 export function notesDevis(c: ContenuDevis): string {
   const blocs: string[] = [];
 
-  const prestation = [c.designation, "", c.introduction.trim()]
-    .filter((l, i) => i === 1 || l.trim())
-    .join("\n");
-  blocs.push(`PRESTATION\n\n${prestation}`);
-
+  const intro = c.introduction.trim();
+  if (intro) blocs.push(`PRESTATION\n\n${intro}`);
   if (c.detail.trim()) blocs.push(`DÉTAIL DE LA PRESTATION\n\n${c.detail.trim()}`);
   if (c.reserves.trim()) blocs.push(`RÉSERVES\n\n${c.reserves.trim()}`);
   return blocs.join("\n\n");

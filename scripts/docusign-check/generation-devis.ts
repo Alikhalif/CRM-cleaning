@@ -24,6 +24,11 @@ import {
 } from "@/lib/generation/devis-depuis-decouverte";
 import { attendUnDevisDe, statutDevis, type EtatDevis } from "@/lib/devis-a-realiser/shared";
 
+import { existsSync, readFileSync } from "node:fs";
+
+/** Lecture d'un fichier du dépôt — pour figer un contrat non exécutable ici. */
+const fichier = (p: string): string => (existsSync(p) ? readFileSync(p, "utf8") : "");
+
 let ko = 0;
 function vrai(nom: string, cond: boolean) {
   console.log(cond ? `  ok    ${nom}` : `  ECHEC ${nom}`);
@@ -172,10 +177,48 @@ if (contenu) {
     n.indexOf("DÉTAIL DE LA PRESTATION") < n.indexOf("RÉSERVES"));
   vrai("le détail généré est bien dedans", n.includes(contenu.detail.trim()));
   vrai("les réserves générées sont bien dedans", n.includes(contenu.reserves.trim()));
-  // La désignation ne va PAS dans les notes : elle devient le libellé de la
-  // ligne de prestation.
+
+  // ── LE CONTRAT DE DONNÉES, arbitré par le client le 2026-11-06 ─────
+  //
+  //   designation  → libellé de la PREMIÈRE LIGNE de prestation
+  //   introduction → bloc PRESTATION des notes
+  //   detail       → bloc DÉTAIL DE LA PRESTATION
+  //   reserves     → bloc RÉSERVES
+  //
+  // La désignation est TOUJOURS portée par le libellé de la ligne, sur les
+  // deux chemins qui la produisent, et c'est ce libellé que le PDF imprime.
+  // La reprendre en tête des notes la faisait figurer deux fois sur le même
+  // document. Entre le 9d8adf0 et le 2026-11-06, c'était le cas.
+  vrai("l'intitulé PRESTATION est présent", n.includes("PRESTATION\n\n"));
+  vrai("l'introduction est bien dans le bloc PRESTATION",
+    n.includes(contenu.introduction.trim()));
+  vrai("le bloc PRESTATION précède le détail",
+    n.indexOf("PRESTATION\n\n") < n.indexOf("DÉTAIL DE LA PRESTATION"));
   vrai("la désignation n'est pas dupliquée dans les notes",
     !n.includes(contenu.designation));
+  // Et l'autre bout du contrat : la désignation a bien une place où aller.
+  vrai("la désignation n'est pas vide — sinon elle ne serait nulle part",
+    contenu.designation.trim().length > 0);
+
+  // Un intitulé sans texte dessous se lit comme un trou : le bloc disparaît.
+  const sansIntro = notesDevis({ ...contenu, introduction: "   " });
+  vrai("introduction vide → pas de bloc PRESTATION orphelin",
+    !sansIntro.includes("PRESTATION\n\n") || sansIntro.startsWith("DÉTAIL"));
+  vrai("et le détail reste présent", sansIntro.includes("DÉTAIL DE LA PRESTATION"));
+}
+
+// Le contrat côté écriture : la désignation devient le libellé de la ligne.
+// Vérifié sur la source, parce que ces deux chemins sont des actions serveur
+// et un composant client — non exécutables dans cette suite.
+{
+  const devisActions = fichier("app/(app)/leads/[id]/devis-actions.ts");
+  vrai("devis-actions.ts : la désignation devient le libellé de la ligne",
+    devisActions.includes("label: gen.contenu.designation"));
+  vrai("devis-actions.ts : les notes viennent de notesDevis()",
+    devisActions.includes("notes: notesDevis(gen.contenu)"));
+  const editeur = fichier("app/(app)/devis/new/QuoteEditor.tsx");
+  vrai("QuoteEditor : le titre régénéré va dans le libellé de la 1re ligne",
+    /setTitrePrestation[\s\S]{0,900}label: titre/.test(editeur));
 }
 
 console.log("\n== Préparer un devis ne l'envoie PAS ==");
