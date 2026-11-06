@@ -36,6 +36,7 @@ import type { ModeleContrat } from "@/lib/sous-traitance/clauses";
 import { VARIABLES } from "@/lib/sous-traitance/variables";
 import { libelleAnomalie } from "@/lib/identite-legale";
 import { confidentielDe, demandePourDossier } from "@/lib/generation/demande-depuis-dossier";
+import { etageLogistique, verifierFuites } from "@/lib/generation/demande-prestataire";
 
 let ko = 0;
 function vrai(nom: string, cond: boolean) {
@@ -327,9 +328,10 @@ const dossierDemande = {
     volumeDebarras: "",
     niveauDifficulte: "",
     dateSouhaitee: "",
-    // Étage VIDE — comme les onze dossiers de production au 2026-11-06. Voir
-    // la section 8 bis : un étage renseigné fait REFUSER la demande.
-    etage: "",
+    // Étage et ascenseur RENSEIGNÉS : autorisés depuis l'arbitrage du
+    // 2026-11-06. C'était exactement le cas qui faisait refuser la demande.
+    etage: "2e étage",
+    ascenseur: "non",
     acces: "code 1234A",
     consignes: "intervention avant 7 h",
   },
@@ -369,42 +371,150 @@ if (r.ok) {
     !Object.keys(dossierDemande.mission).some((k) => /prix|montant|tarif|ttc|^ht$/i.test(k)));
 }
 
-// ── 8 bis. DÉFAUT LATENT, constaté le 2026-11-06 ─────────────────────
+// ── 8 bis. L'étage sort, ce qui désigne le logement ne sort pas ──────
 //
-// `confidentielDe()` classe l'étage parmi les valeurs confidentielles
-// (`complement`), en expliquant qu'on n'en omet aucune « même celles qu'aucun
-// gabarit n'emploie ». Mais `dossierSigneDe()` transmet précisément
-// `details.etage` au générateur, qui l'imprime comme contrainte technique.
-// `verifierFuites()` le retrouve donc dans son propre texte et REFUSE de le
-// rendre.
+// Arbitrage client du 2026-11-06 : « J'autorise la transmission d'une
+// indication logistique non identifiante telle que "2e étage", avec ou sans
+// ascenseur ». Restent interdits le nom, le téléphone, le courriel, l'adresse
+// complète, le NUMÉRO D'APPARTEMENT et le prix de vente.
 //
-// Conséquence : dès qu'un étage est renseigné, la demande de tarif n'est plus
-// produite du tout. Le bouton « Voir le texte » ne montre rien.
+// Le défaut corrigé : `confidentielDe()` classait l'étage parmi les valeurs
+// confidentielles alors que `dossierSigneDe()` le transmettait au générateur
+// qui l'imprimait. Le détecteur le retrouvait dans son propre texte et
+// refusait de rendre la demande — donc dès qu'un étage était renseigné, elle
+// n'existait plus. Latent jusque-là : aucun des 11 dossiers ni des 699 leads
+// ne portait d'étage.
 //
-// Pourquoi personne ne l'a vu : au 2026-11-06, AUCUN des 11 dossiers et AUCUN
-// des 699 leads ne porte d'étage. Le défaut est donc latent — mais le champ
-// existe à l'écran, et il est utile au chiffrage (3e sans ascenseur ne se
-// facture pas comme un rez-de-chaussée).
-//
-// ⚠️ CE TEST FIGE LE COMPORTEMENT ACTUEL, PAS LE COMPORTEMENT SOUHAITABLE.
-// Trancher demande une décision : soit l'étage n'est pas une donnée
-// identifiante (un « 2e étage » ne désigne personne) et sort de
-// `confidentielDe`, soit le générateur cesse de l'imprimer. Le jour où la
-// décision est prise, CE TEST ÉCHOUERA — et c'est voulu : il force à mettre
-// ce commentaire à jour plutôt qu'à corriger en silence.
+// Deux mécanismes, dans les deux sens :
+//   — `etageLogistique()` EXTRAIT le niveau et jette le reste (liste blanche) ;
+//   — `motifsDesignants` cherche par MOTIF ce qui désigne un logement, d'où
+//     qu'il vienne — le CRM n'a pas de champ « numéro d'appartement » à
+//     comparer, il est noyé dans de la saisie libre.
 
-console.log("\n8 bis. Un étage renseigné fait refuser la demande (défaut connu)");
+console.log("\n8 bis. Le niveau sort — ce qui désigne le logement, non");
 
-const avecEtage = demandePourDossier({
+// ── Positif : le niveau et l'ascenseur figurent bien dans le texte ──
+if (r.ok) {
+  const texte = `${r.demande.objet}\n\n${r.demande.corps}`;
+  vrai("le niveau est transmis", texte.includes("2e étage"));
+  vrai("l'absence d'ascenseur est transmise", texte.includes("sans ascenseur"));
+}
+const avecAscenseur = demandePourDossier({
   ...dossierDemande,
-  mission: { ...dossierDemande.mission, etage: "2e étage" },
+  mission: { ...dossierDemande.mission, ascenseur: "oui" },
 });
-vrai("refusée", !avecEtage.ok);
-if (!avecEtage.ok) {
-  eq("et le motif est bien le complément d'adresse",
-    avecEtage.fuites.map((f) => f.champ), ["complément d'adresse"]);
-  vrai("le refus est explicite, il ne rend pas un texte tronqué",
-    avecEtage.raison.includes("confidentielles"));
+vrai("avec ascenseur : la demande est produite", avecAscenseur.ok);
+if (avecAscenseur.ok) {
+  vrai("et la mention y est",
+    avecAscenseur.demande.corps.includes("avec ascenseur"));
+}
+
+// ── `etageLogistique()` : extraction en liste blanche ───────────────
+for (const [brut, attendu] of [
+  ["2e étage", "2e étage"],
+  ["2ème étage", "2e étage"],
+  ["3e etage", "3e étage"],
+  ["étage 4", "4e étage"],
+  ["etage_2", "2e étage"],
+  ["RDC", "rez-de-chaussée"],
+  ["rez-de-chaussée", "rez-de-chaussée"],
+  ["rez_de_chaussee", "rez-de-chaussée"],
+  ["sous-sol", "sous-sol"],
+  ["dernier étage", "dernier étage"],
+  ["0e étage", "rez-de-chaussée"],
+  // ⚠️ LE CŒUR DE LA RÈGLE : le numéro d'appartement est JETÉ, le niveau reste.
+  ["Appt 34, 3e étage", "3e étage"],
+  ["2e étage, appartement 12", "2e étage"],
+  ["bâtiment B, 4e étage, porte droite", "4e étage"],
+  ["Escalier C — 5ème étage", "5e étage"],
+  // Rien de reconnaissable : rien ne sort. Fail-closed.
+  ["chez la gardienne", ""],
+  ["à côté de la boulangerie Dupont", ""],
+  ["", ""],
+] as [string, string][]) {
+  eq(`« ${brut} » → « ${attendu} »`, etageLogistique(brut), attendu);
+}
+eq("une valeur non textuelle ne produit rien", etageLogistique(null), "");
+
+// ── Négatif : un numéro d'appartement est refusé, d'où qu'il vienne ──
+//
+// Il ne peut plus venir du champ étage (filtré en amont), donc on le fait
+// arriver par un libellé de prestation — exactement le trou qu'un filtre
+// posé sur un seul champ laisserait ouvert.
+for (const label of [
+  "Nettoyage appartement 34",
+  "Remise en état appt 12B",
+  "Intervention lot 7",
+  "Nettoyage bâtiment C",
+  "Accès par escalier B",
+  "Nettoyage porte 4",
+  "Nettoyage Porte 4",
+  "Intervention porte de droite",
+  "Relevé boîte aux lettres",
+]) {
+  const fuite = demandePourDossier({ ...dossierDemande, prestations: [{ label }] });
+  vrai(`« ${label} » fait refuser la demande`, !fuite.ok);
+}
+
+// ── Et surtout : AUCUN FAUX POSITIF sur du texte de devis ordinaire ──
+//
+// Sans l'exigence d'un identifiant après le mot, « Nettoyage des portes,
+// poignées et encadrements » — une ligne de devis parfaitement banale —
+// bloquerait toute demande de nettoyage.
+for (const label of [
+  "Nettoyage des portes, poignées, encadrements et huisseries",
+  "Nettoyage de 12 portes intérieures",
+  "Dépoussiérage des portes et plinthes",
+  "Nettoyage de vitrerie — 8 fenêtres classiques",
+  "Lessivage des murs et escaliers",
+  "Nettoyage du bâtiment principal",
+  "Nettoyage des portes d'entrée et de service",
+  "Dégagement de l'escalier principal",
+] as string[]) {
+  const ok = demandePourDossier({ ...dossierDemande, prestations: [{ label }] });
+  vrai(`« ${label.slice(0, 44)}… » passe`, ok.ok);
+}
+
+// Le générateur écrit lui-même « Il s'agit d'un appartement de 75 m² » quand
+// le type de bien est connu : si ce motif-là était signalé, aucune demande de
+// nettoyage d'appartement ne pourrait plus partir. Contrôlé directement sur le
+// détecteur, le texte étant produit en amont du nôtre.
+{
+  const RIEN: Parameters<typeof verifierFuites>[1] = {};
+  for (const phrase of [
+    "Il s'agit d'un appartement de 75 m² nécessitant les prestations suivantes :",
+    "Il s'agit d'une maison de 120 m².",
+    "Accès : 2e étage, sans ascenseur.",
+    "Accès : rez-de-chaussée, avec ascenseur.",
+    "Nettoyage des portes, poignées, encadrements et huisseries.",
+    "Lessivage des murs et des escaliers.",
+    "Stationnement : difficile.",
+  ]) {
+    const v = verifierFuites(phrase, RIEN);
+    vrai(`« ${phrase.slice(0, 46)}… » n'est pas une fuite`, v.ok);
+  }
+  // Et les mêmes phrases, une fois DÉSIGNANTES, le sont.
+  for (const phrase of [
+    "Il s'agit d'un appartement 34 de 75 m².",
+    "Accès : 2e étage, porte 3.",
+    "Accès par le bâtiment B.",
+    "Escalier C, 4e étage.",
+  ]) {
+    const v = verifierFuites(phrase, RIEN);
+    vrai(`« ${phrase.slice(0, 46)}… » EST une fuite`, !v.ok);
+  }
+}
+
+// Les interdits de toujours restent refusés : la règle s'est précisée, elle
+// ne s'est pas relâchée.
+for (const [quoi, patch] of [
+  ["le nom du client", { client: { ...dossierDemande.client, societe: "", nom: "Margot", prenom: "Jean" }, prestations: [{ label: "Nettoyage Jean Margot" }] }],
+  ["un téléphone", { prestations: [{ label: "Contact 06 12 34 56 78" }] }],
+  ["un courriel", { prestations: [{ label: "Écrire à client@example.fr" }] }],
+  ["un montant", { prestations: [{ label: "Prestation 1 200 €" }] }],
+] as [string, Record<string, unknown>][]) {
+  const fuite = demandePourDossier({ ...dossierDemande, ...patch });
+  vrai(`${quoi} fait toujours refuser la demande`, !fuite.ok);
 }
 
 // ══════════════════════════════════════════════════════════════════════

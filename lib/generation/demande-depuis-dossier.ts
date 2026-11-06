@@ -19,7 +19,15 @@
 //   • l'adresse complète du chantier — code postal et ville, rien de plus ;
 //   • le nom du client final ;
 //   • son téléphone, son courriel ;
+//   • le numéro d'appartement, de porte, de bâtiment ou d'escalier ;
 //   • le prix de vente.
+//
+// En revanche, depuis l'arbitrage client du 2026-11-06, l'INDICATION DE
+// NIVEAU sort : « 2e étage », avec ou sans ascenseur. Elle ne désigne personne
+// et le prestataire ne peut pas chiffrer sans elle — un troisième sans
+// ascenseur ne se facture pas comme un rez-de-chaussée. Seul ce qui est
+// reconnu comme un niveau passe : `etageLogistique()` extrait, il ne nettoie
+// pas (cf. son commentaire).
 //
 // Le type `LigneAcceptee` ne comporte délibérément aucun champ de prix : la
 // règle est tenue par le typage, pas par la vigilance. Et `preparerDemande()`
@@ -32,6 +40,7 @@
 
 import {
   contexteRedige,
+  etageLogistique,
   preparerDemande,
   type Confidentiel,
   type DossierSigne,
@@ -58,6 +67,14 @@ export type DossierPourDemande = {
     niveauDifficulte: string;
     dateSouhaitee: string;
     etage: string;
+    /**
+     * « oui » / « non », ou vide si l'information n'est pas à la découverte.
+     *
+     * Le générateur sait déjà la rendre (« , avec ascenseur » / « , sans
+     * ascenseur ») mais personne ne la lui transmettait : la mention
+     * n'apparaissait jamais, alors que c'est elle qui change le prix.
+     */
+    ascenseur?: string;
     acces: string;
     consignes: string;
   };
@@ -99,7 +116,19 @@ export function confidentielDe(d: DossierPourDemande): Confidentiel {
   const nomComplet = [d.client.prenom, d.client.nom].filter(Boolean).join(" ").trim();
   return {
     rue: t(d.mission.adresse) || t(d.client.adresse) || null,
-    complement: t(d.mission.etage) || null,
+    // ⚠️ `complement` N'EST PLUS RENSEIGNÉ, et ce n'est pas un oubli.
+    //
+    // Il portait l'étage. Or `dossierSigneDe()` transmet l'étage au
+    // générateur, qui l'imprime : `verifierFuites()` le retrouvait donc dans
+    // son propre texte et refusait de rendre la demande. Dès qu'un étage
+    // était renseigné, la demande de tarif n'existait plus — défaut latent,
+    // aucun dossier n'en portait.
+    //
+    // L'arbitrage client du 2026-11-06 autorise le niveau et interdit ce qui
+    // désigne le logement. Le niveau est donc filtré en amont par
+    // `etageLogistique()`, et ce qui désigne est cherché par motif
+    // (`motifsDesignants`) plutôt que par valeur — le CRM n'a pas de champ
+    // « numéro d'appartement » à comparer.
     adresseComplete:
       [t(d.mission.adresse), t(d.mission.codePostal), t(d.mission.ville)]
         .filter(Boolean).join(" ") || null,
@@ -131,8 +160,20 @@ export function dossierSigneDe(d: DossierPourDemande): DossierSigne {
     surfaceM2: d.mission.surfaceM2,
     volumeM3: volume,
     // Les contraintes techniques utiles, sans rien de nominatif ni de localisant.
+    //
+    // `etage` passe par `etageLogistique()` : seul un niveau RECONNU sort,
+    // le reste de la saisie libre est jeté. « Appt 34, 3e étage » devient
+    // « 3e étage ».
+    //
+    // `acces` et `consignes` sont transmis mais le générateur ne les rend
+    // PAS (vérifié : il ne lit que `etage`, `ascenseur`, `stationnement`,
+    // `vitrerie`… ). Ils restent là pour le jour où un gabarit en aurait
+    // besoin — et c'est précisément pour ce jour-là que `motifsDesignants`
+    // contrôle le texte produit : un code d'accès ou un numéro de porte qui
+    // commencerait à sortir par ce chemin serait signalé.
     details: {
-      etage: t(d.mission.etage),
+      etage: etageLogistique(d.mission.etage),
+      ascenseur: t(d.mission.ascenseur),
       acces: t(d.mission.acces),
       consignes: t(d.mission.consignes),
     },

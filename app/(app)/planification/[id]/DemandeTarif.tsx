@@ -18,10 +18,14 @@ import styles from "./DossierDetail.module.scss";
 //
 // CONFIDENTIALITÉ. Une demande de tarif part à des prestataires dont AUCUN
 // n'est encore retenu. Elle ne porte donc ni l'adresse complète, ni le nom du
-// client, ni son téléphone, ni son courriel, ni le prix de vente. Le
-// générateur relit son propre texte en y cherchant les vraies valeurs du
-// dossier : si une seule ressort, il refuse de le rendre, et ce composant
-// affiche laquelle.
+// client, ni son téléphone, ni son courriel, ni le numéro d'appartement, ni le
+// prix de vente. Le générateur relit son propre texte en y cherchant les
+// vraies valeurs du dossier ET les formes qui désignent un logement : si une
+// seule ressort, il refuse de le rendre, et ce composant affiche laquelle.
+//
+// En revanche le NIVEAU sort — « 2e étage », avec ou sans ascenseur — depuis
+// l'arbitrage client du 2026-11-06 : il situe un effort, pas une personne, et
+// sans lui le prestataire chiffre à l'aveugle.
 //
 // Le bon de mission, lui, porte l'adresse complète — mais il ne part qu'au
 // prestataire RETENU. Deux destinataires, deux contenus.
@@ -48,7 +52,11 @@ export default function DemandeTarif({ dossier, entite }: Props) {
           volumeDebarras: dossier.mission.volumeDebarras,
           niveauDifficulte: dossier.mission.niveauDifficulte,
           dateSouhaitee: dossier.mission.dateSouhaitee,
+          // Niveau et ascenseur : autorisés depuis l'arbitrage du 2026-11-06,
+          // parce qu'ils situent un EFFORT, pas une personne. L'étage est
+          // filtré par `etageLogistique()` — seul un niveau reconnu sort.
           etage: dossier.mission.etage,
+          ascenseur: dossier.mission.ascenseur,
           acces: dossier.mission.acces,
           consignes: dossier.mission.consignes,
         },
@@ -111,7 +119,9 @@ export default function DemandeTarif({ dossier, entite }: Props) {
           <p className={styles.muted}>
             Prête à être envoyée à plusieurs prestataires. Elle ne contient ni
             l&apos;adresse complète, ni le nom du client, ni ses coordonnées, ni le
-            prix de vente — seuls le code postal et la ville.
+            numéro d&apos;appartement, ni le prix de vente — seuls le code postal et
+            la ville. Le niveau et l&apos;ascenseur y figurent : sans eux, le
+            prestataire ne peut pas chiffrer l&apos;accès.
           </p>
 
           {resultat.demande.manquant.length > 0 && (

@@ -74,12 +74,129 @@ export type DemandePrestataire = {
 /** Valeurs confidentielles d'un dossier, telles que le CRM les détient. */
 export type Confidentiel = {
   rue?: string | null;
+  /**
+   * ⚠️ NE PLUS Y METTRE L'ÉTAGE. Arbitrage client du 2026-11-06 : un niveau
+   * (« 2e étage », avec ou sans ascenseur) est une indication LOGISTIQUE non
+   * identifiante, et le sous-traitant en a besoin pour chiffrer — un troisième
+   * sans ascenseur ne se facture pas comme un rez-de-chaussée.
+   *
+   * L'étage y figurait, alors que `dossierSigneDe()` le transmettait au
+   * générateur qui l'imprimait : `verifierFuites()` le retrouvait dans son
+   * propre texte et REFUSAIT de rendre la demande. Dès qu'un étage était
+   * renseigné, la demande de tarif n'existait plus. Défaut latent jusqu'ici —
+   * aucun des 11 dossiers ni des 699 leads ne portait d'étage.
+   *
+   * Ce qui reste interdit dans un complément d'adresse, c'est ce qui DÉSIGNE
+   * le logement : numéro d'appartement, porte, bâtiment, escalier. Ce n'est
+   * pas une valeur du dossier mais une forme : c'est donc `motifsDesignants`
+   * qui s'en charge, par motif, et `etageLogistique()` qui n'en laisse rien
+   * passer en amont.
+   */
   complement?: string | null;
   adresseComplete?: string | null;
   nomClient?: string | null;
   telephone?: string | null;
   email?: string | null;
 };
+
+// ── Étage : ce qui peut sortir, et rien d'autre ───────────────────────
+
+/**
+ * Réduit un complément d'adresse à la seule indication de NIVEAU.
+ *
+ * ── POURQUOI UNE LISTE BLANCHE, ET NON UN NETTOYAGE ──────────────────
+ *
+ * Le champ est une saisie libre de la découverte : « 2e étage », mais aussi
+ * « Appt 34, 3e étage », « bâtiment B, 4e, porte droite », ou un slug
+ * (`rez_de_chaussee`). Retirer ce qui gêne supposerait de connaître d'avance
+ * toutes les formes qu'un numéro d'appartement peut prendre — c'est le mauvais
+ * sens pour une règle de confidentialité.
+ *
+ * On ne RETIRE donc rien : on EXTRAIT ce qu'on sait reconnaître comme un
+ * niveau, et on jette le reste. Un texte dont aucun niveau n'est reconnu rend
+ * `""` : il ne part pas. Mieux vaut une contrainte non transmise qu'un numéro
+ * d'appartement envoyé à cinq prestataires.
+ */
+/**
+ * ⚠️ LES MOTIFS S'APPLIQUENT AU TEXTE SANS ACCENTS, et c'est nécessaire.
+ *
+ * `\b` est une frontière de mot ASCII : « é » n'étant pas un caractère de mot,
+ * `/\b[eé]tage/` NE RECONNAÎT PAS « étage 4 » en début de chaîne. Le défaut
+ * s'est vu en test. Plutôt que de remplacer chaque `\b` par un `lookbehind`
+ * — supporté par Node mais plus récent côté navigateurs, et ce module est
+ * aussi chargé par un composant client — on normalise l'entrée une fois.
+ *
+ * Le rendu, lui, est une chaîne FIXE écrite ici : la sortie garde ses accents
+ * quoi qu'il arrive à l'entrée.
+ */
+const NIVEAUX: { re: RegExp; rendu: (m: RegExpMatchArray) => string }[] = [
+  { re: /\bsous[\s_-]?sols?\b/, rendu: () => "sous-sol" },
+  { re: /\brez[\s_-]?de[\s_-]?chaussee?\b/, rendu: () => "rez-de-chaussée" },
+  { re: /\brdc\b/, rendu: () => "rez-de-chaussée" },
+  { re: /\bdernier\s+etage\b/, rendu: () => "dernier étage" },
+  // « 2e étage », « 2ème étage », « 2 eme etage », « 12e étage »
+  {
+    re: /\b(\d{1,2})\s*(?:er|re|e|eme|ere)?\s*[\s_-]?etages?\b/,
+    rendu: (m) => `${m[1]}e étage`,
+  },
+  // « étage 2 », « etage_2 », « étage : 2 »
+  { re: /\betages?\s*[:_-]?\s*(\d{1,2})\b/, rendu: (m) => `${m[1]}e étage` },
+];
+
+export function etageLogistique(brut: unknown): string {
+  const t = typeof brut === "string" ? brut.trim() : "";
+  if (!t) return "";
+  const sansAccents = t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  for (const { re, rendu } of NIVEAUX) {
+    const m = sansAccents.match(re);
+    if (m) {
+      const r = rendu(m);
+      // Un « 0e étage » n'existe pas : c'est le rez-de-chaussée.
+      return r === "0e étage" ? "rez-de-chaussée" : r;
+    }
+  }
+  return "";
+}
+
+/**
+ * Formes qui DÉSIGNENT un logement précis, quelle que soit leur origine.
+ *
+ * Contrôlées par MOTIF et non par valeur, parce que le CRM ne stocke pas le
+ * numéro d'appartement dans un champ à lui : il est noyé dans de la saisie
+ * libre. Un motif attrape donc aussi celui qui arriverait par un libellé de
+ * prestation ou une consigne.
+ *
+ * ⚠️ CHAQUE MOTIF EXIGE UN IDENTIFIANT APRÈS LE MOT. Sans cela, « Nettoyage
+ * des portes, poignées et encadrements » — une ligne de devis parfaitement
+ * ordinaire — serait signalé comme une fuite, et la demande ne partirait
+ * jamais. De même, « Il s'agit d'un appartement de 75 m² » doit passer :
+ * c'est le générateur lui-même qui l'écrit.
+ *
+ * ⚠️ LA BRANCHE « LETTRE UNIQUE » EST GARDÉE PAR UN PRÉDICAT, pas par un
+ * drapeau. Il faut reconnaître le mot quelle que soit sa casse — un libellé de
+ * devis est souvent tout en majuscules — mais n'accepter comme identifiant
+ * qu'une MAJUSCULE non suivie d'une apostrophe. Sans le prédicat, `/i` ferait
+ * de « porte d'entrée » et « bâtiment principal » des fuites ; sans
+ * l'apostrophe, « NETTOYAGE DES PORTES D'ENTRÉE » en serait une aussi. Les
+ * deux phrases sont des lignes de devis ordinaires.
+ */
+const majusculeSeule = (m: RegExpMatchArray): boolean => /^[A-Z]$/.test(m[1] ?? "");
+
+const motifsDesignants: { champ: string; re: RegExp; valide?: (m: RegExpMatchArray) => boolean }[] = [
+  // Appartement : « appartement 34 », « appt 12B », « apt n° 7 ».
+  { champ: "numéro d'appartement", re: /\b(?:appartements?|apparts?|appts?|apt)\s*(?:n\s*[°o]\s*)?[:.]?\s*[A-Za-z]?\d+[A-Za-z]?\b/i },
+  { champ: "numéro de lot", re: /\blots?\s*(?:n\s*[°o]\s*)?\d+\b/i },
+  // Porte : un numéro, « gauche » / « droite », ou une majuscule seule.
+  { champ: "désignation de porte", re: /\bportes?\s+(?:n\s*[°o]\s*)?\d+\b/i },
+  { champ: "désignation de porte", re: /\bportes?\s+(?:de\s+)?(?:gauche|droite)\b/i },
+  { champ: "désignation de porte", re: /\bportes?\s+([A-Za-z])(?!['’])\b/i, valide: majusculeSeule },
+  // `bat` seul est écarté : c'est aussi un verbe français (« il bat »).
+  { champ: "désignation de bâtiment", re: /\b(?:b[aâ]timents?|bâts?)\s*(?:n\s*[°o]\s*)?[:.]?\s*\d+\b/i },
+  { champ: "désignation de bâtiment", re: /\b(?:b[aâ]timents?|bâts?)\s+([A-Za-z])(?!['’])\b/i, valide: majusculeSeule },
+  { champ: "désignation d'escalier", re: /\bescaliers?\s*(?:n\s*[°o]\s*)?[:.]?\s*\d+\b/i },
+  { champ: "désignation d'escalier", re: /\bescaliers?\s+([A-Za-z])(?!['’])\b/i, valide: majusculeSeule },
+  { champ: "boîte aux lettres", re: /\bbo[iî]te\s+aux\s+lettres\b/i },
+];
 
 /**
  * Réduit une adresse à ce qui peut sortir : code postal et ville.
@@ -391,6 +508,14 @@ export function verifierFuites(texte: string, c: Confidentiel): { ok: boolean; f
   // Mentions de prix : le tarif client ne doit jamais sortir (§7).
   const prix = texte.match(/\d[\d\s.,]*\s*(?:€|EUR\b|euros?)/i);
   if (prix) fuites.push({ champ: "montant", extrait: prix[0].trim() });
+
+  // Ce qui DÉSIGNE le logement. L'étage, lui, est autorisé depuis le
+  // 2026-11-06 : il situe un effort, pas une personne. Un numéro
+  // d'appartement, si.
+  for (const { champ, re, valide } of motifsDesignants) {
+    const m = texte.match(re);
+    if (m && (!valide || valide(m))) fuites.push({ champ, extrait: m[0].trim() });
+  }
 
   // Dédoublonnage : une même valeur signalée deux fois n'apporte rien.
   const vus = new Set<string>();
