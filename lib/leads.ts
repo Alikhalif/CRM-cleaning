@@ -44,7 +44,7 @@ export const IDENTIFIANT_LEGAL: Record<
   FR: {
     label: "SIREN",
     aide: "9 chiffres — identifie l'entité juridique, là où le SIRET désigne un établissement",
-    exemple: "812345678",
+    exemple: "812345676",
   },
   CH: {
     label: "IDE / numéro CHE",

@@ -143,7 +143,10 @@ export async function envoyerContratEnSignature(input: {
   if (!e.utilisable) {
     return {
       ok: false,
-      error: `L'entité « ${e.legal_name ?? ""} » est incomplète : il manque ${e.manquants.join(", ")}.`,
+      // Depuis le 2026-11-06, `utilisable` refuse aussi les champs renseignés
+      // mais inexploitables — d'où « à corriger » plutôt que « il manque ».
+      error: `L'entité « ${e.legal_name ?? ""} » est inexploitable — à corriger : `
+        + `${e.manquants.join(", ")}.`,
     };
   }
 

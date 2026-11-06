@@ -34,6 +34,8 @@ const SUITES = [
   { fichier: "pipeline-resume.ts", titre: "Résumé horizontal du pipeline commercial" },
   { fichier: "societes-emettrices.ts", titre: "Sociétés émettrices (null-safety, règles par pays)" },
   { fichier: "chiffrement.ts", titre: "Chiffrement des champs confidentiels (fail-closed)" },
+  { fichier: "identite-legale.ts", titre: "Identité légale des parties (valeurs fictives, SIRET)" },
+  { fichier: "blocages-contrat.ts", titre: "Blocages du contrat (L-1033, L-1079, neuf modèles)" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "docusign-check-"));

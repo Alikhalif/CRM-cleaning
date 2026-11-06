@@ -104,7 +104,7 @@ eq("l'ancien n'a pas bougé", snap.representative_name, "M. Rosalie DAVID");
 console.log("\n== Les autres champs du contrôle restent exigés ==");
 eq("sans SIRET ni SIREN ni TVA → identifiant légal manquant",
   controlerEntite({ ...apresSaisie, siret: null, siren: null, vat_number: null }).manquants,
-  ["identifiant légal (SIREN, SIRET ou TVA)"]);
+  ["identifiant légal (SIREN ou SIRET)"]);
 eq("sans adresse", controlerEntite({ ...apresSaisie, address: null }).manquants,
   ["adresse du siège"]);
 eq("sans forme juridique", controlerEntite({ ...apresSaisie, legal_form: null }).manquants,

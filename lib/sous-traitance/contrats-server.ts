@@ -35,6 +35,7 @@ import {
 import { BLOC_SIGNATURES, PARTIES } from "./modele-nettoyage";
 import { calculerTotaux, type SaisieMontants } from "./montants";
 import {
+  anomaliesPrestataireFiche,
   controlerEntite,
   type ContratResume,
   type DocumentAssemble,
@@ -42,6 +43,7 @@ import {
   type EntiteChoisissable,
   type PrestataireChoisissable,
 } from "./contrats-shared";
+import { libelleAnomalie } from "@/lib/identite-legale";
 
 // Point d'entrée unique pour le code serveur : il n'a pas à savoir lequel des
 // deux fichiers porte quoi.
@@ -260,12 +262,19 @@ export async function getPrestataires(): Promise<PrestataireChoisissable[]> {
   return (data ?? []).map((r) => {
     const p = r.profil;
     const adresse = [p?.adresse, p?.cp_ville].filter(Boolean).join(", ") || null;
-    const manquants: string[] = [];
-    if (!p?.raison_sociale?.trim()) manquants.push("dénomination sociale");
-    if (!p?.siret?.trim()) manquants.push("SIRET");
-    if (!adresse) manquants.push("adresse du siège");
-    if (!p?.dirigeant?.trim()) manquants.push("représentant légal");
-    if (!r.email?.trim()) manquants.push("courriel (nécessaire à l'envoi en signature)");
+    // Contrôle d'EXPLOITABILITÉ, non de simple présence. Les règles de forme
+    // (valeurs de remplissage, clé de Luhn du SIRET, structure du courriel)
+    // vivent dans lib/identite-legale.ts et sont partagées avec le contrôle
+    // d'entité : une seule définition de « renseigné » pour les deux parties
+    // du contrat.
+    const anomalies = anomaliesPrestataireFiche({
+      raisonSociale: p?.raison_sociale ?? null,
+      siret: p?.siret ?? null,
+      siren: p?.siren ?? null,
+      adresse,
+      dirigeant: p?.dirigeant ?? null,
+      email: r.email,
+    });
 
     return {
       technicianId: r.id,
@@ -291,8 +300,9 @@ export async function getPrestataires(): Promise<PrestataireChoisissable[]> {
       competences: r.skills ?? [],
       codePostalBase: r.base_postal_code ?? null,
       nbInterventions: interventions.get(r.id) ?? 0,
-      manquants,
-      utilisable: manquants.length === 0,
+      manquants: anomalies.map(libelleAnomalie),
+      anomalies,
+      utilisable: anomalies.length === 0,
     };
   });
 }
@@ -748,8 +758,13 @@ export async function assemblerDocumentContrat(contratId: string): Promise<
   if (!ctrl.utilisable) {
     return {
       ok: false,
-      error: `Entité « ${entite.legal_name ?? ""} » incomplète : il manque ${ctrl.manquants.join(", ")}. `
-        + "À compléter dans Réglages › Sociétés avant d'émettre le contrat.",
+      // « à corriger » et non « il manque » : depuis le 2026-11-06 le contrôle
+      // refuse aussi les champs RENSEIGNÉS mais inexploitables (SIRET
+      // « À renseigner », clé de Luhn fausse). Dire « il manque » d'un champ
+      // que la planificatrice voit rempli la ferait conclure à une panne.
+      error: `Entité « ${entite.legal_name ?? ""} » inexploitable — à corriger : `
+        + `${ctrl.manquants.join(", ")}. `
+        + "À reprendre dans Réglages › Sociétés avant d'émettre le contrat.",
     };
   }
 

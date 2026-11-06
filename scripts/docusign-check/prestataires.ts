@@ -36,9 +36,10 @@ function presta(p: Partial<PrestataireChoisissable> & { nom: string }): Prestata
   return {
     technicianId: p.nom, initiales: "XX", email: "a@b.fr", telephone: null,
     raisonSociale: p.nom, nomCommercial: null, formeJuridique: null,
-    siren: "812345678", siret: "81234567800012", adresse: "1 rue X", cpVille: null,
+    siren: "812345676", siret: "81234567600017", adresse: "1 rue X", cpVille: null,
     dirigeant: "M. Y", secteurs: [], departements: [], competences: [],
-    codePostalBase: null, nbInterventions: 0, manquants: [], utilisable: true,
+    codePostalBase: null, nbInterventions: 0, manquants: [], anomalies: [],
+    utilisable: true,
     ...p,
   };
 }
@@ -121,7 +122,7 @@ vrai("aucun champ de disponibilité",
 console.log("\n== Représentation d'une société par une autre société ==");
 const base = {
   id: "e1", legal_name: "CGK SERVICES", trade_name: null, legal_form: "SAS",
-  siren: "812345678", siret: "81234567800012", vat_number: "FR81234567800",
+  siren: "812345676", siret: "81234567600017", vat_number: "FR81234567600",
   address: "1 rue de Paris, 75001 Paris", country: "FR",
 };
 const physique = donneurOrdreDepuisEntite({
@@ -153,12 +154,12 @@ eq("société représentante sans personne physique",
   moraleSeule.principal_company_representative, "la société HOLDING CGK SAS");
 
 console.log("\n== Identifiant légal : SIREN, à défaut SIRET, à défaut TVA ==");
-eq("SIREN prioritaire", donneurOrdreDepuisEntite(base).principal_company_siren, "812345678");
+eq("SIREN prioritaire", donneurOrdreDepuisEntite(base).principal_company_siren, "812345676");
 eq("repli SIRET",
-  donneurOrdreDepuisEntite({ ...base, siren: null }).principal_company_siren, "81234567800012");
+  donneurOrdreDepuisEntite({ ...base, siren: null }).principal_company_siren, "81234567600017");
 eq("repli TVA",
   donneurOrdreDepuisEntite({ ...base, siren: null, siret: null }).principal_company_siren,
-  "FR81234567800");
+  "FR81234567600");
 eq("rien à afficher plutôt qu'une invention",
   donneurOrdreDepuisEntite({ ...base, siren: null, siret: null, vat_number: null })
     .principal_company_siren, "");

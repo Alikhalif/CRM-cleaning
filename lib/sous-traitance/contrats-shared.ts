@@ -8,6 +8,19 @@
 // de données que l'interface manipule appartiennent ici.
 
 import {
+  controlerAdressePostale,
+  controlerEmail,
+  controlerIdentifiantLegal,
+  controlerNomPersonne,
+  controlerSiren,
+  controlerSiret,
+  controlerTexteLegal,
+  libelleAnomalie,
+  premiereValeur,
+  releverAnomalies,
+  type Anomalie,
+} from "@/lib/identite-legale";
+import {
   MODELE_NUMERO,
   MODELES_CLIENT,
   modeleContractuel,
@@ -21,27 +34,121 @@ import type { EntiteEmettrice } from "./variables";
 // ── Entité juridique émettrice ────────────────────────────────────────
 
 export type EntiteChoisissable = EntiteEmettrice & {
-  /** Champs obligatoires du bloc « ENTRE LES SOUSSIGNÉS » encore vides. */
+  /** Champs du bloc « ENTRE LES SOUSSIGNÉS » absents ou inexploitables. */
   manquants: string[];
+  /** Le détail par champ : ce qui cloche, et si le champ est vide ou faux. */
+  anomalies: Anomalie[];
   /** Une entité incomplète ne peut pas signer : le contrat ne serait pas opposable. */
   utilisable: boolean;
 };
 
-/** Libellés des champs d'entité exigés par l'en-tête du contrat. */
-const CHAMPS_ENTITE: { lire: (e: EntiteEmettrice) => string | null | undefined; libelle: string }[] = [
-  { lire: (e) => e.legal_name, libelle: "dénomination sociale" },
-  { lire: (e) => e.legal_form, libelle: "forme juridique" },
-  { lire: (e) => e.siren ?? e.siret ?? e.vat_number, libelle: "identifiant légal (SIREN, SIRET ou TVA)" },
-  { lire: (e) => e.address, libelle: "adresse du siège" },
-  { lire: (e) => e.representative_name, libelle: "représentant légal" },
-  { lire: (e) => e.representative_title, libelle: "qualité du représentant" },
-];
+/**
+ * Champs d'entité exigés par l'en-tête du contrat, dans l'ordre où il les
+ * imprime — donc dans l'ordre où la planificatrice doit les corriger.
+ *
+ * ⚠️ CE CONTRÔLE NE TESTE PLUS LE VIDE, MAIS L'EXPLOITABILITÉ. Jusqu'au
+ * 2026-11-06 il ne regardait que les chaînes vides : cinq sociétés sur sept
+ * portaient un SIRET valant « À renseigner » et une adresse de siège
+ * identique, et ces valeurs PASSAIENT. Il suffisait de renseigner le
+ * représentant et sa qualité pour qu'un contrat sorte en identifiant son
+ * donneur d'ordre par « À renseigner » — un document qui n'identifie pas ses
+ * parties n'est pas opposable. Les règles de forme vivent dans
+ * `lib/identite-legale.ts`.
+ */
+export function anomaliesEntite(e: EntiteEmettrice): Anomalie[] {
+  const out = releverAnomalies([
+    { champ: "dénomination sociale", valeur: e.legal_name, controle: (v) => controlerTexteLegal(v, 2) },
+    { champ: "forme juridique", valeur: e.legal_form, controle: (v) => controlerTexteLegal(v, 2) },
+  ]);
 
-export function controlerEntite(e: EntiteEmettrice): { manquants: string[]; utilisable: boolean } {
-  const manquants = CHAMPS_ENTITE
-    .filter((c) => !String(c.lire(e) ?? "").trim())
-    .map((c) => c.libelle);
-  return { manquants, utilisable: manquants.length === 0 };
+  // L'identifiant légal se juge sur l'entité entière : le pays décide de la
+  // règle, et SIREN, SIRET et TVA sont trois réponses à la même exigence.
+  const id = controlerIdentifiantLegal(e);
+  if (!id.ok) {
+    // Le libellé dépend du pays, parce que l'exigence en dépend : une société
+    // française doit porter son SIREN ou son SIRET sur le contrat, un numéro
+    // de TVA ne l'identifie pas. Ailleurs, c'est l'identifiant national qui
+    // fait foi, et la TVA en est une forme acceptée. Annoncer « SIREN, SIRET
+    // ou TVA » à une société française conduirait à saisir la TVA et à être
+    // refusé ensuite.
+    const pays = (e.country ?? "").trim().toUpperCase() || "FR";
+    out.push({
+      champ: pays === "FR"
+        ? "identifiant légal (SIREN ou SIRET)"
+        : "identifiant légal (SIREN, SIRET ou TVA)",
+      motif: id.motif,
+      absent: !premiereValeur(e.siren, e.siret, e.vat_number),
+    });
+  }
+
+  out.push(...releverAnomalies([
+    { champ: "adresse du siège", valeur: e.address, controle: controlerAdressePostale },
+    { champ: "représentant légal", valeur: e.representative_name, controle: controlerNomPersonne },
+    { champ: "qualité du représentant", valeur: e.representative_title, controle: (v) => controlerTexteLegal(v, 2) },
+  ]));
+
+  return out;
+}
+
+export function controlerEntite(e: EntiteEmettrice): {
+  manquants: string[];
+  anomalies: Anomalie[];
+  utilisable: boolean;
+} {
+  const anomalies = anomaliesEntite(e);
+  return {
+    anomalies,
+    manquants: anomalies.map(libelleAnomalie),
+    utilisable: anomalies.length === 0,
+  };
+}
+
+// ── Fiche du sous-traitant ────────────────────────────────────────────
+
+/**
+ * Champs de la fiche sous-traitant exigés par l'en-tête du contrat.
+ *
+ * Ne couvre QUE la fiche, c'est-à-dire la bibliothèque des sous-traitants.
+ * La qualité du représentant, elle, se saisit sur le formulaire du contrat :
+ * la mettre ici enverrait la planificatrice corriger une fiche où le champ
+ * n'existe pas. Elle est traitée par `blocagesContrat()`.
+ *
+ * Le pays n'est pas modélisé sur `subcontractor_profiles` : la règle
+ * française s'applique, et le contrat imprime `subcontractor_siret`, variable
+ * déclarée obligatoire par `resoudre()`. Un SIREN n'y supplée donc pas — il
+ * est contrôlé en plus, s'il est renseigné, parce qu'il s'imprime aussi.
+ */
+export function anomaliesPrestataireFiche(p: {
+  raisonSociale?: string | null;
+  siret?: string | null;
+  siren?: string | null;
+  adresse?: string | null;
+  dirigeant?: string | null;
+  email?: string | null;
+}): Anomalie[] {
+  const out = releverAnomalies([
+    { champ: "dénomination sociale", valeur: p.raisonSociale, controle: (v) => controlerTexteLegal(v, 2) },
+    { champ: "SIRET", valeur: p.siret, controle: controlerSiret },
+  ]);
+
+  // Contrôlé seulement s'il est renseigné : le contrat n'en exige pas, mais il
+  // l'imprime quand il existe, donc un SIREN faux ne doit pas passer.
+  if (premiereValeur(p.siren)) {
+    const v = controlerSiren(p.siren);
+    if (!v.ok) out.push({ champ: "SIREN", motif: v.motif, absent: false });
+  }
+
+  out.push(...releverAnomalies([
+    { champ: "adresse du siège", valeur: p.adresse, controle: controlerAdressePostale },
+    { champ: "représentant légal", valeur: p.dirigeant, controle: controlerNomPersonne },
+    {
+      champ: "courriel (nécessaire à l'envoi en signature)",
+      valeur: p.email,
+      controle: controlerEmail,
+    },
+  ]));
+
+  return out;
 }
 
 // ── Prestataire ───────────────────────────────────────────────────────
@@ -71,8 +178,10 @@ export type PrestataireChoisissable = {
   codePostalBase: string | null;
   /** Nombre d'interventions déjà confiées. 0 = jamais travaillé avec nous. */
   nbInterventions: number;
-  /** Champs exigés par l'en-tête du contrat et encore vides. */
+  /** Champs exigés par l'en-tête du contrat, absents ou inexploitables. */
   manquants: string[];
+  /** Le détail par champ : ce qui cloche, et si le champ est vide ou faux. */
+  anomalies: Anomalie[];
   utilisable: boolean;
 };
 
@@ -312,6 +421,87 @@ export function optionsModeles(): OptionModele[] {
       motifBlocage: e.ok ? null : e.motif,
     };
   });
+}
+
+// ── Ce qui bloque l'émission ──────────────────────────────────────────
+
+/** État du formulaire de contrat, tel que l'écran le détient à un instant. */
+export type EtatContrat = {
+  technicianId: string;
+  entityId: string;
+  modele: ModeleContrat | "";
+  /** Saisie libre du formulaire — PAS un champ de la fiche sous-traitant. */
+  qualiteRepresentant: string;
+  /** Total HT du tarif négocié avec le prestataire. */
+  totalHt: number;
+  /** Le prestataire retenu, ou null si `technicianId` ne correspond à aucun. */
+  prestataire: Pick<PrestataireChoisissable, "manquants" | "utilisable"> | null;
+  entite: Pick<EntiteChoisissable, "manquants" | "utilisable"> | null;
+  optionModele: Pick<OptionModele, "emissible"> | null;
+  mission: { type: string; adresse: string; date: string };
+};
+
+/**
+ * TOUT ce qui empêche d'émettre le contrat, dit explicitement.
+ *
+ * ── POURQUOI CETTE FONCTION EXISTE, ET POURQUOI ICI ──────────────────
+ *
+ * La liste vivait dans le composant, en vingt lignes inline. Elle a dérivé
+ * deux fois de ce que le SERVEUR exige, et chaque dérive s'est payée de la
+ * même façon : la planificatrice complète scrupuleusement tout ce que l'écran
+ * annonce, clique, et se fait refuser pour un motif jamais affiché.
+ *
+ *   — le 2026-11-05 : `mission_address` et `mission_date`, corrigés par 7bcc760 ;
+ *   — le 2026-11-06 : `subcontractor_representative_title`, champ de CE
+ *     formulaire, vide par défaut, exigé par `resoudre()` — jamais annoncé.
+ *
+ * La sortir ici la rend testable sans navigateur, et permet à une suite de
+ * contrôle de la confronter variable par variable à `VARIABLES` : c'est ce qui
+ * empêche la troisième dérive.
+ *
+ * Un bouton grisé doit dire TOUT ce qu'il attend, sinon il ment par omission.
+ *
+ * ⚠️ L'ORDRE EST CELUI DE L'ÉCRAN, de haut en bas : prestataire, entité,
+ * tarif, modèle, puis les données du dossier. Corriger dans l'ordre où on lit.
+ */
+export function blocagesContrat(e: EtatContrat): string[] {
+  const b: string[] = [];
+
+  if (!e.technicianId) b.push("sélectionner le sous-traitant");
+  if (!e.entityId) b.push("sélectionner l'entité juridique émettrice");
+  if (!e.modele) b.push("sélectionner le modèle de contrat");
+  if (e.optionModele && !e.optionModele.emissible) {
+    b.push("choisir un modèle dont le texte est disponible");
+  }
+  if (e.entite && !e.entite.utilisable) {
+    b.push(`corriger l'entité (${e.entite.manquants.join(", ")})`);
+  }
+  if (e.prestataire && !e.prestataire.utilisable) {
+    b.push(`compléter la fiche du prestataire (${e.prestataire.manquants.join(", ")})`);
+  }
+
+  // `subcontractor_representative_title` : obligatoire côté serveur, saisi
+  // ICI, et vide à l'ouverture. Conditionné au choix du prestataire, parce
+  // qu'il désigne SON représentant : le réclamer avant serait incompréhensible.
+  if (e.technicianId && !controlerTexteLegal(e.qualiteRepresentant, 2).ok) {
+    b.push("renseigner la qualité du représentant du prestataire (gérant, président…)");
+  }
+
+  if (e.totalHt <= 0) b.push("renseigner le tarif du sous-traitant");
+
+  // Les trois suivantes ne sont pas des champs de ce formulaire : elles
+  // viennent du dossier. Elles figurent dans la liste parce que `resoudre()`
+  // les déclare obligatoires et que `genererContrat()` refuse sur
+  // `doc.manquantes`. `.trim()` donne la parité exacte avec le `texte()` du
+  // résolveur, qui trime avant de juger un champ vide.
+  if (!e.mission.adresse.trim()) b.push("renseigner l'adresse du chantier");
+  if (!e.mission.date.trim()) b.push("planifier la date d'intervention");
+  // Latente au 2026-11-06 : les 699 leads portent tous une activité, et les
+  // neuf activités ont un libellé. Annoncée quand même — le jour où un dossier
+  // arrive sans activité, le refus serveur serait muet.
+  if (!e.mission.type.trim()) b.push("renseigner l'activité du dossier (type de mission)");
+
+  return b;
 }
 
 export const STATUT_CONTRAT_LABEL: Record<string, string> = {

@@ -28,6 +28,7 @@ import { UNITE_LABEL, type Unite } from "@/lib/sous-traitance/prestations";
 import type { ModeleContrat } from "@/lib/sous-traitance/clauses";
 import {
   STATUT_CONTRAT_LABEL,
+  blocagesContrat,
   classerPrestataires,
   estFige,
   type ContratResume,
@@ -147,33 +148,31 @@ export default function ContratSousTraitance({
   const optionModele = modeles.find((m) => m.valeur === modele) ?? null;
   const totaux = useMemo(() => calculerTotaux(montants), [montants]);
 
-  // Ce qui bloque l'enregistrement, dit explicitement plutôt que par un
-  // bouton grisé sans explication.
-  const blocages: string[] = [];
-  if (!technicianId) blocages.push("sélectionner le sous-traitant");
-  if (!entityId) blocages.push("sélectionner l'entité juridique émettrice");
-  if (!modele) blocages.push("sélectionner le modèle de contrat");
-  if (optionModele && !optionModele.emissible) blocages.push("choisir un modèle dont le texte est disponible");
-  if (entite && !entite.utilisable) blocages.push(`compléter l'entité (${entite.manquants.join(", ")})`);
-  if (prestataire && !prestataire.utilisable) blocages.push(`compléter la fiche du prestataire (${prestataire.manquants.join(", ")})`);
-  if (totaux.totalHt <= 0) blocages.push("renseigner le tarif du sous-traitant");
-  // Ces deux-ci ne sont pas des champs de ce formulaire : ils viennent du
-  // dossier lui-même. Ils figurent pourtant dans la liste parce que le
-  // SERVEUR les exige — `resoudre()` déclare `mission_address` et
-  // `mission_date` obligatoires (lib/sous-traitance/variables.ts), et
-  // `genererContrat()` refuse sur `doc.manquantes` (actions.ts).
+  // Ce qui bloque l'émission, dit explicitement plutôt que par un bouton grisé
+  // sans explication.
   //
-  // Sans eux ici, la planificatrice complétait scrupuleusement tout ce que
-  // cette liste lui annonçait, cliquait, et se faisait refuser pour un motif
-  // qui ne lui avait jamais été affiché. Un bouton grisé doit dire TOUT ce
-  // qu'il attend, sinon il ment par omission.
-  //
-  // `.trim()` donne la parité exacte avec le `texte()` du résolveur, qui
-  // trime avant de juger un champ vide. Les deux valeurs sont des chaînes
-  // garanties côté serveur (`date` vient d'un ternaire, `adresse` d'un
-  // `join`), jamais `null` : pas de risque de TypeError ici.
-  if (!dossier.mission.adresse.trim()) blocages.push("renseigner l'adresse du chantier");
-  if (!dossier.mission.date.trim()) blocages.push("planifier la date d'intervention");
+  // ⚠️ LA LISTE N'EST PLUS CALCULÉE ICI. Elle vit dans `blocagesContrat()`
+  // (lib/sous-traitance/contrats-shared.ts), fonction pure et couverte par
+  // `npm run check:docusign`. Inline, elle a dérivé deux fois de ce que le
+  // serveur exige — adresse et date de chantier le 2026-11-05, qualité du
+  // représentant le 2026-11-06 — et chaque dérive s'est vue en production,
+  // sous la forme d'un bouton grisé sans motif affiché. La suite de contrôle
+  // la confronte désormais variable par variable au catalogue `VARIABLES`.
+  const blocages = blocagesContrat({
+    technicianId,
+    entityId,
+    modele,
+    qualiteRepresentant,
+    totalHt: totaux.totalHt,
+    prestataire,
+    entite,
+    optionModele,
+    mission: {
+      type: dossier.mission.type,
+      adresse: dossier.mission.adresse,
+      date: dossier.mission.date,
+    },
+  });
 
   function majLigne(i: number, patch: Partial<LignePrestation>) {
     setMontants((m) => ({ ...m, lignes: m.lignes.map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
@@ -454,7 +453,7 @@ export default function ContratSousTraitance({
                       <option key={p.technicianId} value={p.technicianId}>
                         {p.raisonSociale ?? p.nom}
                         {corr.motifs.length ? ` — ${corr.motifs.join(", ")}` : ""}
-                        {p.utilisable ? "" : " · fiche incomplète"}
+                        {p.utilisable ? "" : " · fiche à corriger"}
                       </option>
                     ))}
                   </optgroup>
@@ -465,7 +464,7 @@ export default function ContratSousTraitance({
                       <option key={p.technicianId} value={p.technicianId}>
                         {p.raisonSociale ?? p.nom}
                         {corr.motifs.length ? ` — ${corr.motifs.join(", ")}` : ""}
-                        {p.utilisable ? "" : " · fiche incomplète"}
+                        {p.utilisable ? "" : " · fiche à corriger"}
                       </option>
                     ))}
                   </optgroup>
@@ -480,8 +479,13 @@ export default function ContratSousTraitance({
                 placeholder="SARL, SAS, EI…"
               />
             </label>
+            {/* `subcontractor_representative_title` est déclarée OBLIGATOIRE
+                par `resoudre()`, et ce champ est la seule façon de la
+                renseigner. Il était présenté comme facultatif : la
+                planificatrice le laissait vide, et l'émission échouait côté
+                serveur sur un motif que l'écran n'avait jamais affiché. */}
             <label>
-              Qualité du représentant
+              Qualité du représentant <span className={styles.req}>obligatoire</span>
               <input
                 value={qualiteRepresentant}
                 onChange={(e) => setQualiteRepresentant(e.target.value)}
@@ -560,7 +564,7 @@ export default function ContratSousTraitance({
                 <dd className={styles.v}>
                   {prestataire.utilisable
                     ? "Dossier complet"
-                    : `À compléter : ${prestataire.manquants.join(", ")}`}
+                    : `À corriger : ${prestataire.manquants.join(", ")}`}
                 </dd>
               </div>
             </dl>
@@ -587,8 +591,11 @@ export default function ContratSousTraitance({
 
           {prestataire && !prestataire.utilisable && (
             <p className={styles.warn}>
-              Fiche incomplète : {prestataire.manquants.join(", ")}. À compléter dans la
-              bibliothèque des sous-traitants avant d&apos;émettre le contrat.
+              Fiche inexploitable — à corriger : {prestataire.manquants.join(", ")}. À
+              reprendre dans la bibliothèque des sous-traitants avant d&apos;émettre le
+              contrat. Un champ signalé entre parenthèses est RENSEIGNÉ mais inutilisable
+              en l&apos;état : c&apos;est sa valeur qu&apos;il faut remplacer, pas un oubli
+              à combler.
             </p>
           )}
 
@@ -607,7 +614,7 @@ export default function ContratSousTraitance({
                   <option key={e.id} value={e.id}>
                     {e.legal_name ?? "sans dénomination"}
                     {e.country && e.country !== "FR" ? ` · ${e.country}` : ""}
-                    {e.utilisable ? "" : " (incomplète)"}
+                    {e.utilisable ? "" : " (à corriger)"}
                   </option>
                 ))}
               </select>
@@ -615,9 +622,11 @@ export default function ContratSousTraitance({
           </div>
           {entite && !entite.utilisable && (
             <p className={styles.warn}>
-              Cette entité ne peut pas signer : il manque {entite.manquants.join(", ")}.
-              Le contrat porterait « [à compléter] » là où la loi attend l&apos;identité du
-              signataire. À compléter dans Réglages › Sociétés.
+              Cette entité ne peut pas signer — à corriger : {entite.manquants.join(", ")}.
+              Le contrat porterait une identité fausse ou vide là où la loi attend celle du
+              signataire, et ne serait pas opposable. À reprendre dans Réglages › Sociétés.
+              Un champ signalé entre parenthèses est RENSEIGNÉ mais inexploitable — un
+              SIRET « À renseigner » ou dont la clé de contrôle est fausse en est un.
             </p>
           )}
 
