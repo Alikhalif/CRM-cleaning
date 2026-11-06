@@ -36,6 +36,7 @@ const SUITES = [
   { fichier: "interdictions.ts", titre: "Les 28 interdictions absolues du §19" },
   { fichier: "exclusions.ts", titre: "Exclusions, observations et contrôle indépendant (B3, B4, B5)" },
   { fichier: "mentions.ts", titre: "Mention des produits d'entretien, par société (C1)" },
+  { fichier: "decouverte-enrichie.ts", titre: "Découverte enrichie et son exploitation (C3, C6)" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "devis-redaction-check-"));

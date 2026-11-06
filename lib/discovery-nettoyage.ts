@@ -215,6 +215,98 @@ export const COMPLEMENTS: Option[] = opt([
 //
 // Les clés sont traitées par `EXCLUSION_PAR_CLE`
 // (lib/generation/prestations-validation.ts).
+// ── Enrichissement de la découverte (C3, 2026-11-06) ─────────────────
+//
+// Quatre informations manquaient à l'audit du moteur : le moteur portait des
+// opérations pour les radiateurs et les placards à son palier le plus
+// développé, mais AUCUNE donnée ne pouvait les déclencher ; la nicotine et la
+// suie n'existaient que comme « origine d'odeur » d'une désodorisation
+// validée ; et le nombre de niveaux n'existait nulle part — « maison sur deux
+// niveaux » se perdait en texte libre.
+//
+// Tous CONDITIONNELS : aucun de ces champs n'apparaît si la question amont
+// n'est pas posée. L'écran de découverte ne doit pas s'allonger pour les
+// dossiers simples.
+
+/** Radiateurs — l'accès décide de ce qui est faisable, pas le souhait. */
+export const RADIATEURS: Option[] = opt([
+  ["non", "Non"],
+  ["rad_accessibles", "Accessibles"],
+  ["rad_derriere", "Accessibles, nettoyage derrière possible"],
+  ["rad_encastres", "Encastrés ou inaccessibles"],
+]);
+
+/** Nombre de niveaux du logement. Au-delà de trois, le libellé suffit. */
+export const NIVEAUX: Option[] = opt([
+  ["1", "1 niveau"],
+  ["2", "2 niveaux"],
+  ["3", "3 niveaux"],
+  ["4plus", "4 niveaux ou plus"],
+]);
+
+/**
+ * État des placards et rangements.
+ *
+ * `dressings` disait seulement « il y en a ». Or un placard VIDE se nettoie
+ * dedans ; un placard OCCUPÉ ne se vide pas sans accord, et le devis doit le
+ * dire plutôt que de laisser croire le contraire.
+ */
+export const PLACARDS_CONTENU: Option[] = opt([
+  ["placards_vides", "Vides"],
+  ["placards_occupes", "Occupés"],
+  ["placards_mixte", "En partie occupés"],
+]);
+
+/**
+ * Traces de tabac et de nicotine — un CONSTAT d'encrassement.
+ *
+ * ⚠️ À ne pas confondre avec `desodorisationOrigine = "tabac"`, qui désigne
+ * l'origine d'une désodorisation VALIDÉE. Ici on relève un état de surface :
+ * il adapte le nettoyage prévu et il appelle une réserve, il n'ajoute aucune
+ * prestation (règle B3 : une observation n'autorise rien).
+ */
+export const NICOTINE: Option[] = opt([
+  ["non", "Non"],
+  ["nicotine_legere", "Traces légères"],
+  ["nicotine_marquee", "Traces marquées"],
+  ["nicotine_importante", "Imprégnation importante"],
+]);
+
+/**
+ * Suie et résidus de combustion — même logique de constat.
+ *
+ * L'origine « incendie » de la décontamination déclenche déjà la famille et
+ * la section « suies ». Ce champ dit l'ÉTENDUE, que le moteur ne pouvait pas
+ * deviner, et il permet de relever le niveau de détail.
+ */
+export const SUIE: Option[] = opt([
+  ["non", "Non"],
+  ["suie_localisee", "Dépôts localisés"],
+  ["suie_etendue", "Dépôts étendus"],
+  ["suie_generalisee", "Dépôts généralisés, fumées dans tout le volume"],
+]);
+
+/**
+ * Particularités techniques du chantier.
+ *
+ * Structurées plutôt que laissées au texte libre : le `contexte_intervention`
+ * était recopié mot pour mot dans le devis sous « Informations
+ * complémentaires », ce que le cahier interdit — « le devis ne doit jamais
+ * ressembler à une fiche de découverte recopiée ». Ces cases, elles, se
+ * traduisent en opérations et en réserves.
+ */
+export const PARTICULARITES: Option[] = opt([
+  ["part_hauteur", "Hauteur sous plafond importante"],
+  ["part_sans_eau", "Pas d'eau courante sur place"],
+  ["part_sans_electricite", "Pas d'électricité sur place"],
+  ["part_sans_ascenseur", "Pas d'ascenseur"],
+  ["part_acces_etroit", "Accès ou cage d'escalier étroits"],
+  ["part_occupe", "Logement occupé pendant l'intervention"],
+  ["part_animaux", "Présence d'animaux"],
+  ["part_fragile", "Supports fragiles ou anciens"],
+  ["part_amiante_suspecte", "Amiante suspectée"],
+]);
+
 export const EXCLUSIONS: Option[] = opt([
   ["excl_vitrerie", "Sans vitrerie"],
   ["excl_murs", "Sans lessivage des murs"],

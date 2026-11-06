@@ -3,7 +3,8 @@
 import Link from "next/link";
 import {
   COMPLEMENTS, DEBARRAS_VOLUME, DECONTAMINATION_ORIGINE, DESODORISATION_ORIGINE,
-  EXCLUSIONS,
+  EXCLUSIONS, NICOTINE, NIVEAUX, PARTICULARITES, PLACARDS_CONTENU,
+  RADIATEURS, SUIE,
   DIO_ACCESSIBILITE, DIO_DECHETS, DIO_ENCOMBREMENT, DIO_NUISIBLES, DIO_ODEURS,
   DIO_PRESTATIONS, DIO_VOLUME,
   ETAGE, ETAT_GENERAL, EXTERIEUR_ETAT, EXTERIEUR_REVETEMENT, EXTERIEUR_TYPE,
@@ -212,6 +213,26 @@ export default function NettoyageFields(p: Props) {
           options={ETAT_GENERAL} value={p.etat} onPick={p.setEtat} label="État général"
         />
         <Choix d={d} set={set} k="occupation" options={OCCUPATION} label="Occupation" />
+
+        {/* ── Constats d'encrassement (C3, 2026-11-06) ──────────────────
+            ⚠️ CE SONT DES CONSTATS, PAS DES PRESTATIONS. Ils adaptent la
+            description et appellent une réserve ; ils n'ajoutent jamais de
+            traitement — c'est la règle B3 arbitrée le 2026-11-06 : « une
+            observation n'autorise jamais une prestation ».
+
+            La nicotine existait déjà, mais UNIQUEMENT comme origine d'une
+            désodorisation validée (`desodorisationOrigine = "tabac"`). Un
+            état de surface et une prestation commandée sont deux choses
+            différentes. */}
+        <Choix d={d} set={set} k="nicotine" options={NICOTINE} label="Traces de tabac ou de nicotine" />
+        <Choix d={d} set={set} k="suie" options={SUIE} label="Suie et résidus de combustion" />
+
+        {/* Structurées plutôt que laissées au texte libre : le contexte
+            d'intervention était recopié mot pour mot dans le devis, ce que le
+            cahier interdit. Ces cases, elles, se traduisent en opérations et
+            en réserves. */}
+        <Multi d={d} set={set} k="particularites" options={PARTICULARITES}
+          label="Particularités techniques du chantier" />
       </section>
 
       {/* ── 3. Intérieur ──────────────────────────────────────────── */}
@@ -252,13 +273,28 @@ export default function NettoyageFields(p: Props) {
         {oui("dressings") && (
           <div className={styles.conditionnel}>
             <Choix d={d} set={set} k="dressingsInterieur" options={OUI_NON} label="Nettoyage intérieur" />
+            {/* C3 — un placard VIDE se nettoie dedans ; un placard OCCUPÉ ne se
+                vide pas sans accord, et le devis doit le dire plutôt que de
+                laisser croire le contraire. */}
+            <Choix d={d} set={set} k="placardsContenu" options={PLACARDS_CONTENU} label="Contenu des placards" />
           </div>
         )}
+
+        {/* C3 — les radiateurs : le moteur portait l'opération, aucune donnée
+            ne pouvait la déclencher. L'ACCÈS décide de ce qui est faisable. */}
+        <Choix d={d} set={set} k="radiateurs" options={RADIATEURS} label="Radiateurs" />
 
         <div className={styles.ligne}>
           <Choix d={d} set={set} k="nbSdb" options={NOMBRE_0_3} label="Salles de bain / d'eau" />
           <Choix d={d} set={set} k="nbWc" options={NOMBRE_0_3} label="WC" />
         </div>
+
+        {/* C3 — « maison sur deux niveaux » se perdait en texte libre : aucun
+            champ ne le portait, et le devis n'en disait rien. Posé pour les
+            maisons et les locaux, inutile sur un studio. */}
+        {["maison", "local_pro", "autre"].includes(txt(d, "typeBienNet")) && (
+          <Choix d={d} set={set} k="nbNiveaux" options={NIVEAUX} label="Nombre de niveaux" />
+        )}
       </section>
 
       {/* ── 4. Extérieur ──────────────────────────────────────────── */}

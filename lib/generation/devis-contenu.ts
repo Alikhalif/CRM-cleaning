@@ -33,7 +33,8 @@ import { labelOf } from "@/lib/discovery-metier";
 import {
   DEBARRAS_VOLUME, DIO_ACCESSIBILITE, DIO_DECHETS, DIO_ENCOMBREMENT,
   DIO_NUISIBLES, DIO_ODEURS, DIO_VOLUME, EQUIPEMENTS, ETAGE, ETAT_GENERAL,
-  EXTERIEUR_TYPE, MURS, OCCUPATION, PLAFONDS_TYPE, SOLS, STATIONNEMENT,
+  EXTERIEUR_TYPE, MURS, NICOTINE, NIVEAUX, OCCUPATION, PLAFONDS_TYPE,
+  SOLS, STATIONNEMENT, SUIE,
   SURFACE_CONCERNEE, TRAITEMENTS_SOL, TYPE_BIEN_NETTOYAGE, VITRERIE_FACES,
   descriptifVitrerie,
 } from "@/lib/discovery-nettoyage";
@@ -393,7 +394,15 @@ function analyserNettoyage(d: Decouverte): Analyse {
   }
 
   // Placards et dressings → rattachés aux espaces intérieurs.
-  if (oui(det, "dressings") || oui(det, "dressingsInterieur")) {
+  //
+  // ⚠️ MUET QUAND `placardsContenu` EST RENSEIGNÉ. Ce champ, ajouté le
+  // 2026-11-06 (C3), dit la même chose en mieux : il distingue les placards
+  // vides des placards occupés. Garder les deux produisait deux puces
+  // voisines — « intérieur compris » et « intérieur des placards vides » —
+  // que le garde-fou anti-répétition ne voyait pas, puisqu'il compare des
+  // textes exacts. C'est le genre de doublon que le §19 interdit.
+  if ((oui(det, "dressings") || oui(det, "dressingsInterieur"))
+      && !str(det, "placardsContenu")) {
     note("dressings");
     fait("interieur",
       oui(det, "dressingsInterieur")
@@ -664,6 +673,168 @@ function analyserNettoyage(d: Decouverte): Analyse {
     // Rangé dans `contraintes`, il produisait « Conditions d'accès relevées :
     // vide. » sur les trois devis de l'audit.
     observe(`logement ${(labelOf(OCCUPATION, occ) || occ).toLowerCase()}`);
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  C6 — EXPLOITATION DES NOUVELLES DONNÉES DE DÉCOUVERTE (2026-11-06)
+  // ══════════════════════════════════════════════════════════════════
+  //
+  // ⚠️ LA RÈGLE QUI GOUVERNE TOUT CE BLOC : aucune de ces informations
+  // n'AJOUTE une prestation. Ce sont des constats. Ils font trois choses, et
+  // trois seulement :
+  //
+  //   • ils ADAPTENT la description d'une prestation déjà validée (`fait`) ;
+  //   • ils APPELLENT une réserve, quand ils bornent ce qui est faisable ;
+  //   • ils nourrissent les OBSERVATIONS, quand ils informent sans engager.
+  //
+  // C'est l'arbitrage du 2026-11-06 : « une observation n'autorise jamais une
+  // prestation ». Un champ de découverte de plus ne doit pas devenir une
+  // porte d'entrée pour contourner cette règle.
+
+  // ── Radiateurs ──────────────────────────────────────────────────
+  // Le catalogue portait l'opération à son palier 3 ; aucune donnée ne pouvait
+  // la déclencher. L'ACCÈS décide de ce qui est promis, pas le souhait.
+  const radiateurs = str(det, "radiateurs");
+  if (radiateurs && radiateurs !== "non") {
+    note("radiateurs");
+    // ⚠️ LE CATALOGUE PARLE DÉJÀ DES RADIATEURS À SON PALIER 3 (« Nettoyage
+    // des radiateurs, grilles de ventilation et éléments techniques
+    // accessibles »). Ajouter notre ligne sans vérifier produisait DEUX puces
+    // voisines sur le même sujet, que le garde-fou anti-répétition ne voyait
+    // pas — il compare des textes exacts, pas des sujets. On ne complète donc
+    // que ce que le palier retenu ne dit pas.
+    const dejaDitParLeCatalogue = operationsDe("interieur", niveau)
+      .some((op) => /radiateur/i.test(op));
+    if (radiateurs === "rad_encastres") {
+      if (!dejaDitParLeCatalogue) {
+        fait("interieur", "Nettoyage des parties visibles des radiateurs.");
+      }
+      reserves.push(
+        "Les radiateurs encastrés ou inaccessibles sans démontage ne sont pas "
+        + "nettoyés derrière : l'intervention porte sur leurs parties visibles.");
+    } else {
+      if (!dejaDitParLeCatalogue) {
+        fait("interieur", "Nettoyage des radiateurs et de leurs parties accessibles.");
+      }
+      // Le « derrière » n'est jamais dans le catalogue : c'est une contrainte
+      // d'accès, et c'est précisément ce que l'énoncé du client demandait.
+      if (radiateurs === "rad_derriere") {
+        fait("interieur", "Nettoyage derrière les radiateurs, là où l'accès le permet.");
+      }
+    }
+  }
+
+  // ── Nombre de niveaux ───────────────────────────────────────────
+  // « Maison sur deux niveaux » se perdait en texte libre : aucun champ ne le
+  // portait, et le devis n'en disait rien.
+  const niveaux = str(det, "nbNiveaux");
+  if (niveaux) {
+    note("nbNiveaux");
+    fait("interieur",
+      `Intervention répartie sur ${(labelOf(NIVEAUX, niveaux) || niveaux).toLowerCase()}.`);
+  }
+
+  // ── Placards : vides, occupés, ou les deux ──────────────────────
+  // Un placard VIDE se nettoie dedans. Un placard OCCUPÉ ne se vide pas sans
+  // accord — et le devis doit le dire, plutôt que de laisser croire l'inverse.
+  const placards = str(det, "placardsContenu");
+  if (placards) {
+    note("placardsContenu");
+    if (placards === "placards_vides") {
+      fait("interieur", "Nettoyage de l'intérieur des placards et rangements vides.");
+    } else {
+      fait("interieur", "Nettoyage des façades et des parties accessibles des rangements.");
+      reserves.push(
+        placards === "placards_occupes"
+          ? "Les placards et rangements occupés ne sont pas vidés : le nettoyage "
+            + "porte sur leurs façades et sur les parties accessibles. Leur "
+            + "intérieur peut être traité après évacuation du contenu, sur accord."
+          : "Les rangements encore occupés ne sont pas vidés : seules les parties "
+            + "accessibles et les rangements vides sont nettoyés à l'intérieur.");
+    }
+  }
+
+  // ── Nicotine : un ÉTAT DE SURFACE, pas une prestation ───────────
+  // ⚠️ À ne pas confondre avec `desodorisationOrigine = "tabac"`, qui désigne
+  // l'origine d'une désodorisation VALIDÉE. Ici on adapte le nettoyage prévu,
+  // et la réserve dit honnêtement ce que le nettoyage ne peut pas faire.
+  const nicotine = str(det, "nicotine");
+  if (nicotine && nicotine !== "non") {
+    note("nicotine");
+    observe(`traces de tabac — ${(labelOf(NICOTINE, nicotine) || nicotine).toLowerCase()}`);
+    fait("interieur",
+      "Nettoyage renforcé des surfaces marquées par le tabac, avec des produits "
+      + "adaptés aux dépôts grasseux.");
+    reserves.push(
+      "Les traces de tabac imprégnées dans les supports poreux (peintures, "
+      + "papiers peints, plâtres) peuvent subsister après nettoyage. Leur "
+      + "élimination complète relève d'une remise en peinture, qui ne fait pas "
+      + "partie du présent devis.");
+  }
+
+  // ── Suie : l'étendue, que le moteur ne pouvait pas deviner ──────
+  // La section « suies » n'est ouverte que par la FAMILLE (après incendie) :
+  // déclarer de la suie sur un nettoyage courant ne l'ouvre pas, sans quoi un
+  // constat créerait une prestation.
+  const suie = str(det, "suie");
+  if (suie && suie !== "non") {
+    note("suie");
+    const libelleSuie = (labelOf(SUIE, suie) || suie).toLowerCase();
+    fait("suies", `Étendue des dépôts constatée : ${libelleSuie}.`);
+    observe(`dépôts de suie — ${libelleSuie}`);
+  }
+
+  // ── Particularités techniques ───────────────────────────────────
+  // Presque toutes produisent une RÉSERVE ou une CONTRAINTE, aucune ne crée
+  // de prestation : ce sont les conditions dans lesquelles on travaille, pas
+  // ce que l'on vend.
+  const particularites = liste(det, "particularites");
+  if (particularites.length) {
+    note("particularites");
+    const aP = (k: string) => particularites.includes(k);
+    if (aP("part_hauteur")) {
+      reserves.push(
+        "Les surfaces situées en hauteur et inaccessibles depuis une échelle "
+        + "standard sont exclues du présent devis ; elles peuvent faire l'objet "
+        + "d'une proposition distincte avec l'équipement nécessaire.");
+    }
+    const sansEau = aP("part_sans_eau");
+    const sansElec = aP("part_sans_electricite");
+    if (sansEau || sansElec) {
+      const manque = sansEau && sansElec
+        ? "ni eau courante ni électricité"
+        : sansEau ? "pas d'eau courante" : "pas d'électricité";
+      contraintes.push(manque);
+      reserves.push(
+        `Le chantier ne dispose ${sansEau && sansElec
+          ? "ni d'eau courante ni d'électricité"
+          : sansEau ? "pas d'eau courante" : "pas d'électricité"} : les moyens `
+        + "autonomes nécessaires sont prévus, et ils peuvent influer sur la durée "
+        + "de l'intervention.");
+    }
+    if (aP("part_sans_ascenseur")) contraintes.push("sans ascenseur");
+    if (aP("part_acces_etroit")) contraintes.push("accès ou cage d'escalier étroits");
+    if (aP("part_occupe")) {
+      observe("logement occupé pendant l'intervention");
+      reserves.push(
+        "L'intervention se déroule en présence des occupants : certaines zones "
+        + "peuvent rester inaccessibles au moment du passage et faire l'objet "
+        + "d'une reprise, sur accord.");
+    }
+    if (aP("part_animaux")) observe("présence d'animaux");
+    if (aP("part_fragile")) {
+      reserves.push(
+        "Les supports fragiles ou anciens sont traités avec des méthodes adaptées. "
+        + "Leur état préexistant ne peut pas être corrigé par le nettoyage, et "
+        + "aucune garantie de résultat n'est donnée sur ces surfaces.");
+    }
+    if (aP("part_amiante_suspecte")) {
+      reserves.push(
+        "Une présence d'amiante est suspectée. Aucun matériau susceptible d'en "
+        + "contenir n'est percé, gratté ni déposé. Le repérage et le traitement "
+        + "relèvent d'une entreprise certifiée et ne font pas partie du présent "
+        + "devis.");
+    }
   }
 
   // ── Thèmes retenus : l'intersection de la famille et du validé ───
