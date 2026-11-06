@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   COMPLEMENTS, DEBARRAS_VOLUME, DECONTAMINATION_ORIGINE, DESODORISATION_ORIGINE,
+  EXCLUSIONS,
   DIO_ACCESSIBILITE, DIO_DECHETS, DIO_ENCOMBREMENT, DIO_NUISIBLES, DIO_ODEURS,
   DIO_PRESTATIONS, DIO_VOLUME,
   ETAGE, ETAT_GENERAL, EXTERIEUR_ETAT, EXTERIEUR_REVETEMENT, EXTERIEUR_TYPE,
@@ -375,6 +376,38 @@ export default function NettoyageFields(p: Props) {
             <Choix d={d} set={set} k="debarrasVolume" options={DEBARRAS_VOLUME} label="Débarras — volume estimé" />
           </div>
         )}
+      </section>
+
+      {/* ── 5 bis. Exclusions explicites ──────────────────────────
+          §7.4 du cahier du 2026-11-06, « priorité absolue ».
+
+          POURQUOI CE BLOC EXISTE. Jusqu'ici, « sans désinfection » s'obtenait
+          en ne cochant pas la case. Or une omission et un refus ne sont pas la
+          même chose : l'omission ne produit aucune réserve, n'est pas
+          opposable, et ne résiste pas à une régénération où quelqu'un
+          cocherait la case « pour bien faire ». Un refus explicite ferme le
+          thème définitivement et se rappelle dans les réserves du devis.
+
+          Le moteur applique l'exclusion APRÈS toute autre règle : rien ne peut
+          la rouvrir. */}
+      <section className={styles.bloc}>
+        <h3 className={styles.h3}>6 bis · Exclusions demandées par le client</h3>
+        <p className={styles.note}>
+          Ce que le client refuse expressément. Une exclusion est reprise dans les
+          réserves du devis et ne peut plus être réintroduite, même en régénérant.
+          Ne cochez que ce qui a été réellement écarté : une prestation simplement
+          non demandée n&apos;a pas besoin de figurer ici.
+        </p>
+        <Multi d={d} set={set} k="exclusions" options={EXCLUSIONS} />
+        <label className={styles.champ}>
+          <span className={styles.label}>Autres exclusions (texte libre)</span>
+          <input
+            className={styles.input}
+            value={txt(d, "exclusionsAutres")}
+            onChange={(e) => set("exclusionsAutres", e.target.value)}
+            placeholder="ex. sans intervention sur la toiture"
+          />
+        </label>
       </section>
 
       {/* ── 6. Accès et date ──────────────────────────────────────── */}

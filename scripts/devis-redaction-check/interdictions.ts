@@ -33,7 +33,11 @@ const PLEIN: Decouverte = {
     cuisineEquipee: "oui", equipements: ["opt_four"],
     vitrerie: "oui", vitrerieFenetres: 10,
     murs: "murs_lessivage", plafonds: "oui",
-    complements: ["desinfection", "decontamination", "desodorisation", "debarras"],
+    // « nuisibles » ajouté le 2026-11-06 : le fixture est censé porter TOUTES
+    // les prestations validées, et le traitement des nuisibles en est devenu
+    // une (anomalie B3 — il sortait auparavant sur la seule observation).
+    complements: ["desinfection", "decontamination", "desodorisation", "debarras",
+      "nuisibles"],
     debarrasVolume: ">20",
     dioEncombrement: "dio_enc_extreme", dioDechets: ["dio_biologiques"],
     dioVolume: ">40", dioNuisibles: "oui", dioNuisiblesTypes: ["dio_punaises"],

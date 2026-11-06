@@ -357,3 +357,78 @@
   border-color: var(--color-brand-500);
   &:hover { background: var(--color-brand-600); border-color: var(--color-brand-600); }
 }
+
+/* ── Visualisation du devis (bouton œil, §6 du cahier du 2026-11-06) ──
+   Une MODALE, pas un second éditeur : elle affiche le PDF rendu par
+   `/api/documents/[id]/preview-pdf`, c'est-à-dire exactement le document
+   final. Aucun moteur de rendu n'est dupliqué, aucun envoi déclenché. */
+.apercuFond {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+  background: rgb(0 0 0 / 55%);
+}
+
+.apercuPanneau {
+  display: flex;
+  flex-direction: column;
+  width: min(1040px, 100%);
+  height: min(92vh, 100%);
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 35%);
+}
+
+.apercuBarre {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.apercuTitre {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.apercuCadre {
+  flex: 1 1 auto;
+  width: 100%;
+  border: 0;
+  background: var(--bg);
+}
+
+.apercuPied {
+  padding: var(--sp-2) var(--sp-4) var(--sp-3);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}
+
+/* ≤768px : la modale prend tout l'écran, et les boutons gardent 44px de
+   hauteur tactile (règle mobile du dépôt). */
+@media (max-width: 768px) {
+  .apercuFond { padding: 0; }
+
+  .apercuPanneau {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .apercuBarre button { min-height: 44px; }
+}

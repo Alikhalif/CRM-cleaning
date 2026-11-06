@@ -195,6 +195,37 @@ export const COMPLEMENTS: Option[] = opt([
   ["decontamination", "Décontamination"],
   ["desodorisation", "Désodorisation"],
   ["debarras", "Débarras"],
+  // Ajouté le 2026-11-06 (anomalie B3). Le traitement des nuisibles n'avait
+  // AUCUNE case de validation : le moteur l'ouvrait sur la seule case
+  // « présence de nuisibles » de la découverte Diogène, c'est-à-dire sur une
+  // observation. Le devis promettait alors une prestation que personne
+  // n'avait commandée, auprès d'un client qui la lisait comme un engagement.
+  ["nuisibles", "Traitement des nuisibles"],
+]);
+
+// ── Exclusions explicites (§7.4, « priorité absolue » du 2026-11-06) ────
+//
+// POURQUOI UNE LISTE DÉDIÉE, ET NON L'ABSENCE DE VALIDATION.
+//
+// Jusqu'ici, « sans désinfection » s'obtenait en ne cochant pas la case. Mais
+// une omission et un refus ne sont pas la même chose : l'omission ne produit
+// aucune réserve, n'est pas opposable, et ne résiste pas à une régénération où
+// quelqu'un cocherait la case « pour bien faire ». Un refus explicite, lui,
+// ferme le thème définitivement et se rappelle dans les réserves.
+//
+// Les clés sont traitées par `EXCLUSION_PAR_CLE`
+// (lib/generation/prestations-validation.ts).
+export const EXCLUSIONS: Option[] = opt([
+  ["excl_vitrerie", "Sans vitrerie"],
+  ["excl_murs", "Sans lessivage des murs"],
+  ["excl_plafonds", "Sans lessivage des plafonds"],
+  ["excl_desinfection", "Sans désinfection"],
+  ["excl_decontamination", "Sans décontamination"],
+  ["excl_desodorisation", "Sans traitement des odeurs"],
+  ["excl_nuisibles", "Sans traitement des nuisibles"],
+  ["excl_debarras", "Sans débarras"],
+  ["excl_debarras_prealable", "Sans débarras préalable"],
+  ["excl_exterieurs", "Sans nettoyage des extérieurs"],
 ]);
 
 export const DECONTAMINATION_ORIGINE: Option[] = opt([

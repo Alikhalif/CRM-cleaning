@@ -213,7 +213,7 @@ export const FAMILLES: Record<FamilleNettoyage, Famille> = {
     // d'entretien. Ne pas ajouter automatiquement les opérations d'un
     // nettoyage approfondi. »
     niveau: 1,
-    themes: ["interieur", "cuisine", "sanitaires", "vitrerie"],
+    themes: ["interieur", "cuisine", "sanitaires", "equipements", "vitrerie"],
   },
   approfondi: {
     titre: "Nettoyage approfondi",
@@ -261,8 +261,8 @@ export const FAMILLES: Record<FamilleNettoyage, Famille> = {
     niveau: 3,
     themes: [
       "debarras_prealable", "interieur", "sols_traitements", "cuisine",
-      "sanitaires", "nuisibles", "murs", "plafonds", "vitrerie",
-      "desinfection", "decontamination", "desodorisation",
+      "sanitaires", "equipements", "murs", "plafonds", "vitrerie",
+      "desinfection", "decontamination", "desodorisation", "nuisibles",
     ],
   },
   insalubre: {
@@ -271,29 +271,30 @@ export const FAMILLES: Record<FamilleNettoyage, Famille> = {
     niveau: 3,
     themes: [
       "debarras_prealable", "interieur", "sols_traitements", "cuisine",
-      "sanitaires", "nuisibles", "murs", "plafonds", "vitrerie",
-      "desinfection", "decontamination", "desodorisation",
+      "sanitaires", "equipements", "murs", "plafonds", "vitrerie",
+      "desinfection", "decontamination", "desodorisation", "nuisibles",
     ],
   },
   diogene: {
     titre: "Nettoyage insalubre de type Diogène",
-    nature: "intervention en logement présentant un syndrome de Diogène",
+    nature: "nettoyage et de débarras consécutif à un syndrome de Diogène",
     niveau: 3,
     // §7.8 : ordre imposé — débarras, nettoyage approfondi, désinfection,
     // décontamination. Chaque phase est développée séparément.
     themes: [
       "debarras_prealable", "interieur", "sols_traitements", "cuisine",
-      "sanitaires", "nuisibles", "murs", "plafonds", "vitrerie",
-      "desinfection", "decontamination", "desodorisation",
+      "sanitaires", "equipements", "murs", "plafonds", "vitrerie",
+      "desinfection", "decontamination", "desodorisation", "nuisibles",
     ],
   },
   apres_deces: {
     titre: "Nettoyage après décès",
-    nature: "intervention de nettoyage consécutive à un décès",
+    nature: "nettoyage consécutif à un décès",
     niveau: 3,
     themes: [
       "debarras_prealable", "interieur", "sols_traitements", "sanitaires",
-      "murs", "plafonds", "desinfection", "decontamination", "desodorisation",
+      "equipements", "murs", "plafonds", "desinfection", "decontamination",
+      "desodorisation",
     ],
   },
   apres_incendie: {
@@ -302,7 +303,7 @@ export const FAMILLES: Record<FamilleNettoyage, Famille> = {
     niveau: 3,
     themes: [
       "debarras_prealable", "suies", "interieur", "sols_traitements",
-      "cuisine", "sanitaires", "murs", "plafonds", "vitrerie",
+      "cuisine", "sanitaires", "equipements", "murs", "plafonds", "vitrerie",
       "desinfection", "decontamination", "desodorisation",
     ],
   },
@@ -312,7 +313,7 @@ export const FAMILLES: Record<FamilleNettoyage, Famille> = {
     niveau: 3,
     themes: [
       "debarras_prealable", "degat_eaux", "interieur", "sols_traitements",
-      "cuisine", "sanitaires", "murs", "plafonds",
+      "cuisine", "sanitaires", "equipements", "murs", "plafonds",
       "desinfection", "decontamination", "desodorisation",
     ],
   },

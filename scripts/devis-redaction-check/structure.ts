@@ -296,7 +296,19 @@ eq(
   (notes.match(/DÉTAIL DE LA PRESTATION/g) ?? []).length,
   1,
 );
-vrai("le bloc PRESTATION porte le titre", notes.includes(c.designation));
+// B6 — ARBITRAGE CLIENT DU 2026-11-06. Cette assertion exigeait la
+// RÉPÉTITION du titre dans les notes. Elle contredisait mot pour mot celle
+// de `scripts/docusign-check/generation-devis.ts`, qui l'interdit : une seule
+// des deux suites pouvait passer à la fois, et le dépôt en a vu alterner
+// l'échec.
+//
+// Le contrôle n'est PAS supprimé : il est retourné vers le comportement
+// validé. La désignation est le libellé de la première ligne de prestation
+// (devis-actions.ts l'y écrit, QuoteEditor l'y maintient, le PDF l'imprime) :
+// la reprendre en tête des notes la faisait figurer deux fois sur le même
+// document, à quelques centimètres d'écart.
+vrai("le bloc PRESTATION ne répète PAS le titre", !notes.includes(c.designation));
+vrai("l'intitulé PRESTATION est présent", notes.includes("PRESTATION"));
 vrai("le bloc PRESTATION porte l'introduction", notes.includes(c.introduction.split("\n")[0]));
 
 // ══════════════════════════════════════════════════════════════════════

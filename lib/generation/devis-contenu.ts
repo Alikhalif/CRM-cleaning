@@ -50,6 +50,11 @@ import {
   estComplementaire, familleDe, operationsDe, titreDe,
   type FamilleNettoyage, type Niveau, type SectionRedigee, type Theme,
 } from "./bibliotheque-redaction";
+import {
+  EXCLUSION_PAR_CLE, LIBELLE_EXCLUSION, controlerConformite,
+  controlerTexteConforme, exclusionsARappeler,
+  type Conformite, type EtatPrestation, type Violation,
+} from "./prestations-validation";
 
 export { VERSION_REFERENTIEL } from "./bibliotheque-redaction";
 export type { Niveau, SectionRedigee } from "./bibliotheque-redaction";
@@ -82,6 +87,14 @@ export type ContenuDevis = {
   sources: string[];
   /** Informations utiles mais absentes : le texte ne les invente pas. */
   manquant: string[];
+  /**
+   * État de chaque prestation au regard de la découverte.
+   *
+   * Transporté jusqu'ici pour que `controlerDevis()` puisse confronter le
+   * texte produit aux données d'origine — et non à l'analyse, qui est la
+   * décision du moteur. C'est la correction de l'anomalie B5.
+   */
+  etats: Partial<Record<Theme, EtatPrestation>>;
 };
 
 export type Decouverte = {
@@ -124,8 +137,25 @@ export type Analyse = {
   faits: Partial<Record<Theme, string[]>>;
   /** Fragments à ajouter au titre : « vitrerie », « lessivage des murs »… */
   titreComplements: string[];
-  /** Faits d'organisation : étage, stationnement, occupation. Pas des prestations. */
+  /** Faits d'organisation : étage, stationnement, accès. Pas des prestations. */
   contraintes: string[];
+  /**
+   * Éléments RELEVÉS en découverte qui n'autorisent aucune prestation.
+   *
+   * Nuisibles constatés, odeurs, nicotine, moisissures, logement encombré :
+   * ils informent le client sur le contexte de l'intervention. Les faire
+   * remonter en prestation serait promettre un traitement que personne n'a
+   * commandé — c'est l'anomalie B3 de l'audit du 2026-11-06.
+   */
+  observations: string[];
+  /**
+   * État de chaque prestation au regard de la découverte.
+   *
+   * C'est la matière du contrôle INDÉPENDANT (`controlerConformite`), celui
+   * qui peut contredire le moteur. Ne jamais le recalculer depuis `themes` :
+   * ce serait refaire le garde-fou circulaire que l'audit a écarté.
+   */
+  etats: Partial<Record<Theme, EtatPrestation>>;
   /** Réserves propres au chantier, en plus du socle. */
   reserves: string[];
   /** La mention « produits » du §11 s'applique-t-elle ? */
@@ -179,7 +209,9 @@ function analyserNettoyage(d: Decouverte): Analyse {
   const reserves: string[] = [];
   const titreComplements: string[] = [];
   const contraintes: string[] = [];
+  const observations: string[] = [];
   const note = (k: string) => sources.push(k);
+  const observe = (s: string) => observations.push(s);
   const fait = (t: Theme, s: string) => { (faits[t] ??= []).push(s); };
 
   // ── Famille et niveau ────────────────────────────────────────────
@@ -188,6 +220,23 @@ function analyserNettoyage(d: Decouverte): Analyse {
 
   const complements = liste(det, "complements");
   if (complements.length) note("complements");
+
+  // ── Exclusions explicites (§7.4) ─────────────────────────────────
+  //
+  // ⚠️ UNE EXCLUSION PRIME SUR TOUT. Elle n'est pas le contraire d'une
+  // validation : c'est un refus opposable, qui doit survivre à une
+  // régénération comme à une réécriture. Avant le 2026-11-06, seules la
+  // vitrerie, les murs et les plafonds s'excluaient — et uniquement par la
+  // valeur « non » de leur propre champ.
+  const exclusions = liste(det, "exclusions");
+  if (exclusions.length) note("exclusions");
+  const exclusionsAutres = str(det, "exclusionsAutres");
+  if (exclusionsAutres) note("exclusionsAutres");
+  const exclu = new Set<Theme>();
+  for (const k of exclusions) {
+    const t = EXCLUSION_PAR_CLE[k];
+    if (t) exclu.add(t);
+  }
 
   const origineDecont = str(det, "decontaminationOrigine");
   const origineDesod = str(det, "desodorisationOrigine");
@@ -229,14 +278,21 @@ function analyserNettoyage(d: Decouverte): Analyse {
   let niveau: Niveau = def.niveau;
   const encombrement = str(det, "dioEncombrement");
   const dechets = liste(det, "dioDechets"); // ⚠️ liste à choix MULTIPLES
-  const nuisibles = oui(det, "dioNuisibles");
+  // B3 — « Présence de nuisibles » est une OBSERVATION, pas une commande.
+  // Elle relève le niveau de détail et se mentionne au contexte, mais seule
+  // une validation explicite (`complements` contient « nuisibles ») autorise
+  // à promettre un traitement. Avant correction, une case cochée en
+  // découverte faisait sortir une section « Traitement des nuisibles » qui
+  // engageait l'entreprise auprès du client.
+  const nuisiblesConstates = oui(det, "dioNuisibles");
+  const nuisibles = complements.includes("nuisibles");
   const dioVolume = str(det, "dioVolume");
   // ⚠️ Les valeurs réelles de `ETAT_GENERAL` sont `leger | moyen | important
   // | tres_important | extreme`. Tester « tres_sale » ou « insalubre » —
   // qui n'existent pas — n'aurait jamais relevé le niveau.
   if (
     encombrement === "dio_enc_important" || encombrement === "dio_enc_extreme"
-    || nuisibles || dechets.includes("dio_biologiques")
+    || nuisiblesConstates || dechets.includes("dio_biologiques")
     || d.etatSalete === "tres_important" || d.etatSalete === "extreme"
   ) {
     niveau = 3;
@@ -290,7 +346,15 @@ function analyserNettoyage(d: Decouverte): Analyse {
   }
 
   // Cuisine : uniquement si la découverte la mentionne.
-  const cuisine = oui(det, "cuisineAmenagee") || oui(det, "cuisineEquipee") || oui(det, "cuisineInterieur");
+  // Une option de cuisine FACTURÉE au barème implique une section cuisine :
+  // sans cela, « cuisine fortement encrassée » se rendait par une ligne
+  // « Équipements compris au devis : dégraissage renforcé cuisine » et le
+  // devis n'avait aucune section cuisine (audit du 2026-11-06, test 1).
+  const equipementsCuisine = liste(det, "equipements")
+    .some((e) => e === "opt_degraissage_cuisine" || e === "opt_four"
+      || e === "opt_frigo" || e === "opt_congelateur" || e === "opt_hotte");
+  const cuisine = oui(det, "cuisineAmenagee") || oui(det, "cuisineEquipee")
+    || oui(det, "cuisineInterieur") || equipementsCuisine;
   if (cuisine) {
     note("cuisine");
     if (oui(det, "cuisineEquipee")) fait("cuisine", "Dégraissage des équipements de cuisine présents.");
@@ -318,12 +382,30 @@ function analyserNettoyage(d: Decouverte): Analyse {
   }
 
   // Équipements facturés à l'unité.
+  //
+  // ⚠️ LE DEVIS NE PORTE PAS LE VOCABULAIRE DU BARÈME. « dégraissage renforcé
+  // cuisine » et « wc fortement encrassés » sont des libellés d'options
+  // internes : le premier décrit une ligne de facturation, le second un
+  // CONSTAT. Imprimés tels quels, ils donnaient « Équipements compris au
+  // devis : wc fortement encrassés. » — une phrase qui n'engage à rien et
+  // qui se lit comme un reproche au client. Chaque option a donc sa
+  // formulation de devis, qui dit l'OPÉRATION.
+  const LIBELLE_DEVIS: Record<string, string> = {
+    opt_four: "nettoyage et dégraissage du four",
+    opt_frigo: "nettoyage intérieur et extérieur du réfrigérateur",
+    opt_congelateur: "nettoyage et dégivrage du congélateur",
+    opt_hotte: "nettoyage et dégraissage de la hotte et de ses filtres",
+    opt_degraissage_cuisine: "dégraissage renforcé des surfaces de cuisine",
+    opt_detartrage_sdb: "détartrage renforcé de la salle de bain",
+    opt_wc_encrasses: "nettoyage et détartrage renforcés des WC",
+  };
   const equipements = liste(det, "equipements");
   if (equipements.length) {
     note("equipements");
     fait("equipements",
-      `Équipements compris au devis : `
-      + `${equipements.map((e) => (labelOf(EQUIPEMENTS, e) || e).toLowerCase()).join(", ")}.`);
+      `Opérations comprises au devis : `
+      + `${equipements.map((e) => LIBELLE_DEVIS[e]
+          ?? (labelOf(EQUIPEMENTS, e) || e).toLowerCase()).join(", ")}.`);
   }
 
   // Extérieurs.
@@ -453,8 +535,19 @@ function analyserNettoyage(d: Decouverte): Analyse {
     }
     if (dioVolume) {
       note("dioVolume");
-      fait("debarras_prealable",
-        `Volume à évacuer estimé à ${labelOf(DIO_VOLUME, dioVolume).toLowerCase()}.`);
+      // B2 — « a_evaluer » est une valeur TECHNIQUE, pas une quantité. Elle
+      // produisait « Volume à évacuer estimé à à évaluer. » sur le devis du
+      // client. Un volume non chiffré se dit en une phrase professionnelle,
+      // et appelle une réserve de réévaluation plutôt qu'un chiffre inventé.
+      if (dioVolume === "a_evaluer") {
+        fait("debarras_prealable",
+          "Le volume définitif des éléments à évacuer sera confirmé après "
+          + "évaluation des quantités réellement présentes.");
+        reserves.push(RESERVE_VOLUME);
+      } else {
+        fait("debarras_prealable",
+          `Volume à évacuer estimé à ${labelOf(DIO_VOLUME, dioVolume).toLowerCase()}.`);
+      }
     } else {
       manquant.push("volume de déchets à évacuer");
     }
@@ -466,8 +559,26 @@ function analyserNettoyage(d: Decouverte): Analyse {
     reserves.push(RESERVE_INSALUBRE, RESERVE_DECHETS_REGLEMENTES);
   }
 
-  if (nuisibles) {
+  // Observation : elle informe, elle n'engage pas. Même sans traitement
+  // validé, le client doit savoir ce qui a été relevé chez lui.
+  if (nuisiblesConstates) {
     note("dioNuisibles");
+    const typesVus = liste(det, "dioNuisiblesTypes");
+    observe(typesVus.length
+      ? `présence de nuisibles relevée (${typesVus
+          .map((x) => (labelOf(DIO_NUISIBLES, x) || x).toLowerCase()).join(", ")})`
+      : "présence de nuisibles relevée");
+    if (!nuisibles) {
+      // Pas de traitement commandé : on le dit, pour qu'aucun lecteur du
+      // devis ne croie l'intervention comprise.
+      reserves.push(
+        "Le traitement des nuisibles ne fait pas partie du présent devis. Il "
+        + "relève d'une entreprise habilitée et peut faire l'objet d'une "
+        + "proposition distincte.");
+    }
+  }
+
+  if (nuisibles) {
     // Les types de nuisibles étaient saisis (`dioNuisiblesTypes`) et ignorés
     // par la rédaction : le §7.16 demande d'« adapter aux nuisibles
     // identifiés ».
@@ -481,10 +592,24 @@ function analyserNettoyage(d: Decouverte): Analyse {
     reserves.push(RESERVE_NUISIBLES);
   }
 
+  // B4 — `desodorisation: avecDesodorisation || !!odeurs` faisait d'une odeur
+  // RELEVÉE une prestation COMMANDÉE. Une odeur se constate ; un traitement
+  // se commande. Les deux usages sont désormais séparés : l'observation
+  // enrichit le contexte, et ne précise la prestation que si celle-ci a été
+  // validée par ailleurs.
   const odeurs = str(det, "dioOdeurs");
-  if (odeurs) {
+  if (odeurs && odeurs !== "aucune") {
     note("dioOdeurs");
-    fait("desodorisation", `Odeurs constatées : ${(labelOf(DIO_ODEURS, odeurs) || odeurs).toLowerCase()}.`);
+    const libelleOdeurs = (labelOf(DIO_ODEURS, odeurs) || odeurs).toLowerCase();
+    observe(`odeurs ${libelleOdeurs} relevées`);
+    if (avecDesodorisation) {
+      fait("desodorisation", `Odeurs constatées : ${libelleOdeurs}.`);
+    } else {
+      reserves.push(
+        "Le traitement des odeurs ne fait pas partie du présent devis. Le "
+        + "nettoyage réduit les odeurs sans garantir leur disparition "
+        + "complète lorsque les supports en sont imprégnés.");
+    }
   }
 
   if (famille === "apres_degat_eaux") reserves.push(RESERVE_ASSECHEMENT);
@@ -515,7 +640,10 @@ function analyserNettoyage(d: Decouverte): Analyse {
   const occ = str(det, "occupation");
   if (occ) {
     note("occupation");
-    contraintes.push((labelOf(OCCUPATION, occ) || occ).toLowerCase());
+    // Un logement « vide » n'est pas une condition d'accès : c'est son état.
+    // Rangé dans `contraintes`, il produisait « Conditions d'accès relevées :
+    // vide. » sur les trois devis de l'audit.
+    observe(`logement ${(labelOf(OCCUPATION, occ) || occ).toLowerCase()}`);
   }
 
   // ── Thèmes retenus : l'intersection de la famille et du validé ───
@@ -534,11 +662,56 @@ function analyserNettoyage(d: Decouverte): Analyse {
     plafonds: plafondsDemande,
     desinfection: avecDesinfection,
     decontamination: avecDecontamination,
-    desodorisation: avecDesodorisation || !!odeurs,
+    desodorisation: avecDesodorisation,
     debarras_inclus: avecDebarrasInclus,
     debarras_prealable: estInsalubre,
     nuisibles,
   };
+
+  // ── L'EXCLUSION PRIME ────────────────────────────────────────────
+  //
+  // Posée APRÈS la carte : quoi qu'une autre règle ait conclu, un refus
+  // explicite du client ferme le thème. C'est le seul ordre qui garantisse
+  // qu'une régénération ou une évolution du moteur ne puisse pas rouvrir
+  // une prestation refusée.
+  for (const t of exclu) valide[t] = false;
+
+  // Le débarras est la PREMIÈRE PHASE d'un chantier insalubre ou Diogène,
+  // pas un complément : il doit se lire dans le titre. Il en était absent,
+  // alors que la première section du devis lui était consacrée.
+  if (valide.debarras_prealable) titreComplements.unshift("débarras");
+
+  // États au regard de la découverte — la matière du contrôle INDÉPENDANT.
+  // Quatre valeurs, parce qu'un silence n'est ni un accord ni un refus.
+  const etats: Partial<Record<Theme, EtatPrestation>> = {};
+  for (const t of Object.keys(valide) as Theme[]) {
+    etats[t] = valide[t] ? "inclus" : "non_renseigne";
+  }
+  // `a_confirmer` : la découverte a relevé quelque chose qui APPELLE cette
+  // prestation, mais personne ne l'a commandée. Ni promise au devis, ni
+  // oubliée — l'écran peut ainsi inviter le commercial à trancher, au lieu
+  // de laisser le moteur décider à sa place.
+  if (nuisiblesConstates && !nuisibles) etats.nuisibles = "a_confirmer";
+  if (odeurs && odeurs !== "aucune" && !avecDesodorisation) {
+    etats.desodorisation = "a_confirmer";
+  }
+  // L'exclusion est posée en DERNIER : elle ne se laisse pas réécrire.
+  for (const t of exclu) etats[t] = "exclu";
+
+  // Rappel en réserve des prestations explicitement refusées. Les murs, les
+  // plafonds et la vitrerie ont déjà leurs réserves dédiées (§8, §9) : on ne
+  // les redit pas, sous peine de deux phrases pour un seul refus.
+  const dejaRappeles: Theme[] = ["murs", "plafonds", "vitrerie"];
+  const aRappeler = exclusionsARappeler(etats).filter((t) => !dejaRappeles.includes(t));
+  if (aRappeler.length) {
+    const libelles = aRappeler.map((t) => LIBELLE_EXCLUSION[t] as string);
+    reserves.push(
+      `À la demande du client, ${enumerer(libelles)} ${aRappeler.length > 1 ? "ne font" : "ne fait"} `
+      + `pas partie du présent devis.`);
+  }
+  if (exclusionsAutres) {
+    reserves.push(`Sont également exclus du présent devis : ${exclusionsAutres}`);
+  }
   // ── Thèmes retenus ───────────────────────────────────────────────
   //
   // La famille gouverne l'ORDRE de rédaction, pas l'inclusion. Un thème
@@ -584,6 +757,8 @@ function analyserNettoyage(d: Decouverte): Analyse {
     faits,
     titreComplements,
     contraintes,
+    observations,
+    etats,
     reserves,
     mentionProduits: true,
     famille,
@@ -708,6 +883,8 @@ function analyserDebarras(d: Decouverte): Analyse {
     themes: ["tri", "manutention", "evacuation"],
     faits,
     titreComplements: [],
+    observations: [],
+    etats: {},
     contraintes,
     reserves: [RESERVE_VOLUME, RESERVE_BIENS_CONSERVES, RESERVE_DECHETS_REGLEMENTES],
     mentionProduits: false,
@@ -796,6 +973,8 @@ function analyserDemenagement(d: Decouverte): Analyse {
     themes,
     faits,
     titreComplements: [],
+    observations: [],
+    etats: {},
     contraintes,
     reserves: [
       "Le devis est établi sur la base du volume annoncé, des accès, des étages, "
@@ -897,6 +1076,8 @@ function analyserTransport(d: Decouverte): Analyse {
     themes: ["transport_objet"],
     faits,
     titreComplements: [],
+    observations: [],
+    etats: {},
     contraintes,
     reserves: [
       "Le devis est établi sur la base du volume, du poids, des accès et des "
@@ -1089,6 +1270,12 @@ export function rendreDetail(a: Analyse, sections: SectionRedigee[]): string {
   if (a.contraintes.length) {
     lignes.push("", `Conditions d'accès relevées : ${a.contraintes.join(", ")}.`);
   }
+  // Éléments RELEVÉS, séparés des prestations et des conditions d'accès. Ils
+  // informent le client ; ils n'engagent rien. Les réserves disent, le cas
+  // échéant, que le traitement correspondant n'est pas compris.
+  if (a.observations.length) {
+    lignes.push("", `Éléments relevés lors de la découverte : ${a.observations.join(", ")}.`);
+  }
   if (a.contexte) {
     lignes.push("", `Informations complémentaires communiquées : ${a.contexte}`);
   }
@@ -1108,7 +1295,55 @@ export function rediger(a: Analyse): ContenuDevis {
     famille: a.famille ?? a.titreBase,
     sources: [...new Set(a.sources)],
     manquant: [...new Set(a.manquant)],
+    etats: a.etats,
   };
+}
+
+/**
+ * CONTRÔLE INDÉPENDANT du devis produit (anomalie B5).
+ *
+ * Confronte le devis aux ÉTATS issus de la découverte, et non à l'analyse.
+ * Deux passes volontairement redondantes :
+ *
+ *   — structurelle, sur les titres de sections : exacte, elle détecte aussi
+ *     la PERTE d'une prestation validée ;
+ *   — textuelle, sur le descriptif et le titre : plus grossière, mais elle
+ *     survit à une modification manuelle, à un enrichissement et à une
+ *     régénération, là où les sections typées ont disparu.
+ *
+ * À appeler après TOUTE transformation du contenu — c'est ce qui empêche
+ * qu'une réécriture contourne une exclusion.
+ */
+export function controlerDevis(c: ContenuDevis): Conformite {
+  const structurel = controlerConformite(c.etats, c.sections.map((x) => x.titre));
+  // ⚠️ LES RÉSERVES SONT HORS PÉRIMÈTRE, et ce n'est pas une faiblesse :
+  // c'est leur rôle de NOMMER les exclusions (« le lessivage des murs n'est
+  // pas compris »). Les y inclure signalait chaque exclusion correctement
+  // énoncée comme sa propre violation — huit faux positifs à la recette.
+  // Seuls le titre et le descriptif PROMETTENT quelque chose au client.
+  const textuel = controlerTexteConforme(
+    c.etats, `${c.designation}
+${c.detail}`);
+  const vues = new Set(structurel.violations.map((v) => `${v.genre}:${v.theme}`));
+  const violations = [
+    ...structurel.violations,
+    ...textuel.violations.filter((v: Violation) => !vues.has(`${v.genre}:${v.theme}`)),
+  ];
+  return { ok: violations.length === 0, violations };
+}
+
+/**
+ * Même contrôle sur un TEXTE libre — après édition manuelle dans l'éditeur.
+ *
+ * Le commercial a le droit de réécrire ; il n'a pas le droit de promettre ce
+ * que le client a refusé. Seules les exclusions sont donc vérifiées ici : une
+ * reformulation ne doit pas être signalée parce qu'elle a changé un mot.
+ */
+export function controlerTexteDevis(
+  etats: Partial<Record<Theme, EtatPrestation>>,
+  texte: string,
+): Conformite {
+  return controlerTexteConforme(etats, texte);
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -1185,8 +1420,17 @@ export function verifierRedaction(c: ContenuDevis): { ok: boolean; alertes: stri
   const alertes = INTERDITS.filter((i) => i.motif.test(texte)).map((i) => i.raison);
 
   // Interdictions 11 à 15 : aucune prestation complémentaire ne doit
-  // apparaître si elle n'a pas été validée. Le contrôle est structurel —
-  // il compare les sections rédigées aux thèmes que l'analyse a retenus.
+  // apparaître si elle n'a pas été validée.
+  //
+  // ⚠️ LE CONTRÔLE NE PASSE PLUS PAR L'ANALYSE. Il confronte le devis aux
+  // ÉTATS de la découverte (`controlerDevis`), seule source indépendante du
+  // moteur. L'ancien contrôle comparait les sections aux thèmes que le
+  // moteur venait de retenir : il ne pouvait pas détecter un thème admis à
+  // tort, et c'est ainsi qu'un « Traitement des nuisibles » non validé est
+  // sorti sur le devis Diogène de l'audit.
+  const conformite = controlerDevis(c);
+  for (const v of conformite.violations) alertes.push(v.message);
+
   return { ok: alertes.length === 0, alertes };
 }
 

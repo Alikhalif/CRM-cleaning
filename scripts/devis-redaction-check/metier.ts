@@ -276,7 +276,11 @@ const t9: Decouverte = {
     typeNettoyage: "approfondi", typeBienNet: "appartement",
     nbSdb: 1,
     desodorisationOrigine: "incendie",
-    complements: ["desodorisation"],
+    // B3 (2026-11-06) : `dioNuisibles` est une OBSERVATION. Depuis la
+    // correction, seule la validation explicite ouvre la section — d'où
+    // « nuisibles » ajouté aux compléments. Le test continue de vérifier
+    // que la prestation VALIDÉE sort, et que les rongeurs y sont nommés.
+    complements: ["desodorisation", "nuisibles"],
     dioNuisibles: "oui", dioNuisiblesTypes: ["dio_rongeurs"],
   },
   contexteIntervention: "Traces de fumée relevées dans le séjour.",

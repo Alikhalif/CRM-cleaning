@@ -143,6 +143,11 @@ export default function QuoteEditor({
   );
   const [picker, setPicker] = useState("");
   const [submitting, setSubmitting] = useState<CreateDevisIntent | "preview" | null>(null);
+  // Visualisation (§6 du cahier du 2026-11-06). `apercuId` est l'identifiant du
+  // brouillon enregistré dont on montre le PDF ; `apercuCle` force le
+  // rechargement de l'iframe après « Actualiser », sans remonter le composant.
+  const [apercuId, setApercuId] = useState<string | null>(null);
+  const [apercuCle, setApercuCle] = useState(0);
   const [serverError, setServerError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
@@ -374,18 +379,93 @@ export default function QuoteEditor({
         setSubmitting(null);
         return;
       }
-      // Open the rendered PDF in a new tab and route the user to the
-      // saved draft so they can keep editing or send it.
-      window.open(`/api/documents/${result.id}/preview-pdf`, "_blank", "noopener,noreferrer");
-      router.push(`/devis/${result.id}`);
+      // ── POURQUOI UNE MODALE, ET PLUS UN ONGLET + REDIRECTION ──────
+      //
+      // L'aperçu ouvrait le PDF dans un onglet puis faisait `router.push`
+      // vers la fiche du devis : le commercial perdait son écran de
+      // rédaction et devait y revenir à la main. Le §6 demande une
+      // visualisation dont on « retourne à la rédaction » — donc sans
+      // quitter l'éditeur.
+      //
+      // Le PDF affiché est celui de `/api/documents/[id]/preview-pdf`,
+      // c'est-à-dire EXACTEMENT le document final : aucun moteur de rendu
+      // n'est dupliqué, et la modale ne peut rien envoyer.
+      setApercuId(result.id);
+      setApercuCle((n) => n + 1);
+      setSubmitting(null);
+      // Le brouillon vient d'être créé : les enregistrements suivants doivent
+      // le mettre à jour, pas en créer un second.
+      if (!brouillonId) router.replace(`/devis/new?brouillon=${result.id}`, { scroll: false });
     });
   };
+
+  /** Réenregistre le brouillon et recharge le PDF affiché. */
+  const actualiserApercu = () => preview();
 
   const selectedClient = clients.find((c) => c.id === draft.clientId);
   const selectedEntity = entities.find((e) => e.id === draft.entityId);
 
+  const apercu = apercuId ? (
+    <div
+      className={styles.apercuFond}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Visualisation du devis"
+      onClick={(e) => { if (e.target === e.currentTarget) setApercuId(null); }}
+    >
+      <div className={styles.apercuPanneau}>
+        <div className={styles.apercuBarre}>
+          <h2 className={styles.apercuTitre}>
+            Visualisation — le devis tel que le client le recevra
+          </h2>
+          <button
+            type="button"
+            className={styles.btnGhost}
+            disabled={submitting !== null}
+            onClick={actualiserApercu}
+            title="Réenregistrer le brouillon et recharger le document"
+          >
+            {submitting === "preview" ? "Actualisation…" : "Actualiser"}
+          </button>
+          <a
+            className={styles.btnGhost}
+            href={`/api/documents/${apercuId}/preview-pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Icon name="external-link" size={16} />
+            Ouvrir dans un onglet
+          </a>
+          <button
+            type="button"
+            className={styles.btnSecondary}
+            onClick={() => setApercuId(null)}
+          >
+            Retour à la rédaction
+          </button>
+        </div>
+        {/* Le MÊME rendu que le document final : la route d'aperçu est celle
+            qu'utilise la fiche du devis. Rien n'est réimplémenté ici, donc la
+            visualisation ne peut pas diverger du PDF émis. */}
+        <iframe
+          key={apercuCle}
+          className={styles.apercuCadre}
+          src={`/api/documents/${apercuId}/preview-pdf#toolbar=1`}
+          title="Devis en prévisualisation"
+        />
+        <p className={styles.apercuPied}>
+          Le brouillon a été enregistré pour produire ce document. <strong>Aucun envoi
+          n&apos;a été déclenché</strong> : le devis part depuis sa fiche, après votre
+          validation. Fermez cette fenêtre pour reprendre la rédaction — vos
+          modifications sont conservées.
+        </p>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className={styles.page}>
+      {apercu}
       <nav className={styles.breadcrumb} aria-label="Fil d'Ariane">
         <Link href="/comptabilite?tab=devis" className={styles.breadcrumbLink}>
           Comptabilité
@@ -751,8 +831,10 @@ export default function QuoteEditor({
                 className={styles.btnSecondary}
                 disabled={submitting !== null}
                 onClick={preview}
+                title="Voir le devis tel que le client le recevra"
               >
-                Aperçu PDF
+                <Icon name="eye" size={16} />
+                {submitting === "preview" ? "Préparation…" : "Visualisation"}
               </button>
               {/* Pas d'envoi depuis ce mode : le devis part depuis sa fiche,
                   où le processus existe déjà (e-mail, signature, « marquer
