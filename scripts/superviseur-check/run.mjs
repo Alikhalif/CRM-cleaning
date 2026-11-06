@@ -34,6 +34,7 @@ const SUITES = [
   { fichier: "perimetre.ts", titre: "Périmètre fermé par défaut (Option A)" },
   { fichier: "taxonomie.ts", titre: "Deux familles, six branches — et découvertes intactes" },
   { fichier: "cloisonnement.ts", titre: "Cloisonnement, chaîne d'accès et journal d'audit" },
+  { fichier: "etats.ts", titre: "Machine à états commerciale (LOT 1 — un lead traité est un lead contacté)" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "superviseur-check-"));

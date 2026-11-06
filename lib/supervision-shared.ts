@@ -16,6 +16,8 @@ export const PERIODE_LABEL: Record<Periode, string> = {
 export const PERIODES: Periode[] = ["today", "yesterday", "7d", "30d", "mtd"];
 
 // Un fait par dossier, déjà restreint au périmètre autorisé et à la période.
+import type { EtatLead } from "./supervision-etats";
+
 export type SupRow = {
   leadId: string;
   ownerId: string | null;
@@ -27,7 +29,31 @@ export type SupRow = {
   activityLabel: string;
   // Reçu dans la période.
   recu: boolean;
+  /**
+   * Le client a-t-il été réellement CONTACTÉ ?
+   *
+   * ⚠️ CE N'EST PLUS « quelqu'un a ouvert la fiche ». L'ancienne définition
+   * acceptait l'audit `lead.open` comme preuve de traitement : sur les 712
+   * leads de production, 650 étaient comptés traités, dont 601 sur ce seul
+   * critère. Règle arbitrée le 2026-11-06 : seul un appel où le client a été
+   * joint, ou une étape postérieure qui le prouve, vaut contact.
+   */
   traite: boolean;
+  /** État commercial résolu — onze valeurs, cf. lib/supervision-etats.ts. */
+  etat: EtatLead;
+  /** Appels DÉCLARÉS par le commercial. Jamais additionnés aux suivants. */
+  appelsDeclares: number;
+  /** Appels confirmés par la téléphonie. */
+  appelsRingover: number;
+  /**
+   * Délai jusqu'au premier AFFICHAGE de la fiche, en minutes.
+   *
+   * Conservé parce qu'il est le seul signal disponible sur la quasi-totalité
+   * des dossiers — mais nommé pour ce qu'il est : il ne prouve aucun contact.
+   * La réactivité commerciale, elle, est `delaiPriseEnChargeMin`, fondée sur
+   * le premier appel.
+   */
+  delaiPremiereOuvertureMin: number | null;
   decouverte: boolean;
   devisEnvoye: boolean;
   signe: boolean;

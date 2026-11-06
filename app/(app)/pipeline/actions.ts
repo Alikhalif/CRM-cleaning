@@ -430,6 +430,115 @@ export async function setLeadNrp(id: string, nrp: boolean): Promise<Result> {
   return { ok: true };
 }
 
+// ── Déclaration d'appel (D1 du 2026-11-06) ───────────────────────────
+//
+// ── POURQUOI CETTE ACTION EXISTE ────────────────────────────────────
+//
+// L'audit du module Superviseur a mesuré, sur les 712 leads de production :
+// DIX appels journalisés, ZÉRO lead marqué NRP. La ligne Ringover n'est pas
+// portée, et rien d'autre ne trace un appel. Résultat : « lead contacté » ne
+// pouvait pas être calculé honnêtement, et le cockpit comptait 650 leads
+// « traités » dont 601 sur la seule existence d'une tâche à faire.
+//
+// Cette action donne au commercial le geste qui manquait, en un clic.
+//
+// ⚠️ UNE DÉCLARATION N'EST PAS UNE PREUVE. Le client l'a écrit mot pour mot :
+// « un clic manuel constitue une déclaration du commercial ; il ne doit pas
+// être présenté comme une preuve d'appel téléphonique vérifiée ». D'où
+// `source: "declare"` dans la charge d'audit, et deux compteurs séparés
+// partout en aval. Le jour où Ringover remontera les appels, ils porteront
+// `source: "ringover"` et `dedoublonnerAppels()` arbitrera.
+//
+// ── POURQUOI DANS `audit_logs` ET PAS DANS UNE TABLE DÉDIÉE ─────────
+//
+// `audit_logs` est déjà append-only, déjà lu par le moteur d'actions
+// commerciales, déjà horodaté et déjà attribué à un utilisateur. Une table
+// d'appels demanderait une migration pour n'apporter que des colonnes qu'on y
+// a déjà. Le jour où le volume le justifiera, elle se construira à partir de
+// cet historique — rien n'est perdu.
+
+export type ResultatAppelDeclare =
+  | "joint" | "sans_reponse" | "rappel" | "injoignable";
+
+const LIBELLE_APPEL: Record<ResultatAppelDeclare, string> = {
+  joint: "Appel — client joint",
+  sans_reponse: "Appel — sans réponse",
+  rappel: "Appel — à rappeler",
+  injoignable: "Appel — numéro injoignable",
+};
+
+/**
+ * Enregistre la déclaration d'un appel par le commercial.
+ *
+ * Trois écritures, dans cet ordre :
+ *
+ *   1. `audit_logs` — le FAIT, horodaté et attribué. C'est lui que la machine
+ *      à états lit. Append-only : une déclaration ne s'efface pas.
+ *   2. `leads.last_action_*` — pour que la timeline et les listes reflètent
+ *      le geste, comme le font déjà le NRP et l'appel Ringover.
+ *   3. `leads.is_nrp` — SEULEMENT sur « injoignable », et jamais retiré ici.
+ *      Un numéro invalide est un fait durable ; un appel sans réponse n'en est
+ *      pas un, et basculer le drapeau NRP à chaque sonnerie dans le vide
+ *      viderait ce marqueur de son sens. Le bouton NRP existant reste le seul
+ *      à pouvoir le retirer.
+ */
+export async function declarerAppel(
+  leadId: string,
+  resultat: ResultatAppelDeclare,
+  note?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const supabase = await supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Non authentifié." };
+
+  if (!LIBELLE_APPEL[resultat]) {
+    return { ok: false, error: "Résultat d'appel inconnu." };
+  }
+
+  // La RLS décide si ce commercial a le droit de toucher ce lead : on ne
+  // réimplémente pas la tenancy ici, on la laisse refuser.
+  const { data: lead, error: eLead } = await supabase
+    .from("leads")
+    .select("id, is_nrp")
+    .eq("id", leadId)
+    .maybeSingle<{ id: string; is_nrp: boolean | null }>();
+  if (eLead || !lead) return { ok: false, error: "Dossier introuvable ou hors de votre périmètre." };
+
+  const maintenant = new Date().toISOString();
+  const texte = (note ?? "").trim().slice(0, 500);
+
+  // 1. Le fait. En premier : si la mise à jour du lead échoue, la trace reste.
+  await auditLog({
+    action: "lead.appel.declare",
+    entityType: "lead",
+    entityId: leadId,
+    after: {
+      resultat,
+      // ⚠️ Ne jamais retirer ce champ : c'est lui qui empêche de confondre
+      // une déclaration avec un appel confirmé par la téléphonie.
+      source: "declare",
+      note: texte || null,
+    },
+  });
+
+  const updates: LeadUpdate = {
+    last_action_label: LIBELLE_APPEL[resultat],
+    last_action_at: maintenant,
+  };
+  if (resultat === "injoignable" && !lead.is_nrp) {
+    updates.is_nrp = true;
+    updates.nrp_at = maintenant;
+  }
+
+  const { error } = await supabase.from("leads").update(updates as never).eq("id", leadId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/pipeline");
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${leadId}`);
+  return { ok: true };
+}
+
 // ── Découverte (call 2026-07-11) ─────────────────────────────────────
 // Records the discovery outcome + announced price. Ok / Ok voir + just mark
 // the discovery as done (last_action reflects which); Refus additionally sends

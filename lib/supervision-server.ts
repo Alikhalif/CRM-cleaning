@@ -10,6 +10,11 @@ import {
   type Perimetre,
 } from "./supervision-perimetre";
 import { getPerimetreSuperviseur, getUnivers } from "./supervision-perimetre-server";
+import {
+  compterAppels, dedoublonnerAppels, delaiPremierAppelMin, estContacte,
+  etatDuLead, type Appel, type FaitsLead, type ResultatAppel,
+  type SourceAppel,
+} from "./supervision-etats";
 export { PERIODE_LABEL, PERIODES, type Periode } from "./supervision-shared";
 
 // Centre de supervision commerciale. LECTURE SEULE, agrégée : le dirigeant doit
@@ -114,7 +119,8 @@ export async function getSupervisionData(periode: Periode): Promise<SupervisionD
   // explicitement — c'est lui qui fait la sécurité ici, pas la RLS.
   const sb = await supabaseServiceRole();
 
-  const [leadsRes, actsRes, usersRes, docsRes, optRes, auditRes, actionsRes] = await Promise.all([
+  const [leadsRes, actsRes, usersRes, docsRes, optRes, auditRes, actionsRes,
+    appelsRes] = await Promise.all([
     sb.from("leads")
       .select("id, short_id, owner_id, activity_id, country, status, received_at, discovery_done_at, last_action_at")
       .is("deleted_at", null)
@@ -134,6 +140,20 @@ export async function getSupervisionData(periode: Periode): Promise<SupervisionD
     sb.from("commercial_actions").select("lead_id, owner_id, due_at, snoozed_until, status")
       .neq("status", "terminee")
       .returns<{ lead_id: string; owner_id: string | null; due_at: string; snoozed_until: string | null; status: string }[]>(),
+    // ── Événements d'appel, en requête DÉDIÉE ────────────────────────
+    //
+    // Pas dans les 1 500 dernières entrées d'audit ci-dessus : ce flux-là est
+    // ordonné par date et sert au fil d'activité, donc un appel vieux de trois
+    // mois en sort. Pour la machine à états, un appel ancien compte autant
+    // qu'un appel récent — c'est lui qui dit si le client a été joint un jour.
+    sb.from("audit_logs")
+      .select("action, created_at, user_id, entity_id, after")
+      .in("action", ["lead.appel.declare", "lead.call.outbound", "lead.nrp.set"])
+      .order("created_at", { ascending: true })
+      .returns<{
+        action: string; created_at: string; user_id: string | null;
+        entity_id: string | null; after: Record<string, unknown> | null;
+      }[]>(),
   ]);
 
   const actById = new Map((actsRes.data ?? []).map((a) => [a.id, a]));
@@ -208,6 +228,45 @@ export async function getSupervisionData(periode: Periode): Promise<SupervisionD
     if (!premiereOuverture.has(a.entity_id)) premiereOuverture.set(a.entity_id, a.created_at);
   }
 
+  // ── Appels par dossier, source par source (D1 du 2026-11-06) ─────────
+  //
+  // ⚠️ DÉCLARÉ ET CONFIRMÉ NE SE MÉLANGENT PAS. Le client l'a exigé : « un
+  // clic manuel constitue une déclaration du commercial ; il ne doit pas être
+  // présenté comme une preuve d'appel vérifiée ». Les deux sources sont donc
+  // portées jusqu'à l'écran, et `dedoublonnerAppels()` arbitre le jour où un
+  // même appel arrive par les deux chemins.
+  const appelsParLead = new Map<string, Appel[]>();
+  for (const e of appelsRes.data ?? []) {
+    if (!e.entity_id) continue;
+    const apres = (e.after ?? {}) as Record<string, unknown>;
+    let resultat: ResultatAppel | null = null;
+    let source: SourceAppel = "declare";
+
+    if (e.action === "lead.appel.declare") {
+      const r = String(apres.resultat ?? "");
+      if (r === "joint" || r === "sans_reponse" || r === "rappel" || r === "injoignable") {
+        resultat = r;
+      }
+      source = apres.source === "ringover" ? "ringover" : "declare";
+    } else if (e.action === "lead.call.outbound") {
+      // Appel lancé depuis le webphone. ⚠️ `fake: true` = appel SIMULÉ en
+      // développement : il ne doit jamais compter comme un appel réel.
+      if (apres.fake === true) continue;
+      // Un appel lancé n'est pas un appel abouti : le webphone ne sait pas si
+      // le client a décroché. On enregistre donc une tentative, pas un contact.
+      resultat = "rappel";
+      source = "ringover";
+    } else if (e.action === "lead.nrp.set" && apres.nrp === true) {
+      resultat = "sans_reponse";
+      source = "declare";
+    }
+
+    if (!resultat) continue;
+    const liste = appelsParLead.get(e.entity_id) ?? [];
+    liste.push({ le: e.created_at, resultat, source, parQui: e.user_id });
+    appelsParLead.set(e.entity_id, liste);
+  }
+
   // ── Retards par dossier ──────────────────────────────────────────────
   const maintenant = Date.now();
   const retardsParLead = new Map<string, number>();
@@ -220,12 +279,45 @@ export async function getSupervisionData(periode: Periode): Promise<SupervisionD
   // ── Un fait par dossier ──────────────────────────────────────────────
   const rows: SupRow[] = tousLeads.map((l) => {
     const ouvert = premiereOuverture.get(l.id);
-    // « Traité » = le dossier a bougé au-delà de son arrivée. Trois preuves
-    // possibles, toutes vérifiables.
-    const traite = l.status !== "lead" || Boolean(l.discovery_done_at) || Boolean(ouvert);
-    const delai = ouvert
-      ? Math.max(0, Math.round((new Date(ouvert).getTime() - new Date(l.received_at).getTime()) / 60000))
-      : null;
+
+    // ⚠️ « TRAITÉ » NE VEUT PLUS DIRE « QUELQU'UN A OUVERT LA FICHE ».
+    //
+    // L'ancienne définition était :
+    //
+    //   traite = status !== "lead" || discovery_done_at || premiereOuverture
+    //
+    // où `premiereOuverture` vient de l'audit `lead.open` — c'est-à-dire du
+    // simple fait d'AFFICHER le dossier. Mesuré sur les 712 leads de
+    // production : 650 comptés « traités », dont 601 sur ce seul critère. Le
+    // cockpit annonçait 62 leads en attente quand 663 n'avaient jamais
+    // dépassé le statut « lead ».
+    //
+    // Ouvrir une fiche n'est pas appeler un client. La définition vit
+    // désormais dans `lib/supervision-etats.ts`, elle est pure, testée, et
+    // elle exige un ÉVÉNEMENT : un appel où le client a été joint, ou une
+    // étape postérieure qui le prouve.
+    const appels = dedoublonnerAppels(appelsParLead.get(l.id) ?? []);
+    const faits: FaitsLead = {
+      ownerId: l.owner_id,
+      statut: l.status,
+      decouverteLe: l.discovery_done_at,
+      appels,
+      devisEnvoye: aUnDevisEnvoye.has(l.id),
+      devisOuvert: l.status === "ouvert",
+      devisSigne: l.status === "signe" || l.status === "encaisse",
+      isNrp: false,
+      motifPerte: null,
+    };
+    const etat = etatDuLead(faits);
+    const traite = estContacte(faits);
+
+    // Réactivité : délai jusqu'au PREMIER APPEL, pas jusqu'au premier
+    // affichage de la fiche. `null` quand aucun appel n'est journalisé — et
+    // c'est aujourd'hui le cas général : la production ne porte que dix
+    // appels tracés. Un zéro ou une moyenne masquerait exactement ce que le
+    // superviseur doit voir.
+    const delai = delaiPremierAppelMin(faits, l.received_at);
+    const compte = compterAppels(appels);
     const act = l.activity_id ? actById.get(l.activity_id) : null;
     const pays = l.country ?? null;
     return {
@@ -239,6 +331,16 @@ export async function getSupervisionData(periode: Periode): Promise<SupervisionD
       activityLabel: act?.label ?? "—",
       recu: dansPeriode(l.received_at),
       traite,
+      etat,
+      appelsDeclares: compte.declares,
+      appelsRingover: compte.ringover,
+      // Délai jusqu'au premier AFFICHAGE de la fiche. Conservé parce qu'il est
+      // le seul signal disponible sur la quasi-totalité des dossiers, mais
+      // nommé pour ce qu'il est : il ne prouve aucun contact.
+      delaiPremiereOuvertureMin: ouvert
+        ? Math.max(0, Math.round(
+            (new Date(ouvert).getTime() - new Date(l.received_at).getTime()) / 60000))
+        : null,
       decouverte: dansPeriode(l.discovery_done_at),
       devisEnvoye: envoyeDansPeriode.has(l.id),
       signe: signeDansPeriode.has(l.id),

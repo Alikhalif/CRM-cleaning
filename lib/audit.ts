@@ -29,6 +29,17 @@ type AuditLogInsert = Database["public"]["Tables"]["audit_logs"]["Insert"];
 //   lead.sub_envoi.set      — Mano / Auto sub-status set
 //   lead.sub_signature.set  — Sans / Avec acompte set
 //   lead.nrp.set            — NRP flag toggled
+//   lead.appel.declare      — appel DÉCLARÉ par le commercial (D1 du
+//                             2026-11-06). `after.resultat` vaut joint |
+//                             sans_reponse | rappel | injoignable, et
+//                             `after.source` vaut "declare". ⚠️ NE JAMAIS
+//                             retirer `source` : c'est lui qui distingue une
+//                             déclaration d'un appel confirmé par la
+//                             téléphonie. Lu par la machine à états
+//                             (lib/supervision-etats.ts), qui s'en sert pour
+//                             décider si un lead a été réellement contacté.
+//                             Le jour où Ringover remontera les appels, ils
+//                             porteront `source: "ringover"`.
 //   lead.lost               — manually marked perdu
 //   lead.reassign           — owner_id changed
 //   lead.contact.update     — coordonnées edited

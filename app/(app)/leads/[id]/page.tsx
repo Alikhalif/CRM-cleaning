@@ -26,6 +26,7 @@ import { leadTemplateVars, renderTemplate } from "@/lib/message-templates-shared
 import MediaTab from "./MediaTab";
 import ConfirmationsCard from "./ConfirmationsCard";
 import CallNotesCard from "./CallNotesCard";
+import DeclarerAppelCard from "./DeclarerAppelCard";
 import DiscoveryCard from "./DiscoveryCard";
 import { getGridBySlug } from "@/lib/pricing/grid-server";
 import FollowupCard from "./FollowupCard";
@@ -522,6 +523,12 @@ export default async function LeadDetailPage({ params, searchParams }: PageProps
 
           <aside className={styles.aside}>
             {nextAction && <NextActionCard action={nextAction} />}
+            {/* D1 (2026-11-06) — AVANT les notes d'appel, et c'est voulu : le
+                geste qui compte pour la supervision est la déclaration du
+                résultat, pas la prise de notes. Sans elle, « lead contacté »
+                ne peut pas être calculé : la production ne portait que dix
+                appels journalisés sur 712 leads. */}
+            <DeclarerAppelCard leadId={lead.id} />
             <CallNotesCard
               leadId={lead.id}
               initialNotes={lead.notes ?? ""}
