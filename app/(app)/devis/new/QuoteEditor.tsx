@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
+import ApercuDocument from "@/components/ApercuDocument/ApercuDocument";
 import {
   DEFAULT_ACOMPTE_PCT,
   DEFAULT_PAYMENT_TERM,
@@ -67,6 +68,15 @@ type Props = {
    * sans consommer un deuxième numéro.
    */
   brouillonId: string | null;
+  /**
+   * Rédaction produite à l'OUVERTURE, quand on arrive depuis un dossier et
+   * qu'aucun document n'est repris.
+   *
+   * Elle vient du même module partagé que les deux autres parcours de
+   * création : le même dossier doit produire le même texte quel que soit le
+   * bouton employé.
+   */
+  redaction?: RedactionOuverture | null;
 };
 
 function today(): string {
@@ -83,12 +93,20 @@ function makeLineId(): string {
   return `dl_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/** Rédaction produite à l'ouverture, quand on arrive depuis un dossier. */
+export type RedactionOuverture = {
+  designation: string;
+  notes: string;
+  signalements: string[];
+};
+
 function buildInitialDraft(
   clients: ClientOption[],
   entities: EntityOption[],
   leadContext: LeadContext | null,
   preselectedClientId: string | null,
   prefill: DevisPrefill | null,
+  redaction: RedactionOuverture | null,
 ): Draft {
   // Resolve a client id from the prefill source, the explicit ?client= param,
   // or by following the lead's source_lead_id → matching client (lead-origin
@@ -111,17 +129,36 @@ function buildInitialDraft(
     validUntil: plusDays(issuedAt, 30),
     paymentTermSlug: sector ? DEFAULT_PAYMENT_TERM[sector] : "30j",
     acomptePct: prefill ? prefill.acomptePct : sector ? DEFAULT_ACOMPTE_PCT[sector] : 0,
-    notes: prefill?.notes ?? "",
-    lines: (prefill?.lines ?? []).map((l) => ({
-      id: makeLineId(),
-      prestationId: l.prestationId,
-      label: l.label,
-      quantity: l.quantity,
-      unit: l.unit,
-      unitPriceHt: l.unitPriceHt,
-      vatRate: l.vatRate,
-      discountPct: l.discountPct,
-    })),
+    // La reprise d'un document l'emporte TOUJOURS sur la rédaction
+    // d'ouverture : son texte existe déjà, et l'écraser perdrait du travail.
+    notes: prefill?.notes ?? redaction?.notes ?? "",
+    lines: prefill
+      ? prefill.lines.map((l) => ({
+        id: makeLineId(),
+        prestationId: l.prestationId,
+        label: l.label,
+        quantity: l.quantity,
+        unit: l.unit,
+        unitPriceHt: l.unitPriceHt,
+        vatRate: l.vatRate,
+        discountPct: l.discountPct,
+      }))
+      // La désignation du moteur devient le libellé de la première ligne :
+      // c'est la convention de l'autre parcours, et le devis doit porter le
+      // même titre quel que soit le bouton employé. Le prix reste à 0 — le
+      // texte ne porte jamais de montant, et le chiffrage est un autre geste.
+      : redaction
+        ? [{
+          id: makeLineId(),
+          prestationId: undefined,
+          label: redaction.designation,
+          quantity: 1,
+          unit: "forfait",
+          unitPriceHt: 0,
+          vatRate: 20,
+          discountPct: 0,
+        }]
+        : [],
   };
 }
 
@@ -133,21 +170,25 @@ export default function QuoteEditor({
   preselectedClientId,
   prefill,
   brouillonId,
+  redaction = null,
 }: Props) {
   const router = useRouter();
   // Mode « modification d'un brouillon » : même formulaire, écriture en place.
   const modeModification = brouillonId !== null;
 
   const [draft, setDraft] = useState<Draft>(() =>
-    buildInitialDraft(clients, entities, leadContext, preselectedClientId, prefill),
+    buildInitialDraft(clients, entities, leadContext, preselectedClientId, prefill, redaction),
   );
   const [picker, setPicker] = useState("");
   const [submitting, setSubmitting] = useState<CreateDevisIntent | "preview" | null>(null);
-  // Visualisation (§6 du cahier du 2026-11-06). `apercuId` est l'identifiant du
-  // brouillon enregistré dont on montre le PDF ; `apercuCle` force le
-  // rechargement de l'iframe après « Actualiser », sans remonter le composant.
+  // Visualisation (§6 du cahier du 2026-11-06). `apercuId` est l'identifiant
+  // du brouillon enregistré dont on montre le PDF. Le rechargement de
+  // l'iframe après « Actualiser » est géré par la fenêtre partagée.
   const [apercuId, setApercuId] = useState<string | null>(null);
-  const [apercuCle, setApercuCle] = useState(0);
+  // Fonctions de rédaction assistée employées depuis le dernier
+  // enregistrement (historique M1). Remises à zéro à chaque enregistrement :
+  // elles qualifient UNE version, pas toute la session.
+  const [reglesAssistees, setReglesAssistees] = useState<string[]>([]);
   const [serverError, setServerError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
@@ -309,7 +350,7 @@ export default function QuoteEditor({
       // proposée dans ce mode : l'envoi se fait depuis la fiche du document,
       // où il vit déjà, pour ne pas dupliquer ce processus.
       const result = brouillonId
-        ? await updateDevisBrouillon(brouillonId, payload)
+        ? await updateDevisBrouillon(brouillonId, payload, reglesAssistees)
         : await createDevis(payload, intent);
       if (!result.ok) {
         setServerError(result.error);
@@ -372,7 +413,7 @@ export default function QuoteEditor({
       // Même règle qu'à l'enregistrement : en modification on met à jour le
       // brouillon existant, sans en créer un second pour voir un aperçu.
       const result = brouillonId
-        ? await updateDevisBrouillon(brouillonId, payload)
+        ? await updateDevisBrouillon(brouillonId, payload, reglesAssistees)
         : await createDevis(payload, "draft");
       if (!result.ok) {
         setServerError(result.error);
@@ -391,7 +432,9 @@ export default function QuoteEditor({
       // c'est-à-dire EXACTEMENT le document final : aucun moteur de rendu
       // n'est dupliqué, et la modale ne peut rien envoyer.
       setApercuId(result.id);
-      setApercuCle((n) => n + 1);
+      // Les fonctions assistées qualifient LA version qu'on vient
+      // d'enregistrer : la suivante repart d'une page blanche.
+      setReglesAssistees([]);
       setSubmitting(null);
       // Le brouillon vient d'être créé : les enregistrements suivants doivent
       // le mettre à jour, pas en créer un second.
@@ -405,63 +448,30 @@ export default function QuoteEditor({
   const selectedClient = clients.find((c) => c.id === draft.clientId);
   const selectedEntity = entities.find((e) => e.id === draft.entityId);
 
-  const apercu = apercuId ? (
-    <div
-      className={styles.apercuFond}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Visualisation du devis"
-      onClick={(e) => { if (e.target === e.currentTarget) setApercuId(null); }}
-    >
-      <div className={styles.apercuPanneau}>
-        <div className={styles.apercuBarre}>
-          <h2 className={styles.apercuTitre}>
-            Visualisation — le devis tel que le client le recevra
-          </h2>
-          <button
-            type="button"
-            className={styles.btnGhost}
-            disabled={submitting !== null}
-            onClick={actualiserApercu}
-            title="Réenregistrer le brouillon et recharger le document"
-          >
-            {submitting === "preview" ? "Actualisation…" : "Actualiser"}
-          </button>
-          <a
-            className={styles.btnGhost}
-            href={`/api/documents/${apercuId}/preview-pdf`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Icon name="external-link" size={16} />
-            Ouvrir dans un onglet
-          </a>
-          <button
-            type="button"
-            className={styles.btnSecondary}
-            onClick={() => setApercuId(null)}
-          >
-            Retour à la rédaction
-          </button>
-        </div>
-        {/* Le MÊME rendu que le document final : la route d'aperçu est celle
-            qu'utilise la fiche du devis. Rien n'est réimplémenté ici, donc la
-            visualisation ne peut pas diverger du PDF émis. */}
-        <iframe
-          key={apercuCle}
-          className={styles.apercuCadre}
-          src={`/api/documents/${apercuId}/preview-pdf#toolbar=1`}
-          title="Devis en prévisualisation"
-        />
-        <p className={styles.apercuPied}>
+  // ⚠️ LA FENÊTRE EST PARTAGÉE (Lot E). Elle vivait ici, et ici seulement :
+  // la fiche du devis et la comptabilité ouvraient le PDF dans un ONGLET, et
+  // on perdait son écran. La recopier aurait produit trois comportements qui
+  // divergent au premier correctif — ce que le Lot B a supprimé côté rendu.
+  //
+  // `apercuCle` ne sert plus : le composant gère lui-même le rechargement de
+  // son iframe à l'actualisation.
+  const apercu = (
+    <ApercuDocument
+      documentId={apercuId}
+      onFermer={() => setApercuId(null)}
+      onActualiser={actualiserApercu}
+      actualisation={submitting === "preview"}
+      libelleRetour="Retour à la rédaction"
+      pied={
+        <>
           Le brouillon a été enregistré pour produire ce document. <strong>Aucun envoi
           n&apos;a été déclenché</strong> : le devis part depuis sa fiche, après votre
           validation. Fermez cette fenêtre pour reprendre la rédaction — vos
           modifications sont conservées.
-        </p>
-      </div>
-    </div>
-  ) : null;
+        </>
+      }
+    />
+  );
 
   return (
     <div className={styles.page}>
@@ -749,7 +759,12 @@ export default function QuoteEditor({
           </section>
 
           {/* ── Rédaction assistée (§17) ──────────────────────────────── */}
+          {/* `onAssistance` nourrit l'historique M1 : il nomme la fonction
+              employée, sans quoi une reprise assistée serait enregistrée
+              comme une réécriture manuelle. */}
           <RedactionAssistee
+            onAssistance={(quoi) =>
+              setReglesAssistees((r) => (r.includes(quoi) ? r : [...r, quoi]))}
             brouillonId={brouillonId}
             notes={draft.notes}
             titre={draft.lines[0]?.label ?? ""}
@@ -805,6 +820,15 @@ export default function QuoteEditor({
               <p className={styles.contextHint}>
                 Pour <strong>{selectedClient.name}</strong> · {selectedEntity.legalName}
               </p>
+            )}
+
+            {/* Ce qui a manqué au moteur, là où le commercial peut le
+                corriger. Sans cet encart, l'information reste côté serveur et
+                n'atteint jamais la personne qui tient le dossier. */}
+            {(redaction?.signalements.length ?? 0) > 0 && (
+              <ul className={styles.signalements}>
+                {redaction?.signalements.map((m) => <li key={m}>{m}</li>)}
+              </ul>
             )}
 
             {serverError && (

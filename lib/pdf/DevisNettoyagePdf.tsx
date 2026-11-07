@@ -2,7 +2,8 @@
 import path from "node:path";
 import { Document, Page, View, Text, Svg, Path, Circle, Font, StyleSheet } from "@react-pdf/renderer";
 import type { DocumentDetail } from "@/lib/documents-shared";
-import { formatEUR } from "@/lib/leads";
+import { euroPdf } from "./montant";
+import { estIntertitre } from "@/lib/devis/debordement";
 
 // Police cursive (slogan + « Bon pour accord »). Fichier embarqué dans public/.
 Font.register({ family: "GreatVibes", src: path.join(process.cwd(), "public/fonts/GreatVibes-Regular.ttf") });
@@ -50,7 +51,13 @@ const S = StyleSheet.create({
   // Objet
   sectionTitle: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 18, marginBottom: 6 },
   sectionTitleText: { fontSize: 11, fontWeight: 700, color: GREEN, letterSpacing: 0.5 },
-  objetText: { fontSize: 9, color: INK, lineHeight: 1.5 },
+  objetText: { fontSize: 9, color: INK, lineHeight: 1.5, marginBottom: 4 },
+  // Intertitres du moteur — « PRESTATION », « RÉSERVES », « 1. … ». Ils
+  // structurent un texte de quarante à soixante lignes : sans eux, le
+  // descriptif se lit comme un pavé.
+  objetTitre: {
+    fontSize: 9.5, fontWeight: 700, color: GREEN, marginTop: 8, marginBottom: 3,
+  },
   infoBox: { marginTop: 12, flexDirection: "row", gap: 16, backgroundColor: CREAM, borderRadius: 8, padding: 11 },
   infoItem: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
   infoLabel: { fontSize: 8, color: MUT, fontWeight: 700 },
@@ -108,6 +115,15 @@ type Props = { detail: DocumentDetail };
 
 export default function DevisNettoyagePdf({ detail }: Props) {
   const { doc, entity, lead } = detail;
+
+  // Le descriptif du moteur, découpé en paragraphes pour que ses intertitres
+  // ressortent. Un document sans notes rend un tableau vide, et le repli
+  // générique s'affiche.
+  const blocs = (doc.notes ?? "")
+    .split(/\n\s*\n/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((texte) => ({ texte, titre: estIntertitre(texte) }));
   const brand = entity.legalName.replace(/\s+(SAS|SARL|EURL|SASU|EI|SCI)$/i, "").toUpperCase();
   const validUntil = new Date(doc.issuedAt);
   validUntil.setDate(validUntil.getDate() + 30);
@@ -184,10 +200,26 @@ export default function DevisNettoyagePdf({ detail }: Props) {
           <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: GREEN }} />
           <Text style={S.sectionTitleText}>OBJET DE LA PRESTATION</Text>
         </View>
-        <Text style={S.objetText}>
-          Réalisation d'une prestation de nettoyage conforme à votre demande. L'intervention sera effectuée
-          avec des agents qualifiés, du matériel professionnel et des produits adaptés pour garantir un résultat optimal.
-        </Text>
+        {/* ⚠️ CE BLOC IMPRIMAIT UN PARAGRAPHE GÉNÉRIQUE ÉCRIT EN DUR, alors
+            que le moteur de rédaction produit le descriptif contractuel
+            complet. Le devis partait donc au client SANS AUCUNE RÉSERVE :
+            ni la clause de réévaluation, ni les exclusions, ni la mention
+            des produits.
+
+            Le repli générique est conservé pour un document saisi à la main
+            sans descriptif : mieux vaut une phrase vraie qu'un vide. */}
+        {blocs.length > 0 ? (
+          blocs.map((b, i) => (
+            <Text key={i} style={b.titre ? S.objetTitre : S.objetText}>
+              {b.texte}
+            </Text>
+          ))
+        ) : (
+          <Text style={S.objetText}>
+            Réalisation d&apos;une prestation de nettoyage conforme à votre demande. L&apos;intervention sera effectuée
+            avec des agents qualifiés, du matériel professionnel et des produits adaptés pour garantir un résultat optimal.
+          </Text>
+        )}
 
         <View style={S.infoBox}>
           <View style={S.infoItem}>
@@ -214,7 +246,7 @@ export default function DevisNettoyagePdf({ detail }: Props) {
             <View key={l.id} style={S.row}>
               <Text style={S.cDesc}>{l.label}</Text>
               <Text style={S.cQty}>{formatQty(l.quantity)} {l.unit}</Text>
-              <Text style={S.cAmt}>{formatEUR(l.totalHt)}</Text>
+              <Text style={S.cAmt}>{euroPdf(l.totalHt)}</Text>
             </View>
           ))}
         </View>
@@ -223,13 +255,13 @@ export default function DevisNettoyagePdf({ detail }: Props) {
         {/* Totals */}
         <View style={S.totalsRow}>
           <View style={S.totalsBox}>
-            <View style={S.tLine}><Text style={S.tLabel}>Total HT</Text><Text>{formatEUR(doc.totalHt)}</Text></View>
-            {!franchise && <View style={S.tLine}><Text style={S.tLabel}>TVA</Text><Text>{formatEUR(totalTva)}</Text></View>}
-            <View style={S.ttc}><Text>{franchise ? "Total à régler" : "Total TTC"}</Text><Text>{formatEUR(doc.totalTtc)}</Text></View>
+            <View style={S.tLine}><Text style={S.tLabel}>Total HT</Text><Text>{euroPdf(doc.totalHt)}</Text></View>
+            {!franchise && <View style={S.tLine}><Text style={S.tLabel}>TVA</Text><Text>{euroPdf(totalTva)}</Text></View>}
+            <View style={S.ttc}><Text>{franchise ? "Total à régler" : "Total TTC"}</Text><Text>{euroPdf(doc.totalTtc)}</Text></View>
             {doc.acomptePct && doc.acompteAmount ? (
               <>
-                <View style={S.acompte}><Text>Acompte à la commande ({doc.acomptePct} %)</Text><Text>{formatEUR(doc.acompteAmount)}</Text></View>
-                <View style={S.tLine}><Text style={S.tLabel}>Solde à la réalisation</Text><Text>{formatEUR(doc.totalTtc - doc.acompteAmount)}</Text></View>
+                <View style={S.acompte}><Text>Acompte à la commande ({doc.acomptePct} %)</Text><Text>{euroPdf(doc.acompteAmount)}</Text></View>
+                <View style={S.tLine}><Text style={S.tLabel}>Solde à la réalisation</Text><Text>{euroPdf(doc.totalTtc - doc.acompteAmount)}</Text></View>
               </>
             ) : null}
           </View>

@@ -5,6 +5,7 @@ import { auditLog } from "@/lib/audit";
 import { sendBrevoEmail } from "@/lib/brevo";
 import { getDocumentById } from "@/lib/documents-server";
 import { planifierRendu, rendreDocument } from "@/lib/devis/rendu-document-server";
+import { enregistrerVersion } from "@/lib/devis/versions-server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 import type { Database } from "@/lib/supabase/database.types";
@@ -51,6 +52,16 @@ export async function markDocumentSent(id: string): Promise<Result> {
     .eq("id", id)
     .eq("status", "brouillon"); // belt-and-braces: only transition from brouillon
   if (error) return { ok: false, error: error.message };
+
+  // M1 — « Marquer envoyé » déclare au CRM qu'un devis est parti chez le
+  // client : c'est une émission, et la version qui engage est celle-là.
+  await enregistrerVersion({
+    documentId: id,
+    designation: detail.doc.lines[0]?.label ?? "",
+    notes: detail.doc.notes ?? "",
+    origine: "emission",
+    note: "marqué envoyé à la main",
+  });
   revalidatePath("/comptabilite");
   revalidatePath(`/devis/${id}`);
   await auditLog({ action: "document.mark_sent", entityType: "document", entityId: id });
@@ -627,6 +638,18 @@ ${escapeHtml(input.message).replace(/\n/g, "<br>")}
     .from("documents")
     .update(updates as never)
     .eq("id", id);
+
+  // M1 — LA VERSION QUI ENGAGE. Le document vient de partir : ce texte-là
+  // est celui que le client a reçu, et c'est lui qu'il faudra produire en
+  // cas de contestation. Enregistré APRÈS l'envoi réussi, jamais avant :
+  // une version d'émission sur un envoi qui a échoué serait un faux.
+  await enregistrerVersion({
+    documentId: id,
+    designation: detail.doc.lines[0]?.label ?? "",
+    notes: detail.doc.notes ?? "",
+    origine: "emission",
+    note: `envoyé à ${input.recipient.trim()}`,
+  });
 
   revalidatePath("/comptabilite");
   revalidatePath(`/${detail.doc.type === "devis" ? "devis" : "factures"}/${id}`);

@@ -117,6 +117,19 @@ type DocumentRowJoined = {
   acompte_pct: number | null;
   acompte_amount: number | null;
   refusal_reason: string | null;
+  /**
+   * Descriptif contractuel du document — PRESTATION / DÉTAIL / RÉSERVES.
+   *
+   * ⚠️ CETTE LIGNE MANQUAIT, et c'est la cause de l'anomalie corrigée le
+   * 2026-11-07 : la colonne était bien SÉLECTIONNÉE dans les deux requêtes,
+   * mais absente du type de frontière. Le compilateur, à qui on avait menti
+   * sur la forme de la ligne, ne pouvait pas signaler qu'aucun mappeur ne la
+   * recopiait — et le texte du moteur n'atteignait aucun PDF.
+   *
+   * Même famille de défaut que celui documenté dans `lib/entities-shared.ts` :
+   * un type de frontière qui ne dit pas la vérité sur la base ne protège rien.
+   */
+  notes: string | null;
   entity: EntityRow | null;
   lead: LeadRowJoined | null;
 };
@@ -507,6 +520,14 @@ export async function getDocumentById(id: string) {
       totalHt: Math.round(totalHt * 100) / 100,
       totalVat: Math.round(totalVat * 100) / 100,
       paymentTermSlug: PAYMENT_TERM_BY_SECTOR[uiLead.sector],
+      // ⚠️ `notes` ÉTAIT SÉLECTIONNÉ EN BASE ET JAMAIS RENDU.
+      //
+      // `DocumentDetail["doc"].notes` valait donc toujours `undefined`, et
+      // le texte contractuel du moteur — PRESTATION / DÉTAIL / RÉSERVES —
+      // n'atteignait AUCUN rendu PDF. L'éditeur l'affichait (il lit par
+      // `getDevisPrefill`), le commercial le relisait, et le client recevait
+      // un document sans une seule réserve.
+      notes: row.notes ?? undefined,
       relatedDevisNum,
     },
     entity: uiEntity,

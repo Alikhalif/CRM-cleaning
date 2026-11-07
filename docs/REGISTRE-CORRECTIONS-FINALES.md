@@ -58,7 +58,16 @@
 | D3 | 🟠 | **Aucune société n'a de représentant légal renseigné**, ce qui bloque l'émission des contrats de sous-traitance. | `controlerEntite()` sur les données réelles | ✅ | Saisie. |
 | D4 | 🟠 | **Les deux parcours de devis coexistent toujours** — `devis_optimivv` et `documents`. Ils rédigent désormais pareil et portent la même identité, mais restent deux tables. | Lecture et suites du Lot B | ✅ | La bascule complète se décide après la recette : rien ne presse tant que les deux produisent le même document. |
 
-## 5 · Environnement
+## 5 · Historique et visualisation (Lot E)
+
+| # | Gravité | Anomalie | Constaté | Vérifié | Correction envisagée |
+| --- | --- | --- | --- | --- | --- |
+| H1 | 🔴 | **La migration M1 n'est pas appliquée.** La table `document_versions` n'existe pas : l'historique est codé, branché aux quatre origines, et **n'enregistre rien**. Le panneau le dit à l'écran au lieu de se taire. | Décision en attente depuis le 2026-11-06 | ✅ | **Votre autorisation.** Le SQL exact est dans `docs/MIGRATION-M1-HISTORIQUE-DEVIS.md` ; il est additif, et le jour où il est appliqué l'historique se remplit tout seul. |
+| H2 | 🟠 | **L'auteur d'une version n'est pas résolu.** `cree_par` porte l'identifiant, mais l'écran n'affiche pas le nom. | Lecture de `versions-server.ts` | ✅ | Jointure sur `users` à la lecture. Sans intérêt tant que H1 n'est pas levée. |
+| H3 | 🟠 | **L'historique ne se compare pas.** On lit une version, pas l'écart entre deux. | Lecture du panneau | ✅ | Une vue côte à côte, ou un différentiel textuel. À arbitrer : le besoin réel est de produire LA version envoyée, et elle est repérée. |
+| H4 | ⚪ | **Le rendu générique intitule le descriptif « Notes ».** Pour un texte qui porte PRESTATION / DÉTAIL / RÉSERVES, l'intitulé est faible. | Lecture d'un rendu | ✅ | Intituler « Descriptif de la prestation » quand le texte vient du moteur. |
+
+## 6 · Environnement
 
 | # | Gravité | Anomalie | Constaté | Vérifié | Correction envisagée |
 | --- | --- | --- | --- | --- | --- |
@@ -79,3 +88,4 @@
 | Date | Évènement |
 | --- | --- |
 | 2026-11-07 | Ouverture du registre à la livraison du Lot B. 21 entrées. |
+| 2026-11-07 | Lot E : 4 entrées ajoutées (historique et visualisation). **Trois anomalies CRITIQUES n'y figurent pas : elles ont été corrigées dans le lot** — le descriptif contractuel qui n'atteignait aucun PDF, les montants imprimés « 4/850 € », et l'absence de visualisation sur deux écrans sur trois. 25 entrées. |

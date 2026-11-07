@@ -1,0 +1,112 @@
+/* Visualisation d'un document — fenêtre partagée (Lot E).
+ *
+ * Portée depuis `QuoteEditor.module.scss`, où elle n'existait que pour
+ * l'éditeur de devis. Les trois écrans qui montrent un document emploient
+ * désormais la même fenêtre : une seule présentation, un seul comportement,
+ * une seule règle mobile. */
+
+.fond {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+  background: rgb(0 0 0 / 55%);
+}
+
+.panneau {
+  display: flex;
+  flex-direction: column;
+  width: min(1040px, 100%);
+  height: min(92vh, 100%);
+  overflow: hidden;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 35%);
+}
+
+.barre {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.titre {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cadre {
+  flex: 1 1 auto;
+  width: 100%;
+  border: 0;
+  background: var(--bg-app);
+}
+
+.pied {
+  padding: var(--sp-2) var(--sp-4) var(--sp-3);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-strong);
+}
+
+/* Boutons de la barre. Repris de l'éditeur pour que la fenêtre soit
+   autonome : un composant partagé qui dépend des styles de l'écran qui
+   l'héberge ne se déplace pas. */
+.btnFantome,
+.btnSecondaire {
+  display: inline-flex;
+  gap: var(--sp-2);
+  align-items: center;
+  min-height: 30px;
+  padding: 0 var(--sp-3);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-decoration: none;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+
+  &:hover:not(:disabled) { background: var(--bg-surface-2); }
+  &:disabled { color: var(--text-muted); cursor: default; }
+}
+
+.btnSecondaire {
+  color: #fff;
+  background: var(--color-brand-500);
+  border-color: var(--color-brand-500);
+
+  &:hover:not(:disabled) { filter: brightness(1.06); }
+}
+
+/* ≤768px : la fenêtre prend tout l'écran, et les boutons gardent 44px de
+   hauteur tactile (règle mobile du dépôt). */
+@media (max-width: 768px) {
+  .fond { padding: 0; }
+
+  .panneau {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .barre button,
+  .barre a {
+    min-height: 44px;
+  }
+}

@@ -33,6 +33,7 @@ import {
 } from "@/app/(app)/devis/new/actions";
 import { notesDevis } from "@/lib/generation/devis-depuis-decouverte";
 import { redigerPourLead } from "@/lib/devis/redaction-pour-lead-server";
+import { enregistrerVersion } from "@/lib/devis/versions-server";
 import {
   DEFAULT_ACOMPTE_PCT,
   DEFAULT_PAYMENT_TERM,
@@ -161,6 +162,18 @@ export async function genererDevisDepuisDecouverte(
       ? await updateDevisBrouillon(brouillon.id, payload)
       : await createDevis(payload, "draft");
   if (!res.ok) return { ok: false, error: res.error };
+
+  // M1 — la version telle que le MOTEUR l'a écrite, avant toute retouche.
+  // C'est la référence qui permettra plus tard de distinguer ce que le
+  // moteur a rédigé de ce qu'un commercial a réécrit. Meilleur effort : un
+  // historique indisponible ne doit pas empêcher de préparer un devis.
+  await enregistrerVersion({
+    documentId: res.id,
+    designation: gen.contenu.designation,
+    notes: notesDevis(gen.contenu),
+    origine: "moteur",
+    note: options?.regenerer ? "régénération depuis la découverte" : undefined,
+  });
 
   revalidatePath("/devis-a-realiser");
   revalidatePath(`/leads/${leadId}`);

@@ -432,3 +432,23 @@
 
   .apercuBarre button { min-height: 44px; }
 }
+
+/* Signalements du moteur de rédaction (Lot E).
+   Même présentation que sur `/devis/nouveau` : les deux écrans de création
+   doivent se lire de la même façon. */
+.signalements {
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-6);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--tone-warning);
+  background: var(--bg-surface-2);
+  border-left: 3px solid var(--tone-warning);
+  border-radius: var(--r-sm);
+
+  li + li { margin-top: var(--sp-1); }
+}
+
+@media (max-width: 768px) {
+  .signalements { padding-left: var(--sp-5); }
+}

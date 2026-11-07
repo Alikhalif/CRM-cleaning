@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Icon from "@/components/Icon/Icon";
+import ApercuDocument from "@/components/ApercuDocument/ApercuDocument";
 import { formatEUR, type CrmDocument, type Lead, type LegalEntity } from "@/lib/leads";
 import { leadTemplateVars } from "@/lib/message-templates-shared";
 import type { MessageTemplate } from "@/lib/message-templates-server";
@@ -38,6 +39,9 @@ export default function DocumentActions({ doc, lead, entity, emailTemplates = []
   const searchParams = useSearchParams();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Visualisation (Lot E). Le document est DÉJÀ enregistré : il n'y a rien à
+  // réenregistrer, donc pas de bouton « Actualiser ».
+  const [apercuOuvert, setApercuOuvert] = useState(false);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   // Auto-open the send modal when arriving via /?send=1 (the Comptabilité
   // row menu links here). One-shot — clears the param after opening so a
@@ -155,16 +159,33 @@ export default function DocumentActions({ doc, lead, entity, emailTemplates = []
 
   return (
     <>
+      <ApercuDocument
+        documentId={apercuOuvert ? doc.id : null}
+        numero={doc.num}
+        onFermer={() => setApercuOuvert(false)}
+        libelleRetour="Fermer"
+        pied={
+          <>
+            Document tel qu&apos;il part au client. <strong>Aucun envoi n&apos;est
+            déclenché par cette fenêtre</strong> : l&apos;envoi se fait depuis la barre
+            d&apos;actions, après votre validation.
+          </>
+        }
+      />
+
       <nav className={styles.actions} aria-label="Actions document" data-no-print>
-        <a
-          href={`/api/documents/${doc.id}/preview-pdf`}
-          target="_blank"
-          rel="noopener noreferrer"
+        {/* Avant le Lot E, ce bouton ouvrait un ONGLET et on perdait la fiche.
+            La fenêtre est désormais la même que celle de l'éditeur : un seul
+            comportement sur les trois écrans. L'ouverture dans un onglet
+            reste disponible, dans la barre de la fenêtre. */}
+        <button
+          type="button"
+          onClick={() => setApercuOuvert(true)}
           className={`${styles.btn} ${styles.btnPrimary}`}
-          aria-disabled={busy !== null}
+          disabled={busy !== null}
         >
-          <Icon name="check" size={14} /> Aperçu PDF
-        </a>
+          <Icon name="eye" size={14} /> Visualisation
+        </button>
 
         {/* Un brouillon reste modifiable : c'est ce qui permet de corriger un
             devis préparé automatiquement depuis la découverte sans en créer

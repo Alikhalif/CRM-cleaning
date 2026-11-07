@@ -23,6 +23,7 @@ import {
 } from "@/lib/leads";
 import { computeAccountingKpis, type DocumentWithContext } from "@/lib/documents-shared";
 import { duplicateDocument } from "../_shared/document-actions";
+import ApercuDocument from "@/components/ApercuDocument/ApercuDocument";
 import styles from "./Comptabilite.module.scss";
 
 type Tab = "devis" | "acompte" | "finale" | "fournisseurs";
@@ -69,6 +70,11 @@ export default function Comptabilite({ rows: allRows, entities, technicians }: P
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [busyDoc, setBusyDoc] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  // Visualisation depuis la liste (Lot E). La fenêtre est montée UNE fois,
+  // au niveau de la liste, et non par ligne : vingt lignes ne doivent pas
+  // monter vingt fenêtres.
+  const [apercu, setApercu] = useState<{ id: string; num: string } | null>(null);
 
   const onDuplicate = (docId: string, docType: DocumentType) => {
     setBusyDoc(docId);
@@ -135,6 +141,21 @@ export default function Comptabilite({ rows: allRows, entities, technicians }: P
 
   return (
     <div className={styles.page}>
+      {/* Montée une fois, au-dessus de la liste : les filtres, le défilement
+          et la position dans la table sont conservés pendant la lecture. */}
+      <ApercuDocument
+        documentId={apercu?.id ?? null}
+        numero={apercu?.num ?? null}
+        onFermer={() => setApercu(null)}
+        libelleRetour="Retour à la liste"
+        pied={
+          <>
+            Document tel qu&apos;il part au client. <strong>Aucun envoi n&apos;est
+            déclenché par cette fenêtre.</strong>
+          </>
+        }
+      />
+
       <header className={styles.header}>
         <div>
           <h1 className={styles.title}>Comptabilité</h1>
@@ -325,6 +346,7 @@ export default function Comptabilite({ rows: allRows, entities, technicians }: P
                 isMenuOpen={openMenu === r.doc.id}
                 onToggleMenu={() => setOpenMenu(openMenu === r.doc.id ? null : r.doc.id)}
                 onDuplicate={() => onDuplicate(r.doc.id, r.doc.type)}
+                onVisualiser={() => setApercu({ id: r.doc.id, num: r.doc.num })}
                 isBusy={busyDoc === r.doc.id}
               />
             ))}
@@ -371,12 +393,15 @@ function Row({
   isMenuOpen,
   onToggleMenu,
   onDuplicate,
+  onVisualiser,
   isBusy,
 }: {
   row: DocumentWithContext;
   isMenuOpen: boolean;
   onToggleMenu: () => void;
   onDuplicate: () => void;
+  /** Ouvre la fenêtre de visualisation, montée au niveau de la liste. */
+  onVisualiser: () => void;
   isBusy: boolean;
 }) {
   const { doc, lead, entity, totalHt } = row;
@@ -460,6 +485,20 @@ function Row({
           </button>
           {isMenuOpen && (
             <div className={styles.menu} role="menu">
+              {/* Avant le Lot E, la liste n'offrait AUCUN accès au PDF : il
+                  fallait ouvrir la fiche, puis revenir. Pour qui contrôle
+                  vingt devis, c'est vingt aller-retours. */}
+              <button
+                type="button"
+                className={styles.menuItem}
+                role="menuitem"
+                onClick={() => {
+                  onToggleMenu();
+                  onVisualiser();
+                }}
+              >
+                Visualiser le document
+              </button>
               <Link href={docHref} className={styles.menuItem} role="menuitem">
                 Voir le document
               </Link>

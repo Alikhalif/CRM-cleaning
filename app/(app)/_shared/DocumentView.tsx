@@ -9,6 +9,8 @@ import type { DocumentDetail } from "@/lib/documents-shared";
 import { getTemplatesForUser } from "@/lib/message-templates-server";
 import DocumentActions from "./DocumentActions";
 import styles from "./DocumentView.module.scss";
+import HistoriqueVersions from "./HistoriqueVersions";
+import { historiqueDuDocument } from "@/lib/devis/versions-server";
 
 const DATE = new Intl.DateTimeFormat("fr-FR", {
   day: "2-digit",
@@ -20,6 +22,14 @@ type Props = { detail: DocumentDetail };
 
 export default async function DocumentView({ detail }: Props) {
   const { doc, entity, lead } = detail;
+
+  // M1 — l'historique des versions. Lu ICI plutôt que dans chaque page :
+  // `DocumentView` est déjà un composant serveur, et les deux pages qui le
+  // montent — devis et facture — n'ont pas à connaître cette lecture.
+  //
+  // La fonction ne lève jamais : tant que la migration M1 n'est pas
+  // appliquée, elle rend « indisponible » et le panneau le dit.
+  const historique = await historiqueDuDocument(doc.id);
   // Email templates visible to the current user (role-scoped) — surfaced in
   // the "Envoyer par email" modal as a selectable accompaniment.
   const emailTemplates = await getTemplatesForUser("email");
@@ -224,6 +234,10 @@ export default async function DocumentView({ detail }: Props) {
             )}
           </div>
         </section>
+
+        {/* L'historique vient APRÈS le document, et non avant : on consulte
+            un devis d'abord, on remonte son histoire ensuite. */}
+        <HistoriqueVersions historique={historique} />
 
         <footer className={styles.footer}>
           <p>{entity.legalMentions}</p>

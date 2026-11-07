@@ -46,6 +46,14 @@ type Props = {
   titre: string;
   onNotes: (texte: string) => void;
   onTitre: (titre: string) => void;
+  /**
+   * Signale quelle fonction de rédaction assistée vient d'être appliquée.
+   *
+   * Sert l'historique M1 : sans ce signal, une reprise assistée serait
+   * enregistrée comme une réécriture manuelle, et l'historique perdrait
+   * précisément ce qu'il est censé établir.
+   */
+  onAssistance?: (quoi: string) => void;
 };
 
 type Precedent = { notes: string; titre: string; quoi: string } | null;
@@ -104,7 +112,7 @@ const LIBELLE_CIBLE: Record<string, string> = {
 };
 
 export default function RedactionAssistee({
-  brouillonId, notes, titre, onNotes, onTitre,
+  brouillonId, notes, titre, onNotes, onTitre, onAssistance,
 }: Props) {
   const [enCours, setEnCours] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -182,6 +190,7 @@ export default function RedactionAssistee({
           return;
         }
         setPrecedent({ notes, titre, quoi: b.libelle });
+        onAssistance?.(b.libelle);
         onNotes(r.texte);
         setPoseParNous({ notes: r.texte, titre });
         setInfo(`Corrigé : ${r.regles.join(", ")}.`
@@ -200,6 +209,7 @@ export default function RedactionAssistee({
           return;
         }
         setPrecedent({ notes, titre, quoi: b.libelle });
+        onAssistance?.(b.libelle);
         onNotes(r.texte);
         setPoseParNous({ notes: r.texte, titre });
         setInfo(`${r.retirees} puce${r.retirees > 1 ? "s" : ""} en double retirée${r.retirees > 1 ? "s" : ""}.`);
@@ -211,6 +221,7 @@ export default function RedactionAssistee({
       if (!r.ok) { setErreur(r.error); return; }
 
       setPrecedent({ notes, titre, quoi: b.libelle });
+        onAssistance?.(b.libelle);
 
       let nouvellesNotes = notes;
       let nouveauTitre = titre;
@@ -275,6 +286,7 @@ export default function RedactionAssistee({
       }
 
       setPrecedent({ notes, titre, quoi: `Reprendre « ${r.titre} »` });
+      onAssistance?.(`Reprendre « ${r.titre} »`);
       onNotes(r.notes);
       setPoseParNous({ notes: r.notes, titre });
       setManquant(r.manquant);

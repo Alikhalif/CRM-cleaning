@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
+import { enregistrerVersion } from "@/lib/devis/versions-server";
 import { sendDocumentByEmail } from "@/app/(app)/_shared/document-actions";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -275,6 +276,14 @@ Cordialement,`,
 export async function updateDevisBrouillon(
   devisId: string,
   draft: DraftInput,
+  /**
+   * Fonctions de rédaction assistée employées depuis le dernier
+   * enregistrement. Vide = le texte a été écrit ou corrigé à la main.
+   *
+   * Sert l'historique M1 : distinguer ce que le moteur a rédigé de ce qu'un
+   * humain a repris est tout l'intérêt de cet historique.
+   */
+  reglesAssistees: string[] = [],
 ): Promise<Result> {
   if (!devisId) return { ok: false, error: "Devis introuvable." };
   if (!draft.entityId) return { ok: false, error: "Entité émettrice requise." };
@@ -367,6 +376,18 @@ export async function updateDevisBrouillon(
     entityType: "document",
     entityId: devisId,
     after: { num: existant.num, type: "devis", status: "brouillon", totalTtc: totals.totalTtc },
+  });
+
+  // M1 — le texte tel que l'humain vient de le laisser. C'est ce qui permet
+  // de distinguer la rédaction du moteur de la réécriture du commercial.
+  // La désignation est le libellé de la PREMIÈRE ligne : c'est la convention
+  // du moteur, et l'éditeur la conserve.
+  await enregistrerVersion({
+    documentId: devisId,
+    designation: draft.lines[0]?.label ?? "",
+    notes: draft.notes ?? "",
+    origine: reglesAssistees.length > 0 ? "assiste" : "manuel",
+    regles: reglesAssistees,
   });
 
   return { ok: true, id: devisId, num: existant.num };

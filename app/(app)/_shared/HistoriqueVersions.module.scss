@@ -1,0 +1,166 @@
+/* M1 — l'historique des versions d'un devis, sur sa fiche.
+ *
+ * Une liste repliée par défaut : l'historique se consulte, il n'occupe pas
+ * l'écran. La version d'émission se repère sans lire, parce que c'est celle
+ * qui engage. */
+
+.bloc {
+  margin-top: var(--sp-6);
+  padding: var(--sp-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+}
+
+.titre {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  margin: 0 0 var(--sp-3);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.compte {
+  padding: 1px var(--sp-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-surface-2);
+  border-radius: 999px;
+}
+
+.indisponible,
+.vide {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-start;
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.indisponible { color: var(--tone-warning); }
+
+.liste {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ligne {
+  border-top: 1px solid var(--border-subtle);
+
+  &:first-child { border-top: 0; }
+}
+
+/* La version qui engage : un filet à gauche suffit à la distinguer sans
+   bruit visuel. */
+.ligneEngage {
+  margin-left: calc(var(--sp-2) * -1);
+  padding-left: var(--sp-2);
+  border-left: 3px solid var(--tone-success);
+}
+
+.entete {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  width: 100%;
+  min-height: 34px;
+  padding: var(--sp-2) 0;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+
+  &:hover { color: var(--color-brand-500); }
+}
+
+.numero {
+  flex: 0 0 auto;
+  min-width: 34px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.origine {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+
+  /* Une teinte par origine : distinguer d'un coup d'œil ce que le moteur a
+     écrit de ce qu'un humain a repris est tout l'intérêt de cet historique. */
+  &[data-origine="moteur"] { color: var(--tone-info); }
+  &[data-origine="assiste"] { color: var(--color-brand-500); }
+  &[data-origine="manuel"] { color: var(--text-primary); }
+  &[data-origine="emission"] { color: var(--tone-success); font-weight: 600; }
+}
+
+.date {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.engageNote {
+  margin: 0 0 var(--sp-2);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--tone-success);
+}
+
+.detail {
+  padding: 0 0 var(--sp-3);
+}
+
+.designation {
+  margin: 0 0 var(--sp-2);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.regles {
+  margin: 0 0 var(--sp-2);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* Le texte exact, tel qu'il a été enregistré : ni reformaté, ni réenveloppé.
+   C'est ce qu'on produira en cas de contestation. */
+.texte {
+  max-height: 320px;
+  margin: 0;
+  padding: var(--sp-3);
+  overflow: auto;
+  font-family: inherit;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  background: var(--bg-surface-2);
+  border-radius: var(--r-sm);
+}
+
+@media (max-width: 768px) {
+  /* Cible tactile : 44px minimum (règle du dépôt). */
+  .entete {
+    flex-wrap: wrap;
+    min-height: 44px;
+  }
+
+  .date {
+    flex: 1 0 100%;
+    padding-left: calc(34px + var(--sp-3));
+  }
+
+  .texte { max-height: 240px; }
+}

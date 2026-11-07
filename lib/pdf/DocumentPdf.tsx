@@ -1,6 +1,7 @@
 import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer";
 import type { DocumentDetail } from "@/lib/documents-shared";
-import { DOC_TYPE_LABEL, PAYMENT_TERMS, formatEUR, type Sector } from "@/lib/leads";
+import { DOC_TYPE_LABEL, PAYMENT_TERMS, type Sector } from "@/lib/leads";
+import { euroPdf } from "./montant";
 import DevisNettoyagePdf from "./DevisNettoyagePdf";
 
 // Server-side PDF for devis + factures. Two professional themes driven by the
@@ -303,9 +304,9 @@ export default function DocumentPdf({ detail }: Props) {
               <Text style={styles.colDesc}>{line.label}</Text>
               <Text style={styles.colQty}>{formatQty(line.quantity)}</Text>
               <Text style={styles.colUnit}>{line.unit}</Text>
-              <Text style={styles.colUnitPrice}>{formatEUR(line.unitPriceHt)}</Text>
+              <Text style={styles.colUnitPrice}>{euroPdf(line.unitPriceHt)}</Text>
               <Text style={styles.colVat}>{line.vatRate}%</Text>
-              <Text style={styles.colTotal}>{formatEUR(line.totalHt)}</Text>
+              <Text style={styles.colTotal}>{euroPdf(line.totalHt)}</Text>
             </View>
           ))}
         </View>
@@ -315,34 +316,34 @@ export default function DocumentPdf({ detail }: Props) {
           <View style={{ ...styles.totalsBox, ...totalsBoxStyle }}>
             <View style={styles.totalLine}>
               <Text style={{ color: totalLabelColor }}>Total HT</Text>
-              <Text>{formatEUR(doc.totalHt)}</Text>
+              <Text>{euroPdf(doc.totalHt)}</Text>
             </View>
             {[...vatByRate.entries()].sort(([a], [b]) => a - b).map(([rate, amount]) => (
               <View key={rate} style={styles.totalLine}>
                 <Text style={{ color: totalLabelColor }}>TVA {rate}%</Text>
-                <Text>{formatEUR(amount)}</Text>
+                <Text>{euroPdf(amount)}</Text>
               </View>
             ))}
             <View style={{ ...styles.ttcLine, ...ttcStyle }}>
               <Text>Total TTC</Text>
-              <Text>{formatEUR(doc.totalTtc)}</Text>
+              <Text>{euroPdf(doc.totalTtc)}</Text>
             </View>
             {doc.type === "devis" && doc.acomptePct && doc.acompteAmount && (
               <>
                 <View style={{ ...styles.acompteLine, backgroundColor: accent }}>
                   <Text>Acompte ({doc.acomptePct}%)</Text>
-                  <Text>{formatEUR(doc.acompteAmount)}</Text>
+                  <Text>{euroPdf(doc.acompteAmount)}</Text>
                 </View>
                 <View style={styles.totalLine}>
                   <Text style={{ color: totalLabelColor }}>Solde dû à la livraison</Text>
-                  <Text>{formatEUR(doc.totalTtc - doc.acompteAmount)}</Text>
+                  <Text>{euroPdf(doc.totalTtc - doc.acompteAmount)}</Text>
                 </View>
               </>
             )}
             {doc.type === "finale" && doc.acomptePct != null && (
               <View style={styles.totalLine}>
                 <Text style={{ color: totalLabelColor }}>Acompte déjà versé</Text>
-                <Text>−{formatEUR(doc.totalTtc * (doc.acomptePct / 100))}</Text>
+                <Text>−{euroPdf(doc.totalTtc * (doc.acomptePct / 100))}</Text>
               </View>
             )}
           </View>

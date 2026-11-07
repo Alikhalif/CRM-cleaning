@@ -17,6 +17,7 @@ export type IconName =
   | "moon"
   | "sun"
   | "chevron-down"
+  | "chevron-up"
   | "panel-left"
   | "more-vertical"
   | "zap"
@@ -161,6 +162,9 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   "chevron-down": <path d="m6 9 6 6 6-6" />,
+  // Pendant de `chevron-down`, pour un panneau qui se replie. Même tracé,
+  // retourné : une flèche dessinée au hasard ne se superpose pas à l'autre.
+  "chevron-up": <path d="m6 15 6-6 6 6" />,
   "panel-left": (
     <>
       <rect x="3" y="4" width="18" height="16" rx="2" />

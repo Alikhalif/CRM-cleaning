@@ -43,6 +43,7 @@ const SUITES = [
   { fichier: "exclusions-combinees.ts", titre: "Les quatre cas d’exclusion : murs, plafonds, les deux, vitrerie (Lot A)" },
   { fichier: "gabarits.ts", titre: "Gabarits, identité de la société émettrice et garde à trois crans (Lot B)" },
   { fichier: "integration-modules.ts", titre: "Intégration entre modules : la circulation des informations (Lot B §4)" },
+  { fichier: "visualisation-historique.ts", titre: "Visualisation, historique des versions et préremplissage (Lot E)" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "devis-redaction-check-"));

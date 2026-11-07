@@ -7,6 +7,8 @@ import {
   getDevisPrefill,
 } from "@/lib/devis-server";
 import { ensureClientFromLead } from "@/app/(app)/clients/new/actions";
+import { redigerPourLead } from "@/lib/devis/redaction-pour-lead-server";
+import { getLeadDetail } from "@/lib/leads-server";
 
 export const metadata = { title: "Nouveau devis" };
 
@@ -71,6 +73,39 @@ export default async function NewQuotePage({ searchParams }: PageProps) {
     getPrestationsForPicker(),
   ]);
 
+  // ── Rédaction d'ouverture (Lot E) ─────────────────────────────────
+  //
+  // Arriver ici depuis un dossier ouvrait un éditeur VIDE : le contexte du
+  // lead s'affichait à côté, et le commercial saisissait tout à la main,
+  // alors que le moteur avait de quoi rédiger. C'était la troisième et
+  // dernière divergence entre les parcours de création.
+  //
+  // ⚠️ SEULEMENT à la création depuis un dossier. Reprendre un brouillon
+  // (`?brouillon=`) ou un devis refusé (`?from=`) porte DÉJÀ son texte :
+  // y plaquer une rédaction fraîche écraserait un travail fait.
+  const redaction = leadCtx && !sourceId
+    ? await (async () => {
+      const detail = await getLeadDetail(leadCtx.id);
+      if (!detail) return null;
+      const r = await redigerPourLead({
+        id: detail.lead.id,
+        sector: detail.lead.sector,
+        surfaceM2: detail.lead.surfaceM2 ?? null,
+        etatSalete: detail.lead.etatSalete ?? null,
+        discoveryDetails: detail.lead.discoveryDetails ?? null,
+        discoveryDoneAt: detail.lead.discoveryDoneAt ?? null,
+        contexteIntervention: detail.lead.contexteIntervention ?? null,
+      });
+      return r.ok
+        ? {
+          designation: r.contenu.designation,
+          notes: r.notes,
+          signalements: [...r.contenu.manquant, ...r.signalements],
+        }
+        : null;
+    })()
+    : null;
+
   return (
     <QuoteEditor
       clients={clients}
@@ -80,6 +115,7 @@ export default async function NewQuotePage({ searchParams }: PageProps) {
       preselectedClientId={clientParam ?? prefill?.clientId ?? convertedClientId ?? null}
       prefill={prefill}
       brouillonId={brouillonId}
+      redaction={redaction}
     />
   );
 }
