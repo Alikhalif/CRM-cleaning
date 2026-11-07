@@ -302,10 +302,28 @@ function buildPdf(donnees: DevisInput): Doc {
   });
 
   // ================================================================= EN-TÊTE
-  const LOGO_R = 900.0 / 656.0;
+  // ── L'emblème ────────────────────────────────────────────────────
+  //
+  // `LOGO` est celui d'OPTIMIVV. L'imprimer sur le devis d'une autre société
+  // serait une fausse mention d'origine. Dès que l'identité est résolue depuis
+  // `legal_entities`, on ne pose QUE le logo de cette société — et aucun si
+  // elle n'en a pas. Sans identité résolue, rien ne change.
   const lw = W(134);
-  const lh = lw / LOGO_R;
-  doc.image(fileBytes(LOGO), X(40), YT(44), { width: lw, height: lh });
+  const logoDemande = donnees.identiteDynamique === true ? donnees.logoPath : LOGO;
+  if (logoDemande) {
+    try {
+      const octets = fileBytes(logoDemande);
+      // Le rapport d'origine (900/656) ne vaut que pour l'emblème OPTIMIVV ;
+      // pour un autre fichier, pdfkit conserve les proportions avec `fit`.
+      if (logoDemande === LOGO) {
+        doc.image(octets, X(40), YT(44), { width: lw, height: lw / (900.0 / 656.0) });
+      } else {
+        doc.image(octets, X(40), YT(44), { fit: [lw, lw / (900.0 / 656.0)] });
+      }
+    } catch {
+      /* emblème illisible → le devis sort sans logo, et reste valide */
+    }
+  }
 
   txt(marque.nom, 200, 96, "PopB", FS(53), NAVY, W(2.0));
   txt(marque.activite, 202, 141, "PopB", FS(31), NAVY, W(6.2));
@@ -367,8 +385,12 @@ function buildPdf(donnees: DevisInput): Doc {
   txt(P.adresse, 52, 473, "PopL", FS(15), WHITE);
   txt(P.ville, 52, 495, "PopL", FS(15), WHITE);
 
-  draw("SIRET :", X(52), YT(529), "PopB", FS(15), WHITE);
-  const wsi = measureAt("SIRET :", "PopB", FS(15));
+  // « SIRET » est un libellé FRANÇAIS. Une société suisse porte un IDE, une
+  // belge un numéro BCE, une canadienne un NEQ. Absent → SIRET, qui reste le
+  // cas des sept sociétés enregistrées : le rendu ne bouge pas sans donnée.
+  const libelleId = `${safe(P.identifiant_label || "SIRET")} :`;
+  draw(libelleId, X(52), YT(529), "PopB", FS(15), WHITE);
+  const wsi = measureAt(libelleId, "PopB", FS(15));
   draw(P.siret, X(52) + wsi + W(7), YT(529), "PopL", FS(15), WHITE);
 
   draw("TVA :", X(52), YT(550), "PopB", FS(15), WHITE);

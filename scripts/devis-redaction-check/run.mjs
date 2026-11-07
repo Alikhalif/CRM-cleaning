@@ -41,6 +41,7 @@ const SUITES = [
   { fichier: "reformulation.ts", titre: "Reformulation : corriger le mécanique, signaler le contractuel (C5)" },
   { fichier: "terminologie.ts", titre: "Multi-pays : un seul moteur, une projection terminologique (C2)" },
   { fichier: "exclusions-combinees.ts", titre: "Les quatre cas d’exclusion : murs, plafonds, les deux, vitrerie (Lot A)" },
+  { fichier: "gabarits.ts", titre: "Gabarits, identité de la société émettrice et garde à trois crans (Lot B)" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "devis-redaction-check-"));

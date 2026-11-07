@@ -54,3 +54,7 @@ n8n/*.local.json
 api.py
 devis-template.zip
 optimivv-devis.zip
+
+# Caches Python des scripts utilitaires (neutralisation du gabarit, etc.)
+__pycache__/
+*.pyc

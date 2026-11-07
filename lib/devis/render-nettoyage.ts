@@ -24,6 +24,92 @@ const TEMPLATE =
   process.env.DEVIS_NETTOYAGE_TEMPLATE ||
   path.join(ASSETS_DIR, "nettoyage-template.pdf");
 
+/**
+ * Gabarit NEUTRALISé — la « voie 0 » du Lot B.
+ *
+ * Même design, débarrassé de l'identité d'OPTIMIVV : dénomination, adresse,
+ * identifiant légal, téléphone, site, slogan et emblème. Produit hors ligne
+ * par `scripts/gabarit-neutre/neutraliser.py`, qui RETIRE le texte du flux de
+ * contenu au lieu de le masquer.
+ *
+ * ⚠️ La différence n'est pas cosmétique. Un rectangle blanc cache le texte à
+ * l'œil mais le laisse dans la couche texte : un devis émis au nom d'une
+ * société suisse contiendrait encore, en copier-coller et en recherche plein
+ * texte, « OPTIMIVV SAS » et son SIRET. Sur un document contractuel, c'est
+ * une fausse mention d'identité.
+ */
+const TEMPLATE_NEUTRE =
+  process.env.DEVIS_NETTOYAGE_TEMPLATE_NEUTRE ||
+  path.join(ASSETS_DIR, "nettoyage-template-neutre.pdf");
+
+/**
+ * Identité relevée sur le gabarit d'origine : abscisse, LIGNE DE BASE, police,
+ * taille et couleur de chaque élément retiré.
+ *
+ * Les lignes de base viennent des opérateurs `Tm` du flux, pas de la boîte
+ * mesurée par pdfplumber — l'écart entre les deux vaut la descente de la
+ * police, environ 2,8 pt à ces tailles. Redessiner à la ligne de base
+ * d'origine est ce qui rend la voie 0 fidèle.
+ */
+const ID = {
+  marque: { x: 86.5, b: 42.2, taille: 18, maxRight: 300 },
+  slogan: { x: 86.5, b: 58.8, taille: 12, maxRight: 300 },
+  denomination: { x: 46.8, b: 182.3, taille: 10, maxRight: 196 },
+  adresse: { x: 46.8, b: 197.7, taille: 8.2, maxRight: 196 },
+  ville: { x: 46.8, b: 208.7, taille: 8.2, maxRight: 196 },
+  identifiant: { x: 46.8, b: 225.2, taille: 7.8, maxRight: 196 },
+  tel: { x: 63.7, b: 243.7, taille: 8, maxRight: 196 },
+  email: { x: 63.7, b: 258.9, taille: 8, maxRight: 196 },
+  site: { x: 63.7, b: 274.1, taille: 8, maxRight: 196 },
+  piedIdentite: { x: 63.8, b: 821.7, taille: 8, maxRight: 430 },
+  piedContact: { x: 447.4, b: 826.7, taille: 7.2, maxRight: 588 },
+  logoEntete: { x: 34, top: 21.3, w: 42.5, h: 50.2 },
+  logoPied: { x: 34, top: 812.3, w: 20.2, h: 23.8 },
+} as const;
+
+/**
+ * Valeurs CONTRACTUELLES que le gabarit porte en dur, et leurs repères.
+ *
+ * ⚠️ Le gabarit imprime « Validité de l'offre : 30 jours », « Acompte à la
+ * commande : 30 % » et la mention de TVA de l'article 293 B. Le moteur porte
+ * pourtant `validite_jours`, `acompte_pct` et `mention_tva` — et ne les
+ * dessinait nulle part. Un devis de nettoyage, dont l'acompte par défaut est
+ * à 20 %, imprimait donc 30 %.
+ *
+ * `cuit` est ce que le fichier porte. On ne recouvre que si la valeur réelle
+ * en diffère : quand elles coïncident, le rendu reste identique à l'octet.
+ */
+const CUIT = {
+  /** Numéro et date : lignes de base d'origine, pour le gabarit neutre. */
+  numero: { x: 123.1, b: 105.8, taille: 12 },
+  dateEmission: { x: 50.4, b: 122.2, taille: 7.4 },
+  validite: {
+    jours: 30,
+    x: 193.0, b: 122.2, taille: 7.4,
+    boite: [191, 113, 295, 127] as const,
+  },
+  acompte: {
+    pct: 30,
+    x: 335.3, b: 603.1, taille: 7.2,
+    boite: [333, 594, 470, 608] as const,
+  },
+  tva: {
+    texte: "TVA non applicable, article 293 B du Code Général des Impôts (CGI).",
+    x: 34.0, b: 555.0, taille: 6.8,
+    boite: [32, 546, 300, 560] as const,
+  },
+} as const;
+
+/** Gris-vert du texte courant du gabarit. */
+const TEXTE_COURANT = hex("#33413B");
+/** Gris plus clair de la mention de TVA. */
+const TEXTE_MENTION = hex("#5B665F");
+
+/** Vert de la charte, pour le texte de l'en-tête. */
+const VERT_TITRE = hex("#0E3B2C");
+/** Or de la charte, pour le slogan. */
+const OR = hex("#BE8A4B");
+
 // Octets template/polices lus UNE fois (l'aperçu régénère à chaque frappe).
 const fileCache = new Map<string, Buffer>();
 function fileBytes(p: string): Buffer {
@@ -80,7 +166,14 @@ export async function genererDevisNettoyageBuffer(
   } as Devis;
   const CL = D.client || ({} as Devis["client"]);
 
-  const pdf = await PDFDocument.load(fileBytes(TEMPLATE));
+  // Voie 0 : l'identité a été résolue côté serveur, on part du gabarit neutre.
+  // Faux ou absent → gabarit d'origine, rendu exactement comme avant.
+  const identiteDynamique = D.identiteDynamique === true;
+  const P = D.prestataire ?? {};
+  const MQ = D.marque ?? {};
+  const pdf = await PDFDocument.load(
+    fileBytes(identiteDynamique ? TEMPLATE_NEUTRE : TEMPLATE),
+  );
   pdf.registerFontkit(fontkit);
   // subset : n'embarque que les glyphes réellement utilisés → PDF léger.
   const reg = await pdf.embedFont(
@@ -97,6 +190,12 @@ export async function genererDevisNettoyageBuffer(
   );
   const light = await pdf.embedFont(
     fileBytes(path.join(FONTS_DIR, "Poppins-Light.ttf")),
+    { subset: true },
+  );
+  // Cursive du slogan. Embarquée même sans slogan : `subset` n'embarque que
+  // les glyphes employés, donc le coût est nul quand la ligne est vide.
+  const chorus = await pdf.embedFont(
+    fileBytes(path.join(FONTS_DIR, "Chorus.ttf")),
     { subset: true },
   );
 
@@ -145,26 +244,98 @@ export async function genererDevisNettoyageBuffer(
     page.drawText(str, { x: xx, y: H - b, size: sz, font, color });
   };
 
-  // ---- En-tête : N° de devis + date d'émission (valeurs d'exemple masquées) --
-  cover(121, 95.5, 205, 111.5);
-  put(D.numero, 123.1, 110, bold, 12, GREEN);
-  cover(113.5, 115.5, 158, 126.5);
-  put(D.date_emission, 115, 124.8, reg, 7.4, DGREY);
+  // ---- En-tête : N° de devis + date d'émission -----------------------------
+  if (identiteDynamique) {
+    // Le gabarit neutre ne porte AUCUNE valeur d'exemple : rien à masquer,
+    // et le texte s'écrit sur la ligne de base d'origine.
+    put(D.numero, CUIT.numero.x, CUIT.numero.b, bold, CUIT.numero.taille, GREEN,
+      { maxRight: 290 });
+    // Libellé et valeur formaient un seul opérateur de texte dans le gabarit :
+    // ils sont indissociables, donc la ligne entière est redessinée.
+    put(`Date d'émission : ${safe(D.date_emission ?? "")}`, CUIT.dateEmission.x,
+      CUIT.dateEmission.b, reg, CUIT.dateEmission.taille, DGREY, { maxRight: 188 });
+  } else {
+    // Gabarit d'origine : les valeurs d'exemple sont là, on les masque.
+    cover(121, 95.5, 205, 111.5);
+    put(D.numero, 123.1, 110, bold, 12, GREEN);
+    cover(113.5, 115.5, 158, 126.5);
+    put(D.date_emission, 115, 124.8, reg, 7.4, DGREY);
+  }
 
-  // ---- Prestataire (carte verte) : tél + e-mail (design figé corrigé) --------
-  // Masque vert #0E3B2C par-dessus l'ancien texte blanc, sans toucher l'icône.
-  cover(62, 236.5, 150, 248, GREEN);
-  put(PRESTATAIRE_NETTOYAGE.tel, 63.7, 246.5, light, 8, WHITE, { maxRight: 199 });
-  cover(62, 252, 200, 263.5, GREEN);
-  put(PRESTATAIRE_NETTOYAGE.email, 63.7, 261.7, light, 8, WHITE, { maxRight: 199 });
-  cover(62, 267.5, 200, 278.5, GREEN);
-  put(PRESTATAIRE_NETTOYAGE.site, 63.7, 276.9, light, 8, WHITE, { maxRight: 199 });
+  if (identiteDynamique) {
+    // ---- VOIE 0 : l'identité réelle, dessinée sur le gabarit neutre --------
+    //
+    // Aucun repli sur OPTIMIVV : un champ vide reste vide. Afficher la valeur
+    // par défaut à la place d'un champ manquant produirait un devis au nom de
+    // la mauvaise société — précisément ce que la voie 0 existe pour empêcher.
+    const enseigne = safe(MQ.nom || P.enseigne || "").trim();
+    const activite = safe(MQ.activite || "").trim();
+    const titre = [enseigne, activite].filter(Boolean).join(" ");
+    put(titre, ID.marque.x, ID.marque.b, bold, ID.marque.taille, VERT_TITRE, {
+      maxRight: ID.marque.maxRight,
+    });
+    // Le slogan n'existe sur aucune fiche société : la ligne reste vide plutôt
+    // que de porter celui d'une autre marque.
+    put(MQ.slogan, ID.slogan.x, ID.slogan.b, chorus, ID.slogan.taille, OR, {
+      maxRight: ID.slogan.maxRight,
+    });
 
-  // ---- Pied de page : tél + site (même contact, cohérent avec la carte) ------
-  cover(446, 820.5, 495, 830.5, GREEN);
-  put(PRESTATAIRE_NETTOYAGE.tel, 447.4, 829.2, reg, 7.2, WHITE, { maxRight: 495 });
-  cover(503, 820.5, 563, 830.5, GREEN);
-  put(PRESTATAIRE_NETTOYAGE.site, 504.3, 829.2, reg, 7.2, WHITE, { maxRight: 588 });
+    put(P.raison_sociale, ID.denomination.x, ID.denomination.b, bold,
+      ID.denomination.taille, WHITE, { maxRight: ID.denomination.maxRight });
+    put(P.adresse, ID.adresse.x, ID.adresse.b, light, ID.adresse.taille, WHITE,
+      { maxRight: ID.adresse.maxRight });
+    put(P.ville, ID.ville.x, ID.ville.b, light, ID.ville.taille, WHITE,
+      { maxRight: ID.ville.maxRight });
+
+    // Le LIBELLÉ de l'identifiant part avec sa valeur : « SIRET » est
+    // français. Une société suisse porte un IDE, une belge un numéro BCE.
+    const idValeur = safe(P.siret ?? "").trim();
+    if (idValeur) {
+      const libelle = `${safe(P.identifiant_label || "SIRET")} :`;
+      put(libelle, ID.identifiant.x, ID.identifiant.b, bold, ID.identifiant.taille,
+        WHITE);
+      const l = bold.widthOfTextAtSize(libelle, ID.identifiant.taille);
+      put(idValeur, ID.identifiant.x + l + 2.1, ID.identifiant.b, light,
+        ID.identifiant.taille, WHITE, { maxRight: ID.identifiant.maxRight });
+    }
+
+    put(P.telephone, ID.tel.x, ID.tel.b, light, ID.tel.taille, WHITE,
+      { maxRight: ID.tel.maxRight });
+    put(P.email, ID.email.x, ID.email.b, light, ID.email.taille, WHITE,
+      { maxRight: ID.email.maxRight });
+    put(P.site, ID.site.x, ID.site.b, light, ID.site.taille, WHITE,
+      { maxRight: ID.site.maxRight });
+
+    // ---- Pied de page : la ligne d'identité et le contact ----------------
+    const piedId = [
+      safe(P.raison_sociale ?? "").trim(),
+      [safe(P.adresse ?? "").trim(), safe(P.ville ?? "").trim()].filter(Boolean).join(", "),
+      idValeur ? `${safe(P.identifiant_label || "SIRET")} : ${idValeur}` : "",
+    ].filter(Boolean).join("  •  ");
+    put(piedId, ID.piedIdentite.x, ID.piedIdentite.b, light, ID.piedIdentite.taille,
+      WHITE, { maxRight: ID.piedIdentite.maxRight });
+    const piedContact = [safe(P.telephone ?? "").trim(), safe(P.site ?? "").trim()]
+      .filter(Boolean).join("  •  ");
+    put(piedContact, ID.piedContact.x, ID.piedContact.b, reg, ID.piedContact.taille,
+      WHITE, { maxRight: ID.piedContact.maxRight });
+
+    // ---- Emblème, si et seulement si la société en a un --------------
+    if (D.logoPath) await poserLogo(pdf, page, H, D.logoPath);
+  } else {
+    // ---- Gabarit d'origine : correctif de contact, inchangé depuis 2026-08
+    // Masque vert #0E3B2C par-dessus l'ancien texte blanc, sans toucher l'icône.
+    cover(62, 236.5, 150, 248, GREEN);
+    put(PRESTATAIRE_NETTOYAGE.tel, 63.7, 246.5, light, 8, WHITE, { maxRight: 199 });
+    cover(62, 252, 200, 263.5, GREEN);
+    put(PRESTATAIRE_NETTOYAGE.email, 63.7, 261.7, light, 8, WHITE, { maxRight: 199 });
+    cover(62, 267.5, 200, 278.5, GREEN);
+    put(PRESTATAIRE_NETTOYAGE.site, 63.7, 276.9, light, 8, WHITE, { maxRight: 199 });
+
+    cover(446, 820.5, 495, 830.5, GREEN);
+    put(PRESTATAIRE_NETTOYAGE.tel, 447.4, 829.2, reg, 7.2, WHITE, { maxRight: 495 });
+    cover(503, 820.5, 563, 830.5, GREEN);
+    put(PRESTATAIRE_NETTOYAGE.site, 504.3, 829.2, reg, 7.2, WHITE, { maxRight: 588 });
+  }
 
   // ---- Cartouche CLIENT (carte de droite) -----------------------------------
   // Valeurs à leur place naturelle (juste après chaque label), MAIS bornées au
@@ -215,6 +386,47 @@ export async function genererDevisNettoyageBuffer(
     put(m, 0, 502.3, bold, 11, GREEN, { align: "right", rightX: 508 });
   }
 
+  // ---- Valeurs contractuelles : corrigées SEULEMENT si elles diffèrent ----
+  //
+  // Ce bloc s'applique aux DEUX chemins — gabarit d'origine comme voie 0 —
+  // parce que le défaut est celui du gabarit, pas celui de la voie 0.
+  //
+  // Sur le gabarit NEUTRE, ces trois valeurs ont été retirées du fichier : le
+  // moteur les écrit donc toujours. Sur le gabarit d'ORIGINE, elles y sont
+  // encore, et on ne les recouvre que si la valeur réelle en diffère — sans
+  // quoi le rendu changerait pour rien.
+  const jours = Number(D.validite_jours);
+  if (Number.isFinite(jours) && jours > 0
+      && (identiteDynamique || jours !== CUIT.validite.jours)) {
+    if (!identiteDynamique) cover(...CUIT.validite.boite);
+    put(`Validité de l'offre : ${jours} jours`, CUIT.validite.x, CUIT.validite.b,
+      reg, CUIT.validite.taille, TEXTE_COURANT, { maxRight: 295 });
+  }
+
+  const pct = Number(D.acompte_pct);
+  if (Number.isFinite(pct) && (identiteDynamique || pct !== CUIT.acompte.pct)) {
+    if (!identiteDynamique) cover(...CUIT.acompte.boite);
+    // Un acompte à zéro n'est pas « 0 % » : c'est l'absence d'acompte, et le
+    // dire ainsi évite qu'un client cherche un versement qu'on ne lui demande pas.
+    const phrase = pct <= 0
+      ? "• Aucun acompte à la commande"
+      : `• Acompte à la commande : ${pct} %`;
+    put(phrase, CUIT.acompte.x, CUIT.acompte.b, light, CUIT.acompte.taille,
+      TEXTE_COURANT, { maxRight: 470 });
+  }
+
+  const mention = safe(D.mention_tva ?? "").trim();
+  if (identiteDynamique || mention !== CUIT.tva.texte) {
+    if (!identiteDynamique) cover(...CUIT.tva.boite);
+    // Une mention vide se traduit par un BLANC, pas par la mention française :
+    // une société assujettie ne doit pas porter l'article 293 B, et une
+    // société suisse encore moins.
+    if (mention) {
+      put(mention, CUIT.tva.x, CUIT.tva.b, light, CUIT.tva.taille, TEXTE_MENTION,
+        { maxRight: 300 });
+    }
+  }
+
   // ---- Signature en ligne (devis uniquement) --------------------------------
   const sig = D.docType !== "facture" ? D.signature : undefined;
   if (sig?.nom) put(sig.nom, 362, 718.3, med, 8.5, VALUE, { maxRight: 555 });
@@ -245,9 +457,50 @@ export async function genererDevisNettoyageBuffer(
     }
   }
 
-  pdf.setTitle(`Devis ${D.numero} - OPTIMIVV NETTOYAGE`);
+  // Les métadonnées du PDF portent aussi une identité : elles s'affichent dans
+  // l'onglet du navigateur et dans les propriétés du fichier.
+  const marqueTitre = safe(MQ.nom || P.enseigne || "OPTIMIVV NETTOYAGE").trim();
+  pdf.setTitle(`Devis ${D.numero} - ${marqueTitre}`);
+  if (P.raison_sociale) pdf.setAuthor(safe(P.raison_sociale));
   const out = await pdf.save();
   return Buffer.from(out);
+}
+
+/**
+ * Pose l'emblème de la société, en en-tête et en pied.
+ *
+ * Les deux emplacements sont ceux du gabarit d'origine, au point près. L'image
+ * est inscrite DANS la boîte sans la déformer : un logo large ne s'étire pas
+ * pour remplir une boîte carrée.
+ *
+ * Un fichier illisible ou d'un format non supporté n'interrompt rien : le devis
+ * sort sans emblème. Un logo n'est pas une mention obligatoire.
+ */
+async function poserLogo(
+  pdf: PDFDocument,
+  page: ReturnType<PDFDocument["getPage"]>,
+  H: number,
+  chemin: string,
+): Promise<void> {
+  try {
+    const octets = fileBytes(chemin);
+    const img: PDFImage = /\.png$/i.test(chemin)
+      ? await pdf.embedPng(octets)
+      : await pdf.embedJpg(octets);
+    for (const b of [ID.logoEntete, ID.logoPied]) {
+      const e = Math.min(b.w / img.width, b.h / img.height);
+      const w = img.width * e;
+      const h = img.height * e;
+      page.drawImage(img, {
+        x: b.x + (b.w - w) / 2,
+        y: H - b.top - b.h + (b.h - h) / 2,
+        width: w,
+        height: h,
+      });
+    }
+  } catch {
+    /* emblème illisible → le devis sort sans logo, et reste valide */
+  }
 }
 
 // Découpe un texte en lignes tenant dans `largeurPt` (points), en respectant les

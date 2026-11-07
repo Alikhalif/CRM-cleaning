@@ -12,6 +12,16 @@ export type Prestataire = {
   telephone: string;
   email: string;
   site: string;
+  /**
+   * Libellé de l'identifiant légal, selon le pays de la société émettrice :
+   * « SIRET » en France, « IDE » en Suisse, « BCE » en Belgique, « RCS » au
+   * Luxembourg, « NEQ » au Canada. Cf. `IDENTIFIANT_LEGAL` dans lib/leads.ts.
+   *
+   * ABSENT = « SIRET ». C'est le défaut historique, et celui des sept
+   * sociétés existantes, toutes françaises : ne pas renseigner ce champ laisse
+   * le rendu stricement identique à ce qu'il était.
+   */
+  identifiant_label?: string;
 };
 
 export type Marque = {
@@ -50,6 +60,32 @@ export type Devis = {
   montant_ht?: number | null;
   prestataire?: Partial<Prestataire>;
   marque?: Partial<Marque>;
+  /**
+   * L'identité du prestataire a été RÉSOLUE côté serveur depuis
+   * `legal_entities`, et doit être DESSINÉE par le moteur.
+   *
+   * ── Pourquoi un drapeau, et pas une déduction ───────────────────
+   *
+   * Le gabarit nettoyage porte l'identité d'OPTIMIVV NETTOYAGE dans son
+   * design. La « voie 0 » consiste à rendre sur un gabarit NEUTRALISé
+   * (`nettoyage-template-neutre.pdf`, produit par
+   * `scripts/gabarit-neutre/neutraliser.py`) et à écrire l'identité réelle
+   * à la place.
+   *
+   * Basculer automatiquement dès qu'un `prestataire` est fourni changerait le
+   * rendu des devis existants, qui en fournissent un sans vouloir du gabarit
+   * neutre. Le drapeau rend la bascule EXPLICITE : faux ou absent, le gabarit
+   * d'origine est rendu exactement comme avant.
+   */
+  identiteDynamique?: boolean;
+  /**
+   * Logo à dessiner, chemin sur disque. `null` = aucun logo.
+   *
+   * On n'imprime JAMAIS l'emblème d'une société sur le document d'une autre :
+   * en l'absence de logo propre, la place reste vide. Les sept sociétés du CRM
+   * n'en ont aucun (mesuré le 2026-11-07) — c'est donc le cas courant.
+   */
+  logoPath?: string | null;
   // Rempli quand le client a signé en ligne (devis uniquement) : nom + date +
   // image de la signature (data URL PNG). Dessiné dans la case « Bon pour accord ».
   signature?: {

@@ -468,7 +468,17 @@ vrai("Déménagement — le piano est repris", contient(dmg?.detail ?? "", "pian
 vrai("Déménagement — le monte-meubles est repris", contient(dmg?.detail ?? "", "monte-meubles"));
 vrai("Déménagement — étages et ascenseurs des deux côtés",
   contient(dmg?.detail ?? "", "3e étage sans ascenseur")
-  && contient(dmg?.detail ?? "", "1e étage avec ascenseur"));
+  && contient(dmg?.detail ?? "", "1er étage avec ascenseur"));
+// Lot B — trois fautes relevées dans le texte déménagement, et figées ici
+// pour qu'elles ne reviennent pas. Elles s'imprimaient sur un document
+// contractuel : le premier ordinal irrégulier, l'unité écrite deux fois, et
+// un libellé de liste employé comme sujet de phrase.
+vrai("Déménagement — « 1er » et non « 1e » : le premier ordinal est irrégulier",
+  !contient(dmg?.detail ?? "", "1e étage"));
+vrai("Déménagement — l'unité du volume n'est écrite qu'une fois",
+  !contient(dmg?.detail ?? "", "m³ m³"));
+vrai("Déménagement — l'emballage est une phrase, pas un adjectif orphelin",
+  !/^- (Complet|Partiel) des biens/m.test(dmg?.detail ?? ""));
 
 const trp = genererContenuDevis({
   sector: "transport", surfaceM2: null, etatSalete: null,

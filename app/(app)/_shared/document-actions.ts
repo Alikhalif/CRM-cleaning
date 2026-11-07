@@ -1,11 +1,10 @@
 "use server";
 
-import { renderToBuffer } from "@react-pdf/renderer";
 import { revalidatePath } from "next/cache";
 import { auditLog } from "@/lib/audit";
 import { sendBrevoEmail } from "@/lib/brevo";
 import { getDocumentById } from "@/lib/documents-server";
-import DocumentPdf from "@/lib/pdf/DocumentPdf";
+import { planifierRendu, rendreDocument } from "@/lib/devis/rendu-document-server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 import type { Database } from "@/lib/supabase/database.types";
@@ -32,6 +31,15 @@ export type DuplicateResult =
 // platform, hand-delivered, etc.) and is recording the fact. Distinct from
 // "Envoyer par email" which would actually push to Brevo.
 export async function markDocumentSent(id: string): Promise<Result> {
+  // « Marquer envoyé » déclare au CRM qu'un devis est parti chez le client :
+  // c'est une émission, au même titre que l'envoi par courriel. La garde
+  // d'identité s'y applique donc aussi — sans quoi il suffirait de passer par
+  // ce bouton pour contourner le contrôle.
+  const detail = await getDocumentById(id);
+  if (!detail) return { ok: false, error: "Document introuvable." };
+  const plan = await planifierRendu(detail);
+  if (plan.refus) return { ok: false, error: plan.refus };
+
   const supabase = await supabaseServer();
   const updates: DocumentUpdate = {
     status: "envoye",
@@ -578,7 +586,12 @@ export async function sendDocumentByEmail(
   const detail = await getDocumentById(id);
   if (!detail) return { ok: false, error: "Document introuvable." };
 
-  const pdfBytes = await renderToBuffer(DocumentPdf({ detail }));
+  // Rendu par le point d'entrée unique, en mode BLOQUANT : ceci est une
+  // ÉMISSION. Un devis part chez le client ; la société qui l'émet doit
+  // porter les mentions sans lesquelles le document n'identifie personne.
+  const rendu = await rendreDocument(detail, { bloquant: true });
+  if (!rendu.ok) return { ok: false, error: rendu.error };
+  const pdfBytes = rendu.buffer;
 
   // Minimal HTML wrapper — preserves linebreaks from the textarea. Brevo
   // also accepts text-only via `textContent` but HTML renders better in

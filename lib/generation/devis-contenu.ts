@@ -1136,6 +1136,18 @@ function analyserDebarras(d: Decouverte): Analyse {
 //  NIVEAU B — ANALYSE : DÉMÉNAGEMENT
 // ══════════════════════════════════════════════════════════════════════
 
+/**
+ * Étage en toutes lettres : « RDC », « 1er étage », « 3e étage ».
+ *
+ * Le premier ordinal est le seul irrégulier en français masculin. Le gabarit
+ * imprimait « 1e étage », qui est une faute visible sur un document
+ * contractuel.
+ */
+function etageEnClair(n: number | null): string {
+  if (!n) return "RDC";
+  return n === 1 ? "1er étage" : `${n}e étage`;
+}
+
 function analyserDemenagement(d: Decouverte): Analyse {
   const det = d.details;
   const sources: string[] = [];
@@ -1162,7 +1174,11 @@ function analyserDemenagement(d: Decouverte): Analyse {
   if (emballage && emballage !== "aucun") {
     sources.push("emballage");
     themes.push("emballage");
-    fait("emballage", `${cap(labelOf(EMBALLAGE, emballage))} des biens à transporter.`);
+    // Le libellé de la liste est un ADJECTIF — « Partiel », « Complet ». En
+    // tête de phrase il produisait « Complet des biens à transporter. », qui
+    // ne veut rien dire et se lit comme une clé technique échappée. Le nom
+    // qu'il qualifie doit figurer.
+    fait("emballage", `Emballage ${labelOf(EMBALLAGE, emballage).toLowerCase()} des biens à transporter.`);
   } else {
     // La protection du mobilier est comprise dans tout déménagement.
     themes.push("emballage");
@@ -1185,16 +1201,22 @@ function analyserDemenagement(d: Decouverte): Analyse {
   }
   themes.push("installation");
 
-  if (volume) contraintes.push(`volume estimé ${labelOf(VOLUME_DEMENAGEMENT, volume) || volume} m³`);
+  // Le libellé de la liste PORTE DÉJÀ l'unité (« 30 m³ », « Plus de 100 m³ ») :
+  // la rajouter donnait « volume estimé 30 m³ m³ » sur le devis. Elle n'est
+  // nécessaire que sur le repli, quand la valeur brute n'a pas de libellé.
+  if (volume) {
+    const vol = labelOf(VOLUME_DEMENAGEMENT, volume);
+    contraintes.push(`volume estimé ${vol || `${volume} m³`}`);
+  }
   const eD = num(det, "etagesDepart"), eA = num(det, "etagesArrivee");
   const aD = str(det, "ascenseurDepart"), aA = str(det, "ascenseurArrivee");
   if (eD || aD) {
     sources.push("etagesDepart");
-    contraintes.push(`départ ${eD ? `${eD}e étage` : "RDC"}${aD === "non" ? " sans ascenseur" : aD === "oui" ? " avec ascenseur" : ""}`);
+    contraintes.push(`départ ${etageEnClair(eD)}${aD === "non" ? " sans ascenseur" : aD === "oui" ? " avec ascenseur" : ""}`);
   }
   if (eA || aA) {
     sources.push("etagesArrivee");
-    contraintes.push(`arrivée ${eA ? `${eA}e étage` : "RDC"}${aA === "non" ? " sans ascenseur" : aA === "oui" ? " avec ascenseur" : ""}`);
+    contraintes.push(`arrivée ${etageEnClair(eA)}${aA === "non" ? " sans ascenseur" : aA === "oui" ? " avec ascenseur" : ""}`);
   }
   const km = num(det, "distanceKm");
   if (km) { sources.push("distanceKm"); contraintes.push(`distance ${km} km`); }

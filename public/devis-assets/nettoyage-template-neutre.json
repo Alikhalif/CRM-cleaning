@@ -1,0 +1,157 @@
+{
+  "genere_par": "scripts/gabarit-neutre/neutraliser.py",
+  "genere_le": "2026-11-07",
+  "source": "public/devis-assets/nettoyage-template.pdf",
+  "source_md5": "448d78795433ae95bfdffb4fac476687",
+  "neutre": "public/devis-assets/nettoyage-template-neutre.pdf",
+  "neutre_md5": "04007e8592a77bae7856e521f213eb32",
+  "elements_retires": [
+    {
+      "genre": "texte",
+      "zone": "pied : ligne d'identite",
+      "x": 63.8,
+      "top": 821.7
+    },
+    {
+      "genre": "texte",
+      "zone": "pied : ligne d'identite",
+      "x": 123.4,
+      "top": 821.7
+    },
+    {
+      "genre": "texte",
+      "zone": "pied : telephone et site",
+      "x": 447.4,
+      "top": 826.7
+    },
+    {
+      "genre": "image",
+      "zone": "pied : emblème",
+      "x": 44.1,
+      "top": 824.2
+    },
+    {
+      "genre": "texte",
+      "zone": "en-tete : nom de marque",
+      "x": 86.5,
+      "top": 42.2
+    },
+    {
+      "genre": "texte",
+      "zone": "en-tete : slogan",
+      "x": 86.5,
+      "top": 58.8
+    },
+    {
+      "genre": "texte",
+      "zone": "en-tete : numero d'exemple",
+      "x": 123.1,
+      "top": 105.8
+    },
+    {
+      "genre": "texte",
+      "zone": "en-tete : date d'emission",
+      "x": 50.4,
+      "top": 122.2
+    },
+    {
+      "genre": "texte",
+      "zone": "validite de l'offre",
+      "x": 193.0,
+      "top": 122.2
+    },
+    {
+      "genre": "texte",
+      "zone": "carte : denomination",
+      "x": 46.8,
+      "top": 182.3
+    },
+    {
+      "genre": "texte",
+      "zone": "carte : adresse",
+      "x": 46.8,
+      "top": 197.7
+    },
+    {
+      "genre": "texte",
+      "zone": "carte : ville",
+      "x": 46.8,
+      "top": 208.7
+    },
+    {
+      "genre": "texte",
+      "zone": "carte : identifiant legal",
+      "x": 46.8,
+      "top": 225.2
+    },
+    {
+      "genre": "texte",
+      "zone": "carte : identifiant legal",
+      "x": 71.7,
+      "top": 225.2
+    },
+    {
+      "genre": "texte",
+      "zone": "carte : telephone",
+      "x": 63.7,
+      "top": 243.7
+    },
+    {
+      "genre": "texte",
+      "zone": "carte : courriel",
+      "x": 63.7,
+      "top": 258.9
+    },
+    {
+      "genre": "texte",
+      "zone": "carte : site",
+      "x": 63.7,
+      "top": 274.1
+    },
+    {
+      "genre": "texte",
+      "zone": "mention de TVA",
+      "x": 34.0,
+      "top": 555.0
+    },
+    {
+      "genre": "texte",
+      "zone": "acompte a la commande",
+      "x": 335.3,
+      "top": 603.0
+    },
+    {
+      "genre": "image",
+      "zone": "en-tete : emblème",
+      "x": 55.3,
+      "top": 46.4
+    }
+  ],
+  "sondes_interdites": [
+    "21/07/2026",
+    "2026-00045",
+    "30 jours",
+    "30 %",
+    "293 B",
+    "OPTIMIVV",
+    "928 083 427",
+    "Alfred Bruneau",
+    "75016 Paris",
+    "optimivv.fr",
+    "01 84 80 41 15",
+    "propreté sans compromis"
+  ],
+  "sondes_interdites_absentes": true,
+  "sondes_attendues": [
+    "PRESTATAIRE",
+    "CLIENT",
+    "DEVIS",
+    "Nom / Société",
+    "Satisfaction garantie",
+    "Solde à réception",
+    "Adresse",
+    "Nettoyage professionnel",
+    "Merci pour votre confiance"
+  ],
+  "images_restantes": 1
+}

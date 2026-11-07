@@ -5,6 +5,9 @@ import {
   reglagesMentions, societesEtPays,
 } from "@/lib/generation/mentions-produits-server";
 import MentionsProduits from "./MentionsProduits";
+import GabaritsDevis from "./GabaritsDevis";
+import { lireReglageGabarits } from "@/lib/devis/reglage-gabarits-server";
+import { secteursEmployes } from "@/lib/devis/secteurs-server";
 import styles from "./Integrations.module.scss";
 
 export const metadata = { title: "Intégrations" };
@@ -54,6 +57,12 @@ export default async function IntegrationsPage() {
       <MentionsProduits
         reglages={await reglagesMentions()}
         societes={await societesEtPays()}
+      />
+
+      <GabaritsDevis
+        reglages={await lireReglageGabarits()}
+        societes={await societesEtPays()}
+        secteurs={await secteursEmployes()}
       />
 
       <section className={styles.card}>

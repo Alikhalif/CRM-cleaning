@@ -257,7 +257,17 @@ function pourMurs(valeur: string) {
 }
 const mursNon = pourMurs("non");
 vrai("« Non » : aucune ligne de lessivage", !/lessivage des murs/i.test(mursNon.detail));
-vrai("« Non » : aucune réserve sur les murs", !/lessivage des murs/i.test(mursNon.reserves));
+// Lot A du 2026-11-07 : un refus explicite n'est plus un silence. La
+// réserve d'EXCLUSION nomme désormais les murs — c'est précisément l'objet
+// d'une réserve — mais aucune prestation n'est ouverte, et la réserve des
+// « supports lavables », qui accompagne un lessivage INCLUS, reste absente.
+vrai("« Non » : la réserve d’exclusion nomme les murs",
+  /Le lessivage des murs n'est pas compris dans la présente prestation\./
+    .test(mursNon.reserves));
+vrai("« Non » : et pas la réserve d’un lessivage inclus",
+  !/supports lavables/.test(mursNon.reserves));
+vrai("« Non » : et pas la réserve groupée murs + plafonds",
+  !/murs et des plafonds/.test(mursNon.reserves));
 vrai("« Non » : la valeur brute n'apparaît pas", !/^- Non\.$/m.test(mursNon.detail));
 const mursVide = pourMurs("");
 vrai("non renseigné : aucune ligne de lessivage", !/lessivage des murs/i.test(mursVide.detail));

@@ -5,6 +5,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
 import type { Database } from "@/lib/supabase/database.types";
 import { APP_SETTING_KEYS } from "@/lib/app-settings";
+import { GABARITS } from "@/lib/devis/gabarits";
 import {
   COUNTRIES, MENTION_PAR_PAYS, controlerMention, type Country,
 } from "@/lib/generation/mentions-produits";
@@ -109,5 +110,66 @@ export async function enregistrerMentionsProduits(
   });
 
   revalidatePath("/settings/integrations");
+  return { ok: true };
+}
+
+/**
+ * Réglage des gabarits de devis, par société et par activité (Lot B).
+ *
+ * ── CE QUI EST VALIDÉ, ET POURQUOI ──────────────────────────────────
+ *
+ * Chaque valeur doit nommer un gabarit CONNU. `app_settings` n'a aucun schéma
+ * et une ligne peut être écrite à la main : sans ce contrôle, une faute de
+ * frappe s'enregistrerait et se lirait plus tard comme « réglage illisible »,
+ * sans que personne sache d'où elle vient.
+ *
+ * Une entrée vide est RETIRÉE de la carte : l'absence de clé et « par défaut »
+ * doivent signifier la même chose, sans quoi un réglage effacé réapparaîtrait
+ * au prochain enregistrement.
+ *
+ * Journalisé : le gabarit décide de la présentation d'un document contractuel,
+ * et il faut pouvoir dire qui l'a changé, pour quelle société, et quand.
+ */
+export async function enregistrerGabaritsDevis(
+  reglages: Record<string, string>,
+): Promise<Result> {
+  const supabase = await supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Non authentifié." };
+
+  const connus = new Set(Object.keys(GABARITS));
+  const propre: Record<string, string> = {};
+  for (const [cle, valeur] of Object.entries(reglages ?? {})) {
+    const v = (valeur ?? "").trim();
+    if (!v) continue;
+    if (!connus.has(v)) {
+      return { ok: false, error: `Gabarit inconnu : « ${v} » (clé ${cle}).` };
+    }
+    if (!/^[^|]+\|[^|]+$/.test(cle)) {
+      return { ok: false, error: `Clé de réglage invalide : « ${cle} ».` };
+    }
+    propre[cle] = v;
+  }
+
+  const row: AppSettingInsert = {
+    key: APP_SETTING_KEYS.devisGabarits,
+    value: propre as unknown as AppSettingInsert["value"],
+    updated_at: new Date().toISOString(),
+    updated_by: user.id,
+  };
+  const { error } = await supabase
+    .from("app_settings")
+    .upsert(row as never, { onConflict: "key" });
+  if (error) return { ok: false, error: error.message };
+
+  await auditLog({
+    action: "app_setting.change",
+    entityType: "user",
+    entityId: user.id,
+    after: { key: APP_SETTING_KEYS.devisGabarits, gabarits: propre },
+  });
+
+  revalidatePath("/settings/integrations");
+  revalidatePath("/comptabilite");
   return { ok: true };
 }

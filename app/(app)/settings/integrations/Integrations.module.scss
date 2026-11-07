@@ -276,6 +276,52 @@
 }
 
 /* ≤768px : cibles tactiles de 44px (règle mobile du dépôt). */
+/* ── Gabarits des devis (Lot B) ──────────────────────────────────────
+   Une ligne = un couple (société, activité). Le libellé et la liste
+   déroulante tiennent sur une ligne au-dessus de 640px, et passent l'un
+   sous l'autre en dessous : une liste de gabarits ne se lit pas dans
+   120px de large. */
+.ligneGabarit {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+}
+
+.selectGabarit {
+  flex: 0 1 290px;
+  max-width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  background: var(--bg-app);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 3px var(--color-brand-50);
+  }
+}
+
+@media (max-width: 640px) {
+  .ligneGabarit {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-2);
+  }
+
+  .selectGabarit {
+    flex: 1 1 auto;
+    /* Cible tactile : 44px minimum (règle du dépôt). */
+    min-height: 44px;
+  }
+}
+
 @media (max-width: 768px) {
   .btnMention { min-height: 44px; }
   .lienMention { min-height: 44px; }

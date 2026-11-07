@@ -51,6 +51,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "missing_data" }, { status: 400 });
   }
 
+  // ⚠️ L'IDENTITÉ DU PRESTATAIRE NE VIENT JAMAIS DU NAVIGATEUR — Lot B.
+  //
+  // `DevisInput` porte `prestataire`, `marque`, `identiteDynamique` et
+  // `logoPath`. Ces champs arrivaient tels quels du corps de la requête et
+  // s'imprimaient sur un document NUMÉROTÉ puis ARCHIVÉ : n'importe quel
+  // appel authentifié pouvait émettre un devis au nom d'une société
+  // inventée, avec un SIRET choisi.
+  //
+  // On les retire. L'identité est une donnée de la base, pas une saisie du
+  // client. Le rendu ne change pas pour autant : l'écran « nouveau devis »
+  // n'en envoyait aucun, et le générateur retombe donc sur ses valeurs par
+  // défaut, exactement comme avant.
+  const {
+    prestataire: _prestataireIgnore,
+    marque: _marqueIgnore,
+    identiteDynamique: _identiteIgnore,
+    logoPath: _logoIgnore,
+    ...donneesSures
+  } = input;
+  void _prestataireIgnore;
+  void _marqueIgnore;
+  void _identiteIgnore;
+  void _logoIgnore;
+
   const mode = body.mode === "final" ? "final" : "preview";
   const docType: DocType =
     body.docType === "facture" || input.docType === "facture" ? "facture" : "devis";
@@ -61,7 +85,7 @@ export async function POST(request: Request) {
     // n'est pas brûlée par les régénérations à chaque frappe. Si la lecture
     // échoue, on retombe sur l'ancien libellé plutôt que de casser l'aperçu.
     const numeroApercu = input.numero || (await peekNumero(docType)) || "APERÇU";
-    const devis = buildDevis({ ...input, docType }, numeroApercu);
+    const devis = buildDevis({ ...donneesSures, docType }, numeroApercu);
     const pdf = await genererDevisBuffer(devis);
     return new NextResponse(new Uint8Array(pdf), {
       status: 200,
@@ -101,7 +125,7 @@ export async function POST(request: Request) {
   }
 
   const numero = await allocateNumero(docType);
-  const devis = buildDevis({ ...input, docType }, numero);
+  const devis = buildDevis({ ...donneesSures, docType }, numero);
   const pdf = await genererDevisBuffer(devis);
   await archiveDevis({
     devis,

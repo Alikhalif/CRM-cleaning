@@ -16,11 +16,26 @@ const nextConfig: NextConfig = {
   // Ship the embedded PDF fonts/images with the server bundle (read via
   // process.cwd()) so they survive on the standalone/VPS deploy.
   outputFileTracingIncludes: {
-    "/api/documents/**": ["./public/fonts/**"],
+    // ⚠️ Depuis le Lot B, le rendu d'un document peut passer par les gabarits
+    // pdfkit / pdf-lib (réglage `devis_gabarits`). Ces moteurs lisent leurs
+    // polices, le logo et le gabarit PDF sur le DISQUE, au runtime. Sans cette
+    // ligne, la compilation réussit et la production échoue au premier devis
+    // basculé — l'erreur ne se verrait qu'en ligne.
+    "/api/documents/**": [
+      "./public/fonts/**",
+      "./public/devis-assets/**",
+      "./assets/**",
+    ],
     // Générateur de devis OPTIMIVV (pdfkit) : polices Poppins/Chorus + logo/photo.
     // assets/ porte le RIB joint aux e-mails de devis — hors public/ à dessein
     // (IBAN non servi publiquement), donc à embarquer explicitement.
     "/api/devis/**": ["./public/devis-assets/**", "./assets/**"],
+    // Les mêmes gabarits sont atteints par les ACTIONS SERVEUR de l'envoi par
+    // courriel et du « marquer envoyé », compilées dans les pages qui les
+    // montent — d'où ces trois entrées, qui ne sont pas des routes d'API.
+    "/comptabilite/**": ["./public/fonts/**", "./public/devis-assets/**", "./assets/**"],
+    "/devis/**": ["./public/fonts/**", "./public/devis-assets/**", "./assets/**"],
+    "/factures/**": ["./public/fonts/**", "./public/devis-assets/**", "./assets/**"],
   },
   experimental: {
     // Derrière le reverse-proxy (Traefik) : autorise les Server Actions depuis

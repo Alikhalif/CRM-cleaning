@@ -18,6 +18,21 @@ export const APP_SETTING_KEYS = {
   // et écoresponsables » était auparavant imprimée en dur sur les devis des
   // sept sociétés, dans les cinq pays.
   devisMentionsProduits: "devis_mentions_produits",
+  // Gabarit employé par (société, activité) — Lot B.
+  //
+  // Carte « <entityId>|<secteur> » → identifiant de gabarit, avec `*` comme
+  // joker des deux côtés. VIDE PAR DÉFAUT, et c'est l'essentiel : sans
+  // réglage, `gabaritParDefaut()` reproduit exactement le rendu du
+  // 2026-11-07. Une bascule de présentation est une décision, jamais l'effet
+  // de bord d'un déploiement.
+  devisGabarits: "devis_gabarits",
+  // La garde d'identité refuse-t-elle d'émettre sur une anomalie de cran 2 ?
+  //
+  // FAUX par défaut, et ce défaut est mesuré : au 2026-11-06, une société sur
+  // sept porte un identifiant légal valide. Passer ce drapeau à vrai
+  // aujourd'hui bloquerait l'émission pour six sociétés. C'est l'interrupteur
+  // à actionner le jour où les sept fiches sont justes.
+  devisGardeIdentiteStricte: "devis_garde_identite_stricte",
 } as const;
 
 // Defaults applied when the row is missing or the value is malformed.
@@ -25,6 +40,8 @@ const DEFAULTS: Record<string, unknown> = {
   [APP_SETTING_KEYS.devisSeuilVertH]: 2,
   [APP_SETTING_KEYS.devisSeuilOrangeH]: 24,
   [APP_SETTING_KEYS.devisMentionsProduits]: {},
+  [APP_SETTING_KEYS.devisGabarits]: {},
+  [APP_SETTING_KEYS.devisGardeIdentiteStricte]: false,
 };
 
 export async function getBooleanSetting(key: string): Promise<boolean> {
