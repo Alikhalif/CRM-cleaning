@@ -5,7 +5,9 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
 import type { Database } from "@/lib/supabase/database.types";
 import { APP_SETTING_KEYS } from "@/lib/app-settings";
-import { controlerMention } from "@/lib/generation/mentions-produits";
+import {
+  COUNTRIES, MENTION_PAR_PAYS, controlerMention, type Country,
+} from "@/lib/generation/mentions-produits";
 
 type AppSettingInsert = Database["public"]["Tables"]["app_settings"]["Insert"];
 type Result = { ok: true } | { ok: false; error: string };
@@ -45,31 +47,40 @@ export async function setBooleanSetting(key: string, value: boolean): Promise<Re
 }
 
 /**
- * Mentions des produits d'entretien, par société (C1 du 2026-11-06).
+ * Réglages des mentions de produits, PAR PAYS (C1 révisé, 2026-11-06).
  *
- * Écrites dans `app_settings` sous une seule clé — une carte
- * `legal_entities.id` → texte — donc sans aucune migration. Une société dont
- * le texte est vide est RETIRÉE de la carte : l'absence de clé et le texte
- * vide doivent signifier la même chose, sans quoi une mention effacée
- * réapparaîtrait au prochain enregistrement.
+ * ── CE QUE CETTE ACTION ENREGISTRE, ET CE QU'ELLE N'ENREGISTRE PAS ──
  *
- * Journalisé : c'est une affirmation commerciale qui partira sur des devis
- * signés, et il faut pouvoir dire qui l'a autorisée et quand.
+ * Elle n'enregistre pas « quelle mention appliquer » : c'est le pays de
+ * l'entité émettrice qui décide, et la table de correspondance est figée dans
+ * le code (`MENTION_PAR_PAYS`). Elle enregistre si l'entreprise ASSUME cette
+ * allégation pour un pays donné, et une éventuelle adaptation du texte.
+ *
+ * Un pays désactivé est RETIRÉ de la carte : l'absence de clé et une
+ * activation à faux doivent signifier la même chose, sans quoi un pays
+ * désactivé réapparaîtrait au prochain enregistrement.
+ *
+ * Journalisé : c'est une allégation réglementaire qui partira sur des devis
+ * signés, et il faut pouvoir dire qui l'a activée, pour quel pays, et quand.
  */
 export async function enregistrerMentionsProduits(
-  mentions: Record<string, string>,
+  reglages: Record<string, { active: boolean; texte: string }>,
 ): Promise<Result> {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Non authentifié." };
 
-  const propre: Record<string, string> = {};
-  for (const [entityId, texte] of Object.entries(mentions)) {
-    const t = (texte ?? "").trim();
-    if (!t) continue;
-    const c = controlerMention(t);
-    if (!c.ok) return { ok: false, error: c.motif };
-    propre[entityId] = t;
+  const propre: Record<string, { active: boolean; texte: string }> = {};
+  for (const pays of COUNTRIES) {
+    const r = reglages[pays];
+    if (!r?.active) continue;
+    const texte = (r.texte ?? "").trim();
+    // Texte vide = formulation de référence du pays : on contrôle celle qui
+    // partira réellement, pas la chaîne vide.
+    const effectif = texte || MENTION_PAR_PAYS[pays];
+    const c = controlerMention(effectif);
+    if (!c.ok) return { ok: false, error: `${pays} — ${c.motif}` };
+    propre[pays] = { active: true, texte };
   }
 
   const row: AppSettingInsert = {
@@ -87,7 +98,14 @@ export async function enregistrerMentionsProduits(
     action: "app_setting.change",
     entityType: "user",
     entityId: user.id,
-    after: { key: APP_SETTING_KEYS.devisMentionsProduits, societes: Object.keys(propre) },
+    after: {
+      key: APP_SETTING_KEYS.devisMentionsProduits,
+      pays_actives: Object.keys(propre),
+      // Le texte exact est journalisé : c'est lui qui engage l'entreprise.
+      formulations: Object.fromEntries(
+        Object.entries(propre).map(([k, v]) => [k, v.texte || MENTION_PAR_PAYS[k as Country]]),
+      ),
+    },
   });
 
   revalidatePath("/settings/integrations");

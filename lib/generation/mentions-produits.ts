@@ -1,105 +1,199 @@
 // Mention des produits d'entretien portée par le devis — PUR, aucune I/O.
 //
-// ── POURQUOI CE MODULE EXISTE (correction C1 du 2026-11-06) ──────────
+// ── CE QUE CE MODULE DÉCIDE, ET SUR QUELLE BASE ─────────────────────
 //
-// `analyserNettoyage()` posait `mentionProduits: true` EN DUR. La phrase
-// « Intervention réalisée avec des produits de nettoyage 100 % français et
-// écoresponsables » s'imprimait donc sur TOUS les devis de TOUTES les
-// sociétés du CRM — sept sociétés, cinq pays — sans qu'aucune règle métier ne
-// l'autorise et sans que personne puisse la retirer.
+// La mention dépend du PAYS DE L'ENTITÉ JURIDIQUE qui établit le devis. Pas
+// de la société, pas du client, pas de son adresse, pas de son téléphone, pas
+// de la langue du navigateur : du pays de l'émetteur.
 //
-// C'est une affirmation commerciale sur l'origine et sur le caractère
-// environnemental d'un produit. Elle engage l'entreprise qui l'écrit. La
-// porter au nom d'une société qui n'utilise pas ces produits est une
-// allégation infondée — et, pour une allégation environnementale, le risque
-// n'est pas seulement commercial.
+// C'est la règle arbitrée par le client le 2026-11-06, et elle a une raison
+// juridique. Une mention sur les produits est une allégation réglementaire :
+// « 100 % français » relève du droit français de la consommation, « conforme
+// aux normes européennes » n'a pas de sens au Canada, et la conformité
+// européenne ne dispense pas des obligations suisses. Le pays de celui qui
+// signe est donc le seul axe défendable.
 //
-// ── LA RÈGLE RETENUE : FERMÉ PAR DÉFAUT ─────────────────────────────
+// ── L'HISTOIRE DE CE FICHIER, PARCE QU'ELLE EXPLIQUE SA FORME ───────
 //
-// Aucune mention n'est écrite tant qu'un Super Admin n'a pas saisi, pour une
-// société donnée, le texte qu'elle assume. Le silence est le défaut, parce
-// qu'une mention absente ne coûte rien et qu'une mention fausse coûte cher.
+// 1. Jusqu'au 2026-11-06, `analyserNettoyage()` posait `mentionProduits: true`
+//    EN DUR. La phrase « 100 % français et écoresponsables » partait sur les
+//    devis des sept sociétés, dans les cinq pays, sans qu'aucune règle ne
+//    l'autorise.
+// 2. Première correction (C1, commit 693c31f) : une carte société → texte,
+//    saisie à la main. Elle réglait l'urgence mais laissait le Super Admin
+//    recopier la même phrase pour chaque société d'un même pays — et rien
+//    n'empêchait d'écrire la mention française sur une société suisse.
+// 3. Correction retenue : le pays décide, la table de correspondance est
+//    FIGÉE dans le code, et le Super Admin ACTIVE par pays après avoir
+//    vérifié les justificatifs.
 //
-// ⚠️ CONSÉQUENCE IMMÉDIATE, À CONNAÎTRE : la mention disparaît des devis
-// d'OPTIMIVV NETTOYAGE jusqu'à sa saisie dans Réglages › Intégrations. C'est
-// voulu — c'est le prix de ne plus affirmer au nom des six autres sociétés.
-// Le texte historique est proposé à la saisie (`SUGGESTION_HISTORIQUE`), il
-// n'est jamais appliqué tout seul.
+// ── POURQUOI UNE ACTIVATION, PUISQUE LA SÉLECTION EST AUTOMATIQUE ───
+//
+// Le client demande les deux : « la sélection doit être automatique selon le
+// pays » ET « les formulations doivent être validées et justifiables avant
+// leur activation ». Ce n'est pas contradictoire, c'est une séparation des
+// rôles. Le pays décide QUELLE mention s'applique — personne ne la choisit à
+// la main, et le commercial n'y touche pas. L'activation dit si l'entreprise
+// ASSUME cette allégation pour ce pays, justificatifs en main. Tant qu'elle
+// n'est pas activée, aucune mention ne part : le silence ne coûte rien, une
+// allégation infondée coûte cher.
+
+import { COUNTRIES, COUNTRY_LABEL, type Country } from "@/lib/leads";
+
+export type { Country };
+
+// ══════════════════════════════════════════════════════════════════════
+//  La table de correspondance — FIGÉE
+// ══════════════════════════════════════════════════════════════════════
 
 /**
- * Mentions par société : `legal_entities.id` → texte assumé.
+ * Formulation de référence par pays, telle que le client l'a arrêtée le
+ * 2026-11-06.
  *
- * Stocké en `app_settings` sous `devis_mentions_produits`, donc modifiable
- * sans redéploiement et sans migration. Une société absente de la carte, ou
- * dont le texte est vide, n'a pas de mention.
+ * ⚠️ NE PAS MODIFIER CES TEXTES SANS DÉCISION ÉCRITE. Ce sont des
+ * allégations réglementaires, pas des formules commerciales. Le Super Admin
+ * peut les adapter dans l'écran de réglages — cette adaptation est
+ * journalisée — mais le défaut du code reste la formulation validée.
  */
-export type MentionsProduits = Record<string, string>;
+export const MENTION_PAR_PAYS: Record<Country, string> = {
+  FR: "Utilisation de produits d'entretien 100 % français et 100 % écologiques.",
+  CH: "Utilisation de produits d'entretien 100 % conformes aux normes européennes applicables.",
+  BE: "Utilisation de produits d'entretien 100 % conformes aux normes européennes applicables.",
+  LU: "Utilisation de produits d'entretien 100 % conformes aux normes européennes applicables.",
+  CA: "Utilisation de produits d'entretien conformes aux exigences réglementaires canadiennes applicables.",
+};
 
 /**
- * Texte en service jusqu'au 2026-11-06, proposé comme point de départ dans
- * l'écran de saisie.
+ * Avertissement propre à un pays, affiché au Super Admin AVANT activation.
  *
- * ⚠️ CE N'EST PAS UN DÉFAUT. Il n'est jamais appliqué automatiquement : il
- * s'affiche en suggestion, et il faut un enregistrement explicite pour qu'il
- * figure sur un devis. Toute la correction C1 tient dans cette distinction.
+ * La Suisse n'est pas dans l'Espace économique européen : y annoncer une
+ * conformité européenne est exact sur le produit mais ne dit rien des
+ * obligations suisses (ChemV, OChim). Le client l'a demandé explicitement —
+ * « la conformité européenne ne doit pas être présentée comme remplaçant les
+ * obligations réglementaires suisses » — et c'est le genre de nuance qu'un
+ * écran doit porter, pas un commentaire de code.
  */
-export const SUGGESTION_HISTORIQUE =
-  "Intervention réalisée avec des produits de nettoyage 100 % français et "
-  + "écoresponsables, adaptés aux surfaces et aux opérations prévues.";
+export const AVERTISSEMENT_PAYS: Partial<Record<Country, string>> = {
+  CH: "La Suisse n'applique pas le droit européen. Cette mention décrit la "
+    + "conformité des produits aux normes européennes ; elle ne vaut pas "
+    + "conformité aux obligations suisses (ordonnance sur les produits "
+    + "chimiques). Vérifiez les exigences suisses applicables avant "
+    + "d'activer, et conservez les fiches de données de sécurité.",
+  CA: "La formulation canadienne est une proposition à confirmer selon les "
+    + "produits réellement employés et la réglementation provinciale "
+    + "applicable (SIMDUT / LCPE). Elle n'est pas transposée de la "
+    + "formulation européenne.",
+  FR: "« 100 % français » et « 100 % écologiques » sont des allégations "
+    + "opposables. Elles exigent des justificatifs sur l'origine et sur les "
+    + "caractéristiques environnementales de chaque produit employé.",
+};
 
-/** Longueur maximale retenue : une mention, pas un paragraphe commercial. */
+// ══════════════════════════════════════════════════════════════════════
+//  Le réglage : activation et formulation, par pays
+// ══════════════════════════════════════════════════════════════════════
+
+export type ReglagePays = {
+  /** Faux = aucune mention sur les devis de ce pays. C'est le défaut. */
+  active: boolean;
+  /**
+   * Formulation retenue. Vide = la formulation de référence du pays.
+   *
+   * Permet au Super Admin d'adapter sans toucher au code, sans jamais
+   * perdre la référence : `MENTION_PAR_PAYS` reste le défaut.
+   */
+  texte: string;
+};
+
+export type ReglagesMentions = Partial<Record<Country, ReglagePays>>;
+
+export const REGLAGE_FERME: ReglagePays = { active: false, texte: "" };
+
+/** Longueur maximale : une mention, pas un argumentaire. */
 export const LONGUEUR_MAX_MENTION = 400;
 
 /**
- * Lecture sûre de la carte, telle qu'elle revient de `app_settings` (jsonb).
+ * Lecture sûre du réglage, tel qu'il revient de `app_settings` (jsonb).
  *
  * Rien n'est supposé : la valeur peut être nulle, une chaîne, un tableau, ou
- * un objet dont les valeurs ne sont pas des chaînes. Tout ce qui n'est pas
- * une entrée exploitable est ignoré silencieusement — un réglage malformé ne
- * doit pas empêcher d'émettre un devis.
+ * un objet aux clés inattendues. Tout ce qui n'est pas exploitable est
+ * ignoré — mais JAMAIS remplacé par une activation. Un réglage illisible
+ * laisse les devis sans mention, il n'en invente pas une.
  */
-export function lireMentions(brut: unknown): MentionsProduits {
+export function lireReglages(brut: unknown): ReglagesMentions {
   if (!brut || typeof brut !== "object" || Array.isArray(brut)) return {};
-  const out: MentionsProduits = {};
-  for (const [cle, valeur] of Object.entries(brut as Record<string, unknown>)) {
-    if (typeof valeur !== "string") continue;
-    const t = valeur.trim();
-    if (t) out[cle] = t.slice(0, LONGUEUR_MAX_MENTION);
+  const src = brut as Record<string, unknown>;
+  const out: ReglagesMentions = {};
+  for (const pays of COUNTRIES) {
+    const v = src[pays];
+    if (!v || typeof v !== "object" || Array.isArray(v)) continue;
+    const o = v as Record<string, unknown>;
+    const texte = typeof o.texte === "string" ? o.texte.trim().slice(0, LONGUEUR_MAX_MENTION) : "";
+    out[pays] = { active: o.active === true, texte };
   }
   return out;
 }
 
-/**
- * Mention à porter au devis pour cette société, ou `null`.
- *
- * `null` est un résultat normal et fréquent : il signifie « cette société n'a
- * pas déclaré de mention », pas « la lecture a échoué ».
- */
-export function resoudreMentionProduits(
-  entityId: string | null | undefined,
-  mentions: MentionsProduits,
-): string | null {
-  if (!entityId) return null;
-  const t = (mentions[entityId] ?? "").trim();
-  return t || null;
+// ══════════════════════════════════════════════════════════════════════
+//  La résolution
+// ══════════════════════════════════════════════════════════════════════
+
+/** Pourquoi aucune mention n'est portée. Jamais silencieux. */
+export type MotifAbsence =
+  | "pays_inconnu"        // l'entité n'a pas de pays exploitable
+  | "pays_non_active"     // le Super Admin n'a pas activé ce pays
+  | "hors_prestation";    // l'intervention n'emploie pas de produits
+
+export const MOTIF_ABSENCE_LABEL: Record<MotifAbsence, string> = {
+  pays_inconnu: "pays de la société émettrice absent ou non reconnu",
+  pays_non_active: "mention non activée pour ce pays dans Réglages › Intégrations",
+  hors_prestation: "intervention sans produits d'entretien",
+};
+
+export type ResolutionMention =
+  | { mention: string; pays: Country }
+  | { mention: null; motif: MotifAbsence; pays: Country | null };
+
+/** Le pays est-il l'un des cinq que le CRM connaît ? */
+export function paysReconnu(brut: string | null | undefined): Country | null {
+  const p = (brut ?? "").trim().toUpperCase();
+  return (COUNTRIES as string[]).includes(p) ? (p as Country) : null;
 }
 
 /**
- * Contrôle d'une mention à la saisie.
+ * Mention à porter au devis, d'après le pays de l'entité émettrice.
  *
- * ── CE QUE CE CONTRÔLE REFUSE, ET POURQUOI ──────────────────────────
- *
- * Il ne juge PAS la véracité de l'affirmation — c'est à la société de
- * l'assumer, et aucun code ne peut vérifier qu'un produit est français. Il
- * refuse deux choses :
- *
- *   • un texte vide ou fait d'espaces, qui laisserait croire à une mention ;
- *   • un texte trop long, qui n'est plus une mention mais un argumentaire.
- *
- * Et il AVERTIT, sans bloquer, quand le texte avance une allégation
- * environnementale ou d'origine : le Super Admin doit lire cet avertissement
- * et confirmer, parce que c'est exactement la phrase qui a causé le problème.
+ * ⚠️ UN PAYS ABSENT OU INCONNU NE PRODUIT JAMAIS DE MENTION PAR DÉFAUT, et
+ * surtout jamais la mention française. Le client l'a exigé : « ne jamais
+ * appliquer la mention française à une société étrangère » et « en cas
+ * d'absence ou d'incohérence du pays, signaler le problème et ne pas
+ * inventer de mention ». Le motif remonte jusqu'à l'écran.
  */
+export function resoudreMention(
+  paysEntite: string | null | undefined,
+  reglages: ReglagesMentions,
+  emploieDesProduits = true,
+): ResolutionMention {
+  const pays = paysReconnu(paysEntite);
+  if (!pays) return { mention: null, motif: "pays_inconnu", pays: null };
+  if (!emploieDesProduits) return { mention: null, motif: "hors_prestation", pays };
+
+  const r = reglages[pays] ?? REGLAGE_FERME;
+  if (!r.active) return { mention: null, motif: "pays_non_active", pays };
+
+  // Texte vide = la formulation de référence du pays. Le Super Admin n'a pas
+  // à recopier la phrase validée pour l'activer.
+  return { mention: r.texte || MENTION_PAR_PAYS[pays], pays };
+}
+
+/** Formulation effective d'un pays, pour l'écran de réglages. */
+export function formulationEffective(pays: Country, reglages: ReglagesMentions): string {
+  return (reglages[pays]?.texte || MENTION_PAR_PAYS[pays]);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  Contrôle de saisie
+// ══════════════════════════════════════════════════════════════════════
+
 export type ControleMention =
   | { ok: false; motif: string }
   | { ok: true; avertissement: string | null };
@@ -110,13 +204,22 @@ const ALLEGATIONS: { re: RegExp; quoi: string }[] = [
   { re: /\b[ée]coresponsables?\b/i, quoi: "un caractère écoresponsable" },
   { re: /\b[ée]cologiques?\b/i, quoi: "un caractère écologique" },
   { re: /\bbiod[ée]gradables?\b/i, quoi: "une biodégradabilité" },
-  { re: /\bcertifi[ée]s?\b|\bnorme\b|\blabel\b|\becolabel\b/i, quoi: "une certification" },
+  { re: /\bcertifi[ée]s?\b|\bnorme\b|\blabel\b|\becolabel\b/i, quoi: "une conformité ou une certification" },
   { re: /\bnaturels?\b|\bbio\b/i, quoi: "un caractère naturel" },
+  { re: /\bconformes?\b/i, quoi: "une conformité réglementaire" },
 ];
 
+/**
+ * Contrôle d'une formulation à la saisie.
+ *
+ * Il ne juge PAS la véracité — aucun code ne peut vérifier qu'un produit est
+ * français. Il refuse le vide et la longueur excessive, et il AVERTIT sur
+ * toute allégation : c'est exactement la phrase qui a causé le problème
+ * d'origine, et le Super Admin doit la lire avant de l'assumer.
+ */
 export function controlerMention(texte: unknown): ControleMention {
   const t = typeof texte === "string" ? texte.trim() : "";
-  if (!t) return { ok: false, motif: "Texte vide : laissez le champ vide pour n'afficher aucune mention." };
+  if (!t) return { ok: false, motif: "Texte vide : désactivez le pays pour n'afficher aucune mention." };
   if (t.length > LONGUEUR_MAX_MENTION) {
     return {
       ok: false,
@@ -124,15 +227,18 @@ export function controlerMention(texte: unknown): ControleMention {
         + "Au-delà, ce n'est plus une mention mais un argumentaire commercial.",
     };
   }
-  const trouvees = ALLEGATIONS.filter((a) => a.re.test(t)).map((a) => a.quoi);
+  const trouvees = [...new Set(ALLEGATIONS.filter((a) => a.re.test(t)).map((a) => a.quoi))];
   if (trouvees.length) {
     return {
       ok: true,
       avertissement:
         `Cette mention affirme ${trouvees.join(", ")}. Elle engage la société sur `
-        + "chaque devis où elle figure : ne l'enregistrez que si les produits "
+        + "chaque devis où elle figure : ne l'activez que si les produits "
         + "réellement employés le justifient, pièces à l'appui.",
     };
   }
   return { ok: true, avertissement: null };
 }
+
+/** Libellé d'un pays, réexporté pour les écrans. */
+export { COUNTRY_LABEL, COUNTRIES };

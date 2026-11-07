@@ -145,7 +145,7 @@
   line-height: 1.5;
 }
 
-/* ── Mentions des produits d'entretien, par société (C1, 2026-11-06) ── */
+/* ── Mentions des produits, par PAYS de la société (C1, 2026-11-06) ── */
 .cardBody {
   display: flex;
   flex-direction: column;
@@ -157,6 +157,30 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
+  padding: var(--sp-3) 0;
+
+  /* Un filet entre deux pays : cinq réglages dans une même carte doivent se
+     lire comme cinq blocs, pas comme une suite de champs. */
+  & + & { border-top: 1px solid var(--border-subtle); }
+}
+
+/* La ligne du pays est l'interrupteur : tout le libellé est cliquable, et la
+   case reste atteignable au doigt (règle des 44px du dépôt). */
+.interrupteurPays {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  cursor: pointer;
+
+  input[type="checkbox"] {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-brand-500);
+    cursor: pointer;
+  }
 }
 
 .labelMention {
@@ -164,7 +188,7 @@
   margin-bottom: var(--sp-1);
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-primary);
 }
 
 .paysMention {
@@ -178,11 +202,23 @@
   font: inherit;
   font-size: 0.85rem;
   line-height: 1.5;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  color: var(--text-primary);
+  background: var(--bg-app);
+  border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
   resize: vertical;
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 3px var(--color-brand-50);
+  }
+
+  &:disabled {
+    color: var(--text-muted);
+    background: var(--bg-surface-2);
+    cursor: default;
+  }
 }
 
 .ligneMention {
@@ -202,7 +238,7 @@
   padding: 0;
   font: inherit;
   font-size: 0.75rem;
-  color: var(--accent);
+  color: var(--color-brand-500);
   text-decoration: underline;
   background: none;
   border: 0;
@@ -220,9 +256,9 @@
   line-height: 1.45;
 }
 
-.avertMention { color: var(--warning, #b45309); }
-.erreurMention { color: var(--danger, #b91c1c); }
-.okMention { color: var(--success, #15803d); }
+.avertMention { color: var(--tone-warning); }
+.erreurMention { color: var(--tone-danger); }
+.okMention { color: var(--tone-success); }
 
 .btnMention {
   align-self: flex-start;
@@ -230,8 +266,8 @@
   font: inherit;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #fff;
-  background: var(--accent);
+  color: var(--text-inverted);
+  background: var(--color-brand-500);
   border: 0;
   border-radius: var(--r-sm);
   cursor: pointer;
@@ -244,4 +280,13 @@
   .btnMention { min-height: 44px; }
   .lienMention { min-height: 44px; }
   .ligneMention { flex-wrap: wrap; }
+
+  .interrupteurPays {
+    min-height: 44px;
+
+    input[type="checkbox"] {
+      width: 24px;
+      height: 24px;
+    }
+  }
 }

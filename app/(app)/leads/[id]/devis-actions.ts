@@ -26,7 +26,7 @@ import { auditLog } from "@/lib/audit";
 import { supabaseServer } from "@/lib/supabase/server";
 import { getLeadDetail } from "@/lib/leads-server";
 import { montantRecommande } from "@/lib/devis/prefill";
-import { mentionProduitsPourEntite } from "@/lib/generation/mentions-produits-server";
+import { mentionPourEntite } from "@/lib/generation/mentions-produits-server";
 import { ensureClientFromLead } from "@/app/(app)/clients/new/actions";
 import {
   createDevis,
@@ -148,10 +148,10 @@ export async function genererDevisDepuisDecouverte(
 
   // ── 2. Société émettrice — AVANT la rédaction ─────────────────────
   //
-  // Remontée ici le 2026-11-06 (C1) : c'est la société qui porte la mention
-  // des produits d'entretien, et le moteur en a besoin pour rédiger. La
-  // résolution est inchangée — `leads.entity_id`, à défaut l'entité par
-  // défaut de l'activité.
+  // Remontée ici le 2026-11-06 (C1) : c'est le PAYS de la société émettrice
+  // qui décide de la mention des produits d'entretien, et le moteur en a
+  // besoin pour rédiger. La résolution de la société est inchangée —
+  // `leads.entity_id`, à défaut l'entité par défaut de l'activité.
   const entite = await resoudreEntite(leadId);
   if (!entite) {
     return {
@@ -159,6 +159,8 @@ export async function genererDevisDepuisDecouverte(
       error: "Aucune société émettrice n'est enregistrée : créez-en une dans Réglages › Sociétés émettrices.",
     };
   }
+
+  const resolutionMention = await mentionPourEntite(entite.entityId);
 
   // ── 3. Rédaction, à partir des seuls champs saisis ────────────────
   const gen = genererDepuisLead({
@@ -168,12 +170,23 @@ export async function genererDevisDepuisDecouverte(
     discoveryDetails: lead.discoveryDetails ?? null,
     discoveryDoneAt: lead.discoveryDoneAt ?? null,
     contexteIntervention: lead.contexteIntervention ?? null,
-    // `null` tant que la société n'a pas déclaré de mention : aucune
-    // affirmation sur l'origine ou le caractère écologique des produits
-    // n'est portée par défaut.
-    mentionProduits: await mentionProduitsPourEntite(entite.entityId),
+    // La mention suit le PAYS de la société émettrice, et rien d'autre : ni
+    // l'adresse du client, ni son téléphone. `null` tant que le pays n'est
+    // pas activé dans Réglages, ou s'il est inconnu — jamais de mention par
+    // défaut, et jamais la mention française sur une société étrangère.
+    mentionProduits: resolutionMention.mention,
   });
   if (!gen.ok) return { ok: false, error: MOTIF_LABEL[gen.motif] };
+
+  // Un pays absent est un problème de paramétrage, pas une fatalité : on le
+  // SIGNALE au commercial dans la liste des informations manquantes, comme
+  // le client l'a demandé — « signaler le problème et ne pas inventer de
+  // mention ». Les deux autres motifs sont des réglages volontaires.
+  if (resolutionMention.mention === null && resolutionMention.motif === "pays_inconnu") {
+    gen.contenu.manquant.push(
+      "pays de la société émettrice : aucune mention de produits ne peut être "
+      + "portée au devis (à renseigner dans Réglages › Sociétés émettrices)");
+  }
 
   const conv = await ensureClientFromLead(leadId);
   if (!conv.ok) return { ok: false, error: conv.error };

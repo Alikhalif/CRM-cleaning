@@ -7,7 +7,7 @@ import {
 } from "@/lib/generation/devis-contenu";
 import { notesDevis } from "@/lib/generation/devis-depuis-decouverte";
 import { RESERVE_REEVALUATION } from "@/lib/generation/bibliotheque-redaction";
-import { SUGGESTION_HISTORIQUE } from "@/lib/generation/mentions-produits";
+import { MENTION_PAR_PAYS } from "@/lib/generation/mentions-produits";
 import { bilan, contient, decouverteNettoyage, eq, faux, titre, vrai } from "./commun";
 
 // Le dossier de référence du §4 : appartement de 90 m², encrassement
@@ -32,7 +32,7 @@ const REFERENCE = decouverteNettoyage(
     // mention. Déclarée ici et non dans `decouverteNettoyage()` : si le
     // helper la posait pour tous les fixtures, on reconstituerait le défaut
     // « mention partout » et plus aucun contrôle ne verrait sa disparition.
-    mentionProduits: SUGGESTION_HISTORIQUE,
+    mentionProduits: MENTION_PAR_PAYS.FR,
   },
 );
 
@@ -327,7 +327,7 @@ titre("§11 et §12 — mentions et réserves");
 // DÉCLARÉE par la société. Le contrôle n'est pas supprimé — il prouve toujours
 // qu'une mention déclarée est reprise mot pour mot — mais le fixture doit
 // désormais la déclarer, comme le fera le Super Admin dans Réglages.
-vrai("une mention déclarée est reprise mot pour mot", c.detail.includes(SUGGESTION_HISTORIQUE));
+vrai("une mention déclarée est reprise mot pour mot", c.detail.includes(MENTION_PAR_PAYS.FR));
 vrai(
   "la clause de réévaluation du §12.2 est reprise mot pour mot",
   c.reserves.includes(RESERVE_REEVALUATION),
@@ -337,14 +337,14 @@ vrai(
 // déclarer, ce contrôle passerait trivialement — plus rien ne prouverait que
 // le moteur l'écarte sur une activité de déménagement.
 const demenagement = genererContenuDevis({
-  mentionProduits: SUGGESTION_HISTORIQUE,
+  mentionProduits: MENTION_PAR_PAYS.FR,
   sector: "demenagement", surfaceM2: null, etatSalete: null,
   details: { logementDepart: "appartement_t3", volume: "20-30", typeDemenagement: "complet" },
   villeDepart: "Paris", villeArrivee: "Lyon",
 });
 faux(
   "pas de mention « produits de nettoyage » sur un déménagement",
-  (demenagement?.detail ?? "").includes(SUGGESTION_HISTORIQUE),
+  (demenagement?.detail ?? "").includes(MENTION_PAR_PAYS.FR),
 );
 vrai(
   "la clause de réévaluation figure aussi sur un déménagement",

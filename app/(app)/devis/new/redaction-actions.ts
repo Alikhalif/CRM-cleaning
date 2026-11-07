@@ -28,7 +28,7 @@
 
 import { supabaseServer } from "@/lib/supabase/server";
 import { getLeadDetail } from "@/lib/leads-server";
-import { mentionProduitsPourEntite } from "@/lib/generation/mentions-produits-server";
+import { mentionPourEntite } from "@/lib/generation/mentions-produits-server";
 import {
   MOTIF_LABEL,
   decouverteDepuisLead,
@@ -110,10 +110,10 @@ export async function redigerDevis(
     discoveryDetails: lead.discoveryDetails ?? null,
     discoveryDoneAt: lead.discoveryDoneAt ?? null,
     contexteIntervention: lead.contexteIntervention ?? null,
-    // C1 — la mention suit la société émettrice DU DEVIS, pas une valeur
-    // globale. Une régénération ne doit pas y réintroduire une affirmation
-    // que cette société n'a pas déclarée.
-    mentionProduits: await mentionProduitsPourEntite(r.entityId),
+    // C1 — la mention suit le PAYS de la société émettrice DU DEVIS. Une
+    // régénération ne doit pas y réintroduire l'allégation d'un autre pays,
+    // ni la mention française sur une société étrangère.
+    mentionProduits: (await mentionPourEntite(r.entityId)).mention,
   };
 
   // Les deux refus possibles sont explicites : on ne produit jamais un texte
