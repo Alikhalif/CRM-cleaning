@@ -23,6 +23,13 @@ type Props = {
   // Modèle graphique du PDF (secteur du lead) : "nettoyage" → design OPTIMIVV
   // NETTOYAGE ; "demenagement" (défaut) → design déménagement.
   template?: "demenagement" | "nettoyage";
+  /**
+   * Enseigne de la société émettrice résolue pour ce dossier.
+   *
+   * `null` hors dossier, ou si aucune société n'a pu être lue. On n'affiche
+   * alors AUCUN nom plutôt que celui d'une société qui n'émet pas ce devis.
+   */
+  societe?: string | null;
 };
 
 type Form = {
@@ -99,6 +106,7 @@ function formToInput(f: Form): DevisInput {
 
 export default function NouveauDevis({
   prefill, leadId, templates, vars, motifSansModele = null, template = "demenagement",
+  societe = null,
 }: Props) {
   const [form, setForm] = useState<Form>({
     nom: prefill?.client.nom ?? "",
@@ -350,8 +358,8 @@ export default function NouveauDevis({
       <header className={styles.head}>
         <div className={styles.headTop}>
           <h1 className={styles.title}>
-            Nouveau {docType === "facture" ? "facture" : "devis"} —{" "}
-            {template === "nettoyage" ? "OPTIMIVV NETTOYAGE" : "OPTIMIVV DÉMÉNAGEMENT"}
+            Nouveau {docType === "facture" ? "facture" : "devis"}
+            {societe ? ` — ${societe}` : ""}
           </h1>
           <div className={styles.toggle} role="group" aria-label="Type de document">
             <button
@@ -426,9 +434,25 @@ export default function NouveauDevis({
               </label>
             </div>
             <label className={styles.field}>
-              <span>Description de la prestation</span>
+              <span>
+                Description de la prestation
+                {prefill?.origineDescription === "moteur" && (
+                  <em className={styles.origine}>
+                    {" "}· rédigée par le moteur depuis la découverte
+                  </em>
+                )}
+              </span>
               <textarea rows={6} value={form.description} onChange={set("description")} placeholder="Déménagement complet d'un T3…" />
             </label>
+
+            {/* Ce qui a manqué au moteur, là où le commercial peut le corriger.
+                Sans cet encart, l'information reste côté serveur et n'atteint
+                jamais la personne qui tient le dossier. */}
+            {(prefill?.signalements?.length ?? 0) > 0 && (
+              <ul className={styles.signalements}>
+                {prefill?.signalements?.map((m) => <li key={m}>{m}</li>)}
+              </ul>
+            )}
           </fieldset>
 
           <fieldset className={styles.group}>

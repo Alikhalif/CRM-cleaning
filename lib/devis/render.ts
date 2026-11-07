@@ -63,6 +63,9 @@ import {
   type DevisInput,
 } from "./types";
 import { genererDevisNettoyageBuffer } from "./render-nettoyage";
+import {
+  RENVOI_PAGE_SUITE, estIntertitre, paginer, repartirDescriptif,
+} from "./debordement";
 import path from "node:path";
 import fs from "node:fs";
 
@@ -502,12 +505,24 @@ function buildPdf(donnees: DevisInput): Doc {
   line(697, 984, 697, 1193, BORDER, 0.9);
 
   const TXTDESC = (D.description || "").trim();
+  // ⚠️ L'ENCADRÉ NE TIENT QUE NEUF LIGNES, et les suivantes étaient jetées EN
+  // SILENCE. Tant que l'écran recopiait quelques phrases de la découverte,
+  // cela passait ; depuis l'harmonisation du Lot B, c'est le moteur qui
+  // rédige — PRESTATION, DÉTAIL, RÉSERVES. Un devis amputé de ses réserves
+  // n'oppose plus rien au client.
+  let descEnTrop = "";
   if (TXTDESC) {
     let szDesc = FS(14.5);
     let TB = wrap(TXTDESC, "PopL", szDesc, 630);
     if (TB.length > 8) {
+      // Au-delà de huit lignes, on réduit la police AVANT de conclure au
+      // débordement : la maquette d'origine le faisait déjà.
       szDesc = FS(12.5);
-      TB = wrap(TXTDESC, "PopL", szDesc, 630).slice(0, 9);
+      // La décision est PARTAGÉE avec le gabarit nettoyage et éprouvée à
+      // part : elle décide si les réserves atteignent le client.
+      const r = repartirDescriptif(wrap(TXTDESC, "PopL", szDesc, 630), 9);
+      TB = r.deborde ? [...r.encadre, RENVOI_PAGE_SUITE] : r.encadre;
+      if (r.deborde) descEnTrop = TXTDESC;
     }
     block(TB, 52, 1017, 21, "PopL", szDesc, GREY_TXT);
   } else {
@@ -657,6 +672,16 @@ function buildPdf(donnees: DevisInput): Doc {
     ic_truck(gg, WHITE),
   );
 
+  // ---- Pages de suite : le descriptif COMPLET ------------------------------
+  if (descEnTrop) {
+    poserPagesDeSuite(doc, {
+      numero: D.numero,
+      societe: [P.raison_sociale, P.adresse, P.ville].filter(Boolean).join(" · "),
+      texte: descEnTrop,
+      measure: (t, f, sz) => measureAt(t, f, sz),
+    });
+  }
+
   return doc;
 }
 
@@ -671,3 +696,80 @@ function dataUrlToBuffer(dataUrl: string): Buffer | null {
     return null;
   }
 }
+
+/**
+ * Pose le descriptif complet sur des pages de suite (gabarit déménagement).
+ *
+ * ── Pourquoi des pages NEUTRES ──────────────────────────────────────
+ *
+ * La maquette est une mise en page de PREMIÈRE page : en-tête de marque,
+ * cartouches, bandeau de garanties. La répéter produirait trois en-têtes et
+ * trois bandeaux. Les pages de suite portent le strict nécessaire — le
+ * numéro, le titre, le texte, l'identité de l'émetteur et la pagination.
+ *
+ * Le texte est repris DEPUIS LE DÉBUT : un lecteur qui tourne la page doit
+ * trouver le descriptif entier, pas sa fin.
+ */
+function poserPagesDeSuite(
+  doc: Doc,
+  o: {
+    numero: string;
+    societe: string;
+    texte: string;
+    measure: (t: string, police: string, taille: number) => number;
+  },
+): void {
+  const MARGE = 52;
+  const LARGEUR = PW - MARGE * 2;
+  const TAILLE = 9;
+  const INTERLIGNE = 13.2;
+  const HAUT = 92;
+  const BAS = 92;
+
+  // Découpe au mot, sur la largeur utile, en conservant les sauts explicites.
+  const lignes: string[] = [];
+  for (const para of safe(o.texte).replace(/\r/g, "").split("\n")) {
+    const mots = para.split(/\s+/).filter(Boolean);
+    if (mots.length === 0) { lignes.push(""); continue; }
+    let cur = "";
+    for (const mot of mots) {
+      const essai = cur ? cur + " " + mot : mot;
+      if (o.measure(essai, "PopL", TAILLE) <= LARGEUR) cur = essai;
+      else { if (cur) lignes.push(cur); cur = mot; }
+    }
+    if (cur) lignes.push(cur);
+  }
+
+  const parPage = Math.max(1, Math.floor((PH - HAUT - BAS) / INTERLIGNE));
+  const feuillets = paginer(lignes, parPage);
+  const pages = feuillets.length;
+
+  for (let p = 0; p < pages; p++) {
+    doc.addPage({ size: [PW, PH], margin: 0 });
+    doc.rect(0, 0, PW, 6).fill(NAVY);
+
+    doc.font("PopB").fontSize(11).fillColor(NAVY)
+      .text(`DEVIS N\u00b0 ${o.numero}`, MARGE, 36, { lineBreak: false });
+    doc.font("Pop").fontSize(9).fillColor(GREY_TXT)
+      .text("DESCRIPTIF D\u00c9TAILL\u00c9 DE LA PRESTATION", MARGE, 54, { lineBreak: false });
+    doc.rect(MARGE, 70, LARGEUR, 0.8).fill(GREY_TXT);
+
+    const tranche = feuillets[p] ?? [];
+    for (let i = 0; i < tranche.length; i++) {
+      const ligne = tranche[i];
+      if (!ligne.trim()) continue;
+      const titre = estIntertitre(ligne);
+      doc.font(titre ? "Pop" : "PopL").fontSize(TAILLE)
+        .fillColor(titre ? NAVY : GREY_TXT)
+        .text(ligne, MARGE, HAUT + i * INTERLIGNE, { lineBreak: false });
+    }
+
+    doc.rect(MARGE, PH - 70, LARGEUR, 0.6).fill(GREY_TXT);
+    doc.font("PopL").fontSize(7).fillColor(GREY_TXT)
+      .text(o.societe, MARGE, PH - 58, { lineBreak: false });
+    const pagination = `Page ${p + 2} / ${pages + 1}`;
+    const w = o.measure(pagination, "PopL", 7);
+    doc.text(pagination, PW - MARGE - w, PH - 58, { lineBreak: false });
+  }
+}
+

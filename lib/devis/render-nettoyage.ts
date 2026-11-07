@@ -19,6 +19,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { ASSETS_DIR, FONTS_DIR, safe, euro } from "./layout";
 import { DEFAUTS, todayFr, type Devis, type DevisInput } from "./types";
+import {
+  RENVOI_PAGE_SUITE, estIntertitre, paginer, repartirDescriptif,
+} from "./debordement";
 
 const TEMPLATE =
   process.env.DEVIS_NETTOYAGE_TEMPLATE ||
@@ -369,13 +372,31 @@ export async function genererDevisNettoyageBuffer(
   put(D.date_prevue, 460, 391, med, 8, VALUE, { maxRight: 560 });
 
   // ---- Description de la prestation (masque le texte d'exemple + pointillés) -
+  //
+  // ⚠️ L'ENCADRÉ NE TIENT QUE CINQ LIGNES. Avant le Lot B, cet écran recevait
+  // quelques phrases recopiées de la découverte, et cinq lignes suffisaient.
+  // Depuis l'harmonisation, c'est le MOTEUR qui rédige : PRESTATION, DÉTAIL,
+  // RÉSERVES — quarante à soixante lignes. Les suivantes partaient à la
+  // poubelle EN SILENCE, dont **toutes les réserves**.
+  //
+  // L'encadré garde sa taille : la charte n'est pas touchée. Ce qui déborde
+  // part sur des pages de suite.
   const desc = (D.description || "").trim();
+  let lignesEnTrop: string[] = [];
   if (desc) {
     cover(46, 468, 450, 536);
     const lines = wrap(desc, reg, 8.5, 396);
-    lines.slice(0, 5).forEach((l, i) => {
-      put(l, 52, 480 + i * 11.5, reg, 8.5, DGREY);
-    });
+    // La décision est PARTAGÉE avec le gabarit déménagement et éprouvée à
+    // part : elle décide si les réserves atteignent le client.
+    const r = repartirDescriptif(lines, 5);
+    r.encadre.forEach((l, i) => put(l, 52, 480 + i * 11.5, reg, 8.5, DGREY));
+    if (r.deborde) {
+      // Le renvoi occupe la dernière ligne : sans lui, l'encadré se lit comme
+      // le devis entier.
+      put(RENVOI_PAGE_SUITE, 52, 480 + r.encadre.length * 11.5, med, 8.5, GREEN,
+        { maxRight: 440 });
+      lignesEnTrop = lines;
+    }
   }
 
   // ---- Montant net HT (masque les pointillés, garde le « € HT » du gabarit) --
@@ -457,6 +478,20 @@ export async function genererDevisNettoyageBuffer(
     }
   }
 
+  // ---- Pages de suite : le descriptif COMPLET ------------------------------
+  if (lignesEnTrop.length > 0) {
+    await poserPagesDeSuite(pdf, {
+      reg, med, bold,
+      numero: D.numero,
+      societe: [
+        safe(P.raison_sociale ?? "").trim(),
+        safe(P.adresse ?? "").trim(),
+        safe(P.ville ?? "").trim(),
+      ].filter(Boolean).join(" · "),
+      texte: desc,
+    });
+  }
+
   // Les métadonnées du PDF portent aussi une identité : elles s'affichent dans
   // l'onglet du navigateur et dans les propriétés du fichier.
   const marqueTitre = safe(MQ.nom || P.enseigne || "OPTIMIVV NETTOYAGE").trim();
@@ -464,6 +499,77 @@ export async function genererDevisNettoyageBuffer(
   if (P.raison_sociale) pdf.setAuthor(safe(P.raison_sociale));
   const out = await pdf.save();
   return Buffer.from(out);
+}
+
+/**
+ * Pose le descriptif complet sur des pages de suite.
+ *
+ * ── Pourquoi des pages NEUTRES, et pas une copie du gabarit ─────────
+ *
+ * Le gabarit est une mise en page de PREMIÈRE page : hero, cartouches,
+ * cases de signature. Le répéter produirait trois fois la case « Bon pour
+ * accord », donc trois endroits où signer. Les pages de suite portent donc
+ * le strict nécessaire — le numéro, le titre, le texte, l'identité et la
+ * pagination.
+ *
+ * Le texte est repris DEPUIS LE DÉBUT : un lecteur qui tourne la page doit
+ * trouver le descriptif entier, pas sa fin. Les quatre lignes de l'encadré
+ * sont un aperçu, la page 2 est le document.
+ */
+async function poserPagesDeSuite(
+  pdf: PDFDocument,
+  o: {
+    reg: PDFFont; med: PDFFont; bold: PDFFont;
+    numero: string; societe: string; texte: string;
+  },
+): Promise<void> {
+  const L = 595.28;
+  const H = 841.89;
+  const MARGE = 52;
+  const LARGEUR = L - MARGE * 2;
+  const TAILLE = 9;
+  const INTERLIGNE = 13.2;
+  const HAUT = 92;      // première ligne de texte
+  const BAS = 92;       // marge basse, pied compris
+
+  const lignes = wrap(o.texte, o.reg, TAILLE, LARGEUR);
+  const parPage = Math.max(1, Math.floor((H - HAUT - BAS) / INTERLIGNE));
+  const feuillets = paginer(lignes, parPage);
+  const pages = feuillets.length;
+
+  for (let p = 0; p < pages; p++) {
+    const page = pdf.addPage([L, H]);
+    const ecrire = (
+      t: string, x: number, bas: number, f: PDFFont, taille: number, c: RGB,
+    ) => {
+      const str = safe(t).trim();
+      if (str) page.drawText(str, { x, y: H - bas, size: taille, font: f, color: c });
+    };
+
+    // En-tête : un filet vert, le numéro, le titre.
+    page.drawRectangle({ x: 0, y: H - 6, width: L, height: 6, color: GREEN });
+    ecrire(`DEVIS N° ${o.numero}`, MARGE, 46, o.bold, 11, GREEN);
+    ecrire("DESCRIPTIF DÉTAILLÉ DE LA PRESTATION", MARGE, 64, o.med, 9, DGREY);
+    page.drawRectangle({
+      x: MARGE, y: H - 74, width: LARGEUR, height: 0.8, color: DGREY,
+    });
+
+    for (const [i, ligne] of (feuillets[p] ?? []).entries()) {
+      const titre = estIntertitre(ligne);
+      ecrire(ligne, MARGE, HAUT + i * INTERLIGNE, titre ? o.med : o.reg,
+        TAILLE, titre ? GREEN : DGREY);
+    }
+
+    // Pied : identité de la société émettrice et pagination. Une page de
+    // suite détachée du devis doit rester rattachable à son émetteur.
+    page.drawRectangle({
+      x: MARGE, y: 58, width: LARGEUR, height: 0.6, color: DGREY,
+    });
+    ecrire(o.societe, MARGE, H - 44, o.reg, 7, DGREY);
+    const pagination = `Page ${p + 2} / ${pages + 1}`;
+    const w = o.reg.widthOfTextAtSize(pagination, 7);
+    ecrire(pagination, L - MARGE - w, H - 44, o.reg, 7, DGREY);
+  }
 }
 
 /**

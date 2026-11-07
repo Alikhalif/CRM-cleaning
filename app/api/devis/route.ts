@@ -5,6 +5,64 @@ import { buildDevis, type DevisInput, type DocType } from "@/lib/devis/types";
 import { allocateNumero, peekNumero } from "@/lib/devis/numero";
 import { verifierAvantCreation } from "@/lib/devis/garde-doublon";
 import { archiveDevis } from "@/lib/devis/archive";
+import { identitePourLead, versPrestataire } from "@/lib/devis/entite-emettrice";
+import { controlerIdentitePourDevis, type VerdictIdentite } from "@/lib/devis/garde-identite";
+import { lireReglageGabarits } from "@/lib/devis/reglage-gabarits-server";
+import { resoudreGabarit } from "@/lib/devis/gabarits";
+import { APP_SETTING_KEYS, getBooleanSetting } from "@/lib/app-settings";
+
+/**
+ * Identité de la société émettrice, et modèle graphique, pour un dossier.
+ *
+ * ⚠️ TOUT VIENT DE LA BASE. Le corps de la requête n'est jamais consulté :
+ * c'est ce qui garantit qu'aucune identité juridique ne peut être mélangée
+ * entre deux sociétés, ni inventée par un appelant.
+ *
+ * Sans dossier (`affaire` absente), rien n'est injecté : le générateur garde
+ * ses valeurs par défaut, et le rendu est celui d'avant.
+ */
+async function identiteDuDossier(affaire: string | null | undefined): Promise<{
+  champs: Partial<DevisInput>;
+  verdict: VerdictIdentite | null;
+}> {
+  if (!affaire) return { champs: {}, verdict: null };
+  const identite = await identitePourLead(affaire);
+  if (!identite) return { champs: {}, verdict: null };
+
+  const [reglages, stricte] = await Promise.all([
+    lireReglageGabarits(),
+    getBooleanSetting(APP_SETTING_KEYS.devisGardeIdentiteStricte),
+  ]);
+  const gabarit = identite.secteur
+    ? resoudreGabarit({
+      entityId: identite.entityId,
+      secteur: identite.secteur,
+      type: "devis",
+      reglages,
+    }).gabarit
+    : null;
+
+  const { prestataire, marque } = versPrestataire(identite);
+  return {
+    champs: {
+      prestataire,
+      marque,
+      identiteDynamique: true,
+      // Aucune société ne porte d'emblème exploitable : `legal_entities.logo_url`
+      // existe en base mais aucun écran ne l'alimente, et c'est une URL de
+      // stockage, pas un chemin disque. On n'imprime donc AUCUN emblème plutôt
+      // que celui d'une autre société.
+      logoPath: null,
+      // Le modèle graphique suit le mapping, et non plus le secteur en dur.
+      ...(gabarit === "optimivv_nettoyage"
+        ? { template: "nettoyage" as const }
+        : gabarit === "optimivv_demenagement"
+          ? { template: "demenagement" as const }
+          : {}),
+    },
+    verdict: controlerIdentitePourDevis(identite.entite, { stricte }),
+  };
+}
 
 // pdfkit + fontkit + fs (polices/images) → runtime Node obligatoire (pas Edge).
 export const runtime = "nodejs";
@@ -85,7 +143,11 @@ export async function POST(request: Request) {
     // n'est pas brûlée par les régénérations à chaque frappe. Si la lecture
     // échoue, on retombe sur l'ancien libellé plutôt que de casser l'aperçu.
     const numeroApercu = input.numero || (await peekNumero(docType)) || "APERÇU";
-    const devis = buildDevis({ ...donneesSures, docType }, numeroApercu);
+    // L'aperçu montre l'identité RÉELLE : sans cela, le commercial validerait
+    // un document qui ne ressemble pas à celui qui partira. La garde n'est pas
+    // appliquée ici — un aperçu ne s'émet pas.
+    const { champs } = await identiteDuDossier(body.affaire);
+    const devis = buildDevis({ ...donneesSures, ...champs, docType }, numeroApercu);
     const pdf = await genererDevisBuffer(devis);
     return new NextResponse(new Uint8Array(pdf), {
       status: 200,
@@ -124,8 +186,29 @@ export async function POST(request: Request) {
     }
   }
 
+  // ⚠️ GARDE D'IDENTITÉ, AVANT L'ALLOCATION DU NUMÉRO.
+  //
+  // Même raison que la garde anti-doublon : un numéro consommé sur une
+  // émission refusée laisserait un trou dans une séquence qui n'en admet pas.
+  const { champs, verdict } = await identiteDuDossier(body.affaire);
+  if (verdict && !verdict.emissionAutorisee) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "identite_incomplete",
+        message:
+          "Émission refusée : la société émettrice ne porte pas les mentions "
+          + "obligatoires du devis — "
+          + verdict.bloquants.map((b) => b.libelle).join(" · ")
+          + ". À compléter dans Réglages › Sociétés émettrices.",
+        griefs: verdict.bloquants,
+      },
+      { status: 409 },
+    );
+  }
+
   const numero = await allocateNumero(docType);
-  const devis = buildDevis({ ...donneesSures, docType }, numero);
+  const devis = buildDevis({ ...donneesSures, ...champs, docType }, numero);
   const pdf = await genererDevisBuffer(devis);
   await archiveDevis({
     devis,

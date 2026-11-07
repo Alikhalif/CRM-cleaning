@@ -23,23 +23,16 @@
 
 import { revalidatePath } from "next/cache";
 import { auditLog } from "@/lib/audit";
-import { supabaseServer } from "@/lib/supabase/server";
 import { getLeadDetail } from "@/lib/leads-server";
 import { montantRecommande } from "@/lib/devis/prefill";
-import { mentionPourEntite } from "@/lib/generation/mentions-produits-server";
-import { terminologiePourEntite } from "@/lib/generation/terminologie-server";
-import { devisExistantsPourLead } from "@/lib/devis/garde-doublon";
 import { ensureClientFromLead } from "@/app/(app)/clients/new/actions";
 import {
   createDevis,
   updateDevisBrouillon,
   type DraftInput,
 } from "@/app/(app)/devis/new/actions";
-import {
-  MOTIF_LABEL,
-  genererDepuisLead,
-  notesDevis,
-} from "@/lib/generation/devis-depuis-decouverte";
+import { notesDevis } from "@/lib/generation/devis-depuis-decouverte";
+import { redigerPourLead } from "@/lib/devis/redaction-pour-lead-server";
 import {
   DEFAULT_ACOMPTE_PCT,
   DEFAULT_PAYMENT_TERM,
@@ -64,55 +57,6 @@ export type GenererDevisResult =
 
 const jour = (d: Date): string => d.toISOString().slice(0, 10);
 
-/**
- * Société émettrice du devis.
- *
- * Ordre : celle déjà portée par le dossier, puis celle déclarée par défaut
- * pour l'activité (`legal_entity_activities.is_default`, index unique partiel
- * qui garantit l'unicité), puis la première disponible. On ne demande rien au
- * commercial : il pourra changer dans l'éditeur.
- */
-async function resoudreEntite(
-  leadId: string,
-): Promise<{ entityId: string; vatRate: number } | null> {
-  const sb = await supabaseServer();
-
-  const { data: lead } = await sb
-    .from("leads")
-    .select("entity_id, activity_id")
-    .eq("id", leadId)
-    .maybeSingle<{ entity_id: string | null; activity_id: string | null }>();
-
-  let entityId = lead?.entity_id ?? null;
-
-  if (!entityId && lead?.activity_id) {
-    const { data: map } = await sb
-      .from("legal_entity_activities")
-      .select("legal_entity_id")
-      .eq("activity_id", lead.activity_id)
-      .eq("is_default", true)
-      .maybeSingle<{ legal_entity_id: string }>();
-    entityId = map?.legal_entity_id ?? null;
-  }
-
-  if (entityId) {
-    const { data: e } = await sb
-      .from("legal_entities")
-      .select("id, default_vat_rate")
-      .eq("id", entityId)
-      .maybeSingle<{ id: string; default_vat_rate: number | string }>();
-    if (e) return { entityId: e.id, vatRate: Number(e.default_vat_rate) };
-  }
-
-  const { data: premiere } = await sb
-    .from("legal_entities")
-    .select("id, default_vat_rate")
-    .order("legal_name", { ascending: true })
-    .limit(1)
-    .maybeSingle<{ id: string; default_vat_rate: number | string }>();
-  if (!premiere) return null;
-  return { entityId: premiere.id, vatRate: Number(premiere.default_vat_rate) };
-}
 
 /**
  * Prépare le devis d'un dossier à partir de sa découverte.
@@ -148,81 +92,30 @@ export async function genererDevisDepuisDecouverte(
     };
   }
 
-  // ⚠️ GARDE CROISÉE (Lot A). Le bloc ci-dessus rend ce parcours idempotent
-  // SUR SA PROPRE TABLE. Il ignorait l'autre parcours : un devis OPTIMIVV
-  // pouvait exister sur le même dossier, et on en créait un second sans le
-  // dire. On ne BLOQUE pas ici — le brouillon reste utile — mais on le
-  // SIGNALE dans les informations manquantes, là où le commercial regarde.
-  const autresDevis = (await devisExistantsPourLead(leadId))
-    .filter((d) => d.origine === "devis_optimivv");
-
-  // ── 2. Société émettrice — AVANT la rédaction ─────────────────────
+  // ── 2 et 3. Société émettrice, puis rédaction ─────────────────────
   //
-  // Remontée ici le 2026-11-06 (C1) : c'est le PAYS de la société émettrice
-  // qui décide de la mention des produits d'entretien, et le moteur en a
-  // besoin pour rédiger. La résolution de la société est inchangée —
-  // `leads.entity_id`, à défaut l'entité par défaut de l'activité.
-  const entite = await resoudreEntite(leadId);
-  if (!entite) {
-    return {
-      ok: false,
-      error: "Aucune société émettrice n'est enregistrée : créez-en une dans Réglages › Sociétés émettrices.",
-    };
-  }
-
-  // Les deux résolutions lisent le pays de la MêME société émettrice,
-  // et c'est voulu : la mention des produits et le nom du document sont deux
-  // conséquences du même fait juridique — qui signe.
-  const [resolutionMention, resolutionTermino] = await Promise.all([
-    mentionPourEntite(entite.entityId),
-    terminologiePourEntite(entite.entityId),
-  ]);
-
-  // ── 3. Rédaction, à partir des seuls champs saisis ────────────────
-  const gen = genererDepuisLead({
+  // ⚠️ LE MÊME CODE QUE `/devis/nouveau` (Lot B). La résolution de la société,
+  // la mention des produits selon son pays, la terminologie, la rédaction et
+  // les signalements vivaient ici, donc l'autre écran ne pouvait pas les
+  // employer : il recopiait les champs de la découverte, et le même dossier
+  // produisait deux textes différents selon le bouton employé.
+  //
+  // Tout est passé dans `redigerPourLead` — même ordre, mêmes signalements,
+  // même texte. La GARDE CROISÉE du Lot A y est comprise : un devis OPTIMIVV
+  // déjà présent sur le dossier est signalé sans bloquer.
+  const redaction = await redigerPourLead({
+    id: leadId,
     sector: lead.sector,
     surfaceM2: lead.surfaceM2 ?? null,
     etatSalete: lead.etatSalete ?? null,
     discoveryDetails: lead.discoveryDetails ?? null,
     discoveryDoneAt: lead.discoveryDoneAt ?? null,
     contexteIntervention: lead.contexteIntervention ?? null,
-    // La mention suit le PAYS de la société émettrice, et rien d'autre : ni
-    // l'adresse du client, ni son téléphone. `null` tant que le pays n'est
-    // pas activé dans Réglages, ou s'il est inconnu — jamais de mention par
-    // défaut, et jamais la mention française sur une société étrangère.
-    mentionProduits: resolutionMention.mention,
-    // C2 — la terminologie du pays de la société. Pour une société
-    // française la projection est l'identité : le texte ressort octet pour
-    // octet comme avant.
-    terminologie: resolutionTermino.terminologie,
   });
-  if (!gen.ok) return { ok: false, error: MOTIF_LABEL[gen.motif] };
-
-  // Un pays absent est un problème de paramétrage, pas une fatalité : on le
-  // SIGNALE au commercial dans la liste des informations manquantes, comme
-  // le client l'a demandé — « signaler le problème et ne pas inventer de
-  // mention ». Les deux autres motifs sont des réglages volontaires.
-  if (resolutionMention.mention === null && resolutionMention.motif === "pays_inconnu") {
-    gen.contenu.manquant.push(
-      "pays de la société émettrice : aucune mention de produits ne peut être "
-      + "portée au devis (à renseigner dans Réglages › Sociétés émettrices)");
-  }
-
-  // Le même pays absent a une seconde conséquence : le devis est rédigé dans
-  // la terminologie française par défaut. Dit séparément, parce qu'un
-  // commercial qui corrige le pays doit savoir ce que ça change.
-  if (autresDevis.length > 0) {
-    const d = autresDevis[0];
-    gen.contenu.manquant.push(
-      `attention : un devis ${d.numero} existe déjà sur ce dossier, établi par `
-      + "le générateur. Vérifiez lequel des deux doit partir au client.");
-  }
-
-  if (!resolutionTermino.paysReconnu) {
-    gen.contenu.manquant.push(
-      "terminologie : le document est rédigé selon l'usage français, faute de "
-      + "pays exploitable sur la société émettrice");
-  }
+  if (!redaction.ok) return { ok: false, error: redaction.error };
+  const { contenu, entite } = redaction;
+  const gen = { contenu, alertes: redaction.alertes };
+  gen.contenu.manquant.push(...redaction.signalements);
 
   const conv = await ensureClientFromLead(leadId);
   if (!conv.ok) return { ok: false, error: conv.error };

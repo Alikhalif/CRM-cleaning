@@ -4,7 +4,7 @@
   "source": "public/devis-assets/nettoyage-template.pdf",
   "source_md5": "448d78795433ae95bfdffb4fac476687",
   "neutre": "public/devis-assets/nettoyage-template-neutre.pdf",
-  "neutre_md5": "04007e8592a77bae7856e521f213eb32",
+  "neutre_md5": "900a92ac735331d4cc368102301c9440",
   "elements_retires": [
     {
       "genre": "texte",
@@ -125,6 +125,24 @@
       "zone": "en-tete : emblème",
       "x": 55.3,
       "top": 46.4
+    },
+    {
+      "genre": "texte",
+      "zone": "encadre : texte d invite",
+      "x": 47.5,
+      "top": 476.8
+    },
+    {
+      "genre": "texte",
+      "zone": "encadre : texte d invite",
+      "x": 47.5,
+      "top": 488.3
+    },
+    {
+      "genre": "texte",
+      "zone": "encadre : texte d invite",
+      "x": 47.5,
+      "top": 499.7
     }
   ],
   "sondes_interdites": [
@@ -133,6 +151,7 @@
     "30 jours",
     "30 %",
     "293 B",
+    "Merci de décrire ici",
     "OPTIMIVV",
     "928 083 427",
     "Alfred Bruneau",

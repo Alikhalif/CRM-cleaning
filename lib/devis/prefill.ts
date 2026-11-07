@@ -4,6 +4,7 @@ import { computeGrid } from "@/lib/pricing/grid-compute";
 import { buildGridInput } from "@/lib/pricing/grid-discovery";
 import "server-only";
 import { getLeadDetail, getLegalEntityPhone, type LeadDetail } from "@/lib/leads-server";
+import { redigerPourLead } from "@/lib/devis/redaction-pour-lead-server";
 import { getTemplatesForUser, type MessageTemplate } from "@/lib/message-templates-server";
 import { leadTemplateVars } from "@/lib/message-templates-shared";
 import { getCurrentUserProfile } from "@/lib/users-server";
@@ -32,6 +33,21 @@ export type DevisPrefill = {
   lieu_intervention?: string;
   description?: string;
   montant_ht?: number | null;
+  /**
+   * Désignation produite par le moteur de rédaction, quand il a pu rédiger.
+   *
+   * Elle sert de titre au devis, exactement comme sur l'autre parcours où
+   * elle devient le libellé de la ligne de prestation.
+   */
+  designation?: string;
+  /**
+   * D'où vient le descriptif : du MOTEUR de rédaction, ou du repli par
+   * recopie des champs. L'écran le dit au commercial — un texte rédigé et un
+   * texte recopié ne se relisent pas de la même façon.
+   */
+  origineDescription?: "moteur" | "recopie";
+  /** Ce qui a manqué au moteur, ou ce qu'il signale. */
+  signalements?: string[];
 };
 
 import { descriptifVitrerie, estFamilleNettoyage } from "@/lib/discovery-nettoyage";
@@ -204,6 +220,35 @@ export async function getDevisPageData(
 
   const prefill = buildPrefill(detail);
   prefill.montant_ht = await montantRecommande(detail);
+
+  // ⚠️ LE MÊME MOTEUR QUE LA FICHE LEAD (Lot B).
+  //
+  // `buildPrefill` recopiait les champs de la découverte : quelques phrases,
+  // aucune structure, aucune réserve, aucune mention de produits. Le même
+  // dossier produisait donc deux textes différents selon le bouton employé.
+  //
+  // On passe par `redigerPourLead`, c'est-à-dire par l'appel EXACT de l'autre
+  // parcours. L'ancienne composition reste en REPLI : un dossier sans
+  // découverte exploitable vaut mieux avec quelques phrases justes qu'avec un
+  // champ vide.
+  const redaction = await redigerPourLead({
+    id: detail.lead.id,
+    sector: detail.lead.sector,
+    surfaceM2: detail.lead.surfaceM2 ?? null,
+    etatSalete: detail.lead.etatSalete ?? null,
+    discoveryDetails: detail.lead.discoveryDetails ?? null,
+    discoveryDoneAt: detail.lead.discoveryDoneAt ?? null,
+    contexteIntervention: detail.lead.contexteIntervention ?? null,
+  });
+  if (redaction.ok) {
+    prefill.description = redaction.notes;
+    prefill.designation = redaction.contenu.designation;
+    prefill.origineDescription = "moteur";
+    prefill.signalements = [...redaction.contenu.manquant, ...redaction.signalements];
+  } else {
+    prefill.origineDescription = "recopie";
+    prefill.signalements = [redaction.error];
+  }
   const [emailTemplates, me] = await Promise.all([
     getTemplatesForUser("email"),
     getCurrentUserProfile(),

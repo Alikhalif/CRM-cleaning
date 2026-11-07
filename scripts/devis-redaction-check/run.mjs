@@ -42,6 +42,7 @@ const SUITES = [
   { fichier: "terminologie.ts", titre: "Multi-pays : un seul moteur, une projection terminologique (C2)" },
   { fichier: "exclusions-combinees.ts", titre: "Les quatre cas d’exclusion : murs, plafonds, les deux, vitrerie (Lot A)" },
   { fichier: "gabarits.ts", titre: "Gabarits, identité de la société émettrice et garde à trois crans (Lot B)" },
+  { fichier: "integration-modules.ts", titre: "Intégration entre modules : la circulation des informations (Lot B §4)" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "devis-redaction-check-"));

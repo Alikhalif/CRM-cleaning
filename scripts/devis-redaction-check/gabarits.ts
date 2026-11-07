@@ -40,6 +40,9 @@ import {
   mentionTva,
   dateFr,
 } from "@/lib/devis/adaptateur-documents";
+import {
+  RENVOI_PAGE_SUITE, estIntertitre, paginer, repartirDescriptif,
+} from "@/lib/devis/debordement";
 import type { Sector } from "@/lib/leads";
 
 let ko = 0;
@@ -351,12 +354,16 @@ console.log("\n== Le gabarit neutre, vérifié par empreinte ==");
     vrai("le gabarit d'origine est intact", md5(m.source) === m.source_md5);
     vrai("le gabarit neutre correspond au manifeste", md5(m.neutre) === m.neutre_md5);
     vrai("l'identité d'OPTIMIVV a bien été retirée", m.sondes_interdites_absentes === true);
-    // 20 : l'identité (nom de marque, slogan, deux emblèmes, la carte
-    // prestataire, la ligne de pied) ET les valeurs — numéro et date
-    // d'exemple, validité, acompte, mention de TVA.
-    vrai("vingt éléments retirés du gabarit neutre", m.elements_retires.length === 20,
-      `obtenu ${m.elements_retires.length}`);
-    for (const zone of ["validite de l'offre", "mention de TVA", "acompte a la commande"]) {
+    // 23 : l'identité (nom de marque, slogan, deux emblèmes, la carte
+    // prestataire, la ligne de pied), les valeurs — numéro et date
+    // d'exemple, validité, acompte, mention de TVA — et le texte d'invite de
+    // l'encadré descriptif, qui polluait le copier-coller du devis.
+    vrai("vingt-trois éléments retirés du gabarit neutre",
+      m.elements_retires.length === 23, `obtenu ${m.elements_retires.length}`);
+    for (const zone of [
+      "validite de l'offre", "mention de TVA", "acompte a la commande",
+      "encadre : texte d invite",
+    ]) {
       vrai(`… dont « ${zone} », qui est un engagement, pas une décoration`,
         m.elements_retires.some((e) => (e as { zone: string }).zone === zone));
     }
@@ -419,6 +426,163 @@ console.log("\n== Garde-fous de code : ce qui ne doit jamais revenir ==");
     /"\/api\/documents\/\*\*":\s*\[[^\]]*devis-assets/.test(cfg));
   vrai("… et pour les pages qui émettent par action serveur",
     cfg.includes('"/comptabilite/**"') && cfg.includes('"/devis/**"'));
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+console.log("\n== Le descriptif n'est plus tronqué en silence ==");
+// ═══════════════════════════════════════════════════════════════════════
+//
+// L'encadré du gabarit nettoyage ne tient que CINQ lignes, celui du gabarit
+// déménagement NEUF. Tant que l'écran recopiait quelques phrases de la
+// découverte, cela suffisait. Depuis l'harmonisation, c'est le moteur qui
+// rédige — quarante à soixante lignes — et tout ce qui dépassait partait à la
+// poubelle, **réserves comprises**. Un devis amputé de ses réserves n'oppose
+// plus rien au client.
+//
+// ── D'ABORD LE COMPORTEMENT, ENSUITE LE CODE ───────────────────────
+//
+// Le test par mutation a montré que les contrôles par recherche de chaînes
+// étaient aveugles : on pouvait remettre la troncature silencieuse sans
+// qu'aucun ne bronche. La décision a donc été sortie des moteurs de rendu,
+// et elle est désormais éprouvée pour ce qu'elle FAIT.
+{
+  const court = ["a", "b", "c"];
+  const r1 = repartirDescriptif(court, 5);
+  eq("ce qui tient est imprimé en entier", r1.encadre, court);
+  vrai("… et rien n'est renvoyé en page 2", r1.deborde === false);
+
+  const long = Array.from({ length: 48 }, (_, i) => `ligne ${i}`);
+  const r2 = repartirDescriptif(long, 5);
+  vrai("ce qui déborde EST signalé", r2.deborde === true);
+  eq("… l'encadré garde une ligne pour le renvoi", r2.encadre.length, 4);
+  eq("… et commence bien au début du texte", r2.encadre[0], "ligne 0");
+
+  const r3 = repartirDescriptif(long, 9);
+  eq("le gabarit déménagement en tient huit", r3.encadre.length, 8);
+  vrai("… et déborde aussi", r3.deborde === true);
+
+  // Exactement à la capacité : rien ne déborde, et surtout rien n'est perdu.
+  const pile = Array.from({ length: 5 }, (_, i) => `l${i}`);
+  const r4 = repartirDescriptif(pile, 5);
+  vrai("à la capacité exacte, aucun débordement", r4.deborde === false);
+  eq("… et les cinq lignes sont là", r4.encadre.length, 5);
+
+  const r5 = repartirDescriptif([], 5);
+  vrai("un descriptif vide ne déborde pas", r5.deborde === false);
+  eq("… et n'imprime rien", r5.encadre.length, 0);
+
+  // Le renvoi doit DIRE où lire la suite : un encadré muet se lit comme le
+  // devis entier.
+  vrai("le renvoi nomme la page 2", RENVOI_PAGE_SUITE.includes("page 2"));
+  vrai("… et les réserves", RENVOI_PAGE_SUITE.toLowerCase().includes("réserves"));
+
+  const feuillets = paginer(Array.from({ length: 101 }, (_, i) => `${i}`), 40);
+  eq("101 lignes à 40 par page font 3 feuillets", feuillets.length, 3);
+  eq("… le dernier en porte 21", feuillets[2].length, 21);
+  eq("aucune ligne n'est perdue à la pagination",
+    feuillets.reduce((n, f) => n + f.length, 0), 101);
+  eq("un texte vide produit quand même un feuillet", paginer([], 40).length, 1);
+
+  vrai("« PRESTATION » est reconnu comme intertitre", estIntertitre("PRESTATION"));
+  vrai("« RÉSERVES » aussi", estIntertitre("RÉSERVES"));
+  vrai("« 1. Nettoyage… » aussi", estIntertitre("1. Nettoyage approfondi"));
+  vrai("une puce n'en est pas un", !estIntertitre("- Dépoussiérage minutieux."));
+  vrai("une phrase ordinaire non plus",
+    !estIntertitre("Intervention de nettoyage approfondi."));
+}
+{
+  const net = lu("lib/devis/render-nettoyage.ts");
+  vrai("nettoyage : plus de troncature à cinq lignes",
+    !net.includes("lines.slice(0, 5)"));
+  vrai("nettoyage : la décision passe par le module partagé",
+    net.includes("repartirDescriptif("));
+  vrai("nettoyage : un renvoi est posé quand le texte déborde",
+    net.includes("RENVOI_PAGE_SUITE"));
+  vrai("nettoyage : des pages de suite existent",
+    net.includes("poserPagesDeSuite") && net.includes("pdf.addPage("));
+  vrai("nettoyage : les pages de suite portent l'identité de l'émetteur",
+    net.includes("o.societe"));
+  vrai("nettoyage : et une pagination",
+    net.includes("Page ${p + 2} / ${pages + 1}"));
+
+  const dem = lu("lib/devis/render.ts");
+  vrai("déménagement : plus de troncature à neuf lignes sans renvoi",
+    !dem.includes('TB = wrap(TXTDESC, "PopL", szDesc, 630).slice(0, 9);'));
+  vrai("déménagement : la décision passe par le même module partagé",
+    dem.includes("repartirDescriptif("));
+  vrai("déménagement : un renvoi est posé quand le texte déborde",
+    dem.includes("RENVOI_PAGE_SUITE"));
+  vrai("déménagement : des pages de suite existent",
+    dem.includes("poserPagesDeSuite") && dem.includes("doc.addPage("));
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+console.log("\n== Les deux parcours de création rédigent pareil ==");
+// ═══════════════════════════════════════════════════════════════════════
+//
+// `/devis/nouveau` recopiait les champs de la découverte ; la fiche lead
+// appelait le moteur. Le même dossier produisait donc deux textes différents
+// selon le bouton employé. Les deux passent désormais par le même module.
+{
+  const partage = lu("lib/devis/redaction-pour-lead-server.ts");
+  vrai("le module partagé appelle bien le moteur",
+    partage.includes("genererDepuisLead(") && partage.includes("notesDevis("));
+  vrai("… il résout la société AVANT de rédiger",
+    partage.indexOf("resoudreEntiteDuLead(") < partage.indexOf("genererDepuisLead("));
+  vrai("… il n'écrit rien en base",
+    !partage.includes(".insert(") && !partage.includes(".update(")
+    && !partage.includes(".upsert("));
+
+  const fiche = lu("app/(app)/leads/[id]/devis-actions.ts");
+  const nouveau = lu("lib/devis/prefill.ts");
+  vrai("la fiche lead passe par le module partagé",
+    fiche.includes("redigerPourLead("));
+  vrai("l'écran « nouveau devis » aussi",
+    nouveau.includes("redigerPourLead("));
+  vrai("… et aucun des deux ne réimplémente la résolution de la société",
+    !fiche.includes("legal_entity_activities")
+    && !nouveau.includes("legal_entity_activities"));
+  vrai("l'ancienne recopie reste en repli, elle n'a pas été supprimée",
+    nouveau.includes("demenagementFromDiscovery"));
+  // ⚠️ Un appel peut rester dans le code tout en étant inatteignable. Le test
+  // par mutation l'a montré : `if (false)` neutralisait la rédaction sans
+  // qu'aucun contrôle ne bronche.
+  vrai("… et l'appel au moteur n'est pas neutralisé par une condition morte",
+    !nouveau.includes("if (false)") && !nouveau.includes("if (0)"));
+  vrai("le résultat de la rédaction est réellement employé",
+    nouveau.includes("prefill.description = redaction.notes")
+    && nouveau.includes("prefill.designation = redaction.contenu.designation"));
+  vrai("… et l'origine du texte est dite au commercial",
+    nouveau.includes('origineDescription = "moteur"')
+    && nouveau.includes('origineDescription = "recopie"'));
+}
+{
+  const ecran = lu("app/(app)/devis/nouveau/NouveauDevis.tsx");
+  vrai("l'écran n'annonce plus OPTIMIVV à toutes les sociétés",
+    !ecran.includes('"OPTIMIVV NETTOYAGE" : "OPTIMIVV DÉMÉNAGEMENT"'));
+  vrai("… il affiche la société résolue", ecran.includes("societe ? ` — ${societe}`"));
+  vrai("… et les signalements du moteur", ecran.includes("prefill?.signalements"));
+  vrai("… sans condition morte qui les masquerait",
+    !ecran.includes("{false &&") && !ecran.includes("{ false &&"));
+
+  const page = lu("app/(app)/devis/nouveau/page.tsx");
+  vrai("la page résout la société et le gabarit",
+    page.includes("identitePourLead(") && page.includes("resoudreGabarit("));
+
+  const route = lu("app/api/devis/route.ts");
+  vrai("la route résout l'identité EN BASE, pas depuis la requête",
+    route.includes("identiteDuDossier(") && route.includes("identitePourLead("));
+  // Le motif précédent ne visait que `{ ...input, docType }` et laissait
+  // passer `{ ...input, ...champs, docType }`. On interdit désormais TOUT
+  // étalement du corps brut dans `buildDevis`.
+  vrai("… et le corps brut de la requête n'est JAMAIS étalé dans buildDevis",
+    !/buildDevis\(\{\s*\.\.\.input/.test(route));
+  vrai("… seules les données expurgées le sont",
+    (route.match(/buildDevis\(\{ \.\.\.donneesSures/g) ?? []).length === 2);
+  vrai("… et la garde d'identité précède l'allocation du numéro",
+    route.indexOf("identiteDuDossier(body.affaire)") > 0
+    && route.lastIndexOf("identiteDuDossier(body.affaire)")
+      < route.indexOf("await allocateNumero("));
 }
 
 console.log(`\n${ko === 0 ? "  ✅ TOUT PASSE" : `  ❌ ${ko} ÉCHEC(S)`}`);

@@ -112,7 +112,13 @@ const CHAINES: Chaine[] = [
     symbole: "genererContenuDevis",
     maillons: [
       { f: "lib/generation/devis-depuis-decouverte.ts", s: "genererContenuDevis" },
-      { f: "app/(app)/leads/[id]/devis-actions.ts", s: "genererDepuisLead" },
+      // Lot B : la rédaction a été remontée dans un module PARTAGÉ, pour que
+      // les deux écrans de création produisent le même texte. La chaîne gagne
+      // donc un maillon — et ces deux lignes le figent, sans quoi le module
+      // pourrait être court-circuité sans que rien ne le dise.
+      { f: "lib/devis/redaction-pour-lead-server.ts", s: "genererDepuisLead" },
+      { f: "app/(app)/leads/[id]/devis-actions.ts", s: "redigerPourLead" },
+      { f: "lib/devis/prefill.ts", s: "redigerPourLead" },
       { f: "app/(app)/leads/[id]/devis-actions.ts", s: "notesDevis" },
       { f: "app/(app)/leads/[id]/DiscoveryCard.tsx", s: "activiteCouverte" },
     ],
@@ -299,6 +305,8 @@ const APPELANTS_POSSIBLES = [
   "app/(app)/dashboard/page.tsx",
   "app/(app)/dashboard/AlerteNouveauxLeads.tsx",
   "lib/generation/devis-depuis-decouverte.ts",
+  "lib/devis/redaction-pour-lead-server.ts",
+  "lib/devis/prefill.ts",
   "app/(app)/planification/[id]/ContratSousTraitance.tsx",
   "lib/sous-traitance/contrats-server.ts",
   "app/(app)/planification/[id]/DemandeTarif.tsx",
@@ -306,6 +314,9 @@ const APPELANTS_POSSIBLES = [
 for (const m of [
   { module: "lib/generation/devis-contenu.ts", symbole: "genererContenuDevis" },
   { module: "lib/generation/devis-depuis-decouverte.ts", symbole: "genererDepuisLead" },
+  // Le module de rédaction partagé du Lot B : s'il perdait ses appelants, les
+  // deux écrans de création auraient recommencé à diverger.
+  { module: "lib/devis/redaction-pour-lead-server.ts", symbole: "redigerPourLead" },
   { module: "lib/leads-non-traites-server.ts", symbole: "getLeadsNonTraites" },
   { module: "lib/sous-traitance/contrats-shared.ts", symbole: "classerPrestataires" },
   { module: "lib/generation/demande-depuis-dossier.ts", symbole: "demandePourDossier" },

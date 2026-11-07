@@ -381,3 +381,33 @@
   color: var(--text-muted);
   margin-top: calc(-1 * var(--sp-2));
 }
+
+/* ── Origine du descriptif et signalements du moteur (Lot B) ─────────
+   Le descriptif vient du moteur de rédaction, plus de la recopie des champs
+   de la découverte. On le dit, et on affiche ce qui a manqué au moteur :
+   l'information doit atteindre la personne qui tient le dossier. */
+.origine {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.signalements {
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-6);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--tone-warning);
+  background: var(--bg-surface-2);
+  border-left: 3px solid var(--tone-warning);
+  border-radius: var(--r-sm);
+
+  li + li { margin-top: var(--sp-1); }
+}
+
+@media (max-width: 768px) {
+  .signalements {
+    /* Le texte reste lisible au doigt : on réduit le retrait, pas la taille. */
+    padding-left: var(--sp-5);
+  }
+}

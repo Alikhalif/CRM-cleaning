@@ -83,6 +83,13 @@ ZONES = [
     ("validite de l'offre", 190.0, 118.0, 300.0, 127.0),
     ("mention de TVA", 30.0, 550.0, 300.0, 560.0),
     ("acompte a la commande", 330.0, 598.0, 470.0, 608.0),
+    # Texte d'invite de l'encadre descriptif. Recouvert a l'oeil par le
+    # moteur, mais toujours present dans la couche texte : un copier-coller
+    # du devis le rendait entrelace avec le vrai descriptif.
+    #
+    # Borne a x < 430 : au-dela commencent les pointilles du montant
+    # (x 437,5) et le « € HT », que le moteur emploie encore.
+    ("encadre : texte d invite", 45.0, 472.0, 430.0, 505.0),
 ]
 
 ZONES_IMAGE = [
@@ -97,6 +104,7 @@ SONDES_INTERDITES = [
     "30 jours",
     "30 %",
     "293 B",
+    "Merci de décrire ici",
     "OPTIMIVV",
     "928 083 427",
     "Alfred Bruneau",
