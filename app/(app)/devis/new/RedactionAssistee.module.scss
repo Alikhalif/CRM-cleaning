@@ -98,6 +98,78 @@
   li { margin-bottom: 2px; }
 }
 
+// ── C5 : l'extrait signalé dans un point à revoir ────────────────
+//
+// Le mot fautif doit sauter aux yeux dans la liste : c'est lui que le
+// commercial va chercher dans son texte.
+.extrait {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+}
+
+// ── C4 : reprise ciblée d'une section ──────────────────────────
+//
+// Un filet sépare ce bloc des boutons globaux : viser une seule section et
+// régénérer tout le devis n'ont pas la même portée, et l'interface doit le
+// dire avant le clic.
+.sectionCiblee {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.labelSection {
+  font-size: var(--fs-sm);
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.ligneSection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.selectSection {
+  flex: 1 1 220px;
+  min-width: 0;
+  min-height: 30px;
+  padding: var(--sp-1) var(--sp-2);
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--text-primary);
+  background: var(--bg-app);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 3px var(--color-brand-50);
+  }
+  &:disabled { opacity: 0.55; cursor: default; }
+}
+
+.caseSection {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+
+  input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-brand-500);
+    cursor: pointer;
+  }
+}
+
 // ── Mobile : cibles tactiles de 44 px et boutons pleine largeur ────────
 @media (max-width: 768px) {
   .panneau { padding: var(--sp-3); }
@@ -111,4 +183,11 @@
     justify-content: center;
     font-size: var(--fs-sm);
   }
+
+  // Le sélecteur et sa case passent aussi à 44 px : un commercial reprend une
+  // section depuis son téléphone comme depuis son poste.
+  .ligneSection { flex-direction: column; align-items: stretch; }
+  .selectSection { width: 100%; min-height: 44px; }
+  .caseSection { min-height: 44px; }
+  .caseSection input[type="checkbox"] { width: 24px; height: 24px; }
 }
