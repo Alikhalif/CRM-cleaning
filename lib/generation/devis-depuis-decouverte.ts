@@ -15,6 +15,7 @@ import {
   type ContenuDevis,
   type Decouverte,
 } from "./devis-contenu";
+import type { Terminologie } from "./terminologie";
 
 /**
  * Ce que le pont attend d'un lead.
@@ -44,6 +45,14 @@ export type LeadPourGeneration = {
    * moteur est pur, et `legal_entity_activities` ne se lit pas ici.
    */
   mentionProduits?: string | null;
+  /**
+   * Terminologie du pays de la société émettrice, DÉJÀ RÉSOLUE (C2).
+   *
+   * Transmise pour la même raison que la mention : le moteur est pur et ne
+   * lit pas `legal_entities`. Absente, c'est le français de France — donc la
+   * projection est l'identité et le texte ne bouge pas.
+   */
+  terminologie?: Terminologie | null;
 };
 
 const texte = (d: Record<string, unknown>, k: string): string | null => {
@@ -65,6 +74,7 @@ export function decouverteDepuisLead(l: LeadPourGeneration): Decouverte {
     villeArrivee: texte(details, "villeArrivee"),
     contexteIntervention: l.contexteIntervention ?? null,
     mentionProduits: l.mentionProduits ?? null,
+    terminologie: l.terminologie ?? null,
   };
 }
 

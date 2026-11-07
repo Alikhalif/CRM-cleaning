@@ -59,6 +59,9 @@ import {
 
 export { VERSION_REFERENTIEL } from "./bibliotheque-redaction";
 export type { Niveau, SectionRedigee } from "./bibliotheque-redaction";
+import {
+  TERMINOLOGIE_REFERENCE, projeter, type Terminologie,
+} from "./terminologie";
 
 /** Activités couvertes. Les autres sont hors périmètre. */
 export const ACTIVITES_COUVERTES = [
@@ -122,6 +125,14 @@ export type Decouverte = {
    * qui est le seul endroit sachant quelle société émet le devis.
    */
   mentionProduits?: string | null;
+  /**
+   * Terminologie du pays de la société émettrice (C2 du 2026-11-06).
+   *
+   * Transmise, comme la mention des produits, et pour la même raison : ce
+   * module est PUR et ne sait pas quelle société émet le devis. Absente,
+   * c'est le français de France — donc la projection est l'identité.
+   */
+  terminologie?: Terminologie | null;
 };
 
 // ══════════════════════════════════════════════════════════════════════
@@ -181,6 +192,18 @@ export type Analyse = {
    * engage l'entreprise.
    */
   mentionProduits: string | null;
+  /**
+   * Terminologie du pays de la société émettrice (C2 du 2026-11-06).
+   *
+   * Le référentiel reste écrit en français de France — un seul moteur,
+   * le client l'a exigé. Ce champ dit vers quel usage PROJETER le texte au
+   * moment du rendu : « devis » devient « soumission » pour une
+   * société québécoise, et rien ne change pour les quatre autres pays.
+   *
+   * Par défaut, c'est la référence : la projection est alors l'identité,
+   * et le texte ressort octet pour octet comme avant C2.
+   */
+  terminologie: Terminologie;
   famille: FamilleNettoyage | null;
   sources: string[];
   manquant: string[];
@@ -953,6 +976,9 @@ function analyserNettoyage(d: Decouverte): Analyse {
     reserves,
     // C1 — plus de `true` en dur : ce que la société a déclaré, ou rien.
     mentionProduits: (d.mentionProduits ?? "").trim() || null,
+    // Posée par `analyser()`, qui est le seul à connaître la société
+    // émettrice. Le défaut est la référence : projection = identité.
+    terminologie: TERMINOLOGIE_REFERENCE,
     famille,
     sources,
     manquant,
@@ -1080,6 +1106,9 @@ function analyserDebarras(d: Decouverte): Analyse {
     contraintes,
     reserves: [RESERVE_VOLUME, RESERVE_BIENS_CONSERVES, RESERVE_DECHETS_REGLEMENTES],
     mentionProduits: null,
+    // Posée par `analyser()`, qui est le seul à connaître la société
+    // émettrice. Le défaut est la référence : projection = identité.
+    terminologie: TERMINOLOGIE_REFERENCE,
     famille: null,
     sources,
     manquant,
@@ -1179,6 +1208,9 @@ function analyserDemenagement(d: Decouverte): Analyse {
       + "conséquence.",
     ],
     mentionProduits: null,
+    // Posée par `analyser()`, qui est le seul à connaître la société
+    // émettrice. Le défaut est la référence : projection = identité.
+    terminologie: TERMINOLOGIE_REFERENCE,
     famille: null,
     sources,
     manquant,
@@ -1280,6 +1312,9 @@ function analyserTransport(d: Decouverte): Analyse {
       + "doivent être déclarés avant le transport.",
     ],
     mentionProduits: null,
+    // Posée par `analyser()`, qui est le seul à connaître la société
+    // émettrice. Le défaut est la référence : projection = identité.
+    terminologie: TERMINOLOGIE_REFERENCE,
     famille: null,
     sources,
     manquant,
@@ -1292,13 +1327,15 @@ function analyserTransport(d: Decouverte): Analyse {
 // ══════════════════════════════════════════════════════════════════════
 
 export function analyser(d: Decouverte): Analyse | null {
+  // La terminologie est posée ICI, une seule fois, et non dans chacun des
+  // quatre analyseurs : c'est un trait du DOCUMENT, pas de l'activité.
+  const t = d.terminologie ?? TERMINOLOGIE_REFERENCE;
   if (!activiteCouverte(d.sector)) return null;
-  switch (d.sector) {
-    case "debarras": return analyserDebarras(d);
-    case "demenagement": return analyserDemenagement(d);
-    case "transport": return analyserTransport(d);
-    default: return analyserNettoyage(d);
-  }
+  const a = d.sector === "debarras" ? analyserDebarras(d)
+    : d.sector === "demenagement" ? analyserDemenagement(d)
+      : d.sector === "transport" ? analyserTransport(d)
+        : analyserNettoyage(d);
+  return a === null ? null : { ...a, terminologie: t };
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -1481,15 +1518,40 @@ export function rendreDetail(a: Analyse, sections: SectionRedigee[]): string {
   return lignes.join("\n");
 }
 
-/** NIVEAU C — rédaction complète à partir d'une analyse. */
+/**
+ * NIVEAU C — rédaction complète à partir d'une analyse.
+ *
+ * ── LA PROJECTION TERMINOLOGIQUE (C2 du 2026-11-06) ────────────────
+ *
+ * Le référentiel est écrit en français de France, et il reste unique : le
+ * client a exigé qu'il n'y ait pas cinq moteurs. La dernière étape du rendu
+ * projette le texte vers l'usage du pays de la société émettrice — « devis »
+ * devient « soumission » pour une société québécoise, accords compris.
+ *
+ * ⚠️ POUR LE FRANÇAIS DE FRANCE, `projeter` EST L'IDENTITÉ : retour immédiat,
+ * aucune substitution. Les sept sociétés du CRM étant françaises, C2 n'a
+ * aujourd'hui aucun effet observable en production, et la suite de contrôles
+ * le vérifie octet pour octet.
+ *
+ * La projection porte aussi sur les TITRES et les OPÉRATIONS des sections, et
+ * pas seulement sur le texte rendu : la reprise ciblée (C4) appareille une
+ * section par son titre, et un titre non projeté ne se retrouverait plus dans
+ * un devis québécois.
+ */
 export function rediger(a: Analyse): ContenuDevis {
-  const sections = construireSections(a);
+  const t = a.terminologie ?? TERMINOLOGIE_REFERENCE;
+  const p = (x: string) => projeter(x, t);
+  const brutes = construireSections(a);
+  const sections = brutes.map((s) => ({
+    titre: p(s.titre),
+    operations: s.operations.map(p),
+  }));
   return {
-    designation: construireTitre(a),
-    introduction: construireIntroduction(a),
+    designation: p(construireTitre(a)),
+    introduction: p(construireIntroduction(a)),
     sections,
-    detail: rendreDetail(a, sections),
-    reserves: construireReserves(a),
+    detail: p(rendreDetail(a, brutes)),
+    reserves: p(construireReserves(a)),
     niveau: a.niveau,
     famille: a.famille ?? a.titreBase,
     sources: [...new Set(a.sources)],

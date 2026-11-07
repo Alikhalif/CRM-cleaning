@@ -39,6 +39,7 @@ const SUITES = [
   { fichier: "decouverte-enrichie.ts", titre: "Découverte enrichie et son exploitation (C3, C6)" },
   { fichier: "sections.ts", titre: "Reprise ciblée d'une section du descriptif (C4)" },
   { fichier: "reformulation.ts", titre: "Reformulation : corriger le mécanique, signaler le contractuel (C5)" },
+  { fichier: "terminologie.ts", titre: "Multi-pays : un seul moteur, une projection terminologique (C2)" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "devis-redaction-check-"));

@@ -27,6 +27,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { getLeadDetail } from "@/lib/leads-server";
 import { montantRecommande } from "@/lib/devis/prefill";
 import { mentionPourEntite } from "@/lib/generation/mentions-produits-server";
+import { terminologiePourEntite } from "@/lib/generation/terminologie-server";
 import { ensureClientFromLead } from "@/app/(app)/clients/new/actions";
 import {
   createDevis,
@@ -160,7 +161,13 @@ export async function genererDevisDepuisDecouverte(
     };
   }
 
-  const resolutionMention = await mentionPourEntite(entite.entityId);
+  // Les deux résolutions lisent le pays de la MêME société émettrice,
+  // et c'est voulu : la mention des produits et le nom du document sont deux
+  // conséquences du même fait juridique — qui signe.
+  const [resolutionMention, resolutionTermino] = await Promise.all([
+    mentionPourEntite(entite.entityId),
+    terminologiePourEntite(entite.entityId),
+  ]);
 
   // ── 3. Rédaction, à partir des seuls champs saisis ────────────────
   const gen = genererDepuisLead({
@@ -175,6 +182,10 @@ export async function genererDevisDepuisDecouverte(
     // pas activé dans Réglages, ou s'il est inconnu — jamais de mention par
     // défaut, et jamais la mention française sur une société étrangère.
     mentionProduits: resolutionMention.mention,
+    // C2 — la terminologie du pays de la société. Pour une société
+    // française la projection est l'identité : le texte ressort octet pour
+    // octet comme avant.
+    terminologie: resolutionTermino.terminologie,
   });
   if (!gen.ok) return { ok: false, error: MOTIF_LABEL[gen.motif] };
 
@@ -186,6 +197,15 @@ export async function genererDevisDepuisDecouverte(
     gen.contenu.manquant.push(
       "pays de la société émettrice : aucune mention de produits ne peut être "
       + "portée au devis (à renseigner dans Réglages › Sociétés émettrices)");
+  }
+
+  // Le même pays absent a une seconde conséquence : le devis est rédigé dans
+  // la terminologie française par défaut. Dit séparément, parce qu'un
+  // commercial qui corrige le pays doit savoir ce que ça change.
+  if (!resolutionTermino.paysReconnu) {
+    gen.contenu.manquant.push(
+      "terminologie : le document est rédigé selon l'usage français, faute de "
+      + "pays exploitable sur la société émettrice");
   }
 
   const conv = await ensureClientFromLead(leadId);

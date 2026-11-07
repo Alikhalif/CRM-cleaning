@@ -29,6 +29,7 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { getLeadDetail } from "@/lib/leads-server";
 import { mentionPourEntite } from "@/lib/generation/mentions-produits-server";
+import { terminologiePourEntite } from "@/lib/generation/terminologie-server";
 import {
   MOTIF_LABEL,
   decouverteDepuisLead,
@@ -103,6 +104,49 @@ async function leadDuDevis(devisId: string) {
   return { ok: true as const, lead: detail.lead, entityId: data.entity_id };
 }
 
+/**
+ * Entrée du moteur, construite une seule fois pour les deux actions.
+ *
+ * Les deux la composaient à l'identique, et deux copies veulent dire deux
+ * endroits où oublier un champ. Ici se résolvent les deux traits que la
+ * SOCIÉTÉ ÉMETTRICE impose au texte :
+ *
+ *   C1 — la mention des produits, selon le pays ;
+ *   C2 — la terminologie du document, selon le même pays.
+ *
+ * Les deux lectures partent du même champ `legal_entities.country`, jamais
+ * de l'adresse du client : un document engage celui qui le signe.
+ */
+async function entreeDuDevis(
+  // Type STRUCTURAL, comme dans `devis-depuis-decouverte.ts` et pour la même
+  // raison : le `Lead` complet traîne une centaine de champs dont rien ici
+  // n'a besoin, et un objet de contrôle tiendrait en six lignes.
+  lead: {
+    sector: string;
+    surfaceM2?: number | null;
+    etatSalete?: string | null;
+    discoveryDetails?: Record<string, unknown> | null;
+    discoveryDoneAt?: string | null;
+    contexteIntervention?: string | null;
+  },
+  entityId: string | null,
+) {
+  const [mention, termino] = await Promise.all([
+    mentionPourEntite(entityId),
+    terminologiePourEntite(entityId),
+  ]);
+  return {
+    sector: lead.sector,
+    surfaceM2: lead.surfaceM2 ?? null,
+    etatSalete: lead.etatSalete ?? null,
+    discoveryDetails: lead.discoveryDetails ?? null,
+    discoveryDoneAt: lead.discoveryDoneAt ?? null,
+    contexteIntervention: lead.contexteIntervention ?? null,
+    mentionProduits: mention.mention,
+    terminologie: termino.terminologie,
+  };
+}
+
 export async function redigerDevis(
   devisId: string,
   mode: ModeRedaction,
@@ -113,18 +157,9 @@ export async function redigerDevis(
   if (!r.ok) return { ok: false, error: r.error };
   const lead = r.lead;
 
-  const entree = {
-    sector: lead.sector,
-    surfaceM2: lead.surfaceM2 ?? null,
-    etatSalete: lead.etatSalete ?? null,
-    discoveryDetails: lead.discoveryDetails ?? null,
-    discoveryDoneAt: lead.discoveryDoneAt ?? null,
-    contexteIntervention: lead.contexteIntervention ?? null,
-    // C1 — la mention suit le PAYS de la société émettrice DU DEVIS. Une
-    // régénération ne doit pas y réintroduire l'allégation d'un autre pays,
-    // ni la mention française sur une société étrangère.
-    mentionProduits: (await mentionPourEntite(r.entityId)).mention,
-  };
+  // Une régénération ne doit réintroduire ni l'allégation d'un autre pays
+  // (C1), ni « devis » dans un document québécois (C2).
+  const entree = await entreeDuDevis(lead, r.entityId);
 
   // Les deux refus possibles sont explicites : on ne produit jamais un texte
   // approximatif pour avoir quelque chose à afficher.
@@ -223,15 +258,7 @@ export async function redigerSectionDevis(
   if (!r.ok) return { ok: false, error: r.error };
   const lead = r.lead;
 
-  const entree = {
-    sector: lead.sector,
-    surfaceM2: lead.surfaceM2 ?? null,
-    etatSalete: lead.etatSalete ?? null,
-    discoveryDetails: lead.discoveryDetails ?? null,
-    discoveryDoneAt: lead.discoveryDoneAt ?? null,
-    contexteIntervention: lead.contexteIntervention ?? null,
-    mentionProduits: (await mentionPourEntite(r.entityId)).mention,
-  };
+  const entree = await entreeDuDevis(lead, r.entityId);
 
   const base = genererDepuisLead(entree);
   if (!base.ok) return { ok: false, error: MOTIF_LABEL[base.motif] };
