@@ -246,11 +246,35 @@ export default function NouveauDevis({
     setBusy(true);
     setFlash(null);
     try {
-      const res = await fetch("/api/devis", {
+      // Garde contre le doublon (Lot A) : le serveur répond 409 quand un devis
+      // existe déjà sur le dossier. On nomme le document existant et on laisse
+      // le commercial trancher — un devis rectificatif reste possible, c'est
+      // l'exigence du client : la garde empêche l'accident, pas l'intention.
+      const appeler = (confirmerNouveau: boolean) => fetch("/api/devis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: input, mode: "final", affaire: leadId, docType }),
+        body: JSON.stringify({
+          data: input, mode: "final", affaire: leadId, docType, confirmerNouveau,
+        }),
       });
+
+      let res = await appeler(false);
+
+      if (res.status === 409) {
+        const j = (await res.json().catch(() => null)) as { message?: string } | null;
+        const message = j?.message
+          ?? "Un devis existe déjà sur ce dossier.";
+        if (!window.confirm(
+          message + "\n\nÉtablir malgré tout un nouveau devis ?\n\n"
+          + "Le devis existant n'est ni modifié ni supprimé, et un nouveau numéro "
+          + "sera attribué.",
+        )) {
+          setFlash({ tone: "err", msg: message });
+          return;
+        }
+        res = await appeler(true);
+      }
+
       if (!res.ok) {
         setFlash({ tone: "err", msg: "Échec de la génération (" + res.status + ")." });
         return;

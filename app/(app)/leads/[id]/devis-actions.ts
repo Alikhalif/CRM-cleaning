@@ -28,6 +28,7 @@ import { getLeadDetail } from "@/lib/leads-server";
 import { montantRecommande } from "@/lib/devis/prefill";
 import { mentionPourEntite } from "@/lib/generation/mentions-produits-server";
 import { terminologiePourEntite } from "@/lib/generation/terminologie-server";
+import { devisExistantsPourLead } from "@/lib/devis/garde-doublon";
 import { ensureClientFromLead } from "@/app/(app)/clients/new/actions";
 import {
   createDevis,
@@ -147,6 +148,14 @@ export async function genererDevisDepuisDecouverte(
     };
   }
 
+  // ⚠️ GARDE CROISÉE (Lot A). Le bloc ci-dessus rend ce parcours idempotent
+  // SUR SA PROPRE TABLE. Il ignorait l'autre parcours : un devis OPTIMIVV
+  // pouvait exister sur le même dossier, et on en créait un second sans le
+  // dire. On ne BLOQUE pas ici — le brouillon reste utile — mais on le
+  // SIGNALE dans les informations manquantes, là où le commercial regarde.
+  const autresDevis = (await devisExistantsPourLead(leadId))
+    .filter((d) => d.origine === "devis_optimivv");
+
   // ── 2. Société émettrice — AVANT la rédaction ─────────────────────
   //
   // Remontée ici le 2026-11-06 (C1) : c'est le PAYS de la société émettrice
@@ -202,6 +211,13 @@ export async function genererDevisDepuisDecouverte(
   // Le même pays absent a une seconde conséquence : le devis est rédigé dans
   // la terminologie française par défaut. Dit séparément, parce qu'un
   // commercial qui corrige le pays doit savoir ce que ça change.
+  if (autresDevis.length > 0) {
+    const d = autresDevis[0];
+    gen.contenu.manquant.push(
+      `attention : un devis ${d.numero} existe déjà sur ce dossier, établi par `
+      + "le générateur. Vérifiez lequel des deux doit partir au client.");
+  }
+
   if (!resolutionTermino.paysReconnu) {
     gen.contenu.manquant.push(
       "terminologie : le document est rédigé selon l'usage français, faute de "

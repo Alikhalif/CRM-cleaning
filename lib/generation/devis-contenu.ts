@@ -45,7 +45,8 @@ import {
 import {
   FAMILLES, RESERVES_PAR_FAMILLE, RESERVE_ASSECHEMENT,
   RESERVE_BIENS_CONSERVES, RESERVE_DECHETS_REGLEMENTES, RESERVE_INSALUBRE,
-  RESERVE_MURS_EXCLUS, RESERVE_MURS_LAVABLES, RESERVE_NON_SIGNALE,
+  RESERVE_MURS_EXCLUS, RESERVE_MURS_LAVABLES, RESERVE_MURS_SEULS_EXCLUS,
+  RESERVE_NON_SIGNALE, RESERVE_PLAFONDS_SEULS_EXCLUS,
   RESERVE_NUISIBLES, RESERVE_REEVALUATION, RESERVE_SUPPORTS, RESERVE_VOLUME,
   RESERVE_VITRERIE_EXCLUE, RESERVE_VITRERIE_INACCESSIBLE,
   estComplementaire, familleDe, operationsDe, titreDe,
@@ -526,8 +527,23 @@ function analyserNettoyage(d: Decouverte): Analyse {
       + `${libellePlaf ? `, surface ${libellePlaf}` : ""}.`);
     if (!mursDemande) titreComplements.push("lessivage des plafonds");
   }
+  // ── Exclusions des murs et des plafonds, un cas à la fois ──────────
+  //
+  // ⚠️ AVANT LE LOT A, SEUL LE CAS COMBINÉ PARLAIT. Refuser le lessivage des
+  // murs en gardant les plafonds — ou l'inverse — ne produisait AUCUNE
+  // réserve : le devis se taisait sur un refus explicite du client. Une
+  // réserve existe pour dire ce qui n'est pas compris ; se taire la vide de
+  // son objet.
+  //
+  // L'ordre compte : le cas combiné d'abord, sinon on écrirait deux réserves
+  // là où une seule phrase suffit, et le contrôle anti-répétition ne les
+  // verrait pas (ce sont deux textes différents).
   if (mursExclus && plafondsExclus) {
     reserves.push(RESERVE_MURS_EXCLUS);
+  } else if (mursExclus) {
+    reserves.push(RESERVE_MURS_SEULS_EXCLUS);
+  } else if (plafondsExclus) {
+    reserves.push(RESERVE_PLAFONDS_SEULS_EXCLUS);
   }
 
   // Débarras compris dans une prestation de nettoyage.

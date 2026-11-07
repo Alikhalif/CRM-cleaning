@@ -782,11 +782,36 @@ export const RESERVE_MURS_LAVABLES =
  * le §9 distingue « non demandé » (on ne dit rien) de « exclu » (on le dit).
  */
 export const RESERVE_MURS_EXCLUS =
-  "Le lessivage des murs et des plafonds n'est pas compris dans le présent "
-  + "devis.";
+  "Le lessivage des murs et des plafonds n'est pas compris dans la présente "
+  + "prestation.";
 
+/**
+ * §9, cas 3 — LES MURS SEULS sont exclus.
+ *
+ * ⚠️ CE CAS NE PRODUISAIT RIEN. `RESERVE_MURS_EXCLUS` nomme les murs ET les
+ * plafonds, et ne sortait que si les deux étaient refusés. Un client qui
+ * refusait le lessivage des murs en gardant les plafonds voyait donc un devis
+ * MUET sur son refus — alors que c'est précisément ce qu'une réserve doit
+ * dire. Corrigé au Lot A du 2026-11-07.
+ */
+export const RESERVE_MURS_SEULS_EXCLUS =
+  "Le lessivage des murs n'est pas compris dans la présente prestation.";
+
+/** §9, cas 3 — LES PLAFONDS SEULS sont exclus. Même défaut, même correction. */
+export const RESERVE_PLAFONDS_SEULS_EXCLUS =
+  "Le lessivage des plafonds n'est pas compris dans la présente prestation.";
+
+/**
+ * §8 — la vitrerie est exclue.
+ *
+ * Le libellé nomme désormais les SURFACES VITRÉES ET LEURS ENCADREMENTS :
+ * la découverte distingue les deux (`vitrerieEncadrement`), et une réserve
+ * qui ne parlait que de « la vitrerie » laissait planer un doute sur les
+ * encadrements.
+ */
 export const RESERVE_VITRERIE_EXCLUE =
-  "Le nettoyage de la vitrerie n'est pas compris dans le présent devis.";
+  "Le nettoyage des surfaces vitrées et de leurs encadrements n'est pas "
+  + "compris dans la présente prestation.";
 
 /** §7.9 — aucune promesse de résultat sanitaire (interdiction 26). */
 export const RESERVE_SANITAIRE =

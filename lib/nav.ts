@@ -33,6 +33,8 @@ export type NavIcon =
   | "presence"
   | "checklist"
   | "subcontractor"
+  | "calendar"
+  | "bell"
   | "settings";
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -42,6 +44,12 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/dashboard",      label: "Dashboard",     icon: "dashboard" },
       { href: "/mes-actions",    label: "Mes actions",   icon: "checklist" },
+      // Ajoutées au Lot A du 2026-11-07. Les deux pages existaient et
+      // fonctionnaient, mais n'étaient atteignables que par URL directe :
+      // développées et invisibles, donc non livrées côté interface.
+      //
+      // « Ma journée » suit « Mes actions » : même famille, le travail du jour.
+      { href: "/ma-journee",     label: "Ma journée",    icon: "calendar" },
       { href: "/recherche",      label: "Recherche",     icon: "search" },
       { href: "/pipeline",       label: "Pipeline",      icon: "pipeline" },
       { href: "/leads",          label: "Suivi commercial", icon: "leads", badge: "leadsUntreated" },
@@ -61,6 +69,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/signatures",     label: "Signatures",    icon: "document" },
       { href: "/presence",       label: "Présence & Actions", icon: "presence" },
       { href: "/grilles-tarifaires", label: "Grilles tarifaires", icon: "comptabilite" },
+      // La cloche de la Topbar ouvre un panneau ; cette entrée mène à la page
+      // complète. Même icône, pour qu'on comprenne que c'est le même sujet.
+      { href: "/notifications",  label: "Notifications", icon: "bell" },
     ],
   },
   {

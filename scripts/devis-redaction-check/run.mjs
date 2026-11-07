@@ -40,6 +40,7 @@ const SUITES = [
   { fichier: "sections.ts", titre: "Reprise ciblée d'une section du descriptif (C4)" },
   { fichier: "reformulation.ts", titre: "Reformulation : corriger le mécanique, signaler le contractuel (C5)" },
   { fichier: "terminologie.ts", titre: "Multi-pays : un seul moteur, une projection terminologique (C2)" },
+  { fichier: "exclusions-combinees.ts", titre: "Les quatre cas d’exclusion : murs, plafonds, les deux, vitrerie (Lot A)" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "devis-redaction-check-"));

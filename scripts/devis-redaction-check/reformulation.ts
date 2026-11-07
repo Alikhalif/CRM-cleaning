@@ -43,7 +43,7 @@ function eq<T>(nom: string, a: T, b: T) {
   if (ja !== jb) ko++;
 }
 
-const MENTION = "Utilisation de produits d'entretien 100 % français et 100 % écologiques.";
+const MENTION = "Utilisation de produits 100 % français et 100 % écologiques.";
 
 const FAMILLES: Record<string, Record<string, unknown>> = {
   "nettoyage approfondi": {

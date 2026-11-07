@@ -87,7 +87,12 @@ vrai("T2 — titre « fin de bail »", contient(c2?.designation ?? "", "fin de b
 faux("T2 — aucune vitrerie au titre", contient(c2?.designation ?? "", "vitrerie"));
 faux("T2 — aucune section vitrerie", SECTIONS(c2).includes("Nettoyage de la vitrerie"));
 vrai("T2 — l'exclusion de la vitrerie est portée aux réserves (§9 cas 3)",
-  contient(c2?.reserves ?? "", "la vitrerie n'est pas compris"));
+  contient(c2?.reserves ?? "", "surfaces vitrées et de leurs encadrements n'est pas compris"));
+// Lot A : le libellé nomme désormais les ENCADREMENTS. La découverte les
+// distingue des vitrages (`vitrerieEncadrement`) ; une réserve qui ne parlait
+// que de « la vitrerie » laissait un doute sur ce qui était exclu.
+vrai("T2 — et les encadrements sont nommés",
+  contient(c2?.reserves ?? "", "encadrements"));
 
 // ══════════════════════════════════════════════════════════════════════
 titre("TEST 3 — Nettoyage approfondi avec lessivage des murs");
@@ -317,7 +322,7 @@ faux("T10 — aucune section murs", s10.includes("Lessivage des murs"));
 faux("T10 — aucune section plafonds", s10.includes("Nettoyage des plafonds"));
 faux("T10 — aucune section désinfection", s10.includes("Désinfection"));
 vrai("T10 — exclusion de la vitrerie aux réserves",
-  contient(c10?.reserves ?? "", "la vitrerie n'est pas compris"));
+  contient(c10?.reserves ?? "", "surfaces vitrées et de leurs encadrements n'est pas compris"));
 vrai("T10 — exclusion du lessivage aux réserves",
   contient(c10?.reserves ?? "", "lessivage des murs et des plafonds n'est pas compris"));
 faux("T10 — aucune réserve contradictoire : pas de « supports lavables » sans lessivage",

@@ -51,15 +51,26 @@ export type { Country };
  * 2026-11-06.
  *
  * ⚠️ NE PAS MODIFIER CES TEXTES SANS DÉCISION ÉCRITE. Ce sont des
- * allégations réglementaires, pas des formules commerciales. Le Super Admin
+ * allégations réglementaires, pas des formules commerciales.
+ *
+ * Révision du 2026-11-07 (Lot A) : les formulations française et européenne
+ * sont alignées sur les textes arrêtés par le client — « de produits » au lieu
+ * de « de produits d'entretien », et sans le qualificatif « applicables ».
+ * La formulation CANADIENNE est conservée telle quelle, sur sa demande
+ * expresse. Le mécanisme de sélection n'a pas changé. Le Super Admin
  * peut les adapter dans l'écran de réglages — cette adaptation est
  * journalisée — mais le défaut du code reste la formulation validée.
  */
 export const MENTION_PAR_PAYS: Record<Country, string> = {
-  FR: "Utilisation de produits d'entretien 100 % français et 100 % écologiques.",
-  CH: "Utilisation de produits d'entretien 100 % conformes aux normes européennes applicables.",
-  BE: "Utilisation de produits d'entretien 100 % conformes aux normes européennes applicables.",
-  LU: "Utilisation de produits d'entretien 100 % conformes aux normes européennes applicables.",
+  FR: "Utilisation de produits 100 % français et 100 % écologiques.",
+  CH: "Utilisation de produits 100 % conformes aux normes européennes.",
+  BE: "Utilisation de produits 100 % conformes aux normes européennes.",
+  LU: "Utilisation de produits 100 % conformes aux normes européennes.",
+  // ⚠️ LE CANADA NE CHANGE PAS. Le client l'a demandé expressément le
+  // 2026-11-07 : « conserver les formulations locales déjà développées ».
+  // La formulation canadienne a été écrite en connaissance des exigences
+  // locales ; l'aligner sur la forme européenne lui ferait perdre ce qui la
+  // rend exacte.
   CA: "Utilisation de produits d'entretien conformes aux exigences réglementaires canadiennes applicables.",
 };
 

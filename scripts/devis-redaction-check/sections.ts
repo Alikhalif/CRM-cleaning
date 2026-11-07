@@ -99,7 +99,7 @@ const TEXTE = [
   "",
   "- Dégraissage des plans de travail",
   "",
-  "Utilisation de produits d'entretien 100 % français et 100 % écologiques.",
+  "Utilisation de produits 100 % français et 100 % écologiques.",
   "",
   "Conditions d'accès relevées : absence d'ascenseur.",
   "",
@@ -159,7 +159,7 @@ for (const titre of ["Nettoyage intérieur", "Sanitaires", "Cuisine"]) {
 const apresCuisine = remplacerPucesSection(TEXTE, "Cuisine", ["Une seule ligne"]);
 vrai("la mention des produits survit à une reprise de la dernière section",
   apresCuisine.ok && apresCuisine.texte.includes(
-    "Utilisation de produits d'entretien 100 % français et 100 % écologiques."));
+    "Utilisation de produits 100 % français et 100 % écologiques."));
 vrai("les conditions d'accès survivent",
   apresCuisine.ok && apresCuisine.texte.includes("Conditions d'accès relevées : absence d'ascenseur."));
 vrai("les éléments relevés survivent",
@@ -286,7 +286,7 @@ const contenu = genererContenuDevis({
     opt_degraissage_cuisine: "oui", opt_vitres: "oui",
   },
   contexteIntervention: "Logement libre de tout occupant.",
-  mentionProduits: "Utilisation de produits d'entretien 100 % français et 100 % écologiques.",
+  mentionProduits: "Utilisation de produits 100 % français et 100 % écologiques.",
 });
 vrai("devis produit", contenu !== null);
 const reelles = contenu ? titresDeSections(notesDevis(contenu)) : [];

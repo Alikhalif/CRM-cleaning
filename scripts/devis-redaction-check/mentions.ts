@@ -100,13 +100,13 @@ console.log("\n2. LE PAYS DÉCIDE — automatiquement, et la table est figée");
 
 eq("France → produits 100 % français et 100 % écologiques",
   resoudreMention("FR", TOUS),
-  { mention: "Utilisation de produits d'entretien 100 % français et 100 % écologiques.", pays: "FR" });
+  { mention: "Utilisation de produits 100 % français et 100 % écologiques.", pays: "FR" });
 
 for (const pays of ["CH", "BE", "LU"] as Country[]) {
   eq(`${pays} → conformité aux normes européennes`,
     resoudreMention(pays, TOUS),
     {
-      mention: "Utilisation de produits d'entretien 100 % conformes aux normes européennes applicables.",
+      mention: "Utilisation de produits 100 % conformes aux normes européennes.",
       pays,
     });
 }
