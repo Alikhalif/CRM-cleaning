@@ -5,6 +5,8 @@
 // ⚠️ L'expéditeur DOIT être un expéditeur VÉRIFIÉ dans Brevo (Senders +
 // authentification du domaine), sinon l'API renvoie « Sender not valid ».
 
+import { modeCourant } from "@/lib/env/mode";
+
 type SectorConfig = {
   email?: string; // expéditeur par défaut
   name?: string; // nom d'expéditeur par défaut
@@ -66,10 +68,35 @@ export function senderForSector(
 }
 
 // Domaine des liens client selon le secteur. null → l'appelant retombe sur baseUrl().
+//
+// ⚠️ C'ÉTAIT LA FUITE LA PLUS SÉRIEUSE DU LOT C.
+//
+// Les `domain` de la table ci-dessus sont des constantes de PRODUCTION
+// (`https://devis.optimivv-nettoyage.com`, …). Or `app/api/devis/envoyer`
+// construit le lien de signature avec :
+//
+//     const sectorBase = domainForSector(sector) ?? (await baseUrl());
+//     signUrl = `${sectorBase}/devis-signer/${…}`;
+//
+// Hors production, cette fonction rendait donc le domaine RÉEL : le devis de
+// recette partait avec un lien de signature vers le site de production, et le
+// client fictif aurait signé contre la base réelle. Isoler la base de données
+// n'y change rien — la fuite passe par le lien, pas par la connexion.
+//
+// Désormais : la SURCHARGE par variable d'environnement est toujours
+// respectée (elle est explicite, donc assumée), mais le domaine EN DUR ne
+// s'applique qu'en production. Partout ailleurs on rend `null`, et l'appelant
+// retombe sur `baseUrl()`, qui valide contre la liste blanche des domaines
+// publics. Le comportement de production est inchangé.
 export function domainForSector(sector: string | null): string | null {
   const c = cfg(sector);
+
+  const surcharge = c.envDomain ? process.env[c.envDomain] : undefined;
+  if (surcharge && surcharge.trim()) return clean(surcharge.trim());
+
   if (!c.domain) return null;
-  return clean((c.envDomain && process.env[c.envDomain]) || c.domain);
+  if (modeCourant() !== "production") return null;
+  return clean(c.domain);
 }
 
 // Fichier bannière (public/email-signatures/) selon le secteur. null → pas de bannière.

@@ -8,16 +8,12 @@ import { envoyerDevisEmail } from "@/lib/devis/email";
 import { markDevisSentToClient } from "@/app/(app)/pipeline/actions";
 import { signOpenToken, signSignToken } from "@/lib/devis/tracking";
 import { senderForSector, domainForSector, signatureBannerFile } from "@/lib/devis/sender";
-import { headers } from "next/headers";
+import { baseUrlPublique, verifierLien } from "@/lib/urls/base-publique-server";
 
-async function baseUrl(): Promise<string> {
-  const env = process.env.SIGNATURE_BASE_URL || process.env.NEXT_PUBLIC_APP_URL;
-  if (env) return env.replace(/\/$/, "");
-  const h = await headers();
-  const host = h.get("x-forwarded-host") || h.get("host") || "localhost:3000";
-  const proto = h.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
+// L'ancienne `baseUrl()` locale acceptait l'en-tête `host` SANS VALIDATION.
+// La résolution vit maintenant dans `lib/urls/base-publique`, qui exige une
+// liste blanche de domaines : un en-tête est fourni par l'appelant, et un lien
+// public construit sur une donnée non vérifiée peut pointer n'importe où.
 
 export const runtime = "nodejs";
 
@@ -105,7 +101,22 @@ export async function POST(request: Request) {
       : undefined;
 
   // Base des URL client selon le secteur (liens + bannière), calculée une fois.
-  const sectorBase = domainForSector(sector) ?? (await baseUrl());
+  //
+  // `domainForSector` ne rend plus son domaine EN DUR hors production : c'est
+  // par là que le lien de signature d'un devis de recette partait vers le site
+  // réel. Hors production, on retombe donc ici sur la base validée.
+  const resolution = await baseUrlPublique();
+  const sectorBase = domainForSector(sector) ?? (resolution.ok ? resolution.base : null);
+  if (!sectorBase) {
+    return NextResponse.json(
+      {
+        error:
+          "Lien client impossible à produire : " +
+          (resolution.ok ? "aucune base disponible." : resolution.raison),
+      },
+      { status: 500 },
+    );
+  }
 
   let trackPixelUrl: string | undefined;
   let signUrl: string | undefined;
@@ -114,6 +125,17 @@ export async function POST(request: Request) {
     // Lien de signature en ligne → à la signature, le lead passe à « Signé ».
     // Le jeton est lié au DEVIS précis (numero) + horodaté (P1-5).
     signUrl = `${sectorBase}/devis-signer/${signSignToken(body.affaire, numero)}`;
+
+    // Dernier contrôle avant que le lien quitte le CRM. `sectorBase` peut
+    // venir d'une surcharge d'environnement : la base validée ne suffit pas à
+    // garantir le lien final.
+    const lienOk = verifierLien(signUrl);
+    if (!lienOk.ok) {
+      return NextResponse.json(
+        { error: `Lien de signature refusé : ${lienOk.raison}` },
+        { status: 500 },
+      );
+    }
   }
 
   // Bannière de signature e-mail selon le secteur (déménagement / nettoyage).

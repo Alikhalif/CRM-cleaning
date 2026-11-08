@@ -11,7 +11,8 @@ values
   ('urgence',    'Dépannage urgence',     'Urg.',  '#ef4444', '🚨',   200,  800,   0, 20),
   ('nettoyage',  'Nettoyage',             'Nett.', '#0ea5e9', '🧽',   500, 3000,  20, 20),
   ('enr',        'Énergies renouvelables', 'ENR',  '#14c890', '☀️',  8000, 25000, 30, 10),
-  ('renovation', 'Rénovation bâtiment',   'Réno.', '#f59e0b', '🏗️', 15000, 80000, 40, 10);
+  ('renovation', 'Rénovation bâtiment',   'Réno.', '#f59e0b', '🏗️', 15000, 80000, 40, 10)
+on conflict do nothing;
 
 -- ── 2. Lead sources ──────────────────────────────────────────────────
 insert into lead_sources (slug, label, icon, color) values
@@ -19,21 +20,24 @@ insert into lead_sources (slug, label, icon, color) values
   ('meta_ads',       'Meta Ads',       'meta',       '#1877F2'),
   ('site_web',       'Site web',       'globe',      '#5b4bcc'),
   ('telephone',      'Téléphone',      'phone',      '#14c890'),
-  ('recommandation', 'Recommandation', 'star',       '#f59e0b');
+  ('recommandation', 'Recommandation', 'star',       '#f59e0b')
+on conflict do nothing;
 
 -- ── 3. Payment terms ─────────────────────────────────────────────────
 insert into payment_terms (slug, label, days) values
   ('comptant', 'Comptant à réception',     0),
   ('jours_30', '30 jours fin de mois',    30),
   ('jours_45', '45 jours fin de mois',    45),
-  ('jours_60', '60 jours',                60);
+  ('jours_60', '60 jours',                60)
+on conflict do nothing;
 
 -- ── 4. Roles ─────────────────────────────────────────────────────────
 insert into roles (slug, label, description, icon) values
   ('admin',          'Super Admin',   'Accès illimité',                            'shield'),
   ('commercial',     'Commercial',    'Cloisonné à ses propres leads',             'users'),
   ('planification',  'Planificateur', 'Planning, comptabilité, intervenants',      'calendar'),
-  ('assistant',      'Assistant',     'À activer en phase 2',                      'inbox');
+  ('assistant',      'Assistant',     'À activer en phase 2',                      'inbox')
+on conflict do nothing;
 
 -- ── 5. Legal entities (entités juridiques) ──────────────────────────
 insert into legal_entities (
@@ -43,13 +47,13 @@ insert into legal_entities (
 ) values
   ('CGK Services', 'SAS', '894 217 530 00021', '8121Z', 'FR42894217530',
     jsonb_build_object('line1', '14 rue Pasteur', 'postal_code', '33000', 'city', 'Bordeaux'),
-    'contact@cgk-services.fr', '+33 5 56 00 00 00',
+    'contact.cgk-services@example.invalid', '+33 5 56 00 00 00',
     'FR76 1234 5678 9012 3456 7890 123', 'BDFEFRPP', 20,
     'SAS au capital de 50 000 €. Assurance décennale MMA n° 1234567. RGE QualiPropre n° E-2024-00891.',
     '#5b4bcc'),
   ('CGK Énergie', 'SARL', '917 305 412 00018', '4321A', 'FR58917305412',
     jsonb_build_object('line1', '27 avenue Carnot', 'postal_code', '33200', 'city', 'Bordeaux'),
-    'energie@cgk-services.fr', '+33 5 56 00 00 02',
+    'energie.cgk-services@example.invalid', '+33 5 56 00 00 02',
     'FR76 9876 5432 1098 7654 3210 987', 'BDFEFRPP', 10,
     'SARL au capital de 80 000 €. RGE QualiPV n° E-2024-04421. Assurance décennale Allianz n° 9087625.',
     '#14c890'),
@@ -66,7 +70,8 @@ insert into legal_entities (
     null, null, null, null, 20, 'À compléter', '#0ea5e9'),
   ('Optimiv',   'SAS', 'À renseigner', '8121Z', null,
     jsonb_build_object('line1', 'À renseigner', 'postal_code', '', 'city', ''),
-    null, null, null, null, 20, 'À compléter', '#10b981');
+    null, null, null, null, 20, 'À compléter', '#10b981')
+on conflict do nothing;
 
 -- Entity ↔ activity defaults: Services → nettoyage + urgence + débarras;
 -- Énergie → enr + rénovation.
@@ -97,7 +102,8 @@ join (values
   ('urgence',    'Heure technicien',              'h',         75, 20),
   ('nettoyage',  'Entretien bureaux (mensuel)',   'mois',     480, 20),
   ('nettoyage',  'Nettoyage vitrerie',            'm2',         8, 20)
-) as x(sector_slug, label, unit, price, vat) on a.slug = x.sector_slug;
+) as x(sector_slug, label, unit, price, vat) on a.slug = x.sector_slug
+on conflict do nothing;
 
 -- ── 7. Technicians (intervenants) ────────────────────────────────────
 -- base_postal_code + service_departments drive the distance ranking in the
@@ -113,7 +119,8 @@ from (values
   ('Vincent Caron',  'VC', '#f59e0b', array['renovation', 'enr'],     '69001', array['69','38','01','42']),
   ('Aïcha Lefort',   'AL', '#0ea5e9', array['nettoyage'],             '13001', array['13','83','84','04']),
   ('Bastien Roy',    'BR', '#14c890', array['urgence', 'nettoyage'],  '33000', array['33','40','47','24'])
-) as t(name, initials, color, sector_slugs, base_pc, departments);
+) as t(name, initials, color, sector_slugs, base_pc, departments)
+on conflict do nothing;
 
 -- ── 8. Leads (16 rows from lib/leads-mock.ts) ────────────────────────
 -- short_id is the natural key; FKs resolve via subqueries.
@@ -132,7 +139,7 @@ insert into leads (
   (select id from activities    where slug = 'urgence'),
   (select id from legal_entities where legal_name = 'CGK Services'),
   false, 'Léa', 'Dubois', null,
-  'lea.dubois@example.com', '+33 6 14 22 18 03',
+  'lea.dubois.example@example.invalid', '+33 6 14 22 18 03',
   jsonb_build_object('line1', '12 rue Oberkampf', 'postal_code', '75011', 'city', 'Paris 11e'),
   'lead', null, null,
   480, true,
@@ -143,7 +150,7 @@ insert into leads (
   (select id from activities    where slug = 'nettoyage'),
   (select id from legal_entities where legal_name = 'CGK Services'),
   true, null, null, 'Atelier Vidal SARL',
-  'contact@atelier-vidal.fr', '+33 4 78 31 09 22',
+  'contact.atelier-vidal@example.invalid', '+33 4 78 31 09 22',
   jsonb_build_object('line1', '47 cours Lafayette', 'postal_code', '69003', 'city', 'Lyon 3e'),
   'lead', null, null,
   1850, false,
@@ -154,7 +161,7 @@ insert into leads (
   (select id from activities    where slug = 'enr'),
   (select id from legal_entities where legal_name = 'CGK Énergie'),
   false, 'Hervé', 'Marchand', null,
-  'h.marchand@orange.fr', '+33 6 88 41 02 17',
+  'h.marchand.orange@example.invalid', '+33 6 88 41 02 17',
   jsonb_build_object('line1', '9 chemin des Vignes', 'postal_code', '17100', 'city', 'Saintes'),
   'lead', null, null,
   14200, false,
@@ -165,7 +172,7 @@ insert into leads (
   (select id from activities    where slug = 'renovation'),
   (select id from legal_entities where legal_name = 'CGK Énergie'),
   true, null, null, 'Cabinet Rousseau',
-  'rousseau@cabinet-rousseau.com', '+33 5 56 79 12 04',
+  'rousseau.cabinet-rousseau@example.invalid', '+33 5 56 79 12 04',
   jsonb_build_object('line1', '82 rue Sainte-Catherine', 'postal_code', '33000', 'city', 'Bordeaux'),
   'lead', null, null,
   38500, false,
@@ -177,7 +184,7 @@ insert into leads (
   (select id from activities    where slug = 'nettoyage'),
   (select id from legal_entities where legal_name = 'CGK Services'),
   false, 'Marie', 'Lefèvre', null,
-  'marie.lefevre@gmail.com', '+33 6 22 38 71 09',
+  'marie.lefevre.gmail@example.invalid', '+33 6 22 38 71 09',
   jsonb_build_object('line1', '3 allée des Tilleuls', 'postal_code', '44000', 'city', 'Nantes'),
   'envoye', 'mano', null,
   920, false, 'Devis envoyé', now() - interval '2 hour', null, null, null),
@@ -186,7 +193,7 @@ insert into leads (
   (select id from activities    where slug = 'nettoyage'),
   (select id from legal_entities where legal_name = 'CGK Services'),
   true, null, null, 'Boulangerie Cazeneuve',
-  'cazeneuve.contact@gmail.com', '+33 5 61 23 88 17',
+  'cazeneuve.contact.gmail@example.invalid', '+33 5 61 23 88 17',
   jsonb_build_object('line1', '18 place du Capitole', 'postal_code', '31000', 'city', 'Toulouse'),
   'envoye', 'auto', null,
   2400, false, 'Email J+0 envoyé', now() - interval '8 hour', now() + interval '64 hours', null, null),
@@ -195,7 +202,7 @@ insert into leads (
   (select id from activities    where slug = 'enr'),
   (select id from legal_entities where legal_name = 'CGK Énergie'),
   false, 'Pascal', 'Vidal', null,
-  'p.vidal17@laposte.net', '+33 6 71 90 14 28',
+  'p.vidal17.laposte@example.invalid', '+33 6 71 90 14 28',
   jsonb_build_object('line1', '27 quai Valin', 'postal_code', '17000', 'city', 'La Rochelle'),
   'envoye', null, null,
   19800, false, 'Devis envoyé', now() - interval '10 hour', null, null, null),
@@ -205,7 +212,7 @@ insert into leads (
   (select id from activities    where slug = 'renovation'),
   (select id from legal_entities where legal_name = 'CGK Énergie'),
   false, 'Camille', 'Roux', null,
-  'camille.roux@outlook.com', '+33 6 18 04 32 91',
+  'camille.roux.outlook@example.invalid', '+33 6 18 04 32 91',
   jsonb_build_object('line1', '55 avenue Berthelot', 'postal_code', '69007', 'city', 'Lyon 7e'),
   'ouvert', 'auto', null,
   27500, false, 'Lien ouvert', now() - interval '4 hour', now() + interval '96 hours', null, null),
@@ -214,7 +221,7 @@ insert into leads (
   (select id from activities    where slug = 'urgence'),
   (select id from legal_entities where legal_name = 'CGK Services'),
   true, null, null, 'Garage Tessier',
-  'garage.tessier@orange.fr', '+33 5 56 45 88 19',
+  'garage.tessier.orange@example.invalid', '+33 5 56 45 88 19',
   jsonb_build_object('line1', '12 avenue Pasteur', 'postal_code', '33600', 'city', 'Pessac'),
   'ouvert', 'mano', null,
   720, false, 'Lien ouvert', now() - interval '1.5 hour', null, null, null),
@@ -224,7 +231,7 @@ insert into leads (
   (select id from activities    where slug = 'enr'),
   (select id from legal_entities where legal_name = 'CGK Énergie'),
   false, 'Florence', 'Garnier', null,
-  'f.garnier@free.fr', '+33 6 90 33 71 02',
+  'f.garnier.free@example.invalid', '+33 6 90 33 71 02',
   jsonb_build_object('line1', '14 rue de la République', 'postal_code', '79000', 'city', 'Niort'),
   'signe', 'mano', 'avec',
   22300, false, 'Devis signé', now() - interval '18 hour', null, null, null),
@@ -233,7 +240,7 @@ insert into leads (
   (select id from activities    where slug = 'nettoyage'),
   (select id from legal_entities where legal_name = 'CGK Services'),
   true, null, null, 'Café Margot',
-  'cafe.margot@gmail.com', '+33 1 42 64 18 09',
+  'cafe.margot.gmail@example.invalid', '+33 1 42 64 18 09',
   jsonb_build_object('line1', '61 rue des Abbesses', 'postal_code', '75018', 'city', 'Paris 18e'),
   'signe', 'mano', 'sans',
   1180, false, 'Devis signé', now() - interval '22 hour', null, null, null),
@@ -242,7 +249,7 @@ insert into leads (
   (select id from activities    where slug = 'renovation'),
   (select id from legal_entities where legal_name = 'CGK Énergie'),
   true, null, null, 'Domaine de Beaulieu',
-  'intendance@domaine-beaulieu.fr', '+33 5 45 82 11 47',
+  'intendance.domaine-beaulieu@example.invalid', '+33 5 45 82 11 47',
   jsonb_build_object('line1', 'Route de Châteaubernard', 'postal_code', '16100', 'city', 'Cognac'),
   'signe', 'auto', null,
   64500, false, 'Devis signé', now() - interval '30 hour', null,
@@ -253,7 +260,7 @@ insert into leads (
   (select id from activities    where slug = 'enr'),
   (select id from legal_entities where legal_name = 'CGK Énergie'),
   false, 'Mathieu', 'Perret', null,
-  'mathieu.perret@gmail.com', '+33 6 47 28 09 13',
+  'mathieu.perret.gmail@example.invalid', '+33 6 47 28 09 13',
   jsonb_build_object('line1', '8 boulevard Berthelot', 'postal_code', '16000', 'city', 'Angoulême'),
   'encaisse', 'mano', 'avec',
   17900, false, 'Encaissement final', now() - interval '48 hour', null, null, null),
@@ -262,7 +269,7 @@ insert into leads (
   (select id from activities    where slug = 'renovation'),
   (select id from legal_entities where legal_name = 'CGK Énergie'),
   true, null, null, 'SCI Le Beffroi',
-  'gestion@sci-lebeffroi.fr', '+33 3 20 51 84 22',
+  'gestion.sci-lebeffroi@example.invalid', '+33 3 20 51 84 22',
   jsonb_build_object('line1', '44 rue de Béthune', 'postal_code', '59000', 'city', 'Lille'),
   'encaisse', 'mano', 'avec',
   41200, false, 'Encaissement final', now() - interval '72 hour', null, null, null),
@@ -272,7 +279,7 @@ insert into leads (
   (select id from activities    where slug = 'urgence'),
   (select id from legal_entities where legal_name = 'CGK Services'),
   false, 'Olivier', 'Maréchal', null,
-  'o.marechal@hotmail.fr', '+33 6 33 91 47 02',
+  'o.marechal.hotmail@example.invalid', '+33 6 33 91 47 02',
   jsonb_build_object('line1', '21 rue Jean Jaurès', 'postal_code', '29200', 'city', 'Brest'),
   'perdu', 'auto', null,
   320, false, 'Aucune réponse après J+14', now() - interval '72 hour', null, null,
@@ -282,11 +289,12 @@ insert into leads (
   (select id from activities    where slug = 'nettoyage'),
   (select id from legal_entities where legal_name = 'CGK Services'),
   true, null, null, 'Studio Fontaine',
-  'studio.fontaine@gmail.com', '+33 2 99 36 14 88',
+  'studio.fontaine.gmail@example.invalid', '+33 2 99 36 14 88',
   jsonb_build_object('line1', '9 rue Hoche', 'postal_code', '35000', 'city', 'Rennes'),
   'perdu', 'mano', null,
   1450, false, 'Concurrent retenu', now() - interval '96 hour', null, null,
-  'Concurrent retenu pour raisons de prix.');
+  'Concurrent retenu pour raisons de prix.')
+on conflict do nothing;
 
 -- ── 9. Clients (5 derived from signé/encaissé leads + 4 direct) ──────
 insert into clients (type, name, contact_name, email, phone, address, siret, vat_intra, source, source_lead_id, sectors, note)
@@ -306,35 +314,37 @@ select
   array[l.activity_id],
   'Issu du lead ' || l.short_id
 from leads l
-where l.status in ('signe', 'encaisse');
+where l.status in ('signe', 'encaisse')
+on conflict do nothing;
 
 -- Direct clients.
 insert into clients (type, name, contact_name, email, phone, address, siret, vat_intra, source, sectors, note)
 values
   ('pro', 'Hôtel Le Patio', 'Aurélie Mansard',
-    'direction@hotel-le-patio.fr', '+33 5 56 47 09 22',
+    'direction.hotel-le-patio@example.invalid', '+33 5 56 47 09 22',
     jsonb_build_object('line1', '9 cours du Maréchal-Foch', 'postal_code', '33000', 'city', 'Bordeaux'),
     '543 219 087 00031', 'FR12543219087', 'direct',
     array(select id from activities where slug = 'nettoyage'),
     'Contrat trimestriel d''entretien des chambres. Signé hors plateforme en avril 2026.'),
   ('particulier', 'Pierre Vasseur', null,
-    'p.vasseur@laposte.net', '+33 6 71 02 84 19',
+    'p.vasseur.laposte@example.invalid', '+33 6 71 02 84 19',
     jsonb_build_object('line1', '5 rue des Bouvreuils', 'postal_code', '44000', 'city', 'Nantes'),
     null, null, 'direct',
     array(select id from activities where slug = 'urgence'),
     'Client récurrent depuis 2024, intervient sur tout le grand Nantes.'),
   ('pro', 'Mairie de Saint-Cloud', 'Régine Pelletier',
-    'r.pelletier@saintcloud.fr', '+33 1 47 71 88 12',
+    'r.pelletier.saintcloud@example.invalid', '+33 1 47 71 88 12',
     jsonb_build_object('line1', '13 place Charles-de-Gaulle', 'postal_code', '92210', 'city', 'Saint-Cloud'),
     '219 200 759 00018', 'FR47219200759', 'direct',
     array(select id from activities where slug in ('nettoyage', 'renovation')),
     'Marché public renouvelé annuellement.'),
   ('particulier', 'Lucie Marquand', null,
-    'lucie.marquand@gmail.com', '+33 6 23 90 41 02',
+    'lucie.marquand.gmail@example.invalid', '+33 6 23 90 41 02',
     jsonb_build_object('line1', '21 chemin du Petit Bois', 'postal_code', '78600', 'city', 'Maisons-Laffitte'),
     null, null, 'direct',
     array(select id from activities where slug = 'nettoyage'),
-    'Contact bouche-à-oreille via L-1009.');
+    'Contact bouche-à-oreille via L-1009.')
+on conflict do nothing;
 
 -- ── 10. Documents ────────────────────────────────────────────────────
 -- Note: we skip total_ht/total_vat here — those come from sum(document_lines)
@@ -381,7 +391,8 @@ cross join lateral (
     when 'DEV-2026-0014' then 41200  when 'FA-2026-0004'  then 16480
     when 'FAC-2026-0009' then 24720
   end as total_ttc
-) t;
+) t
+on conflict do nothing;
 
 -- Wire the counters to the highest year+num for each type so future inserts continue cleanly.
 insert into doc_counters (doc_type, year, next_value)
@@ -391,7 +402,8 @@ from (
   from documents
   where num like '%-2026-%'
 ) s
-group by type;
+group by type
+on conflict do nothing;
 
 -- ── 11. Dossiers (5 — one per signe/encaisse lead) ───────────────────
 insert into dossiers (lead_id, status, payment_status, technician_id, planned_at, duration_hours, flags, notes, created_at, updated_at)
@@ -431,4 +443,28 @@ select l.id, 'solde', 'solde',
        now() - interval '72 hour', 12, '{}',
        null,
        now() - interval '240 hour', now() - interval '72 hour'
-from leads l where l.short_id = 'L-1019';
+from leads l where l.short_id = 'L-1019'
+on conflict do nothing;
+
+-- ── 15. Diagnostic de chargement ─────────────────────────────────────
+--
+-- `legal_entities` et `prestations` n'ont AUCUNE contrainte d'unicite en
+-- dehors de leur `id` : un double chargement n'echoue pas, il DUPLIQUE.
+-- Ce bloc ne corrige rien — il rend le doublon visible, ce qui vaut mieux
+-- qu'une recette batie sur quatorze societes dont sept sont des copies.
+do $$
+declare
+  n_entites     int;
+  n_activites   int;
+  n_prestations int;
+begin
+  select count(*) into n_entites from legal_entities;
+  select count(*) into n_activites from activities;
+  select count(*) into n_prestations from prestations;
+  raise notice 'Semence chargee : % societes, % activites, % prestations.',
+    n_entites, n_activites, n_prestations;
+  if n_entites > (select count(distinct legal_name) from legal_entities) then
+    raise warning 'DOUBLONS de societes detectes (% lignes pour % noms distincts). La semence a ete chargee deux fois.',
+      n_entites, (select count(distinct legal_name) from legal_entities);
+  end if;
+end $$;

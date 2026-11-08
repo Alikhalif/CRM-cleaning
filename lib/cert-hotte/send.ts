@@ -6,6 +6,7 @@ import {
   signatureBannerFile,
   signatureBannerHtml,
 } from "@/lib/devis/sender";
+import { baseUrlPublique } from "@/lib/urls/base-publique-server";
 import { PRESTATAIRE_CERT, type CertHotte } from "./types";
 
 // Envoie le certificat au client (secteur nettoyage), avec option de joindre la
@@ -23,11 +24,12 @@ export async function envoyerCertHotteEmail(
   if (!dest) throw new Error("Pas d'adresse e-mail client sur le certificat.");
 
   const sender = senderForSector("nettoyage");
-  const base =
-    domainForSector("nettoyage") ??
-    (process.env.SIGNATURE_BASE_URL || "https://crmoptimum.com").replace(/\/$/, "");
+  // Plus de repli « https://crmoptimum.com » en dur : voir `lib/devis/sign.ts`.
+  const resolutionBase = await baseUrlPublique();
+  const base = domainForSector("nettoyage") ?? (resolutionBase.ok ? resolutionBase.base : null);
   const sigFile = signatureBannerFile("nettoyage");
-  const banner = sigFile ? signatureBannerHtml(`${base}/email-signatures/${sigFile}`) : "";
+  const banner =
+    sigFile && base ? signatureBannerHtml(`${base}/email-signatures/${sigFile}`) : "";
 
   const nom = cert.client.responsable || cert.client.etablissement;
   const withFac = opts?.facture ? ` ainsi que la facture <strong>${opts.facture.num}</strong>` : "";

@@ -3,6 +3,7 @@ import nodemailer from "nodemailer";
 import { euro } from "./layout";
 import { PRESTATAIRE, type Devis } from "./types";
 import { sendBrevoEmail } from "@/lib/brevo";
+import { garderEnvoi } from "@/lib/envoi/garde-server";
 import { signatureBannerHtml } from "./sender";
 import { ribBuffer, RIB_FILENAME } from "./rib";
 
@@ -141,6 +142,29 @@ export async function envoyerDevisEmail(
   const bodyHtml = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;white-space:pre-wrap;line-height:1.5">${escapeHtml(
     texte,
   )}</div>${signButton}${signatureBanner}${pixel}`;
+
+  // ── Goulet d'envoi, AVANT le choix du canal ───────────────────────────
+  //
+  // Il est posé ici et non dans chaque branche, parce que c'est le CHOIX DU
+  // CANAL qui était le défaut : ce module bascule sur SMTP « si Brevo n'est
+  // pas configuré », si bien que retirer `BREVO_API_KEY` ne coupait pas
+  // l'envoi mais le déplaçait. Au-dessus des deux branches, aucune ne
+  // contourne — y compris le cas où aucun canal n'est configuré, qui jetait
+  // une exception sans rien capturer.
+  //
+  // `SMTP_HOST` a d'ailleurs un défaut en dur (`smtp.hostinger.com`) : le
+  // repli n'a besoin que de SMTP_USER et SMTP_PASS pour partir réellement.
+  const garde = await garderEnvoi({
+    canal: "email",
+    transport: forceSmtp || !process.env.BREVO_API_KEY ? "smtp" : "brevo",
+    destinataire: dest,
+    sujet,
+    corpsTexte: texteBody,
+    corpsHtml: bodyHtml,
+    expediteur: opts?.senderEmail || process.env.DEVIS_SENDER_EMAIL || process.env.SMTP_USER,
+    pieces,
+  });
+  if (!garde.ok) throw new Error(garde.error);
 
   // ── Canal 1 : Brevo (défaut) ──────────────────────────────────────────
   if (!forceSmtp && process.env.BREVO_API_KEY) {

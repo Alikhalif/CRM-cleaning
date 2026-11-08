@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
+import { baseUrlPublique, verifierLien } from "@/lib/urls/base-publique-server";
 import {
   createSignatureRequest,
   cancelSignatureRequestById,
@@ -13,25 +13,36 @@ import { formatEUR } from "@/lib/leads";
 
 export type Result = { ok: true } | { ok: false; error: string };
 
-// URL de base du lien de signature. En prod, le domaine du reverse-proxy ;
-// à défaut on reconstruit depuis l'en-tête host de la requête.
-async function baseUrl(): Promise<string> {
-  const env = process.env.SIGNATURE_BASE_URL || process.env.NEXT_PUBLIC_APP_URL;
-  if (env) return env.replace(/\/$/, "");
-  const h = await headers();
-  const host = h.get("x-forwarded-host") || h.get("host") || "localhost:3000";
-  const proto = h.get("x-forwarded-proto") || (host.includes("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
+// L'URL de base vient désormais de `lib/urls/base-publique`, qui valide
+// l'en-tête `host` contre une liste blanche de domaines. L'ancienne version
+// l'acceptait sans contrôle : un en-tête est fourni par l'appelant, et un
+// lien public construit sur une donnée non vérifiée peut pointer n'importe où.
 
 // « Envoyer pour signature » depuis la fiche devis : crée la demande, fige le
 // PDF, puis envoie au client le lien /sign/{token}.
 export async function sendForSignature(documentId: string): Promise<Result> {
+  // L'URL est résolue AVANT de créer la demande : si la configuration ne
+  // permet pas de produire un lien sûr, rien n'est créé. L'ordre inverse
+  // laissait une demande de signature orpheline, sans e-mail.
+  const base = await baseUrlPublique();
+  if (!base.ok) {
+    return {
+      ok: false,
+      error: `Lien de signature impossible à produire : ${base.raison}`,
+    };
+  }
+
   const created = await createSignatureRequest(documentId);
   if (!created.ok) return created;
   const { id, token, recipientEmail, recipientName, docNum, entityName, amountTtc } = created.data;
 
-  const link = `${await baseUrl()}/sign/${token}`;
+  const link = `${base.base}/sign/${token}`;
+
+  // Dernier contrôle avant que le lien quitte le CRM.
+  const lienOk = verifierLien(link);
+  if (!lienOk.ok) {
+    return { ok: false, error: `Lien de signature refusé : ${lienOk.raison}` };
+  }
   const html =
     `Bonjour ${recipientName ?? ""},<br><br>` +
     `Vous avez reçu le devis <strong>${docNum}</strong> (${formatEUR(amountTtc)}) à signer.<br><br>` +

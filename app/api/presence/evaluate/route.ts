@@ -5,6 +5,7 @@ import { evaluateDocumentAlerts } from "@/lib/documents/alerts-server";
 import { isCurrentUserAdmin } from "@/lib/presence/guard";
 import { rattraperArchivages, rejouerFile } from "@/lib/docusign/notifications-server";
 import { purgerEtatsOAuth } from "@/lib/docusign/oauth-server";
+import { modeCourant } from "@/lib/env/mode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +16,48 @@ export const dynamic = "force-dynamic";
 // « Rafraîchir »). Requêtes bornées → aucun impact sur le CRM.
 async function run(request: Request) {
   const secret = process.env.PRESENCE_CRON_SECRET;
-  const provided = request.headers.get("x-cron-secret") || new URL(request.url).searchParams.get("secret");
+  const parEntete = request.headers.get("x-cron-secret");
+  const parUrl = new URL(request.url).searchParams.get("secret");
+
+  // ── Le secret dans l'URL ────────────────────────────────────────────
+  //
+  // Un secret passé en paramètre d'URL se retrouve dans les journaux du
+  // reverse-proxy, dans l'historique du shell et dans les traces. L'en-tête
+  // est la seule forme saine.
+  //
+  // ⚠️ On ne le COUPE PAS en production sans savoir comment le planificateur
+  // du VPS appelle cette route : si c'est par l'URL, le moteur d'alertes et de
+  // relances s'arrêterait en silence — et il porte `/ma-journee`, les photos,
+  // la présence et l'expiration des contrats.
+  //
+  // Donc : refusé hors production, et toléré-mais-journalisé en production
+  // jusqu'à ce que l'appel du VPS soit vérifié. `CGK_CRON_SECRET_URL=refuse`
+  // bascule l'interdiction partout, en une variable, le jour où c'est confirmé.
+  const urlRefusee =
+    modeCourant() !== "production" ||
+    (process.env.CGK_CRON_SECRET_URL ?? "").trim().toLowerCase() === "refuse";
+
+  if (parUrl && !parEntete) {
+    if (urlRefusee) {
+      console.error(
+        "[presence.evaluate] secret fourni en PARAMÈTRE D'URL : refusé. " +
+          "Utilisez l'en-tête x-cron-secret.",
+      );
+      return NextResponse.json(
+        { ok: false, error: "secret_en_url_refuse", attendu: "en-tête x-cron-secret" },
+        { status: 403 },
+      );
+    }
+    console.warn(
+      "[presence.evaluate] secret fourni en PARAMÈTRE D'URL. Toléré en " +
+        "production pour ne pas interrompre le moteur d'alertes, mais à " +
+        "corriger : le secret se retrouve dans les journaux du proxy. " +
+        "Passez le planificateur à l'en-tête x-cron-secret, puis posez " +
+        "CGK_CRON_SECRET_URL=refuse.",
+    );
+  }
+
+  const provided = parEntete || (urlRefusee ? null : parUrl);
   const authorized = (secret && provided === secret) || (await isCurrentUserAdmin());
   if (!authorized) {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });

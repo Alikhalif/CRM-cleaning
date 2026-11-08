@@ -6,6 +6,7 @@ import { todayFr, type Devis } from "./types";
 import { markLeadDevisSigne } from "./status";
 import { signedDevisUrl } from "./archive";
 import { sendBrevoEmail } from "@/lib/brevo";
+import { baseUrlPublique } from "@/lib/urls/base-publique-server";
 import {
   senderForSector,
   domainForSector,
@@ -162,12 +163,17 @@ export async function recordDevisSignature(
       const sender = senderForSector(sector);
       // Bannière de signature par secteur (même visuel que l'e-mail d'envoi).
       const sigFile = signatureBannerFile(sector);
+      // Plus de repli « https://crmoptimum.com » en dur : hors production, une
+      // bannière chargée depuis le domaine réel ferait référence à la
+      // production dans un e-mail de recette. Sans base sûre, pas de bannière
+      // — c'est une image décorative, sa perte ne dégrade rien d'essentiel.
+      const resolutionBase = await baseUrlPublique();
       const sigBase =
-        domainForSector(sector) ??
-        (process.env.SIGNATURE_BASE_URL || "https://crmoptimum.com").replace(/\/$/, "");
-      const banner = sigFile
-        ? signatureBannerHtml(`${sigBase}/email-signatures/${sigFile}`)
-        : "";
+        domainForSector(sector) ?? (resolutionBase.ok ? resolutionBase.base : null);
+      const banner =
+        sigFile && sigBase
+          ? signatureBannerHtml(`${sigBase}/email-signatures/${sigFile}`)
+          : "";
       const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;line-height:1.5">
         Bonjour ${input.nom},<br /><br />
         Merci — votre devis <strong>${row.numero}</strong> a bien été signé « Bon pour accord ».<br />

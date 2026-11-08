@@ -33,6 +33,10 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
+# Gabarit de l'environnement de RECETTE. Suivi comme .env.example : il ne
+# contient que des valeurs descriptives, et c'est lui qui explique pourquoi
+# `npm run dev` refuse de demarrer sans configuration.
+!.env.recette.example
 
 # vercel
 .vercel
@@ -58,3 +62,8 @@ optimivv-devis.zip
 # Caches Python des scripts utilitaires (neutralisation du gabarit, etc.)
 __pycache__/
 *.pyc
+
+# Messages captures par la garde d'envoi (recette/developpement).
+# Ils contiennent des donnees de test ET les pieces jointes qui auraient ete
+# envoyees : ils ne doivent jamais entrer dans le depot.
+var/

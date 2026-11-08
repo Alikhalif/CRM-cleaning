@@ -11,6 +11,8 @@ import "server-only";
 //   3. SPF/DKIM on the sender domain if it's not @gmail.com / @outlook.com —
 //      otherwise mails will land in spam, not fail the API call.
 
+import { garderEnvoi } from "@/lib/envoi/garde-server";
+
 export type SendEmailInput = {
   to: string;
   toName?: string;
@@ -43,6 +45,20 @@ export type BrevoSendResult =
 const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
 
 export async function sendBrevoEmail(input: SendEmailInput): Promise<BrevoSendResult> {
+  // Goulet d'envoi, AVANT tout accès réseau. Hors production, rien ne part :
+  // le message est capturé sur le disque, pièces jointes comprises, et
+  // l'erreur dit où le lire. Voir `lib/envoi/decision.ts`.
+  const garde = await garderEnvoi({
+    canal: "email",
+    transport: "brevo",
+    destinataire: input.to,
+    sujet: input.subject,
+    corpsHtml: input.htmlContent,
+    expediteur: input.senderEmail ?? process.env.BREVO_SENDER_EMAIL,
+    pieces: [...(input.attachment ? [input.attachment] : []), ...(input.attachments ?? [])],
+  });
+  if (!garde.ok) return { ok: false, error: garde.error };
+
   const apiKey = process.env.BREVO_API_KEY;
   if (!apiKey) return { ok: false, error: "BREVO_API_KEY non configurée." };
 
@@ -126,6 +142,17 @@ export async function sendBrevoSms(input: {
   to: string;
   content: string;
 }): Promise<BrevoSendResult> {
+  // Même goulet que l'e-mail : un SMS réel coûte autant qu'un e-mail réel au
+  // client qui le reçoit par erreur.
+  const garde = await garderEnvoi({
+    canal: "sms",
+    transport: "brevo",
+    destinataire: input.to,
+    corpsTexte: input.content,
+    expediteur: process.env.BREVO_SMS_SENDER,
+  });
+  if (!garde.ok) return { ok: false, error: garde.error };
+
   const apiKey = process.env.BREVO_API_KEY;
   if (!apiKey) return { ok: false, error: "BREVO_API_KEY non configurée." };
 
