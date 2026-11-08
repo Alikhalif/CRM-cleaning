@@ -35,7 +35,9 @@ export type NavIcon =
   | "subcontractor"
   | "calendar"
   | "bell"
-  | "settings";
+  | "settings"
+  | "clients"
+  | "certificate";
 
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -53,6 +55,12 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/recherche",      label: "Recherche",     icon: "search" },
       { href: "/pipeline",       label: "Pipeline",      icon: "pipeline" },
       { href: "/leads",          label: "Suivi commercial", icon: "leads", badge: "leadsUntreated" },
+      // D21 (registre, 9 novembre) — la page existait, atteignable seulement
+      // par URL. Ouverte à tous comme avant : `/clients` n'est pas dans
+      // RESTRICTED_MODULES, et la RLS de `clients` limite le commercial aux
+      // clients issus de SES leads. L'onglet « Documents & Contrats » de la
+      // fiche reste back-office, côté écran ET côté actions serveur.
+      { href: "/clients",        label: "Clients",       icon: "clients" },
       // Vue de travail entre la découverte et l'envoi du devis. Ouverte à
       // tous : son périmètre est déjà restreint par la RLS et par le filtre
       // d'activité, elle n'a donc rien à faire dans RESTRICTED_MODULES.
@@ -66,6 +74,10 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/sous-traitants", label: "Sous-traitants", icon: "subcontractor" },
       { href: "/comptabilite",   label: "Comptabilité",  icon: "comptabilite" },
       { href: "/documents",      label: "Documents & Contrats", icon: "folder" },
+      // D22 — aucun lien du dépôt n'y menait. Gardé `backOffice` dans
+      // RESTRICTED_MODULES : l'entrée n'apparaît qu'à l'admin et à la
+      // planification, et le layout du module rend un 404 aux autres.
+      { href: "/certificat-hotte", label: "Certificat de hotte", icon: "certificate" },
       { href: "/signatures",     label: "Signatures",    icon: "document" },
       { href: "/presence",       label: "Présence & Actions", icon: "presence" },
       { href: "/grilles-tarifaires", label: "Grilles tarifaires", icon: "comptabilite" },

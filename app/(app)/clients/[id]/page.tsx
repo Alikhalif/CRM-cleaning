@@ -65,7 +65,9 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
 
   const [stats, clientDocuments, contracts, contractTemplates, contractPrefill, interventions] = await Promise.all([
     getClientStats(client),
-    getClientDocuments(client.id, client.sourceLeadId),
+    // Le registre documentaire n'alimente que l'onglet back-office, et il lit
+    // en partie par service-role : inutile — et à éviter — pour un commercial.
+    isBackOffice ? getClientDocuments(client.id, client.sourceLeadId) : Promise.resolve([]),
     isBackOffice ? getClientContracts(client.id) : Promise.resolve([]),
     isBackOffice ? getContractTemplates() : Promise.resolve([]),
     isBackOffice ? getContractPrefill(client.id) : Promise.resolve({}),
@@ -265,10 +267,14 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
                   <dt>Documents émis</dt>
                   <dd>{documents.length}</dd>
                 </div>
-                <div>
-                  <dt>Documents & contrats</dt>
-                  <dd>{clientDocuments.length}</dd>
-                </div>
+                {/* Compteur de l'onglet back-office : absent pour le commercial,
+                    plutôt qu'un « 0 » trompeur (le registre n'est pas chargé). */}
+                {isBackOffice && (
+                  <div>
+                    <dt>Documents & contrats</dt>
+                    <dd>{clientDocuments.length}</dd>
+                  </div>
+                )}
                 <div>
                   <dt>Client depuis</dt>
                   <dd>{DATE.format(new Date(client.createdAt))}</dd>

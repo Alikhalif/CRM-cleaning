@@ -38,9 +38,32 @@ export type IconName =
   | "folder"
   | "subcontractor"
   | "external-link"
-  | "eye";
+  | "eye"
+  | "clients"
+  | "certificate";
 
 const PATHS: Record<IconName, React.ReactNode> = {
+  // D21 — module Clients : deux silhouettes, distinctes de « commerciaux »
+  // (l'équipe) et de « leads » (le flux entrant).
+  clients: (
+    <>
+      <circle cx="9" cy="8" r="3.25" />
+      <path d="M3 19.5a6 6 0 0 1 12 0" />
+      <path d="M15.5 5.2a3.25 3.25 0 0 1 0 5.6" />
+      <path d="M17.5 14a6 6 0 0 1 3.5 5.5" />
+    </>
+  ),
+  // D22 — Certificat de hotte : un document scellé, pour le distinguer des
+  // devis et contrats (« document »).
+  certificate: (
+    <>
+      <path d="M6 3.5h9l3 3V12" />
+      <path d="M6 3.5v16h6" />
+      <path d="M9 8h5M9 11.5h3.5" />
+      <circle cx="17" cy="16.5" r="2.75" />
+      <path d="M15.6 18.9 15 21.5l2-1 2 1-.6-2.6" />
+    </>
+  ),
   // Visualisation du devis avant validation (§6 du cahier du 2026-11-06).
   eye: (
     <>

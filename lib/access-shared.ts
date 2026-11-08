@@ -62,6 +62,11 @@ export const RESTRICTED_MODULES: { prefix: string; scope: Exclude<ModuleScope, "
   { prefix: "/chiffrage", scope: "backOffice" },
   { prefix: "/sous-traitants", scope: "backOffice" },
   { prefix: "/certificat-hotte", scope: "backOffice" },
+  // Création d'un client DIRECT (hors lead). La RLS de `clients` réserve déjà
+  // l'insertion au back-office ; l'écran l'ignorait et laissait le commercial
+  // remplir tout le formulaire avant d'essuyer un refus de la base. `/clients`
+  // reste ouvert : le préfixe le plus long gagne. (D21, 2026-11-09)
+  { prefix: "/clients/new", scope: "backOffice" },
   // ── Comptabilité / facturation opérationnelle ─────────────────────────
   { prefix: "/comptabilite", scope: "backOffice" },
   // ── Documents & contrats internes / bibliothèque administrative ───────

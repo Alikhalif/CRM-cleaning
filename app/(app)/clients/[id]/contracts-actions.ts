@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 import { auditLog } from "@/lib/audit";
+import { assertBackOffice } from "@/lib/access-server";
 import { sendBrevoEmail } from "@/lib/brevo";
 import {
   allocateContractRef, getContractTemplateByKey, renderAndUploadContractPdf,
@@ -27,9 +28,23 @@ export type CreateContractPayload = {
   values: Record<string, FieldValue>;
 };
 
+// ── Garde de périmètre (D21, 2026-11-09) ────────────────────────────────────
+// Ces actions servent l'onglet « Documents & Contrats » de la fiche client,
+// que la page ne montre qu'au back-office. Jusqu'ici la restriction n'existait
+// QUE dans l'écran : une server action s'appelle sans l'écran, et la RLS de
+// `contracts` n'exige que `created_by = auth.uid()` à l'insertion — pas que le
+// client appartienne à l'appelant. Pire, `createContract` consommait un numéro
+// de la séquence SANS TROU avant que la base ne refuse quoi que ce soit.
+//
+// Le module Clients entrant dans la navigation, la garde passe côté serveur,
+// AVANT toute lecture, numérotation ou écriture. Aucune permission légitime ne
+// change : l'écran ne proposait déjà ces actions qu'au back-office.
+
 // Crée un contrat : génère le PDF (template + valeurs), l'archive et l'ajoute au
 // registre documentaire du client. Statut initial : en attente de signature.
 export async function createContract(clientId: string, payload: CreateContractPayload): Promise<Result> {
+  const g = await assertBackOffice();
+  if (!g.ok) return g;
   if (!UUID_RE.test(clientId)) return { ok: false, error: "Client invalide." };
   const template = await getContractTemplateByKey(payload.templateKey);
   if (!template) return { ok: false, error: "Modèle de contrat introuvable." };
@@ -113,6 +128,8 @@ export async function updatePassage(
   passageId: string,
   patch: { status?: string; plannedAt?: string | null; notes?: string; dossierId?: string | null },
 ): Promise<Result> {
+  const g = await assertBackOffice();
+  if (!g.ok) return g;
   const supabase = await supabaseServer();
   const { data: p } = await supabase
     .from("contract_passages").select("id, contract_id, status").eq("id", passageId)
@@ -149,6 +166,8 @@ export async function updatePassage(
 
 // Change le statut (§8). « actif » pose la date de signature si absente.
 export async function setContractStatus(contractId: string, status: string): Promise<Result> {
+  const g = await assertBackOffice();
+  if (!g.ok) return g;
   if (!(STATUSES as string[]).includes(status)) return { ok: false, error: "Statut invalide." };
   const supabase = await supabaseServer();
   const { data: row } = await supabase
@@ -174,6 +193,8 @@ export async function setContractStatus(contractId: string, status: string): Pro
 
 // Renouvelle : duplique le contrat (mêmes données), nouvelles dates, nouveau n°.
 export async function renewContract(contractId: string): Promise<Result> {
+  const g = await assertBackOffice();
+  if (!g.ok) return g;
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Session expirée." };
@@ -217,6 +238,8 @@ export async function renewContract(contractId: string): Promise<Result> {
 
 // Suppression (soft) du contrat + de sa ligne registre + retrait du PDF.
 export async function deleteContract(contractId: string): Promise<Result> {
+  const g = await assertBackOffice();
+  if (!g.ok) return g;
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Session expirée." };
@@ -243,6 +266,8 @@ export async function deleteContract(contractId: string): Promise<Result> {
 
 // Envoi du contrat au client par email (PDF en lien signé 7 j).
 export async function sendContract(contractId: string, toOverride?: string): Promise<Result> {
+  const g = await assertBackOffice();
+  if (!g.ok) return g;
   const supabase = await supabaseServer();
   const { data: c } = await supabase
     .from("contracts").select("id, client_id, ref, title, pdf_path").eq("id", contractId)

@@ -1,11 +1,17 @@
 import ClientsList from "./ClientsList";
 import styles from "./Clients.module.scss";
 import { getAllClientsForList } from "@/lib/clients-server";
+import { hasScope } from "@/lib/access-server";
 
 export const metadata = { title: "Clients" };
 
 export default async function ClientsPage() {
-  const rows = await getAllClientsForList();
+  const [rows, peutCreer] = await Promise.all([
+    getAllClientsForList(),
+    // Même règle que la garde de /clients/new : on ne montre pas un bouton
+    // qui mène à un 404.
+    hasScope("backOffice"),
+  ]);
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -16,7 +22,7 @@ export default async function ClientsPage() {
           </p>
         </div>
       </header>
-      <ClientsList rows={rows} />
+      <ClientsList rows={rows} peutCreer={peutCreer} />
     </div>
   );
 }

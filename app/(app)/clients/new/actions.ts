@@ -4,13 +4,16 @@ import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 import { auditLog } from "@/lib/audit";
+import { assertBackOffice } from "@/lib/access-server";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import type { ClientType, Sector } from "@/lib/leads";
 
-// Per CDC §3, the clients module is admin/planner only. Commerciaux landing
-// on this page (e.g. via the /devis/new "+ Créer un client" link) will hit
-// RLS on submit and get a clear server message — UX-wise we surface it as a
-// banner above the form, no silent failure.
+// Per CDC §3, creating a DIRECT client is admin/planner only (RLS on
+// clients.INSERT). Since D21 (2026-11-09) the page itself is guarded
+// (`/clients/new` in RESTRICTED_MODULES + layout) and `createDirectClient`
+// checks the scope first, so a commercial gets a clear message instead of a
+// raw RLS error. `ensureClientFromLead` is unaffected: it derives a client
+// from a lead the caller can already see.
 
 type ClientInsert = Database["public"]["Tables"]["clients"]["Insert"];
 
@@ -38,6 +41,8 @@ export type CreateClientResult =
 export async function createDirectClient(
   input: CreateClientInput,
 ): Promise<CreateClientResult> {
+  const g = await assertBackOffice();
+  if (!g.ok) return g;
   // ── 1. Validate ──────────────────────────────────────────────────────
   if (!input.name.trim()) return { ok: false, error: "Nom requis." };
   if (!input.email.trim()) return { ok: false, error: "Email requis." };

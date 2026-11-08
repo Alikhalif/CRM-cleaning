@@ -35,6 +35,7 @@ const SUITES = [
   { fichier: "taxonomie.ts", titre: "Deux familles, six branches — et découvertes intactes" },
   { fichier: "cloisonnement.ts", titre: "Cloisonnement, chaîne d'accès et journal d'audit" },
   { fichier: "etats.ts", titre: "Machine à états commerciale (LOT 1 — un lead traité est un lead contacté)" },
+  { fichier: "navigation-rls.ts", titre: "D20 · D21 · D22 — politiques RLS réelles, navigation, gardes serveur" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "superviseur-check-"));

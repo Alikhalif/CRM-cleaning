@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 import { auditLog } from "@/lib/audit";
+import { assertBackOffice } from "@/lib/access-server";
 import { CLIENT_DOCS_BUCKET } from "@/lib/documents/documents-server";
 import { DOC_CATEGORIES, DOC_KINDS, type DocCategory, type DocKind } from "@/lib/documents/types";
 import { isActivityTag } from "@/lib/documents/tags";
@@ -28,7 +29,14 @@ function extOf(name: string, mime: string): string {
 
 // Ajout d'un document au registre du client. Objet → bucket privé (service
 // role) ; ligne → client de session (RLS : created_by = auth.uid()).
+//
+// D21 — réservé au back-office CÔTÉ SERVEUR : ce registre est l'onglet
+// « Documents & Contrats », que la fiche ne montre qu'à lui. Sans cette garde,
+// la RLS (`created_by = auth.uid()`) laissait un commercial rattacher un
+// fichier au client d'un autre, et l'objet partait dans le bucket AVANT.
 export async function uploadClientDocument(clientId: string, formData: FormData): Promise<Result> {
+  const g = await assertBackOffice();
+  if (!g.ok) return g;
   if (!UUID_RE.test(clientId)) return { ok: false, error: "Client invalide." };
 
   const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
@@ -84,6 +92,8 @@ export async function uploadClientDocument(clientId: string, formData: FormData)
 
 // Suppression (soft-delete) + retrait de l'objet. RLS : auteur / admin / planif.
 export async function deleteClientDocument(docId: string): Promise<Result> {
+  const g = await assertBackOffice();
+  if (!g.ok) return g;
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Session expirée." };
@@ -118,6 +128,18 @@ export async function updateClientActivityTags(clientId: string, tags: string[])
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Session expirée." };
+
+  // D21 — l'écriture passe par le service-role (la RLS de `clients` réserve
+  // l'UPDATE au back-office, et le commercial étiquette ses propres clients
+  // depuis la fiche). Le service-role ne vérifie donc RIEN : sans ce contrôle,
+  // tout utilisateur connecté modifiait les étiquettes de N'IMPORTE QUEL client
+  // à partir de son seul identifiant. On exige d'abord que la SESSION voie le
+  // client — c'est la RLS de lecture qui tranche : admin, planification, ou
+  // propriétaire du lead source.
+  const { data: visible } = await supabase
+    .from("clients").select("id").eq("id", clientId)
+    .maybeSingle<{ id: string }>();
+  if (!visible) return { ok: false, error: "Client introuvable ou hors de votre périmètre." };
 
   const clean = [...new Set(tags.filter(isActivityTag))];
   const admin = await supabaseServiceRole();

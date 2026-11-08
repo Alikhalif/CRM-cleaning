@@ -106,7 +106,7 @@ planification est créé.
 | **Scénario métier** | La signature crée le dossier. C'est la bascule du commercial vers le back-office |
 | **Données transmises** | `dossiers.lead_id`, `quote_document_id`, `signature_mode` |
 | **Changements d'état** | `documents.status → signe` · `dossiers.status = a_planifier` · `payment_status = acompte_non_paye` si acompte |
-| **Notifications** | — ⚠️ aucune (D1) |
+| **Notifications** | — ⚠️ aucune (D1) · **corrigé le 9 novembre** : `lib/signature-server.ts` notifie le propriétaire **et** la planification à la signature |
 | **Autorisations** | La RLS autorise le planificateur **à signer** (correctif du 2026-08-02) |
 | **État** | 🟠 — la migration de ce correctif est notée « à appliquer » |
 | **Scénario de test réel** | Signer en mode `planificateur` → le dossier doit exister, et le mode doit être **tracé** |
@@ -124,6 +124,8 @@ planification est créé.
 | **Scénario de test réel** | Créer un sous-traitant **fictif** avec ses pièces, préparer une mission, émettre le contrat → vérifier l'identité légale imprimée |
 
 ## L8 · Intervention → Facturation
+
+> ⚠️ **Corrigé le 9 novembre** (`LOT-C-PREPARATION-INTERCONNEXIONS.md`) : cette liaison est **largement câblée**. L'état cherché sous le nom `realise` existe sous le nom **`finalise`**, et `generateFactureFinale` refuse tout dossier qui ne l'est pas. Ce qui manque réellement — numéro consommé au brouillon, doublon non interdit en base, absence de validation — y est détaillé. Le texte ci-dessous est conservé tel qu'écrit.
 
 **🟠 La liaison n'est pas câblée.** Mesuré : aucun état `realise` dans
 `dossier_status` (qui vaut `a_planifier`, `planifie`, `en_cours`, …), et

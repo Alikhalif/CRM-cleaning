@@ -77,6 +77,11 @@ type Props = {
    * bouton employé.
    */
   redaction?: RedactionOuverture | null;
+  /**
+   * La création d'un client DIRECT est réservée au back-office (D21). Le
+   * commercial n'a pas besoin du lien : son client naît de son lead.
+   */
+  peutCreerClient?: boolean;
 };
 
 function today(): string {
@@ -171,6 +176,7 @@ export default function QuoteEditor({
   prefill,
   brouillonId,
   redaction = null,
+  peutCreerClient = false,
 }: Props) {
   const router = useRouter();
   // Mode « modification d'un brouillon » : même formulaire, écriture en place.
@@ -548,9 +554,11 @@ export default function QuoteEditor({
                     </option>
                   ))}
                 </select>
-                <Link href="/clients/new" className={styles.fieldHint}>
-                  + Créer un nouveau client
-                </Link>
+                {peutCreerClient && (
+                  <Link href="/clients/new" className={styles.fieldHint}>
+                    + Créer un nouveau client
+                  </Link>
+                )}
               </Field>
 
               <Field label="Entité émettrice">

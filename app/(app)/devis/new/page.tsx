@@ -7,6 +7,7 @@ import {
   getDevisPrefill,
 } from "@/lib/devis-server";
 import { ensureClientFromLead } from "@/app/(app)/clients/new/actions";
+import { hasScope } from "@/lib/access-server";
 import { redigerPourLead } from "@/lib/devis/redaction-pour-lead-server";
 import { getLeadDetail } from "@/lib/leads-server";
 
@@ -116,6 +117,7 @@ export default async function NewQuotePage({ searchParams }: PageProps) {
       prefill={prefill}
       brouillonId={brouillonId}
       redaction={redaction}
+      peutCreerClient={await hasScope("backOffice")}
     />
   );
 }

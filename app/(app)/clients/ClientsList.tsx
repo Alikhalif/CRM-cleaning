@@ -24,10 +24,13 @@ type Row = {
   lastActivityAt: string;
 };
 
-type Props = { rows: Row[] };
+// `peutCreer` : la création d'un client direct est réservée au back-office
+// (`/clients/new` dans RESTRICTED_MODULES). Le commercial voit ses clients,
+// mais pas un bouton qui le mènerait à un 404.
+type Props = { rows: Row[]; peutCreer: boolean };
 
 
-export default function ClientsList({ rows }: Props) {
+export default function ClientsList({ rows, peutCreer }: Props) {
   const [search, setSearch] = useState("");
   const [type, setType] = useState<ClientType | "all">("all");
   const [origin, setOrigin] = useState<ClientOrigin | "all">("all");
@@ -98,9 +101,11 @@ export default function ClientsList({ rows }: Props) {
           ))}
         </select>
 
-        <Link href="/clients/new" className={styles.newBtn}>
-          <Icon name="check" size={14} /> Nouveau client
-        </Link>
+        {peutCreer && (
+          <Link href="/clients/new" className={styles.newBtn}>
+            <Icon name="check" size={14} /> Nouveau client
+          </Link>
+        )}
       </div>
 
       <p className={styles.count}>
