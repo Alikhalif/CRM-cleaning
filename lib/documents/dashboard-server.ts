@@ -1,6 +1,6 @@
 import { selectEnLotsTolerant } from "@/lib/supabase/batch";
 import "server-only";
-import { supabaseServiceRole } from "@/lib/supabase/service";
+import { supabaseServer } from "@/lib/supabase/server";
 import type { ContractStatus } from "./contracts-types";
 
 // Agrégation pour la page « Documents & Contrats » (§13). Requêtes bornées,
@@ -33,7 +33,11 @@ export type DocumentsDashboard = {
 };
 
 export async function getDocumentsDashboard(): Promise<DocumentsDashboard> {
-  const sb = await supabaseServiceRole();
+  // D32 : lu par la SESSION. Au service-role, ce tableau de bord listait les
+  // contrats, certificats et dossiers de TOUS les pays et de toutes les
+  // sociétés à toute planificatrice — la RLS, désormais cloisonnée, ne
+  // pouvait rien y faire.
+  const sb = await supabaseServer();
   const now = Date.now();
   const expiryCut = new Date(now + EXPIRY_DAYS * 86_400_000).toISOString().slice(0, 10);
   const doneCut = new Date(now - DONE_LOOKBACK_DAYS * 86_400_000).toISOString();

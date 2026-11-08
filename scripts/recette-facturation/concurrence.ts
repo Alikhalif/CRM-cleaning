@@ -278,6 +278,7 @@ async function main() {
     // donne l'écriture — c'est précisément ce que le trigger doit arrêter.
     const { data: lead, error: lErr } = await sb.from("leads").insert({
       short_id: `T-${Date.now()}`, owner_id: C.uid, client_last_name: "Fictif", status: "signe",
+      country: "FR", entity_id: entite,
     }).select("id").single();
     if (lErr || !lead) throw new Error(`lead de test : ${lErr?.message}`);
     const leadId = (lead as { id: string }).id;
@@ -305,7 +306,7 @@ async function main() {
   process.env.NEXT_PUBLIC_SUPABASE_URL = url;
   process.env.SUPABASE_SERVICE_ROLE_KEY = cle;
   const { data: ld, error: ldErr } = await sb.from("leads").insert({
-    short_id: `N-${Date.now()}`, client_last_name: "Notification", country: "FR", status: "signe",
+    short_id: `N-${Date.now()}`, client_last_name: "Notification", country: "FR", entity_id: entite, status: "signe",
   }).select("id").single();
   if (ldErr || !ld) throw new Error(`lead : ${ldErr?.message}`);
   const { data: dos, error: dErr } = await sb.from("dossiers").insert({ lead_id: (ld as { id: string }).id, status: "finalise" })
@@ -366,15 +367,16 @@ async function main() {
       if (error || !data.user) throw new Error(`connexion planification : ${error?.message}`);
       return { cl, uid: data.user.id };
     })();
-    const { data: avant } = await sb.from("users").select("countries, entites_autorisees").eq("id", Pl9.uid).single();
-    const origine = avant as { countries: string[]; entites_autorisees: string[] };
+    const { data: avant } = await sb.from("users").select("countries, entites_autorisees, perimetre_herite").eq("id", Pl9.uid).single();
+    const origine = avant as { countries: string[]; entites_autorisees: string[]; perimetre_herite: boolean };
     const ents = Object.fromEntries(await Promise.all((["FR", "CH", "LU", "BE", "CA"] as const).map(async (p) => [p, (await societe(`TST${p}`)).id])));
     const inserer = (pays: string | null, entite: string | null) => sb.from("notifications").insert({
       user_id: Pl9.uid, kind: "test.perimetre", title: `Test ${pays ?? "personnelle"}`, pays, entite_id: entite,
     }).select("id").maybeSingle();
     try {
       // Périmètre réduit le temps du test : FR seulement, toutes entités.
-      await sb.from("users").update({ countries: ["FR"], entites_autorisees: [] }).eq("id", Pl9.uid);
+      // La règle de D31 est celle du mode HÉRITÉ (D32) : on le déclare.
+      await sb.from("users").update({ countries: ["FR"], entites_autorisees: [], perimetre_herite: true }).eq("id", Pl9.uid);
       for (const p of ["CH", "LU", "BE", "CA"]) {
         const r = await inserer(p, ents[p]);
         vrai(`planificatrice FR : notification ${p} REFUSÉE à l'insertion (base)`, !!r.error);
@@ -389,13 +391,13 @@ async function main() {
       vrai("une notification PERSONNELLE (sans pays) passe toujours", !perso.error, perso.error?.message);
 
       // Périmètre d'ENTITÉS : FR + la seule société TSTFR.
-      await sb.from("users").update({ countries: ["FR"], entites_autorisees: [ents.FR] }).eq("id", Pl9.uid);
+      await sb.from("users").update({ countries: ["FR"], entites_autorisees: [ents.FR], perimetre_herite: true }).eq("id", Pl9.uid);
       vrai("entité autorisée : acceptée", !(await inserer("FR", ents.FR)).error);
       vrai("autre entité du même pays : REFUSÉE", !!(await inserer("FR", ents.CH)).error);
       vrai("entité inconnue alors que le périmètre est restreint : REFUSÉE (fail-closed)", !!(await inserer("FR", null)).error);
 
       // Une notification ancienne, devenue hors périmètre : MASQUÉE, pas supprimée.
-      await sb.from("users").update({ countries: ["BE"], entites_autorisees: [] }).eq("id", Pl9.uid);
+      await sb.from("users").update({ countries: ["BE"], entites_autorisees: [], perimetre_herite: true }).eq("id", Pl9.uid);
       const masquee = await Pl9.cl.from("notifications").select("id").eq("id", okId).maybeSingle();
       const toujours = await sb.from("notifications").select("id").eq("id", okId).maybeSingle();
       vrai("périmètre retiré : l'ancienne notification FR n'est plus lisible par elle", !masquee.data);
@@ -404,7 +406,7 @@ async function main() {
       // Le service serveur, lui, ne vise que le périmètre.
       process.env.NEXT_PUBLIC_SUPABASE_URL = url;
       process.env.SUPABASE_SERVICE_ROLE_KEY = cle;
-      await sb.from("users").update({ countries: ["FR"], entites_autorisees: [] }).eq("id", Pl9.uid);
+      await sb.from("users").update({ countries: ["FR"], entites_autorisees: [], perimetre_herite: true }).eq("id", Pl9.uid);
       const marque = `test.service.${Date.now()}`;
       await notifierBackOffice({ pays: "BE", entiteId: ents.BE }, { kind: marque, title: "Hors périmètre" });
       await notifierBackOffice({ pays: "FR", entiteId: ents.FR }, { kind: marque, title: "Dans le périmètre" });
@@ -415,7 +417,81 @@ async function main() {
       const inconnu = await sb.from("notifications").select("id").eq("user_id", Pl9.uid).eq("kind", marque).eq("title", "Pays inconnu");
       vrai("pays inconnu : aucune planificatrice n'est avertie (fail-closed)", (inconnu.data ?? []).length === 0);
     } finally {
-      await sb.from("users").update({ countries: origine.countries, entites_autorisees: origine.entites_autorisees }).eq("id", Pl9.uid);
+      await sb.from("users").update({ countries: origine.countries, entites_autorisees: origine.entites_autorisees, perimetre_herite: origine.perimetre_herite }).eq("id", Pl9.uid);
+      console.log("  info  périmètre d'origine de la planificatrice restauré");
+    }
+  }
+
+
+  console.log("\n10. D32 — CLOISONNEMENT EN BASE, accès DIRECTS à l'API sous une vraie session");
+  if (!com.email || !com.mdp || !pla.email || !pla.mdp) {
+    console.log("  NON EXÉCUTÉE — comptes de test absents de .env.recette (voir section 7).");
+  } else {
+    const ouvrir = async (e: string, m: string) => {
+      const cl = createClient(url, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+      const { data, error } = await cl.auth.signInWithPassword({ email: e, password: m });
+      if (error || !data.user) throw new Error(`connexion ${e} : ${error?.message}`);
+      return { cl, uid: data.user.id };
+    };
+    const P10 = await ouvrir(pla.email, pla.mdp);
+    const C10 = await ouvrir(com.email, com.mdp);
+    const { data: avant10 } = await sb.from("users").select("countries, entites_autorisees, perimetre_herite").eq("id", P10.uid).single();
+    const origine10 = avant10 as { countries: string[]; entites_autorisees: string[]; perimetre_herite: boolean };
+    const fr = (await societe("TSTFR")).id, be = (await societe("TSTBE")).id, ch = (await societe("TSTCH")).id;
+
+    // Trois dossiers fictifs : DANS le périmètre (FR/TSTFR), même pays autre
+    // société (FR/TSTCH), autre pays (BE/TSTBE).
+    const creer = async (pays: string, entite: string, tag: string) => {
+      const { data: l } = await sb.from("leads").insert({ short_id: `D32-${tag}-${Date.now()}`, client_last_name: `D32 ${tag}`, country: pays, entity_id: entite, owner_id: C10.uid, status: "signe" }).select("id").single();
+      const leadId = (l as { id: string }).id;
+      const { data: x } = await sb.from("dossiers").insert({ lead_id: leadId, status: "a_planifier" }).select("id").single();
+      const { data: d } = await sb.from("documents").insert({ type: "devis", num: "", status: "brouillon", lead_id: leadId, entity_id: entite, total_ht: 100, total_vat: 20, total_ttc: 120 }).select("id").single();
+      const { data: c } = await sb.from("clients").insert({ type: "particulier", source: "lead", name: `D32 ${tag}`, source_lead_id: leadId }).select("id").single();
+      return { leadId, dossierId: (x as { id: string }).id, docId: (d as { id: string }).id, clientId: (c as { id: string }).id };
+    };
+    const dedans = await creer("FR", fr, "DEDANS");
+    const autreSociete = await creer("FR", ch, "SOCIETE");
+    const autrePays = await creer("BE", be, "PAYS");
+    const voit = async (cl: typeof P10.cl, table: string, id: string) => !!(await cl.from(table).select("id").eq("id", id).maybeSingle()).data;
+
+    try {
+      // ── Mode STRICT : FR, et la seule société TSTFR ──────────────────────
+      await sb.from("users").update({ countries: ["FR"], entites_autorisees: [fr], perimetre_herite: false }).eq("id", P10.uid);
+      for (const [table, cle] of [["leads", "leadId"], ["dossiers", "dossierId"], ["documents", "docId"], ["clients", "clientId"]] as const) {
+        vrai(`strict · ${table} DANS le périmètre : visible (fonctionnalité préservée)`, await voit(P10.cl, table, dedans[cle]));
+        vrai(`strict · ${table} même pays, AUTRE société : INVISIBLE`, !(await voit(P10.cl, table, autreSociete[cle])));
+        vrai(`strict · ${table} AUTRE pays : INVISIBLE`, !(await voit(P10.cl, table, autrePays[cle])));
+      }
+      const liste = await P10.cl.from("leads").select("id").in("id", [dedans.leadId, autreSociete.leadId, autrePays.leadId]);
+      vrai("strict · une LISTE ne renvoie que le périmètre (pas de fuite par lot)", (liste.data ?? []).length === 1);
+      const maj = await P10.cl.from("dossiers").update({ notes: "tentative" }).eq("id", autrePays.dossierId).select("id");
+      vrai("strict · modifier un dossier hors périmètre : AUCUNE ligne touchée", (maj.data ?? []).length === 0);
+      const ins = await P10.cl.from("documents").insert({ type: "devis", num: "", status: "brouillon", lead_id: autrePays.leadId, entity_id: be, total_ht: 1, total_vat: 0, total_ttc: 1 }).select("id");
+      vrai("strict · CRÉER un document hors périmètre : refusé", !!ins.error || (ins.data ?? []).length === 0);
+      const okIns = await P10.cl.from("dossiers").update({ notes: "D32 ok" }).eq("id", dedans.dossierId).select("id");
+      vrai("strict · modifier un dossier DANS le périmètre : accepté", (okIns.data ?? []).length === 1, okIns.error?.message);
+      // Accès INDIRECT : une ligne de document, une demande de signature, un
+      // document client qui POINTENT vers un dossier hors périmètre.
+      await sb.from("document_lines").insert({ document_id: autrePays.docId, label: "x", quantity: 1, unit: "u", unit_price_ht: 1, vat_rate: 20, discount_pct: 0, total_ht: 1, order_index: 0 });
+      const lignes = await P10.cl.from("document_lines").select("id").eq("document_id", autrePays.docId);
+      vrai("strict · les LIGNES d'un document hors périmètre : invisibles (pas d'accès indirect)", (lignes.data ?? []).length === 0);
+      const { data: cd } = await sb.from("client_documents").insert({ client_id: autrePays.clientId, kind: "piece_jointe", title: "D32", source: "upload" }).select("id").single();
+      vrai("strict · un document CLIENT hors périmètre : invisible", !(await voit(P10.cl, "client_documents", (cd as { id: string }).id)));
+
+      // ── Nouveau compte : aucune entité = AUCUN accès ─────────────────────
+      await sb.from("users").update({ countries: ["FR"], entites_autorisees: [], perimetre_herite: false }).eq("id", P10.uid);
+      vrai("strict SANS entité (nouveau compte) : même son pays est INVISIBLE", !(await voit(P10.cl, "leads", dedans.leadId)));
+
+      // ── Mode HÉRITÉ : l'accès d'avant D32, aucun blocage ─────────────────
+      await sb.from("users").update({ countries: [], entites_autorisees: [], perimetre_herite: true }).eq("id", P10.uid);
+      vrai("hérité · les trois dossiers restent visibles (aucun compte existant bloqué)",
+        (await voit(P10.cl, "dossiers", dedans.dossierId)) && (await voit(P10.cl, "dossiers", autrePays.dossierId)));
+
+      // ── Les autres rôles : inchangés ─────────────────────────────────────
+      vrai("commercial · voit SES leads, dans tous les pays (règle propriétaire inchangée)",
+        (await voit(C10.cl, "leads", autrePays.leadId)) && (await voit(C10.cl, "leads", dedans.leadId)));
+    } finally {
+      await sb.from("users").update({ countries: origine10.countries, entites_autorisees: origine10.entites_autorisees, perimetre_herite: origine10.perimetre_herite }).eq("id", P10.uid);
       console.log("  info  périmètre d'origine de la planificatrice restauré");
     }
   }

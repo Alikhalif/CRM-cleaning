@@ -2,6 +2,7 @@ import { selectEnLotsTolerant } from "@/lib/supabase/batch";
 import "server-only";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { supabaseServiceRole } from "@/lib/supabase/service";
+import { supabaseServer } from "@/lib/supabase/server";
 import { getClientById } from "@/lib/clients-server";
 import { ContractPdf } from "@/lib/pdf/ContractPdf";
 import { PRESTATAIRE_CERT } from "@/lib/cert-hotte/types";
@@ -71,8 +72,11 @@ type ContractRow = {
 };
 
 export async function getClientContracts(clientId: string): Promise<Contract[]> {
+  // D32 : les TABLES par la session (RLS cloisonnée) ; le service-role ne
+  // sert plus qu'au stockage privé (URL signées) et aux noms d'auteurs.
+  const db = await supabaseServer();
   const sb = await supabaseServiceRole();
-  const { data } = await sb
+  const { data } = await db
     .from("contracts")
     .select("id, ref, client_id, template_key, category, title, status, start_date, end_date, signed_date, frequency, passages_per_year, passages_done, amount, billing_mode, data, pdf_path, sent_at, created_by, created_at")
     .eq("client_id", clientId)
@@ -90,7 +94,7 @@ export async function getClientContracts(clientId: string): Promise<Contract[]> 
     // fusion des lots.
     const { rows: pData } = await selectEnLotsTolerant(
       contractIds,
-      (lot) => sb
+      (lot) => db
         .from("contract_passages")
         .select("id, contract_id, index, status, target_label, planned_at, realized_at, dossier_id, notes")
         .in("contract_id", lot)
@@ -172,7 +176,8 @@ export type ClientIntervention = {
 
 export async function getClientInterventions(sourceLeadId?: string | null): Promise<ClientIntervention[]> {
   if (!sourceLeadId) return [];
-  const sb = await supabaseServiceRole();
+  // D32 : par la session — un dossier hors périmètre n'apparaît pas.
+  const sb = await supabaseServer();
   const { data: dossiers } = await sb
     .from("dossiers")
     .select("id, status, planned_at, realized_at, technician:technicians(name)")

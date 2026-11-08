@@ -432,9 +432,9 @@ export default function UsersList({ users, roles, entities, activities }: Props)
                       <option key={ent.id} value={ent.id}>{ent.name}</option>
                     ))}
                   </select>
-                  {/* D31 — périmètre d'ENTITÉS d'une planificatrice : aucune
-                      cochée = toutes (comportement antérieur). Ses
-                      notifications et sa vue Planification s'y limitent. */}
+                  {/* D31/D32 — périmètre d'ENTITÉS d'une planificatrice : ses
+                      données, ses notifications et sa vue Planification s'y
+                      limitent (pays ET entité, en base). */}
                   {u.roleSlugs.includes("planification") && (
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}
                       title="Périmètre d'entités (planification). Aucune = toutes.">
@@ -466,9 +466,14 @@ export default function UsersList({ users, roles, entities, activities }: Props)
                           </button>
                         );
                       })}
-                      {u.entitesAutorisees.length === 0 && (
-                        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>toutes les entités</span>
-                      )}
+                      {/* D32 : le libellé dit le MODE réel. Hérité : accès d'avant
+                          D32 conservé jusqu'à validation. Strict : aucune entité
+                          cochée = AUCUN accès aux données métier. */}
+                      <span style={{ fontSize: "0.75rem", color: u.perimetreHerite ? "var(--text-muted)" : "var(--tone-danger)" }}>
+                        {u.perimetreHerite
+                          ? "accès hérité — en attente de validation (procédure D32)"
+                          : u.entitesAutorisees.length === 0 ? "strict : aucune entité = aucun accès" : "strict"}
+                      </span>
                     </div>
                   )}
                 </td>

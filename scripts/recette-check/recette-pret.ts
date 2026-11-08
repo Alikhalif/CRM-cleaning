@@ -46,7 +46,7 @@ for (const f of ["00_marqueur_environnement.sql", "10_comptes_de_test.sql", "20_
   vrai(`supabase/recette/${f}`, existsSync(`supabase/recette/${f}`));
 }
 const n = readdirSync("supabase/migrations").filter((f) => f.endsWith(".sql")).length;
-vrai(`184 migrations à appliquer (mesuré : ${n})`, n === 184);
+vrai(`185 migrations à appliquer (mesuré : ${n})`, n === 185);
 vrai("aucun script de recette n'est dans supabase/migrations (aucun db push ne les joue)",
   !readdirSync("supabase/migrations").some((f) => /marqueur|comptes_de_test|societes_de_test/.test(f)));
 

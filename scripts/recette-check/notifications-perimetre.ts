@@ -25,23 +25,30 @@ const admin: Destinataire = { roles: ["admin"], countries: [], entitesAutorisees
 const commercial: Destinataire = { roles: ["commercial"], countries: ["FR"], entitesAutorisees: [] };
 const superviseur: Destinataire = { roles: ["superviseur"], countries: [], entitesAutorisees: [] };
 for (const p of PAYS) {
-  const planifDuPays: Destinataire = { roles: ["planification"], countries: [p], entitesAutorisees: [] };
+  // Comptes EXISTANTS (mode hérité de D32) : la règle de D31, pays seul.
+  const planifDuPays: Destinataire = { roles: ["planification"], countries: [p], entitesAutorisees: [], herite: true };
   for (const q of PAYS) {
     const ok = dansPerimetre(planifDuPays, { pays: q, entiteId: E[q] });
     vrai(`planification ${p} · notification ${q} → ${p === q ? "REÇUE" : "refusée"}`, ok === (p === q));
   }
   vrai(`Super Admin · notification ${p} → reçue`, dansPerimetre(admin, { pays: p, entiteId: E[p] }));
 }
-vrai("planification sans aucun pays → ne reçoit RIEN du back-office (A17)", PAYS.every((p) => !dansPerimetre({ roles: ["planification"], countries: [], entitesAutorisees: [] }, { pays: p, entiteId: E[p] })));
-vrai("planification multi-pays FR+CH → FR et CH, pas BE", dansPerimetre({ roles: ["planification"], countries: ["FR", "CH"], entitesAutorisees: [] }, { pays: "CH", entiteId: E.CH })
-  && !dansPerimetre({ roles: ["planification"], countries: ["FR", "CH"], entitesAutorisees: [] }, { pays: "BE", entiteId: E.BE }));
+vrai("planification sans aucun pays → ne reçoit RIEN du back-office (A17)", PAYS.every((p) => !dansPerimetre({ roles: ["planification"], countries: [], entitesAutorisees: [], herite: true }, { pays: p, entiteId: E[p] })));
+vrai("planification multi-pays FR+CH → FR et CH, pas BE", dansPerimetre({ roles: ["planification"], countries: ["FR", "CH"], entitesAutorisees: [], herite: true }, { pays: "CH", entiteId: E.CH })
+  && !dansPerimetre({ roles: ["planification"], countries: ["FR", "CH"], entitesAutorisees: [], herite: true }, { pays: "BE", entiteId: E.BE }));
+// D32 : un compte STRICT (tout nouveau compte) — la même matrice, entité exigée.
+for (const p of PAYS) {
+  const strict: Destinataire = { roles: ["planification"], countries: [p], entitesAutorisees: [E[p]], herite: false };
+  vrai(`strict ${p} · notifications des cinq pays : seul ${p} reçu`, PAYS.every((q) => dansPerimetre(strict, { pays: q, entiteId: E[q] }) === (q === p)));
+}
 
 console.log("\n2. Le périmètre d'ENTITÉS — EXÉCUTÉ");
 const restreinte: Destinataire = { roles: ["planification"], countries: ["FR", "BE"], entitesAutorisees: [E.FR] };
 vrai("entité autorisée, pays autorisé → reçue", dansPerimetre(restreinte, { pays: "FR", entiteId: E.FR }));
 vrai("pays autorisé, AUTRE entité → refusée", !dansPerimetre(restreinte, { pays: "BE", entiteId: E.BE }));
 vrai("entité inconnue, périmètre restreint → refusée (fail-closed)", !dansPerimetre(restreinte, { pays: "FR", entiteId: null }));
-vrai("aucune entité cochée = toutes (comportement antérieur préservé)", dansPerimetre({ roles: ["planification"], countries: ["FR"], entitesAutorisees: [] }, { pays: "FR", entiteId: null }));
+vrai("mode HÉRITÉ : aucune entité cochée = toutes (comptes existants, avant validation)", dansPerimetre({ roles: ["planification"], countries: ["FR"], entitesAutorisees: [], herite: true }, { pays: "FR", entiteId: null }));
+vrai("mode STRICT : aucune entité cochée = AUCUNE notification (D32)", !dansPerimetre({ roles: ["planification"], countries: ["FR"], entitesAutorisees: [], herite: false }, { pays: "FR", entiteId: E.FR }));
 vrai("bonne entité mais pays NON couvert → refusée (les deux doivent tenir)", !dansPerimetre({ roles: ["planification"], countries: ["CH"], entitesAutorisees: [E.FR] }, { pays: "FR", entiteId: E.FR }));
 
 console.log("\n3. Notifications personnelles et autres rôles — EXÉCUTÉ");

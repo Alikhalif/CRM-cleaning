@@ -45,6 +45,8 @@ export async function notifierBackOffice(
         roles: rolesParUser.get(id) ?? [],
         countries: (u.countries as string[] | null) ?? [],
         entitesAutorisees: (u.entites_autorisees as string[] | null) ?? [],
+        // D32 : sans la migration …08, la colonne manque → mode hérité (D31).
+        herite: (u.perimetre_herite as boolean | undefined) ?? true,
       };
       // Pays inconnu : seuls les admins (s'ils sont visés) reçoivent.
       if (portee.pays === null && !dest.roles.includes("admin")) continue;

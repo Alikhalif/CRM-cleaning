@@ -5,6 +5,7 @@ import { archiveCertHotte } from "@/lib/cert-hotte/archive";
 import { allocateCertHotteNumero } from "@/lib/cert-hotte/numero";
 import { buildCert, type CertHotteInput } from "@/lib/cert-hotte/types";
 import { hasScope } from "@/lib/access-server";
+import { dossierVisible, leadVisible } from "@/lib/perimetre/visibilite-server";
 
 // @react-pdf/renderer + fontkit + fs (police cursive) → runtime Node.
 export const runtime = "nodejs";
@@ -41,6 +42,14 @@ export async function POST(request: Request) {
     body = (await request.json()) as Body;
   } catch {
     return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+  }
+
+  // D32 : le dossier et le lead désignés par la requête doivent être VISIBLES
+  // par l'appelant (RLS) — sans quoi le service-role, plus bas, servirait le
+  // certificat de n'importe quel dossier, hors périmètre compris.
+  if ((body.dossierId && !(await dossierVisible(body.dossierId)))
+      || (body.leadId && !(await leadVisible(body.leadId)))) {
+    return NextResponse.json({ ok: false, error: "hors_perimetre" }, { status: 404 });
   }
 
   const input = body.data;

@@ -570,6 +570,8 @@ export type Database = {
       }
       clients: {
         Row: {
+          entite_id: string | null
+          pays: string | null
           activity_tags: string[]
           address: Json | null
           contact_name: string | null
@@ -591,6 +593,8 @@ export type Database = {
           vat_intra: string | null
         }
         Insert: {
+          entite_id?: string | null
+          pays?: string | null
           activity_tags?: string[]
           address?: Json | null
           contact_name?: string | null
@@ -612,6 +616,8 @@ export type Database = {
           vat_intra?: string | null
         }
         Update: {
+          entite_id?: string | null
+          pays?: string | null
           activity_tags?: string[]
           address?: Json | null
           contact_name?: string | null
@@ -4815,6 +4821,7 @@ export type Database = {
       }
       users: {
         Row: {
+          perimetre_herite: boolean
           entites_autorisees: string[]
           color: string | null
           commercial_profiles: string[]
@@ -4835,6 +4842,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          perimetre_herite?: boolean
           entites_autorisees?: string[]
           color?: string | null
           commercial_profiles?: string[]
@@ -4855,6 +4863,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          perimetre_herite?: boolean
           entites_autorisees?: string[]
           color?: string | null
           commercial_profiles?: string[]

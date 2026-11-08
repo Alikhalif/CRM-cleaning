@@ -120,10 +120,14 @@ const SERVICE_ROLE_SEUL = [
   // informations ponctuelles. Aucune session n'a à y toucher.
   "auth_throttle", "docusign_connections", "docusign_oauth_states", "facture_counters",
   "notifications_emises", "webhook_events",
+  // D33 (20261109000008) : les quatre compteurs de numérotation étaient SANS
+  // RLS — lisibles et modifiables par la clé anonyme. RLS posée, sans
+  // politique : seules leurs fonctions SECURITY DEFINER y écrivent.
+  "cert_hotte_counters", "contract_counters", "devis_optimivv_counters", "facture_optimivv_counters",
 ];
 vrai(
   "seules les tables réservées au service-role sont sans politique",
-  JSON.stringify(sansPolitique) === JSON.stringify(SERVICE_ROLE_SEUL),
+  JSON.stringify([...sansPolitique].sort()) === JSON.stringify([...SERVICE_ROLE_SEUL].sort()),
 );
 
 console.log("\n2. D20 — `subcontractor_profiles` : la politique EXISTE (l'audit s'était trompé)");
@@ -137,14 +141,21 @@ for (const t of ["subcontractor_profiles", "subcontractor_documents", "subcontra
   // Refus du commercial : le prédicat ne mentionne que les deux rôles
   // back-office — aucune clause de propriété (`auth.uid()`), aucun `true`.
   const predicat = (p?: Politique) => (p?.sql ?? "").replace(/\s+/g, " ");
+  // D32 (2026-11-09) : les factures d'un sous-traitant rattachées à un dossier
+  // suivent désormais le PÉRIMÈTRE de ce dossier. Le prédicat attendu change
+  // donc pour elles — et lui seul : la fiche et les pièces de l'annuaire
+  // restent « admin ou planification » (D35, décision ouverte).
+  const plan = t === "subcontractor_invoices"
+    ? String.raw`planif_facture_st\(subcontractor_invoices\.dossier_id\)`
+    : String.raw`is_planificateur\(\)`;
   vrai(
-    `${t} : lecture limitée à is_admin() OU is_planificateur() — le commercial est refusé`,
-    /using \(is_admin\(\) or is_planificateur\(\)\)/.test(predicat(sel)) &&
+    `${t} : lecture limitée à is_admin() OU ${t === "subcontractor_invoices" ? "la planification DU PÉRIMÈTRE (D32)" : "is_planificateur()"} — le commercial est refusé`,
+    new RegExp(String.raw`using \(\s*is_admin\(\) or ${plan}\s*\)`).test(predicat(sel)) &&
       !/auth\.uid\(\)|using \(true\)/.test(predicat(sel)),
   );
   vrai(
     `${t} : écriture limitée aux mêmes rôles, en USING et en WITH CHECK`,
-    /using \(is_admin\(\) or is_planificateur\(\)\) with check \(is_admin\(\) or is_planificateur\(\)\)/.test(predicat(ecr)),
+    new RegExp(String.raw`using \(\s*is_admin\(\) or ${plan}\s*\) with check \(\s*is_admin\(\) or ${plan}\s*\)`).test(predicat(ecr)),
   );
   vrai(`${t} : aucune politique ouverte à anon`, !pourTable(t).some((p) => /to anon/.test(predicat(p))));
 }

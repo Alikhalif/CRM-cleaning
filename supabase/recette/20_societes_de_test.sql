@@ -46,6 +46,14 @@ select activer_serie_societe(e.id, 'Recette — sociétés fictives',
  where e.code_numerotation in ('TSTCONC', 'TSTFR', 'TSTCH', 'TSTLU', 'TSTBE', 'TSTCA')
    and e.serie_activee_le is null;
 
+-- D32 : la planificatrice de test est créée APRÈS les migrations — elle naît
+-- donc en mode STRICT, sans entité, c'est-à-dire sans aucun accès. On lui
+-- donne les sociétés FICTIVES : le test réel éprouve ainsi le mode strict.
+update users
+   set entites_autorisees = (select array_agg(id) from legal_entities where code_numerotation like 'TST%'),
+       perimetre_herite = false
+ where email = 'planif.recette@example.invalid';
+
 -- Vérification : six activées, TSTVERROU non activée.
 select code_numerotation, country, numerotation_depuis, serie_activee_le is not null as activee
   from legal_entities where code_numerotation like 'TST%' order by code_numerotation;

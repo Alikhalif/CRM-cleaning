@@ -42,6 +42,7 @@ const SUITES = [
   { fichier: "actions-back-office.ts", titre: "Notifications intermodules : naissance, persistance, escalade, pays" },
   { fichier: "notifications-perimetre.ts", titre: "D31 — périmètre des notifications : cinq pays, rôles, entités" },
   { fichier: "recette-pret.ts", titre: "Préparation de la recette : l'étape suivante, et qui doit agir" },
+  { fichier: "d32-cloisonnement.ts", titre: "D32 — cloisonnement par pays et entité : règle, schéma, serveur, procédure" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "recette-check-"));

@@ -7,6 +7,7 @@ import { allocateCertHotteNumero } from "@/lib/cert-hotte/numero";
 import { envoyerCertHotteEmail } from "@/lib/cert-hotte/send";
 import { buildCert, type CertHotte, type CertHotteInput } from "@/lib/cert-hotte/types";
 import { hasScope } from "@/lib/access-server";
+import { dossierVisible, leadVisible } from "@/lib/perimetre/visibilite-server";
 
 export const runtime = "nodejs";
 
@@ -42,6 +43,14 @@ export async function POST(request: Request) {
     body = (await request.json()) as Body;
   } catch {
     return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+  }
+
+  // D32 : le dossier et le lead désignés par la requête doivent être VISIBLES
+  // par l'appelant (RLS) — sans quoi le service-role, plus bas, servirait le
+  // certificat de n'importe quel dossier, hors périmètre compris.
+  if ((body.dossierId && !(await dossierVisible(body.dossierId)))
+      || (body.leadId && !(await leadVisible(body.leadId)))) {
+    return NextResponse.json({ ok: false, error: "hors_perimetre" }, { status: 404 });
   }
 
   const svc = await supabaseServiceRole();

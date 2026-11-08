@@ -44,5 +44,5 @@ export function prochaineEtape(f: Faits): { pret: boolean; etape: Etape; constat
     return { pret: false, constats, etape: { numero: 5, qui: "vous", quoi: "Lier la CLI au projet de RECETTE (`npx supabase link --project-ref <ref de la recette>`). Aujourd'hui elle est liée à un autre projet.", autorisation: false } };
   }
   if (!f.comptesTestRenseignes) constats.push("identifiants des comptes de test absents : les sections 7 et 9 du test réel seront sautées");
-  return { pret: true, constats, etape: { numero: 6, qui: "moi", quoi: "`npm run migrer:recette` (simulation des 184 migrations), puis — sur votre autorisation — `-- --appliquer`.", autorisation: true } };
+  return { pret: true, constats, etape: { numero: 6, qui: "moi", quoi: "`npm run migrer:recette` (simulation des 185 migrations), puis — sur votre autorisation — `-- --appliquer`.", autorisation: true } };
 }

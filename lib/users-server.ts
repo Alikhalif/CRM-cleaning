@@ -74,8 +74,10 @@ export type AdminUserRow = {
   commercialProfiles: string[];
   countries: string[];
   entityId: string | null;
-  /** D31 — périmètre d'entités d'une planificatrice. Vide = toutes. */
+  /** D31/D32 — périmètre d'entités d'une planificatrice. */
   entitesAutorisees: string[];
+  /** D32 — vrai : accès d'avant D32 conservé, en attente de validation. */
+  perimetreHerite: boolean;
   // Activités (secteurs) affectées — ids de la table activities.
   activityIds: string[];
 };
@@ -141,6 +143,8 @@ export async function getAllUsersForAdmin(): Promise<AdminUserRow[]> {
     countries: u.countries ?? [],
     entityId: u.entity_id ?? null,
     entitesAutorisees: ((u as { entites_autorisees?: string[] | null }).entites_autorisees) ?? [],
+    // D32 : absent (migration …08 non appliquée) = hérité, le comportement actuel.
+    perimetreHerite: ((u as { perimetre_herite?: boolean }).perimetre_herite) ?? true,
     activityIds: actsByUser.get(u.id) ?? [],
   }));
 }

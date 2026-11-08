@@ -9,8 +9,13 @@
 export type Destinataire = {
   roles: string[];
   countries: string[];
-  /** Vide = toutes les entités (comportement antérieur à D31). */
+  /**
+   * D32 : en mode « herite » (comptes existants, avant validation), vide =
+   * toutes les entités, comme D31 ; en mode STRICT, vide = AUCUNE.
+   */
   entitesAutorisees: string[];
+  /** D32 — vrai : compte existant en mode hérité. Absent = strict. */
+  herite?: boolean;
 };
 
 /** Portée d'une notification. `pays` null = notification PERSONNELLE. */
@@ -21,7 +26,7 @@ export function dansPerimetre(d: Destinataire, p: Portee): boolean {
   if (d.roles.includes("admin")) return true;
   if (d.roles.includes("planification")) {
     if (!d.countries.includes(p.pays)) return false;
-    if (d.entitesAutorisees.length === 0) return true;
+    if (d.herite && d.entitesAutorisees.length === 0) return true;
     return p.entiteId !== null && d.entitesAutorisees.includes(p.entiteId);
   }
   // Autres rôles : seulement des notifications qui les visent personnellement.
