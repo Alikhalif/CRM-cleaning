@@ -12,7 +12,8 @@
     "check:devis": "node scripts/devis-redaction-check/run.mjs",
     "check:recette": "node scripts/recette-check/run.mjs",
     "check:bundle": "node scripts/check-bundle/run.mjs",
-    "verif:cible": "node scripts/verif-cible/run.mjs"
+    "verif:cible": "node scripts/verif-cible/run.mjs",
+    "rotation": "node scripts/rotation-chiffrement/run.mjs"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",

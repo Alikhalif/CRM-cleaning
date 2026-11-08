@@ -30,6 +30,7 @@ const SUITES = [
   { fichier: "envoi.ts", titre: "Les DEUX transports d'e-mail, et le goulet qu'aucun ne contourne" },
   { fichier: "urls.ts", titre: "Les cinq points de génération d'URL publiques" },
   { fichier: "chiffrement.ts", titre: "Chiffrement : identifiant de clé et rotation progressive" },
+  { fichier: "rotation.ts", titre: "Rotation D14 + D17 : décision, périmètre fermé et cinq gardes" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "recette-check-"));
