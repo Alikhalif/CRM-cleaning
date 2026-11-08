@@ -79,3 +79,6 @@ var/
 # preuve DURABLE n'est pas dans ces fichiers mais dans les suites
 # automatisees, qui extraient la couche texte et se rejouent.
 echantillons-lot-*/
+
+# Sauvegardes de la recette (supabase db dump) : données, jamais versionnées.
+/sauvegardes/

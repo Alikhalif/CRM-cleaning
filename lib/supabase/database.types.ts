@@ -979,6 +979,51 @@ export type Database = {
         }
         Relationships: []
       }
+      contrat_liens_acces: {
+        Row: {
+          contract_id: string
+          created_at: string
+          cree_par: string | null
+          derniere_ouverture: string | null
+          destinataire: string
+          expire_at: string
+          id: string
+          origine: string
+          ouvertures: number
+          renouvelle_id: string | null
+          revoque_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          contract_id: string
+          created_at?: string
+          cree_par?: string | null
+          derniere_ouverture?: string | null
+          destinataire: string
+          expire_at?: string
+          id?: string
+          origine: string
+          ouvertures?: number
+          renouvelle_id?: string | null
+          revoque_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          contract_id?: string
+          created_at?: string
+          cree_par?: string | null
+          derniere_ouverture?: string | null
+          destinataire?: string
+          expire_at?: string
+          id?: string
+          origine?: string
+          ouvertures?: number
+          renouvelle_id?: string | null
+          revoque_at?: string | null
+          token_hash?: string
+        }
+        Relationships: []
+      }
       contracts: {
         Row: {
           amount: number | null
@@ -1519,6 +1564,13 @@ export type Database = {
       }
       documents: {
         Row: {
+          annulation_motif: string | null
+          annulee_at: string | null
+          annulee_par: string | null
+          dossier_id: string | null
+          emise_at: string | null
+          emise_par: string | null
+          remplace_document_id: string | null
           acompte_amount: number | null
           acompte_deduit: number | null
           acompte_pct: number | null
@@ -1554,6 +1606,13 @@ export type Database = {
           valid_until: string | null
         }
         Insert: {
+          annulation_motif?: string | null
+          annulee_at?: string | null
+          annulee_par?: string | null
+          dossier_id?: string | null
+          emise_at?: string | null
+          emise_par?: string | null
+          remplace_document_id?: string | null
           acompte_amount?: number | null
           acompte_deduit?: number | null
           acompte_pct?: number | null
@@ -1589,6 +1648,13 @@ export type Database = {
           valid_until?: string | null
         }
         Update: {
+          annulation_motif?: string | null
+          annulee_at?: string | null
+          annulee_par?: string | null
+          dossier_id?: string | null
+          emise_at?: string | null
+          emise_par?: string | null
+          remplace_document_id?: string | null
           acompte_amount?: number | null
           acompte_deduit?: number | null
           acompte_pct?: number | null
@@ -1979,8 +2045,37 @@ export type Database = {
         }
         Relationships: []
       }
+      dossier_validations: {
+        Row: {
+          action: string
+          created_at: string
+          dossier_id: string
+          id: string
+          motif: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          dossier_id: string
+          id?: string
+          motif?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          dossier_id?: string
+          id?: string
+          motif?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       dossiers: {
         Row: {
+          validated_at: string | null
+          validated_by: string | null
           address: Json | null
           cancellation_reason: string | null
           created_at: string
@@ -1999,6 +2094,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          validated_at?: string | null
+          validated_by?: string | null
           address?: Json | null
           cancellation_reason?: string | null
           created_at?: string
@@ -2017,6 +2114,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          validated_at?: string | null
+          validated_by?: string | null
           address?: Json | null
           cancellation_reason?: string | null
           created_at?: string
@@ -2614,6 +2713,7 @@ export type Database = {
       }
       legal_entities: {
         Row: {
+          code_numerotation: string | null
           address: Json
           ape_code: string | null
           bic: string | null
@@ -2648,6 +2748,7 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          code_numerotation?: string | null
           address: Json
           ape_code?: string | null
           bic?: string | null
@@ -2682,6 +2783,7 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          code_numerotation?: string | null
           address?: Json
           ape_code?: string | null
           bic?: string | null
@@ -4820,6 +4922,7 @@ export type Database = {
         | "planifie"
         | "en_cours"
         | "finalise"
+        | "valide"
         | "solde"
       lead_source_slug:
         | "google_ads"
@@ -5008,6 +5111,7 @@ export const Constants = {
         "planifie",
         "en_cours",
         "finalise",
+        "valide",
         "solde",
       ],
       lead_source_slug: [

@@ -2,6 +2,7 @@ import { Document, Page, View, Text, StyleSheet } from "@react-pdf/renderer";
 import type { DocumentDetail } from "@/lib/documents-shared";
 import { DOC_TYPE_LABEL, PAYMENT_TERMS, type Sector } from "@/lib/leads";
 import { euroPdf } from "./montant";
+import { numeroAffiche } from "@/lib/facturation/finale-shared";
 import DevisNettoyagePdf from "./DevisNettoyagePdf";
 import { libelleCoordonnee } from "@/lib/entities/coordonnees-bancaires";
 
@@ -209,7 +210,7 @@ export default function DocumentPdf({ detail }: Props) {
   const totalLabelColor = bold ? rgba("#ffffff", 0.8) : "#3b4467";
 
   return (
-    <Document title={`${doc.num} — ${lead.client}`} author={entity.legalName}>
+    <Document title={`${numeroAffiche(doc.num)} — ${lead.client}`} author={entity.legalName}>
       <Page size="A4" style={styles.page}>
         {/* ── Header band ─────────────────────────────────────────── */}
         <View
@@ -252,7 +253,7 @@ export default function DocumentPdf({ detail }: Props) {
               <Text style={{ color: "#ffffff", fontSize: 18, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5 }}>
                 {DOC_TYPE_LABEL[doc.type]}
               </Text>
-              <Text style={{ color: bold ? accent : "#ffffff", fontSize: 11, marginTop: 4, fontWeight: 700 }}>{doc.num}</Text>
+              <Text style={{ color: bold ? accent : "#ffffff", fontSize: 11, marginTop: 4, fontWeight: 700 }}>{numeroAffiche(doc.num)}</Text>
               <Text style={{ color: headSub, fontSize: 8, marginTop: 2 }}>
                 Émis le {DATE_FMT.format(new Date(doc.issuedAt))}
               </Text>

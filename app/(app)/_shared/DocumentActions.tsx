@@ -9,7 +9,9 @@ import { formatEUR, type CrmDocument, type Lead, type LegalEntity } from "@/lib/
 import { leadTemplateVars } from "@/lib/message-templates-shared";
 import type { MessageTemplate } from "@/lib/message-templates-server";
 import {
+  annulerFacture,
   duplicateDocument,
+  emettreFacture,
   markDocumentPaid,
   markDocumentSent,
 } from "./document-actions";
@@ -32,9 +34,17 @@ type Props = {
   lead: Lead;
   entity: LegalEntity;
   emailTemplates?: MessageTemplate[];
+  /** Back-office : peut émettre une facture brouillon (2026-11-09). */
+  peutEmettre?: boolean;
+  /** Super Admin : peut annuler une facture émise, motif à l'appui. */
+  peutAnnuler?: boolean;
+  /** La facture a été annulée : plus d'encaissement ni d'envoi. */
+  annulee?: boolean;
 };
 
-export default function DocumentActions({ doc, lead, entity, emailTemplates = [] }: Props) {
+export default function DocumentActions({
+  doc, lead, entity, emailTemplates = [], peutEmettre = false, peutAnnuler = false, annulee = false,
+}: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [busy, setBusy] = useState<string | null>(null);
@@ -94,6 +104,23 @@ export default function DocumentActions({ doc, lead, entity, emailTemplates = []
     if (!confirm(`Marquer la facture ${doc.num} comme payée ?`)) return;
     run("paid", () => markDocumentPaid(doc.id));
   };
+  // Émission : irréversible — le numéro définitif est attribué et la facture
+  // est figée. On le dit AVANT, pas après.
+  const onEmettre = () => {
+    if (!confirm(
+      "Émettre cette facture ?\n\nElle recevra son numéro définitif et ne pourra plus être modifiée "
+      + "ni supprimée. Une erreur ne se corrigera que par une annulation motivée (Super Admin).",
+    )) return;
+    run("emit", () => emettreFacture(doc.id));
+  };
+  const onAnnuler = () => {
+    const motif = prompt(
+      `Annuler la facture ${doc.num} ?\n\nElle gardera son numéro et restera consultable. `
+      + "Motif obligatoire (10 caractères au moins) :",
+    );
+    if (motif === null) return;
+    run("cancel", () => annulerFacture(doc.id, motif));
+  };
   // Signature now goes through MarkSignedModal so the user picks the mode
   // (logiciel vs planificateur). The modal runs markDocumentSigned itself;
   // this handler just reacts to its result.
@@ -147,6 +174,8 @@ export default function DocumentActions({ doc, lead, entity, emailTemplates = []
   const isDevisDraft = doc.type === "devis" && doc.status === "brouillon";
   const isInvoice = doc.type !== "devis";
   const isPaid = doc.status === "paye";
+  // Facture non émise : pas de numéro légal, donc ni envoi ni encaissement.
+  const isInvoiceDraft = isInvoice && doc.status === "brouillon";
   // Sign is meaningful when the devis has been sent/opened but not yet
   // signed/refused — the same window during which the client can still act.
   const canSign =
@@ -211,23 +240,41 @@ export default function DocumentActions({ doc, lead, entity, emailTemplates = []
           </button>
         )}
 
-        <button
-          type="button"
-          className={styles.btn}
-          disabled={busy !== null}
-          onClick={() => setEmailOpen(true)}
-        >
-          Envoyer par email
-        </button>
+        {isInvoiceDraft && peutEmettre && (
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnPrimary}`}
+            disabled={busy !== null}
+            onClick={onEmettre}
+            title="Attribue le numéro définitif et fige la facture"
+          >
+            <Icon name="check" size={14} /> {busy === "emit" ? "Émission…" : "Émettre la facture"}
+          </button>
+        )}
 
-        <button
-          type="button"
-          className={styles.btn}
-          disabled={busy !== null}
-          onClick={onDuplicate}
-        >
-          {busy === "dup" ? "Duplication…" : "Dupliquer"}
-        </button>
+        {/* Une facture brouillon ou annulée ne part pas chez le client. */}
+        {!isInvoiceDraft && !annulee && (
+          <button
+            type="button"
+            className={styles.btn}
+            disabled={busy !== null}
+            onClick={() => setEmailOpen(true)}
+          >
+            Envoyer par email
+          </button>
+        )}
+
+        {/* Une facture ne se duplique pas : elle se corrige par annulation. */}
+        {!isInvoice && (
+          <button
+            type="button"
+            className={styles.btn}
+            disabled={busy !== null}
+            onClick={onDuplicate}
+          >
+            {busy === "dup" ? "Duplication…" : "Dupliquer"}
+          </button>
+        )}
 
         {canRequestSignature && (
           <button
@@ -258,7 +305,7 @@ export default function DocumentActions({ doc, lead, entity, emailTemplates = []
           </button>
         )}
 
-        {isInvoice && !isPaid && (
+        {isInvoice && !isPaid && !isInvoiceDraft && !annulee && (
           <button
             type="button"
             className={`${styles.btn} ${styles.btnSuccess}`}
@@ -266,6 +313,18 @@ export default function DocumentActions({ doc, lead, entity, emailTemplates = []
             onClick={onMarkPaid}
           >
             {busy === "paid" ? "Mise à jour…" : "Marquer payée"}
+          </button>
+        )}
+
+        {isInvoice && !isInvoiceDraft && !isPaid && !annulee && peutAnnuler && (
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnDanger}`}
+            disabled={busy !== null}
+            onClick={onAnnuler}
+            title="Procédure Super Admin : la facture garde son numéro, un motif est conservé"
+          >
+            {busy === "cancel" ? "Annulation…" : "Annuler la facture"}
           </button>
         )}
 

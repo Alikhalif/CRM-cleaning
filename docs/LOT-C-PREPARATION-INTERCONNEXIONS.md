@@ -42,7 +42,7 @@ part depuis la fiche document. C'est déjà ce que vous demandez.
 | # | Écart | Pourquoi c'est un problème |
 | --- | --- | --- |
 | **F1** | **Le numéro est consommé à la création du BROUILLON**, pas à l'émission : le trigger `assign_doc_num` numérote toute ligne insérée sans numéro. Et si l'insertion de la ligne de facture échoue, le code **supprime** le document — **le numéro est perdu**. | Trou dans la séquence `FAC-AAAA-NNNN`. C'est exactement ce que la numérotation sans trou interdit, et ce que la règle du projet (« un numéro n'est consommé qu'à l'émission réelle ») exclut. ⚠️ **À vérifier pour les autres types** — le trigger est commun. |
-| **F2** | **Le doublon n'est empêché que par une lecture préalable.** Aucun index unique ne l'interdit en base : deux clics simultanés, ou deux onglets, passent tous deux le contrôle. | Deux factures finales pour la même intervention. |
+| **F2** | ~~Le doublon n'est empêché que par une lecture préalable. Aucun index unique ne l'interdit en base.~~ ⚠️ **FAUX — corrigé le 9 novembre au soir.** L'index `uq_one_finale_per_devis` existait depuis `20260918000002` : écrit sur **deux lignes**, mon motif d'une ligne ne l'a pas vu. Le doublon concurrent était déjà refusé par la base. Ce qui restait vrai : la place ne se libérait que par SUPPRESSION — corrigé par l'annulation motivée. | — |
 | **F3** | **« Terminée » n'est pas « validée ».** `finalise` est posé en un clic, sans contrôle ni second regard. | Votre demande dit « terminée **et validée** ». |
 | **F4** | **La finale porte une seule ligne** « Solde après acompte sur devis N° » — ni le détail des prestations, ni la date d'intervention, ni l'intervenant. | « Les informations doivent être reprises automatiquement depuis le dossier » : seuls les montants le sont. |
 | **F5** | **La finale ne pointe pas vers le dossier**, seulement vers le lead et le devis. Le contrôle de doublon est **par lead**. | Un client récurrent (plusieurs dossiers sur un même lead) ne pourrait recevoir **qu'une seule** facture finale. |
@@ -77,6 +77,19 @@ part depuis la fiche document. C'est déjà ce que vous demandez.
   la comptabilité ; elle sera appliquée **sur la recette d'abord**.
 
 ---
+
+### État au 9 novembre au soir — après vos décisions
+
+| # | Écart | État |
+| --- | --- | --- |
+| F1 | Numéro consommé au brouillon | **Développé** — numéro à l'émission, par la base (`20261109000003`) |
+| F2 | (faux, voir ci-dessus) | Place libérée par **annulation** motivée, plus par suppression |
+| F3 | Terminée ≠ validée | **Développé** — état `valide`, historique append-only (`20261109000001`, `…02`) |
+| F4 | Une seule ligne | **Développé** — lignes du devis + chaque acompte émis nommé ; les devis anciens sans lignes sont repris en une ligne, et c'est signalé |
+| F5 | Pas de lien au dossier | **Développé** — `documents.dossier_id`, une finale active par dossier **et** par devis |
+| F6 | Personne n'est averti | **Non développé** — voir §2 |
+
+Aucun n'est **appliqué** ni **testé réellement**.
 
 ## 2 · Notifications entre modules (L11)
 

@@ -33,6 +33,9 @@ const SUITES = [
   { fichier: "rotation.ts", titre: "Rotation D14 + D17 : décision, périmètre fermé et cinq gardes" },
   { fichier: "iban.ts", titre: "Coordonnées bancaires : cinq pays, et le Canada qui n'a pas d'IBAN" },
   { fichier: "ux.ts", titre: "UX/UI : jetons CSS valides et cellules étiquetées (I1, I2, I3)" },
+  { fichier: "facturation.ts", titre: "Facturation : validation, numéro à l'émission, factures figées" },
+  { fichier: "contrat-lien.ts", titre: "D23 — liens de contrat : 60 minutes, renouvelables, tracés" },
+  { fichier: "migrer.ts", titre: "Garde des migrations : la recette, et jamais la production" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "recette-check-"));

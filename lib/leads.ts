@@ -576,7 +576,9 @@ export const DEFAULT_PAYMENT_TERM: Record<Sector, PaymentTermSlug> = {
 // Spec from product owner: 4 stages of a dossier (à planifier → planifié →
 // finalisé → finalisé et soldé). PaymentStatus tracks where the dossier is
 // in its encaissement cycle.
-export type DossierStatus = "a_planifier" | "planifie" | "en_cours" | "finalise" | "solde";
+// `valide` (2026-11-09) : intervention terminée PUIS validée par la planification
+// ou le Super Admin — seule à ouvrir la facture finale (migration 20261109000001).
+export type DossierStatus = "a_planifier" | "planifie" | "en_cours" | "finalise" | "valide" | "solde";
 
 export type PaymentStatus =
   | "acompte_non_paye"
@@ -617,7 +619,8 @@ export const DOSSIER_STATUS_LABEL: Record<DossierStatus, string> = {
   a_planifier: "À planifier",
   planifie: "Planifié",
   en_cours: "En cours de réalisation",
-  finalise: "Finalisé",
+  finalise: "Intervention terminée",
+  valide: "Intervention validée",
   solde: "Finalisé et soldé",
 };
 

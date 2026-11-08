@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auditLog } from "@/lib/audit";
 import { sendBrevoEmail } from "@/lib/brevo";
+import { assertAdmin, assertBackOffice } from "@/lib/access-server";
 import { getDocumentById } from "@/lib/documents-server";
 import { planifierRendu, rendreDocument } from "@/lib/devis/rendu-document-server";
 import { enregistrerVersion } from "@/lib/devis/versions-server";
@@ -38,6 +39,11 @@ export async function markDocumentSent(id: string): Promise<Result> {
   // ce bouton pour contourner le contrôle.
   const detail = await getDocumentById(id);
   if (!detail) return { ok: false, error: "Document introuvable." };
+  // Une FACTURE ne s'émet que par `emettreFacture` : un seul chemin, gardé,
+  // tracé, et qui attribue le numéro définitif (2026-11-09).
+  if (detail.doc.type !== "devis") {
+    return { ok: false, error: "Une facture s'émet par le bouton « Émettre la facture »." };
+  }
   const plan = await planifierRendu(detail);
   if (plan.refus) return { ok: false, error: plan.refus };
 
@@ -260,10 +266,16 @@ export async function markDocumentSigned(
     const totalHt = Math.round(ttc * ratio * 100) / 100;
     const totalVat = Math.round((ttc - totalHt) * 100) / 100;
 
+    // Ordre (2026-11-09) : BROUILLON → ligne → ÉMISSION. Le numéro définitif
+    // n'est attribué qu'au passage en « envoyé » (migration 20261109000003),
+    // et les lignes d'une facture émise sont figées : la ligne doit donc être
+    // posée AVANT l'émission. L'acompte reste émis automatiquement à la
+    // signature (CDC §2.3) ; seul l'ordre change. Sans la migration, l'ancien
+    // trigger numérote à l'insertion : ce code fonctionne avec les deux.
     const acomptePayload: DocumentInsert = {
       type: "acompte",
       num: "",
-      status: "envoye",
+      status: "brouillon",
       lead_id: doc.lead_id,
       client_id: doc.client_id,
       entity_id: doc.entity_id,
@@ -304,7 +316,7 @@ export async function markDocumentSigned(
     // Single descriptive line on the acompte. Lets the PDF/preview render
     // a sensible body without having to join back to the devis lines.
     const lineLabel = `Acompte ${doc.acompte_pct ?? Math.round((ttc / doc.total_ttc) * 100)}% sur devis ${doc.num}`;
-    await supabase
+    const { error: ligneErr } = await supabase
       .from("document_lines")
       .insert([
         {
@@ -319,6 +331,25 @@ export async function markDocumentSigned(
           order_index: 0,
         },
       ] as never);
+    if (ligneErr) {
+      // Brouillon sans ligne : on le retire. Avec la migration, il n'a
+      // consommé AUCUN numéro ; sans elle, l'ancien comportement s'appliquait.
+      await supabase.from("documents").delete().eq("id", ins.id).eq("status", "brouillon");
+      return { ok: false, error: `Ligne de l'acompte impossible : ${ligneErr.message}. Le devis est signé ; relancez la génération de l'acompte.` };
+    }
+
+    // ÉMISSION de l'acompte : le numéro FA définitif naît ici, en base.
+    // Le filtre `status = brouillon` rend un second passage inoffensif.
+    const { data: emis, error: emisErr } = await supabase
+      .from("documents")
+      .update({ status: "envoye" } as never)
+      .eq("id", ins.id)
+      .eq("status", "brouillon")
+      .select("id, num")
+      .maybeSingle<{ id: string; num: string }>();
+    if (emisErr || !emis) {
+      return { ok: false, error: `Émission de l'acompte impossible : ${emisErr?.message ?? "aucune ligne"}. Il reste en brouillon dans la comptabilité.` };
+    }
 
     revalidatePath("/comptabilite");
     revalidatePath(`/devis/${id}`);
@@ -328,15 +359,15 @@ export async function markDocumentSigned(
       action: "document.signed",
       entityType: "document",
       entityId: id,
-      after: { num: doc.num, acompte_num: ins.num, acompte_id: ins.id, ...signTrace },
+      after: { num: doc.num, acompte_num: emis.num, acompte_id: emis.id, ...signTrace },
     });
     await auditLog({
       action: "document.acompte.auto_create",
       entityType: "document",
-      entityId: ins.id,
-      after: { num: ins.num, source_devis: doc.num, amount_ttc: ttc },
+      entityId: emis.id,
+      after: { num: emis.num, source_devis: doc.num, amount_ttc: ttc },
     });
-    return { ok: true, acompteId: ins.id, acompteNum: ins.num };
+    return { ok: true, acompteId: emis.id, acompteNum: emis.num };
   }
 
   // No acompte path
@@ -403,15 +434,23 @@ export async function markDocumentPaid(
 ): Promise<Result> {
   const supabase = await supabaseServer();
 
-  // Read enough to decide on the dossier-side update.
+  // Read enough to decide on the dossier-side update. `*` plutôt qu'une liste :
+  // `annulee_at` n'existe qu'avec la migration 20261109000003, et ce chemin
+  // sert déjà en production — il doit fonctionner avec ou sans elle.
   const { data: doc, error: docErr } = await supabase
     .from("documents")
-    .select("id, type, status, num, lead_id")
+    .select("*")
     .eq("id", id)
-    .maybeSingle<{ id: string; type: DocumentType; status: string; num: string; lead_id: string | null }>();
+    .maybeSingle<{ id: string; type: DocumentType; status: string; num: string; lead_id: string | null; annulee_at?: string | null }>();
   if (docErr || !doc) return { ok: false, error: "Document introuvable." };
   if (doc.type === "devis") {
     return { ok: false, error: "Un devis ne peut pas être marqué payé (utilisez la facture)." };
+  }
+  if (doc.status === "brouillon") {
+    return { ok: false, error: "Facture non émise : émettez-la avant de l'encaisser." };
+  }
+  if (doc.annulee_at) {
+    return { ok: false, error: `Facture ${doc.num} annulée : elle ne s'encaisse plus.` };
   }
   if (doc.status === "paye") {
     return { ok: false, error: "Facture déjà marquée payée." };
@@ -477,6 +516,17 @@ export async function markDocumentPaid(
 // duplicate is a starting point, not a clone of the workflow state.
 export async function duplicateDocument(id: string): Promise<DuplicateResult> {
   const supabase = await supabaseServer();
+
+  // Une facture ne se DUPLIQUE pas (2026-11-09) : la copie ne portait ni le
+  // dossier ni le devis d'origine, et contournait donc l'unicité de la facture
+  // finale. Une facture se corrige par annulation motivée puis remplacement.
+  {
+    const { data: t } = await supabase.from("documents").select("type").eq("id", id)
+      .maybeSingle<{ type: DocumentType }>();
+    if (t && t.type !== "devis") {
+      return { ok: false, error: "Une facture ne se duplique pas : elle se corrige par annulation puis remplacement." };
+    }
+  }
 
   const { data: src, error: srcErr } = await supabase
     .from("documents")
@@ -597,6 +647,12 @@ export async function sendDocumentByEmail(
   const detail = await getDocumentById(id);
   if (!detail) return { ok: false, error: "Document introuvable." };
 
+  // Une facture BROUILLON n'a pas de numéro légal : elle ne part pas chez le
+  // client. On l'émet d'abord (« Émettre la facture »), on l'envoie ensuite.
+  if (detail.doc.type !== "devis" && detail.doc.status === "brouillon") {
+    return { ok: false, error: "Facture non émise : émettez-la avant de l'envoyer." };
+  }
+
   // Rendu par le point d'entrée unique, en mode BLOQUANT : ceci est une
   // ÉMISSION. Un devis part chez le client ; la société qui l'émet doit
   // porter les mentions sans lesquelles le document n'identifie personne.
@@ -675,3 +731,119 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#039;");
 }
 
+
+// ── ÉMISSION d'une facture (décision du client du 2026-11-09) ───────────────
+// « Le numéro est attribué au moment de l'émission. » C'est l'UNIQUE chemin
+// qui fait passer une facture de brouillon à émise : il vérifie l'identité de
+// la société (même garde que pour un devis), puis bascule le statut. Le
+// numéro définitif est alloué par la BASE, dans la même transaction
+// (migration 20261109000003) — l'application ne le calcule jamais.
+//
+// Double clic / émissions simultanées : l'UPDATE porte `status = brouillon`.
+// Le second appel attend le verrou de ligne, puis ne trouve plus de
+// brouillon : aucune ligne modifiée, aucun numéro consommé. On renvoie alors
+// le numéro déjà attribué — même résultat pour l'utilisateur, une seule
+// émission en base.
+export type EmissionResult = { ok: true; num: string; dejaEmise: boolean } | { ok: false; error: string };
+
+export async function emettreFacture(id: string): Promise<EmissionResult> {
+  const g = await assertBackOffice();
+  if (!g.ok) return g;
+
+  const detail = await getDocumentById(id);
+  if (!detail) return { ok: false, error: "Facture introuvable." };
+  if (detail.doc.type === "devis") return { ok: false, error: "Un devis ne s'émet pas par ce bouton." };
+  if (detail.doc.status !== "brouillon") {
+    return { ok: true, num: detail.doc.num, dejaEmise: true };
+  }
+  if (!(detail.doc.totalTtc > 0)) return { ok: false, error: "Montant nul : rien à émettre." };
+  if (detail.doc.lines.length === 0) return { ok: false, error: "Facture sans ligne : rien à émettre." };
+
+  // Identité légale de la société émettrice : une facture qui n'identifie pas
+  // son émetteur ne part pas. Même garde que l'envoi d'un devis.
+  const plan = await planifierRendu(detail);
+  if (plan.refus) return { ok: false, error: plan.refus };
+
+  const supabase = await supabaseServer();
+  const { data: emise, error } = await supabase
+    .from("documents")
+    .update({ status: "envoye", sent_to_email: null } as never)
+    .eq("id", id)
+    .eq("status", "brouillon")
+    .select("id, num")
+    .maybeSingle<{ id: string; num: string }>();
+  if (error) return { ok: false, error: `Émission refusée : ${error.message}` };
+
+  if (!emise) {
+    // Un autre clic a émis entre-temps : on lit le numéro qu'il a obtenu.
+    const { data: now } = await supabase.from("documents").select("num, status").eq("id", id)
+      .maybeSingle<{ num: string; status: string }>();
+    if (now && now.status !== "brouillon") return { ok: true, num: now.num, dejaEmise: true };
+    return { ok: false, error: "Émission impossible : la facture a changé pendant l'opération." };
+  }
+
+  revalidatePath("/comptabilite");
+  revalidatePath("/planification");
+  revalidatePath(`/factures/${id}`);
+  if (detail.doc.leadId) revalidatePath(`/leads/${detail.doc.leadId}`);
+  await auditLog({
+    action: "document.emit",
+    entityType: "document",
+    entityId: id,
+    after: { num: emise.num, type: detail.doc.type, totalTtc: detail.doc.totalTtc },
+  });
+  return { ok: true, num: emise.num, dejaEmise: false };
+}
+
+// ── ANNULATION d'une facture émise — procédure explicite et justifiée ───────
+// « Sauf procédure explicite et justifiée de correction. » Réservée au Super
+// Admin, motif obligatoire, et ce n'est PAS une suppression : la facture garde
+// son numéro et reste consultable, marquée annulée. Sa place se libère pour
+// UNE facture de remplacement, qui la désignera.
+//
+// ⚠️ En droit français, une facture émise se corrige par un AVOIR. Ce CRM n'a
+// pas de type « avoir » : l'annulation est tracée, mais l'avoir reste à
+// produire hors CRM tant que le client et son expert-comptable n'ont pas
+// tranché (registre). Une facture ENCAISSÉE n'est pas annulable ici.
+export async function annulerFacture(id: string, motif: string): Promise<Result> {
+  const g = await assertAdmin();
+  if (!g.ok) return g;
+  const m = motif?.trim() ?? "";
+  if (m.length < 10) return { ok: false, error: "Motif obligatoire (10 caractères au moins) : il sera conservé." };
+
+  const supabase = await supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Session expirée." };
+
+  const { data: doc } = await supabase.from("documents").select("*").eq("id", id)
+    .maybeSingle<{ id: string; type: DocumentType; status: string; num: string; lead_id: string | null; annulee_at?: string | null }>();
+  if (!doc) return { ok: false, error: "Facture introuvable." };
+  if (doc.type === "devis") return { ok: false, error: "Un devis ne s'annule pas par cette procédure." };
+  if (doc.status === "brouillon") return { ok: false, error: "Un brouillon ne s'annule pas : il se supprime (il n'a pas de numéro)." };
+  if (doc.status === "paye") {
+    return { ok: false, error: `Facture ${doc.num} encaissée : elle se régularise par un avoir, pas par une annulation.` };
+  }
+  if (doc.annulee_at) return { ok: false, error: `Facture ${doc.num} déjà annulée.` };
+
+  const { data: fait, error } = await supabase
+    .from("documents")
+    .update({ annulee_at: new Date().toISOString(), annulee_par: user.id, annulation_motif: m } as never)
+    .eq("id", id)
+    .is("annulee_at", null)
+    .select("id")
+    .maybeSingle<{ id: string }>();
+  if (error) return { ok: false, error: `Annulation refusée : ${error.message}` };
+  if (!fait) return { ok: false, error: `Facture ${doc.num} déjà annulée.` };
+
+  revalidatePath("/comptabilite");
+  revalidatePath("/planification");
+  revalidatePath(`/factures/${id}`);
+  if (doc.lead_id) revalidatePath(`/leads/${doc.lead_id}`);
+  await auditLog({
+    action: "document.cancel",
+    entityType: "document",
+    entityId: id,
+    after: { num: doc.num, type: doc.type, motif: m },
+  });
+  return { ok: true };
+}

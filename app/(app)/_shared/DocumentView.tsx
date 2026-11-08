@@ -8,6 +8,10 @@ import {
 import type { DocumentDetail } from "@/lib/documents-shared";
 import { getTemplatesForUser } from "@/lib/message-templates-server";
 import DocumentActions from "./DocumentActions";
+import { getAccessContext } from "@/lib/access-server";
+import { canAccessScope } from "@/lib/access-shared";
+import { numeroAffiche } from "@/lib/facturation/finale-shared";
+import { lireAnnulationFacture } from "@/lib/facturation/facturation-server";
 import styles from "./DocumentView.module.scss";
 import HistoriqueVersions from "./HistoriqueVersions";
 import { historiqueDuDocument } from "@/lib/devis/versions-server";
@@ -35,6 +39,14 @@ export default async function DocumentView({ detail }: Props) {
   const emailTemplates = await getTemplatesForUser("email");
   const isInvoice = doc.type !== "devis";
   const isUnsigned = doc.type === "devis" && doc.status !== "signe" && doc.status !== "refuse";
+  // Droits d'émission et d'annulation (2026-11-09). Calculés côté serveur pour
+  // ne pas montrer un bouton qui serait refusé ; les actions revérifient.
+  const [{ roles }, annulation] = await Promise.all([
+    getAccessContext(),
+    isInvoice ? lireAnnulationFacture(doc.id) : Promise.resolve(null),
+  ]);
+  const peutEmettre = canAccessScope(roles, "backOffice");
+  const peutAnnuler = canAccessScope(roles, "admin");
 
   // Aggregate VAT by rate so we can display the breakdown legally.
   const vatBreakdown = aggregateVat(doc.lines);
@@ -45,7 +57,24 @@ export default async function DocumentView({ detail }: Props) {
 
   return (
     <div className={styles.page}>
-      <DocumentActions doc={doc} lead={lead} entity={entity} emailTemplates={emailTemplates} />
+      <DocumentActions
+        doc={doc}
+        lead={lead}
+        entity={entity}
+        emailTemplates={emailTemplates}
+        peutEmettre={peutEmettre}
+        peutAnnuler={peutAnnuler}
+        annulee={annulation !== null}
+      />
+
+      {annulation && (
+        <div className={styles.refusedBanner} role="status">
+          <strong>Facture annulée</strong> le{" "}
+          {new Date(annulation.annuleeAt).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" })}
+          {annulation.motif ? <> — motif : {annulation.motif}</> : null}. Elle garde son numéro et reste
+          consultable ; elle ne s&apos;encaisse plus.
+        </div>
+      )}
 
       {doc.status === "refuse" && doc.refusalReason && (
         <aside className={styles.refusalBanner} role="status" data-no-print>
@@ -57,7 +86,7 @@ export default async function DocumentView({ detail }: Props) {
         </aside>
       )}
 
-      <article className={styles.document} aria-label={`${DOC_TYPE_LABEL[doc.type]} ${doc.num}`}>
+      <article className={styles.document} aria-label={`${DOC_TYPE_LABEL[doc.type]} ${numeroAffiche(doc.num)}`}>
         <header className={styles.head}>
           <div className={styles.entity}>
             <div
@@ -91,7 +120,7 @@ export default async function DocumentView({ detail }: Props) {
 
           <div className={styles.docMeta}>
             <h1 className={styles.docType}>{DOC_TYPE_LABEL[doc.type].toUpperCase()}</h1>
-            <p className={styles.docNum}>{doc.num}</p>
+            <p className={styles.docNum}>{numeroAffiche(doc.num)}</p>
             <span className={styles.docStatus} data-status={doc.status}>
               {DOC_STATUS_LABEL[doc.status]}
             </span>

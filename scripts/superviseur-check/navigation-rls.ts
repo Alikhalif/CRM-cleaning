@@ -110,7 +110,13 @@ console.log(`\n  info  ${rlsActive.size} tables sous RLS · ${sansPolitique.leng
 // jetons OAuth, compteurs d'échecs de connexion, dédoublonnage des webhooks.
 // Le refus total aux sessions y est VOULU. Une cinquième table apparaîtrait
 // ici : à justifier avant de l'ajouter, car elle est illisible depuis l'écran.
-const SERVICE_ROLE_SEUL = ["auth_throttle", "docusign_connections", "docusign_oauth_states", "webhook_events"];
+// `facture_counters` (20261109000003) : compteurs de numérotation par société,
+// écrits UNIQUEMENT par `allouer_numero_facture()` (SECURITY DEFINER) depuis
+// les triggers d'émission. Aucune session ne doit pouvoir lire ni brûler un
+// numéro — le refus total est la protection.
+const SERVICE_ROLE_SEUL = [
+  "auth_throttle", "docusign_connections", "docusign_oauth_states", "facture_counters", "webhook_events",
+];
 vrai(
   "seules les tables réservées au service-role sont sans politique",
   JSON.stringify(sansPolitique) === JSON.stringify(SERVICE_ROLE_SEUL),

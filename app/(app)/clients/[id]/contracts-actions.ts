@@ -5,7 +5,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 import { auditLog } from "@/lib/audit";
 import { assertBackOffice } from "@/lib/access-server";
-import { sendBrevoEmail } from "@/lib/brevo";
+import { emettreEtEnvoyerLien } from "@/lib/documents/contrat-lien-server";
 import {
   allocateContractRef, getContractTemplateByKey, renderAndUploadContractPdf,
 } from "@/lib/documents/contracts-server";
@@ -281,17 +281,20 @@ export async function sendContract(contractId: string, toOverride?: string): Pro
   const to = (toOverride || client?.email || "").trim();
   if (!to) return { ok: false, error: "Aucun email client." };
 
-  const admin = await supabaseServiceRole();
-  const { data: signed } = await admin.storage.from(CLIENT_DOCS_BUCKET).createSignedUrl(c.pdf_path, 7 * 24 * 3600);
-  const url = signed?.signedUrl;
-  if (!url) return { ok: false, error: "Lien du document indisponible." };
-
-  const html =
-    `<p>Bonjour,</p><p>Veuillez trouver votre contrat <strong>${c.title}</strong> (réf. ${c.ref ?? ""}).</p>` +
-    `<p><a href="${url}">Consulter / télécharger le contrat</a> (lien valable 7 jours).</p>` +
-    `<p>Cordialement,</p>`;
-  const res = await sendBrevoEmail({ to, subject: `Votre contrat — ${c.title}`, htmlContent: html });
-  if (!res.ok) return { ok: false, error: `Envoi email : ${res.error}` };
+  // D23 (décision du client du 2026-11-09) : plus d'URL de stockage signée
+  // 7 jours dans le courriel. Un lien d'accès de 60 minutes, renouvelable par
+  // le client lui-même — à cette même adresse, contrôlé et tracé — et aucune
+  // pièce jointe (lib/documents/contrat-lien-server.ts).
+  const { data: { user } } = await supabase.auth.getUser();
+  const res = await emettreEtEnvoyerLien({
+    contractId: c.id,
+    titre: c.title,
+    reference: c.ref,
+    destinataire: to,
+    creePar: user?.id ?? null,
+    origine: "envoi",
+  });
+  if (!res.ok) return { ok: false, error: res.error };
 
   await supabase.from("contracts").update({ sent_to: to, sent_at: new Date().toISOString() } as never).eq("id", contractId);
   revalidatePath(`/clients/${c.client_id}`);

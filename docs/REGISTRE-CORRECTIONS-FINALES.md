@@ -47,10 +47,61 @@ validée dans une session authentifiée.
 
 ---
 
+## Niveaux de preuve — règle du client du 2026-11-09
+
+« Je veux désormais que chaque anomalie soit accompagnée d'une preuve
+vérifiable. Ne déclare plus une anomalie critique sur la seule base d'une
+recherche textuelle. » Cette règle est née de trois erreurs de ma part : D20
+(une politique créée en boucle, invisible à mon motif), un index unique écrit
+sur deux lignes que j'ai déclaré absent, et la présence d'un PostgreSQL local
+annoncée sans avoir été éprouvée (E7).
+
+| Niveau | Ce qu'il exige | Ce qu'il ne permet PAS |
+| --- | --- | --- |
+| **Confirmé** | Une **exécution** dont la sortie est citée (commande, test, mesure sur données), **ou** la lecture **intégrale** du code ou du schéma qui gouverne le comportement, avec `fichier:ligne` | — |
+| **Probable** | Cohérent avec ce qui a été lu, mais un maillon n'a été ni lu en entier ni exécuté — **toute conclusion tirée d'une recherche textuelle s'arrête ici** | une gravité 🔴 sans revérification |
+| **Non vérifiable** | Dépend d'un état hors d'atteinte : production, VPS, compte tiers | une conclusion sur cet état |
+| **Faux positif** | Signalé, puis **réfuté**, avec la preuve de la réfutation (partie F) | — |
+| **Développée** | Code écrit, contrôles statiques et unitaires passés | « ça marche » |
+| **Réellement testée** | Exercée dans une **session authentifiée**, sur la **recette** | — aucune à ce jour (E1) |
+
+### Classement des anomalies ouvertes au 9 novembre (revérifiées ce jour)
+
+| # | Niveau | Preuve, ou ce qui manque |
+| --- | --- | --- |
+| G1 | Confirmé | Rendu de `nettoyage-template-neutre.pdf` lu |
+| G2 | Confirmé | Relevé pdfplumber du gabarit |
+| G5 | **Confirmé** (était une recherche textuelle) | Revérifié le 9 novembre par lecture **intégrale** de `buildPayload` (`lib/entities-shared.ts`) : les 15 colonnes écrites n'incluent pas `logo_url` — aucun écran ne peut le renseigner |
+| G6 | Confirmé | Lecture de la ligne du libellé dans `render.ts` |
+| G7 | Confirmé | Lecture de `euro()` dans `layout.ts` |
+| M1 | Confirmé | `ACTIVITES_COUVERTES` + contrôle exécuté |
+| I2 | Confirmé (attribut manquant) · Probable (effet à l'écran) | Balayage par script ; le rendu en cartes n'a pas été vu |
+| I3 | Confirmé (règle absente) · Probable (effet) | Idem |
+| I4 | Probable | Audit du 5 novembre ; l'écran d'attribution existe (`/settings/superviseurs`), la vue du superviseur n'a pas été recherchée de bout en bout |
+| D2 | Confirmé au 6 novembre · **Non vérifiable** depuis | Clé de Luhn exécutée sur les données réelles le 6 ; elles ont pu être corrigées depuis |
+| D3 | Confirmé au 6 novembre · Non vérifiable depuis | `controlerEntite()` exécuté le 6 |
+| D6 | **Confirmé** | `supabase/.temp/project-ref` relu le 9 novembre : présent (20 octets — valeur non imprimée) |
+| D10 · D16 | **Confirmé** | `.github/workflows` absent, revérifié le 9 novembre |
+| D11 | **Confirmé, mais le texte de l'entrée est périmé** | Relu le 9 novembre (`app/api/presence/evaluate/route.ts:19-58`) : le secret en URL est **déjà refusé hors production**, et en production **toléré et journalisé** jusqu'à `CGK_CRON_SECRET_URL=refuse`. Ce qui reste : l'appel réel du VPS — **non vérifiable** sans accès |
+| D13 | Confirmé | Historique Git du fichier |
+| D14 | **Non vérifiable** (risque, pas un défaut observé) | Conséquence de D5 : on ne sait pas si la clé a été lue par un tiers, on sait qu'elle a pu l'être |
+| D17 | Confirmé (données) · Correction développée | Lecture des données le 8 ; conversion des lignes en attente d'autorisation |
+| H1 | **Confirmé, texte périmé** | « n'existe même pas comme fichier » est **faux depuis le 8 novembre** : `20261108000001_document_versions_historique_devis.sql` existe. Ce qui reste vrai : **non appliquée** — sur la production, **non vérifiable** |
+| H2 | Confirmé | Lecture de `versions-server.ts` |
+| E1 | Confirmé | Aucun `.env.recette`, revérifié le 9 novembre |
+| E2 | Confirmé (à la date du build) | Sortie de `npm run build` |
+| E7 | Confirmé | `npm run preflight -- --garder` exécuté, `Get-Service`, recherche de `psql.exe` |
+| D26 à D29 | voir chaque ligne | nouvelles, ci-dessous |
+
+
 # Partie A — Anomalies OUVERTES
 
-24 entrées. Le 9 novembre, D21 et D22 sont passées en partie B, D20 en
-partie F (fausse détection) ; D23 et E7 y sont entrées.
+27 entrées. Le 9 novembre au soir, D23 est passée en partie B (développée),
+et quatre anomalies y sont entrées : D26 (série de factures commune à toutes
+les sociétés), D27 (série OPTIMIVV parallèle), D28 (la facture finale n'était
+jamais émise), D29 (encaissement sans garde de rôle). Plus tôt le même jour,
+D21 et D22 étaient passées en partie B, D20 en partie F (fausse détection),
+et D23 et E7 étaient entrées.
 
 Onze anomalies avaient quitté cette partie le 8 novembre pour la
 partie B — corrigées, pas effacées — et trois nouvelles y sont entrées :
@@ -97,7 +148,10 @@ dépend pas de la société émettrice), D16 (il n'y a toujours pas de CI) et E6
 | D16 | ⚪ | **Aucune intégration continue n'existe toujours.** Le contrôle du bundle exigé par le CDC §8.2 est désormais une commande (`npm run check:bundle`, 8 secrets × 113 fichiers, 0 fuite), mais rien ne la lance automatiquement. | Reste de D10 après correction, 8 novembre | ✅ | Une étape de CI qui enchaîne `check:devis`, `check:docusign`, `check:superviseur`, `check:recette`, `tsc`, `lint`, `build`, `check:bundle`. Tout est déjà en commandes : il ne manque que le déclencheur. |
 
 | D17 | 🟠 | **L'IBAN des sociétés n'est PAS chiffré**, contrairement au CDC. Deux sociétés ont un IBAN réel qui s'imprime sur leurs factures. | Recherche exhaustive des appels à `encryptField()`, 8 novembre | ✅ | **Le CODE est fait** (2026-11-09) : lecture tolérante aux deux formes, modification depuis la fiche société **réservée au Super Admin**, chiffrement à l'écriture, refus si la clé manque, écriture limitée aux deux colonnes, trace dans `audit_logs` **avec la valeur MASQUÉE** — aucune migration, le journal append-only EST l'historique. **105 assertions · 7 mutations, 7 détectées.** ⚠️ **Ce qui reste : la conversion des deux lignes en clair**, qui est une modification de DONNÉES. Elle est portée par la procédure unifiée `docs/D14-D17-PROCEDURE-UNIFIEE.md` et attend votre autorisation. |
-| D23 | ⚪ | **Le contrat client part par courriel avec un lien signé valable 7 jours**, alors que la règle du projet plafonne les URL signées à 60 min. Pour un lien **envoyé par courriel**, 60 min rendrait l'envoi inutilisable : c'est un arbitrage, pas un oubli. | `sendContract`, `app/(app)/clients/[id]/contracts-actions.ts`, commentaire « PDF en lien signé 7 j », 9 novembre | 🟠 | **Décision client** : garder 7 j pour ce seul cas (et l'écrire comme exception), ou envoyer le PDF en **pièce jointe**, ce qui supprime le lien. Aucun changement fait. |
+| D26 | 🔴 | **La série de numérotation des factures est COMMUNE à toutes les sociétés émettrices.** `doc_counters` a pour clé `(doc_type, year)` : chaque numéro pris par une société manque à la série des autres. Pour une société donnée, ses factures ont donc des trous — ce que la numérotation continue (FR, BE, LU) interdit. | **Confirmé** — clé primaire lue dans `20260515000002_init_tables.sql:153-158`, et `next_doc_num(p_type, p_year)` sans paramètre de société (`20260515000004_init_functions.sql:26`) | ✅ | **Développé, non appliqué** (`20261109000003`) : série par société, activée en renseignant `legal_entities.code_numerotation`. Sans code, la série historique continue **à l'identique**. ⚠️ **Décision client + expert-comptable** : la date de bascule (recommandé : un 1er janvier) et le traitement des numéros déjà émis cette année. |
+| D27 | 🟠 | **Les factures OPTIMIVV ont leur propre série `FAC-AAAA-NNNNN`**, parallèle à `FAC-AAAA-NNNN` de `documents`, et elles sont **numérotées à la génération** — sans brouillon ni émission distincte. | **Confirmé** (technique) — deux compteurs : `next_facture_optimivv_num` (`20260807000021`) et `next_doc_num` ; appel dans le repli de `generateFactureFinale`. **Non vérifiable** (juridique) : la légalité de deux séries pour une même société relève de l'expert-comptable | ✅ | Non corrigé dans cette livraison (seule la MISE EN PAGE du moteur OPTIMIVV est gelée, pas sa numérotation). Décision : fusionner la série, ou la distinguer explicitement (préfixe), puis lui appliquer brouillon → émission. |
+| D28 | 🔴 | **Une facture finale n'était jamais « émise ».** Elle naissait en brouillon déjà numérotée, et l'envoi par courriel ne faisait passer à « envoyé » que les DEVIS : une finale pouvait partir chez le client en restant brouillon, sans contrôle d'émission. | **Confirmé** — lecture intégrale de `sendDocumentByEmail` (`document-actions.ts`, condition `detail.doc.type === "devis" && …`) et de `generateFactureFinale` (`status: "brouillon"`, numéro posé par le trigger d'insertion) | ✅ | **Développé, non appliqué** : `emettreFacture` (seul chemin, back-office, identité de la société vérifiée), envoi refusé tant qu'elle est brouillon. Voir C15. |
+| D29 | 🟠 | **L'encaissement d'une facture n'a aucune garde de rôle.** `markDocumentPaid` ne vérifie pas le back-office, et la RLS de `documents` (`for all`) autorise le **propriétaire du lead** : un commercial peut marquer payée une facture de son dossier, alors que l'encaissement relève du back-office. | **Probable** — action lue, politique `documents writable by admin / planner / lead-owner` lue (`20260515000005_init_rls.sql:233`) ; **non exécuté** avec un compte commercial | 🟠 | **Non corrigé, volontairement** : le Pipeline semble s'en servir (colonne « encaissé »). Décision : réserver l'encaissement au back-office, ou le laisser au commercial. Vérification en recette (C17). |
 
 ## A.5 · Historique et visualisation
 
@@ -195,9 +249,22 @@ assertions nouvelles dans `npm run check:superviseur` (suite
 | # | Gravité | Anomalie corrigée | Preuve |
 | --- | --- | --- | --- |
 | D21 | 🟠 | **Le module Clients était absent de la navigation.** | Entrée `/clients` dans `NAV_GROUPS` (icône `clients`), donc dans la barre latérale ET la palette ⌘K. **Place tranchée par les permissions existantes**, pas par moi : `/clients` n'est pas restreint, et la RLS de `clients` limite le commercial aux clients de SES leads — il voit l'entrée, et seulement ses clients. **La création d'un client direct** (`/clients/new`), que la RLS réservait déjà au back-office, l'est désormais aussi à l'écran : préfixe dans `RESTRICTED_MODULES`, garde de layout, bouton et lien du devis masqués, garde dans `createDirectClient`. Le commercial garde `ensureClientFromLead` : son client naît de son lead. |
-| D22 | 🟠 | **Le module Certificat de hotte était absent de la navigation, et inatteignable.** | Entrée `/certificat-hotte` (icône `certificate`). Visible de l'admin et de la planification seulement — le filtrage passe par `canAccessPath()`, le même calcul que la garde du layout, qui rend un 404 aux autres. Vérifié pour les trois rôles par la suite. |
+| D22 | 🟠 | **Le module Certificat de hotte était absent de la navigation, et inatteignable.** | Entrée `/certificat-hotte` (icône `certificate`). Visible de l'admin et de la planification seulement — le filtrage passe par `canAccessPath()`, le même calcul que la garde du layout, qui rend un 404 aux autres. Vérifié pour les trois rôles par la suite. ⚠️ **Correction du 9 novembre (soir)** : « aucun lien du dépôt n'y mène » était **faux** — le menu de Planification y mène (`Planification.tsx`, « Certificat Hotte », `/certificat-hotte?dossier=…`), pour les dossiers nettoyage. L'absence de la navigation, elle, était réelle. |
 | D24 | 🔴 | **Les actions de l'onglet « Documents & Contrats » de la fiche client n'étaient gardées QUE par l'écran.** Huit server actions — création, renouvellement, statut, envoi et suppression de contrat, passages, dépôt et suppression de document — ne vérifiaient que la session. La RLS d'insertion n'exige que `created_by = auth.uid()`, pas que le client appartienne à l'appelant : un commercial pouvait rattacher un document ou tenter un contrat sur le client d'un autre. Et `createContract` **consommait un numéro de la séquence sans trou** avant tout refus de la base. Trouvé en préparant D21 : rendre le module visible rendait ces actions bien plus faciles à atteindre. | `assertBackOffice()` en **première instruction** des huit actions, avant toute lecture, numérotation ou écriture — vérifié par position dans la suite. Aucune permission légitime ne change : l'écran ne montrait déjà l'onglet qu'au back-office. La fiche ne charge plus ce registre pour un commercial, et son compteur lui est masqué plutôt qu'affiché à 0. |
 | D25 | 🔴 | **N'importe quel utilisateur connecté pouvait modifier les étiquettes d'activité de N'IMPORTE QUEL client**, à partir de son seul identifiant : `updateClientActivityTags` écrivait par le **service-role** (hors RLS) sans autre contrôle que la session. | L'écriture reste au service-role — le commercial étiquette ses propres clients depuis la fiche, et la RLS d'UPDATE le lui refuserait — mais la **session doit d'abord voir le client** : c'est la RLS de lecture qui tranche (admin, planification, propriétaire du lead source). Hors périmètre → refus explicite, aucune écriture. |
+
+## Facturation, D23 — commit à venir (2026-11-09, soir)
+
+**Développé et testé techniquement, NON appliqué, NON testé réellement.**
+Quatre migrations préparées (`20261109000001` à `20261109000004`), aucune
+jouée nulle part. 165 contrôles nouveaux, dont **4 mutations volontaires sur
+4 détectées**. Le test de concurrence (`npm run recette:facturation`) est
+écrit et ses deux refus ont été **exécutés** ; le test lui-même n'a **jamais
+tourné** — aucune base de recette.
+
+| # | Gravité | Anomalie corrigée | Preuve |
+| --- | --- | --- | --- |
+| D23 | ⚪ | **Le contrat client partait avec un lien de stockage valable 7 jours.** | Décision du client : 60 minutes, renouvelable, contrôlé, tracé, sans pièce jointe. Le courriel porte un **jeton de 256 bits** (empreinte seule en base), qui ouvre une URL de 5 minutes. Expiré : la page propose un nouveau lien, **envoyé à l'adresse enregistrée**, 3 fois par 24 h au plus, dans les 30 jours de l'envoi ; l'ancien est révoqué, tout est tracé et le back-office notifié. La durée est inscrite **en base** (`contrat_liens_acces_duree`). ⚠️ **Conséquence** : les liens de 7 jours déjà envoyés restent valides jusqu'à leur échéance — une URL signée ne se révoque pas une à une ; elle tombe au plus 7 jours après l'envoi. **Parcours de signature : inchangés** (les contrats clients ne se signent pas en ligne ; devis par `/sign`, sous-traitance par DocuSign). |
 
 # Partie C — À VÉRIFIER EN RECETTE
 
@@ -221,6 +288,12 @@ contrôle d'entrée du Lot C.
 | C12 | Le cron et les alertes | `/presence`, `/ma-journee` | Les relances et alertes se déclenchent seules | antérieur |
 | C13 | Les modules jamais vus à l'écran | superviseur · sous-traitants · documents & contrats · médias · Ringover · DocuSign | S'ouvrent et fonctionnent pour le rôle attendu | antérieurs |
 | C14 | Navigation et refus, par rôle (D20 à D25) | barre latérale · ⌘K · `/clients` · `/clients/new` · `/certificat-hotte` · `/sous-traitants`, avec un compte **commercial**, un compte **planification**, un compte **admin** | Commercial : voit Clients (ses seuls clients), pas Certificat de hotte ni « Créer un client » ; `/certificat-hotte`, `/clients/new` et `/sous-traitants` en 404. Back-office : tout s'ouvre ; la fiche sous-traitant affiche raison sociale, SIRET et dirigeant **une fois saisis**, et le contrat les reprend. En SQL, sous le rôle `authenticated` d'un commercial : `select` sur `subcontractor_profiles` → **0 ligne**. | Lot C |
+| C15 | Intervention → facture finale | Planification : terminée → **valider** (commentaire) → **préparer** la facture → fiche facture → **émettre** | Pas de facture avant validation ; brouillon « non numérotée » ; lignes du devis + acomptes nommés ; numéro attribué à l'émission seulement ; plus de modification ensuite ; historique des validations lisible | Facturation 9 nov. |
+| C16 | Lien de contrat (D23) | Envoyer un contrat à une adresse de test ; l'ouvrir ; attendre 61 min ; renouveler ; rouvrir l'ancien | Ouverture < 60 min ; page « expiré » ensuite ; nouveau courriel à la même adresse ; l'ancien lien dit « remplacé » ; 4e demande en 24 h refusée | D23 |
+| C17 | Encaissement par un commercial (D29) | Compte `commercial.nettoyage`, facture de son dossier | Constater s'il peut « Marquer payée » — c'est la preuve qui manque à D29 | D29 |
+| C18 | Concurrence réelle | `npm run recette:facturation` | 1 émission sur 10 en double clic ; 20 numéros consécutifs sur 20 émissions simultanées ; facture émise inaltérable, y compris par le service-role | Facturation 9 nov. |
+| C19 | Signature interne d'un devis (circuit conservé) | « Envoyer pour signature » → ouvrir `/sign/<jeton>` **hors session** → signer | Statut `signe` ; PDF signé + attestation + certificat dans le bucket privé `signed-documents` ; **ré-hacher le PDF archivé = empreinte stockée** ; URL d'archive qui expire ; dossier de planification créé ; acompte émis si « avec acompte » | Décision 9 nov. §5 |
+| C20 | Contrat de sous-traitance par DocuSign (circuit conservé) | Compte DocuSign **développeur** ; émettre un contrat depuis Planification ; signer | Webhook HMAC accepté ; document signé **et** certificat archivés ; contrat signé non annulable ; ⚠️ aujourd'hui **aucune notification** à la signature (voir livrable §Notifications) | Décision 9 nov. §5 |
 
 ---
 
@@ -280,6 +353,7 @@ sans cette trace n'est pas un état, c'est un abandon.
 
 | Date | Évènement |
 | --- | --- |
+| 2026-11-09 (soir) | **Décisions du client : facturation en deux étapes, numéro à l'émission, D23, recette.** **Niveaux de preuve** instaurés, et les 24 anomalies ouvertes **revérifiées une à une** : G5 passe de recherche textuelle à confirmé ; **H1 et D11 avaient un texte périmé** (M1 existe comme fichier depuis le 8 ; le secret de cron en URL est déjà refusé hors production). **Trois erreurs de ma part, consignées** : « aucun lien vers le Certificat de hotte » (faux, le menu de Planification y mène — D22) ; « doublon de facture finale non interdit en base » dans la préparation du matin (faux, `uq_one_finale_per_devis` existait, écrit sur deux lignes que mon motif ne lisait pas) ; et le même piège a failli me faire déclarer `documents` sans politique RLS — rattrapé par une recherche multiligne. **Développé, non appliqué** : intervention terminée → **validée** (historisée, append-only) → facture finale **préparée** en brouillon sans numéro, qui reprend les lignes du devis signé et nomme chaque acompte émis ; **numéro attribué à l'émission**, par la base, dans la transaction ; séries **par société** sur activation ; facture émise **figée** (numéro, montants, lignes, suppression — même pour le service-role) ; annulation Super Admin motivée ; D23. Nouvelles : D26, D27, D28, D29 ; vérifications C15 à C20. **Tests** : 165 contrôles nouveaux, 4 mutations volontaires sur 4 détectées ; refus des gardes `recette:facturation` et `migrer:recette` **exécutés**. **Rien n'a été testé réellement**, rien n'a touché la production. **Totaux par comptage des lignes : 27 ouvertes · 38 corrigées · 20 à vérifier · 7 reportées · 0 validée · 2 non reproductibles — 94 entrées.** |
 | 2026-11-09 (nuit) | **D20, D21, D22 — corrections avant recette, demandées par le client.** **D20 était une fausse détection de ma part** : la politique existe, créée en boucle dynamique ; classée en partie F avec sa trace, et le motif fautif remplacé par un lecteur de politiques. **D21 et D22 corrigées** (partie B) : Clients et Certificat de hotte dans la barre latérale et la palette ⌘K, selon les permissions existantes. En préparant D21, **deux failles 🔴 trouvées et corrigées** : D24 (huit actions de la fiche client gardées par l'écran seul) et D25 (étiquettes de n'importe quel client modifiables par n'importe qui). **Deux ouvertures** : D23 (lien de contrat signé 7 j — arbitrage) et E7 (aucun Postgres sur le poste, les migrations n'ont jamais été rejouées). Une vérification de recette : C14. **3 366 contrôles, 0 échec, 36 suites.** Aucune donnée, migration ni ressource de production touchée. **Totaux par comptage des lignes : 24 ouvertes · 37 corrigées · 14 à vérifier · 7 reportées · 0 validée · 2 non reproductibles — 84 entrées.** |
 | 2026-11-07 | Ouverture du registre à la livraison du Lot B. **19 entrées** (et non 21 : le décompte annoncé ce jour-là était faux). |
 | 2026-11-07 | Lot E : 4 entrées ajoutées (historique et visualisation). **23 entrées** — et non 25 comme annoncé dans le rapport de Lot E. Le décompte était propagé d'une erreur antérieure ; il est corrigé ici par comptage. |

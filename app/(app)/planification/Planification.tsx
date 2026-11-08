@@ -26,8 +26,10 @@ import {
 } from "@/lib/dossiers-shared";
 import {
   editDossier,
+  annulerValidationIntervention,
   finalizeDossier,
   generateFactureFinale,
+  validerIntervention,
   markAcomptePaid,
   planifyDossier,
   soldDossier,
@@ -46,7 +48,7 @@ import { startCall } from "@/lib/ringover-webphone";
 import type { MessageTemplate } from "@/lib/message-templates-server";
 import styles from "./Planification.module.scss";
 
-const STATUSES: DossierStatus[] = ["a_planifier", "planifie", "en_cours", "finalise", "solde"];
+const STATUSES: DossierStatus[] = ["a_planifier", "planifie", "en_cours", "finalise", "valide", "solde"];
 const PAYMENT_STATUSES: PaymentStatus[] = [
   "acompte_non_paye",
   "acompte_paye",
@@ -133,7 +135,7 @@ export default function Planification({ initialRows, technicians, intervenantTem
       })
       .sort((a, b) => {
         const order: Record<DossierStatus, number> = {
-          a_planifier: 0, planifie: 1, en_cours: 2, finalise: 3, solde: 4,
+          a_planifier: 0, planifie: 1, en_cours: 2, finalise: 3, valide: 4, solde: 5,
         };
         const so = order[a.dossier.status] - order[b.dossier.status];
         if (so !== 0) return so;
@@ -207,6 +209,36 @@ export default function Planification({ initialRows, technicians, intervenantTem
       }),
       () => finalizeDossier(r.dossier.id),
     );
+
+  // Validation (2026-11-09) : « Intervention terminée → validée → facture ».
+  // Commentaire facultatif, conservé dans l'historique des validations.
+  const onValider = (r: DossierWithContext) => {
+    const commentaire = prompt(
+      `Valider l'intervention de ${r.lead.client} ?
+
+Elle ouvrira la préparation de la facture finale. `
+      + "Commentaire facultatif (conservé dans l'historique) :",
+      "",
+    );
+    if (commentaire === null) return;
+    optimistic(
+      r.dossier.id,
+      (row) => ({ ...row, dossier: { ...row.dossier, status: "valide", updatedAt: new Date().toISOString() } }),
+      () => validerIntervention(r.dossier.id, commentaire),
+    );
+  };
+
+  const onAnnulerValidation = (r: DossierWithContext) => {
+    const motif = prompt(`Annuler la validation de l'intervention de ${r.lead.client} ?
+
+Motif obligatoire :`);
+    if (motif === null) return;
+    optimistic(
+      r.dossier.id,
+      (row) => ({ ...row, dossier: { ...row.dossier, status: "finalise", updatedAt: new Date().toISOString() } }),
+      () => annulerValidationIntervention(r.dossier.id, motif),
+    );
+  };
 
   const onSold = (r: DossierWithContext) =>
     optimistic(
@@ -359,9 +391,9 @@ export default function Planification({ initialRows, technicians, intervenantTem
           tone="brand"
         />
         <KpiCard
-          label="Finalisés"
+          label="À valider"
           value={String(kpis.byStatus.finalise)}
-          hint="Intervention OK · à solder"
+          hint={`Interventions terminées · ${kpis.byStatus.valide} validée${kpis.byStatus.valide > 1 ? "s" : ""} à facturer`}
           tone="warning"
         />
         <KpiCard
@@ -623,6 +655,8 @@ export default function Planification({ initialRows, technicians, intervenantTem
                 onStartRealisation={() => onStartRealisation(r)}
                 onFinalize={() => onFinalize(r)}
                 onGenerateFinale={() => onGenerateFinale(r)}
+                onValider={() => onValider(r)}
+                onAnnulerValidation={() => onAnnulerValidation(r)}
                 onSold={() => onSold(r)}
               />
             ))}
@@ -723,6 +757,8 @@ function Row({
   onStartRealisation,
   onFinalize,
   onGenerateFinale,
+  onValider,
+  onAnnulerValidation,
   onSold,
 }: {
   row: DossierWithContext;
@@ -739,6 +775,8 @@ function Row({
   onStartRealisation: () => void;
   onFinalize: () => void;
   onGenerateFinale: () => void;
+  onValider: () => void;
+  onAnnulerValidation: () => void;
   onSold: () => void;
 }) {
   const { dossier, lead, technician, devisDoc, finaleDoc, acompteDoc } = row;
@@ -898,14 +936,16 @@ function Row({
             type="button"
             className={styles.genFactureBtn}
             onClick={onGenerateFinale}
-            disabled={dossier.status !== "finalise"}
+            disabled={dossier.status !== "valide"}
             title={
-              dossier.status === "finalise"
-                ? "Générer la facture finale"
-                : "Disponible une fois le dossier finalisé (intervention réalisée)"
+              dossier.status === "valide"
+                ? "Préparer la facture finale (brouillon, numérotée à l'émission)"
+                : dossier.status === "finalise"
+                  ? "Intervention terminée : validez-la d'abord (menu ⋯)"
+                  : "Disponible une fois l'intervention terminée puis validée"
             }
           >
-            <Icon name="document" size={14} /> Générer facture
+            <Icon name="document" size={14} /> Préparer facture
           </button>
         )}
         <button
@@ -1020,10 +1060,22 @@ function Row({
                   <Icon name="check" size={15} /> Certificat Hotte
                 </Link>
               )}
-              {dossier.status === "finalise" && !finaleDoc && (
+              {dossier.status === "finalise" && (
+                <button type="button" className={styles.menuItem} data-variant="primary" role="menuitem"
+                  onClick={() => { onToggleMenu(); onValider(); }}>
+                  <Icon name="check" size={15} /> Valider l&apos;intervention
+                </button>
+              )}
+              {dossier.status === "valide" && !finaleDoc && (
                 <button type="button" className={styles.menuItem} data-variant="primary" role="menuitem"
                   onClick={() => { onToggleMenu(); onGenerateFinale(); }}>
-                  <Icon name="comptabilite" size={15} /> Émettre la facture finale
+                  <Icon name="comptabilite" size={15} /> Préparer la facture finale
+                </button>
+              )}
+              {dossier.status === "valide" && !finaleDoc && (
+                <button type="button" className={styles.menuItem} role="menuitem"
+                  onClick={() => { onToggleMenu(); onAnnulerValidation(); }}>
+                  <Icon name="x" size={15} /> Annuler la validation
                 </button>
               )}
               {finaleDoc && (

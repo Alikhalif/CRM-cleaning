@@ -416,6 +416,13 @@
     background: color-mix(in oklab, var(--tone-warning) 14%, transparent);
     border-color: color-mix(in oklab, var(--tone-warning) 30%, transparent);
   }
+  // Intervention validée (2026-11-09) : prête à facturer. Ton « info »,
+  // distinct de « terminée » (warning, une action attend) et de « soldé ».
+  &[data-status="valide"] {
+    color: var(--tone-info);
+    background: color-mix(in oklab, var(--tone-info) 14%, transparent);
+    border-color: color-mix(in oklab, var(--tone-info) 30%, transparent);
+  }
   &[data-status="solde"] {
     color: var(--text-inverted);
     background: var(--tone-success);

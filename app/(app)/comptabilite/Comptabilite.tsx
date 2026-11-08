@@ -25,6 +25,7 @@ import { computeAccountingKpis, type DocumentWithContext } from "@/lib/documents
 import { duplicateDocument } from "../_shared/document-actions";
 import ApercuDocument from "@/components/ApercuDocument/ApercuDocument";
 import styles from "./Comptabilite.module.scss";
+import { numeroAffiche } from "@/lib/facturation/finale-shared";
 
 type Tab = "devis" | "acompte" | "finale" | "fournisseurs";
 
@@ -414,7 +415,7 @@ function Row({
   return (
     <tr data-status={doc.status}>
       <td className={styles.mono} data-label="Numéro">
-        <Link href={docHref} className={styles.numLink}>{doc.num}</Link>
+        <Link href={docHref} className={styles.numLink}>{numeroAffiche(doc.num)}</Link>
       </td>
       <td data-label="Client">
         <div className={styles.clientName}>{lead.client}</div>

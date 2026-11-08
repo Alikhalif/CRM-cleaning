@@ -32,6 +32,7 @@ export function computePlanificationKpis(rows: DossierWithContext[]): Planificat
     planifie: 0,
     en_cours: 0,
     finalise: 0,
+    valide: 0,
     solde: 0,
   };
   for (const r of rows) byStatus[r.dossier.status]++;
