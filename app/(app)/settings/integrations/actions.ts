@@ -7,7 +7,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import { APP_SETTING_KEYS } from "@/lib/app-settings";
 import { GABARITS } from "@/lib/devis/gabarits";
 import {
-  COUNTRIES, MENTION_PAR_PAYS, controlerMention, type Country,
+  CLE_SOCIETES, COUNTRIES, MENTION_PAR_PAYS, controlerMention, type Country,
 } from "@/lib/generation/mentions-produits";
 
 type AppSettingInsert = Database["public"]["Tables"]["app_settings"]["Insert"];
@@ -66,6 +66,12 @@ export async function setBooleanSetting(key: string, value: boolean): Promise<Re
  */
 export async function enregistrerMentionsProduits(
   reglages: Record<string, { active: boolean; texte: string }>,
+  /**
+   * Couche PAR SOCIÉTÉ (2026-11-08) : identifiant d'entité → réglages par
+   * pays. Omise, elle n'est pas écrasée par mégarde : on l'enregistre telle
+   * quelle, et c'est l'appelant qui décide de son contenu.
+   */
+  parSociete: Record<string, Record<string, { active: boolean; texte: string }>> = {},
 ): Promise<Result> {
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
@@ -84,9 +90,33 @@ export async function enregistrerMentionsProduits(
     propre[pays] = { active: true, texte };
   }
 
+  // La couche société subit EXACTEMENT les mêmes contrôles : une allégation
+  // portée par une société engage autant que la même portée par un pays.
+  const propreSocietes: Record<string, Record<string, { active: boolean; texte: string }>> = {};
+  for (const [entityId, parPaysDeLaSociete] of Object.entries(parSociete)) {
+    if (!entityId.trim()) continue;
+    const retenu: Record<string, { active: boolean; texte: string }> = {};
+    for (const pays of COUNTRIES) {
+      const r = parPaysDeLaSociete?.[pays];
+      if (!r?.active) continue;
+      const texte = (r.texte ?? "").trim();
+      const effectif = texte || MENTION_PAR_PAYS[pays];
+      const c = controlerMention(effectif);
+      if (!c.ok) return { ok: false, error: `${pays} (société) — ${c.motif}` };
+      retenu[pays] = { active: true, texte };
+    }
+    if (Object.keys(retenu).length > 0) propreSocietes[entityId] = retenu;
+  }
+
+  const valeur: Record<string, unknown> = { ...propre };
+  // La sous-clé n'est écrite que si elle porte quelque chose : un objet vide
+  // dans `app_settings` se lirait comme une configuration, pas comme son
+  // absence.
+  if (Object.keys(propreSocietes).length > 0) valeur[CLE_SOCIETES] = propreSocietes;
+
   const row: AppSettingInsert = {
     key: APP_SETTING_KEYS.devisMentionsProduits,
-    value: propre as unknown as AppSettingInsert["value"],
+    value: valeur as unknown as AppSettingInsert["value"],
     updated_at: new Date().toISOString(),
     updated_by: user.id,
   };
@@ -102,6 +132,10 @@ export async function enregistrerMentionsProduits(
     after: {
       key: APP_SETTING_KEYS.devisMentionsProduits,
       pays_actives: Object.keys(propre),
+      // Qui a assumé quoi, société par société : c'est la trace qui manquait.
+      societes_actives: Object.fromEntries(
+        Object.entries(propreSocietes).map(([id, parPays]) => [id, Object.keys(parPays)]),
+      ),
       // Le texte exact est journalisé : c'est lui qui engage l'entreprise.
       formulations: Object.fromEntries(
         Object.entries(propre).map(([k, v]) => [k, v.texte || MENTION_PAR_PAYS[k as Country]]),

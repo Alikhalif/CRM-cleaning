@@ -183,5 +183,47 @@ console.log("\n== 11. Notifications ==");
     aucune ? undefined : "une notification est apparue — mettre à jour ce constat");
 }
 
+
+// ======================================================================
+console.log("\n12. La mention produits est resolue PAR SOCIETE (2026-11-08)");
+// ======================================================================
+//
+// La logique de resolution est testee a part, dans `mentions.ts`, parce
+// qu'elle est pure. Ce qui ne s'y teste pas, c'est le CABLAGE : rien
+// n'empechait le module serveur de continuer a appeler l'ancienne
+// resolution par pays. Une mutation l'a montre, non detectee.
+{
+  const serveur = lu("lib/generation/mentions-produits-server.ts");
+  vrai("le module serveur existe", serveur.length > 0);
+  vrai("il appelle la resolution PAR SOCIETE",
+    serveur.includes("resoudreMentionPourSociete("));
+  vrai("… et non plus la resolution par pays seule",
+    !/\bresoudreMention\s*\(/.test(serveur));
+  vrai("il lit les DEUX couches du reglage",
+    serveur.includes("lireReglagesParSociete(") && serveur.includes("lireReglages("));
+  vrai("il passe l'identifiant de la societe emettrice",
+    /resoudreMentionPourSociete\([\s\S]{0,80}entityId/.test(serveur));
+  vrai("il expose les reglages par societe a l'ecran de reglages",
+    serveur.includes("export async function reglagesMentionsParSociete"));
+
+  const page = lu("app/(app)/settings/integrations/page.tsx");
+  vrai("l'ecran de reglages recoit la couche societe",
+    page.includes("reglagesSocietes={await reglagesMentionsParSociete()}"));
+
+  const ecran = lu("app/(app)/settings/integrations/MentionsProduits.tsx");
+  vrai("l'ecran propose un interrupteur par societe",
+    ecran.includes("etatSoc") && ecran.includes("concernees.map("));
+  vrai("… et dit ce qu'une societe non cochee herite",
+    ecran.includes("herite du reglage par pays") || ecran.includes("hérite du réglage par pays"));
+
+  const action = lu("app/(app)/settings/integrations/actions.ts");
+  vrai("l'action enregistre la couche societe",
+    action.includes("propreSocietes") && action.includes("CLE_SOCIETES"));
+  vrai("… en lui appliquant les MEMES controles d'allegation",
+    /propreSocietes[\s\S]{0,900}controlerMention\(/.test(action)
+    || /for \(const \[entityId[\s\S]{0,900}controlerMention\(/.test(action));
+  vrai("… et journalise qui a assume quoi",
+    action.includes("societes_actives"));
+}
 console.log(`\n${ko === 0 ? "  ✅ TOUT PASSE" : `  ❌ ${ko} ÉCHEC(S)`}`);
 process.exit(ko === 0 ? 0 : 1);

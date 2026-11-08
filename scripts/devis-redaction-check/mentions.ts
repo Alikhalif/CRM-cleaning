@@ -40,8 +40,12 @@ import {
   lireReglages,
   paysReconnu,
   resoudreMention,
+  CLE_SOCIETES,
+  lireReglagesParSociete,
+  resoudreMentionPourSociete,
   type Country,
   type ReglagesMentions,
+  type ReglagesParSociete,
 } from "@/lib/generation/mentions-produits";
 import { genererContenuDevis, type Decouverte } from "@/lib/generation/devis-contenu";
 
@@ -98,9 +102,9 @@ console.log("\n2. LE PAYS DÉCIDE — automatiquement, et la table est figée");
 // ce sont des allégations réglementaires : une reformulation silencieuse du
 // code changerait ce que la société affirme devant un client.
 
-eq("France → produits 100 % français et 100 % écologiques",
+eq("France → produits 100 % écologiques et 100 % français (formulation arrêtée le 2026-11-08)",
   resoudreMention("FR", TOUS),
-  { mention: "Utilisation de produits 100 % français et 100 % écologiques.", pays: "FR" });
+  { mention: "Produits 100 % écologiques et 100 % français.", pays: "FR" });
 
 for (const pays of ["CH", "BE", "LU"] as Country[]) {
   eq(`${pays} → conformité aux normes européennes`,
@@ -370,6 +374,104 @@ eq("vide", paysReconnu(""), null);
 eq("nul", paysReconnu(null), null);
 eq("indéfini", paysReconnu(undefined), null);
 eq("code à trois lettres", paysReconnu("FRA"), null);
+
+// ======================================================================
+console.log("\n12. La mention depend de la SOCIETE EMETTRICE (2026-11-08)");
+// ======================================================================
+//
+// Avant cette date, l'activation etait par PAYS seulement : activer la France
+// faisait porter la mention par TOUTES les societes francaises, y compris
+// celle qui n'emploie pas ces produits. Une allegation opposable portee par
+// une societe qui ne l'a jamais assumee.
+//
+// Le reglage par pays est CONSERVE comme repli, et ce repli est SIGNALE : le
+// supprimer eteindrait les mentions deja actives, ce que le client a exclu
+// (« sans perturber les devis existants »).
+
+const SOC_A = "11111111-1111-4111-8111-111111111111";
+const SOC_B = "22222222-2222-4222-8222-222222222222";
+
+const SOC_A_ASSUME: ReglagesParSociete = { [SOC_A]: { FR: { active: true, texte: "" } } };
+const PAYS_FR_ACTIF: ReglagesMentions = { FR: { active: true, texte: "" } };
+const RIEN: ReglagesMentions = {};
+
+{
+  const r = resoudreMentionPourSociete("FR", SOC_A, SOC_A_ASSUME, RIEN);
+  eq("la societe qui assume porte la mention", r.mention, MENTION_PAR_PAYS.FR);
+  eq("... et l'origine est la societe", "origine" in r ? r.origine : null, "societe");
+}
+{
+  const r = resoudreMentionPourSociete("FR", SOC_B, SOC_A_ASSUME, RIEN);
+  eq("une AUTRE societe ne porte rien", r.mention, null);
+  eq("... et le motif le nomme", "motif" in r ? r.motif : null, "pays_non_active");
+}
+{
+  const r = resoudreMentionPourSociete("FR", SOC_B, {}, PAYS_FR_ACTIF);
+  eq("sans reglage societe, le repli par pays s'applique", r.mention, MENTION_PAR_PAYS.FR);
+  eq("... et il est marque comme herite", "origine" in r ? r.origine : null, "pays_herite");
+}
+{
+  const r = resoudreMentionPourSociete(
+    "FR", SOC_A,
+    { [SOC_A]: { FR: { active: true, texte: "Formulation propre a cette societe." } } },
+    PAYS_FR_ACTIF,
+  );
+  eq("le texte de la societe prime sur celui du pays",
+    r.mention, "Formulation propre a cette societe.");
+}
+{
+  const r = resoudreMentionPourSociete(
+    "CH", SOC_A, { [SOC_A]: { FR: { active: true, texte: "" } } }, RIEN,
+  );
+  eq("configuree pour la France, rien en Suisse", r.mention, null);
+  eq("... et le motif le dit", "motif" in r ? r.motif : null, "societe_non_activee");
+}
+
+vrai("un pays inconnu ne produit JAMAIS de mention, meme pour une societe qui assume",
+  resoudreMentionPourSociete("DE", SOC_A, SOC_A_ASSUME, PAYS_FR_ACTIF).mention === null);
+vrai("... et surtout jamais la francaise",
+  resoudreMentionPourSociete("DE", SOC_A, SOC_A_ASSUME, PAYS_FR_ACTIF).mention
+    !== MENTION_PAR_PAYS.FR);
+eq("une societe nulle retombe sur le repli par pays",
+  resoudreMentionPourSociete("FR", null, SOC_A_ASSUME, PAYS_FR_ACTIF).mention,
+  MENTION_PAR_PAYS.FR);
+eq("une societe nulle sans repli ne porte rien",
+  resoudreMentionPourSociete("FR", null, SOC_A_ASSUME, RIEN).mention, null);
+eq("une intervention sans produits ne porte rien, meme si la societe assume",
+  resoudreMentionPourSociete("FR", SOC_A, SOC_A_ASSUME, PAYS_FR_ACTIF, false).mention, null);
+
+eq("null -> aucune societe", lireReglagesParSociete(null), {});
+eq("sans la cle reservee -> aucune societe",
+  lireReglagesParSociete({ FR: { active: true, texte: "" } }), {});
+eq("la cle reservee est lue",
+  lireReglagesParSociete({ [CLE_SOCIETES]: { [SOC_A]: { FR: { active: true, texte: "" } } } }),
+  { [SOC_A]: { FR: { active: true, texte: "" } } });
+eq("un identifiant vide est ignore",
+  lireReglagesParSociete({ [CLE_SOCIETES]: { "": { FR: { active: true, texte: "" } } } }), {});
+eq("une societe sans pays exploitable est ignoree",
+  lireReglagesParSociete({ [CLE_SOCIETES]: { [SOC_A]: { DE: { active: true, texte: "x" } } } }), {});
+eq("une valeur non structuree est ignoree",
+  lireReglagesParSociete({ [CLE_SOCIETES]: { [SOC_A]: "oui" } }), {});
+eq("« active » non booleen ne vaut PAS activation",
+  lireReglagesParSociete({ [CLE_SOCIETES]: { [SOC_A]: { FR: { active: "oui", texte: "T." } } } }),
+  { [SOC_A]: { FR: { active: false, texte: "T." } } });
+vrai("la cle reservee n'est pas prise pour un pays par l'ancien lecteur",
+  Object.keys(lireReglages({ [CLE_SOCIETES]: { [SOC_A]: {} } })).length === 0);
+
+// La formulation arretee par le client le 2026-11-08.
+eq("France : la formulation arretee, au mot",
+  MENTION_PAR_PAYS.FR, "Produits 100 % écologiques et 100 % français.");
+for (const pays of ["CH", "BE", "LU"] as Country[]) {
+  vrai(`${pays} conserve la conformite aux normes europeennes`,
+    /normes europ[ée]ennes/i.test(MENTION_PAR_PAYS[pays]));
+  vrai(`${pays} n'affirme aucune origine ni caractere ecologique`,
+    !/fran[çc]ais/i.test(MENTION_PAR_PAYS[pays])
+    && !/[ée]cologique/i.test(MENTION_PAR_PAYS[pays]));
+}
+vrai("le Canada reste une declaration de CONFORMITE, pas une allegation ecologique",
+  !/[ée]cologique/i.test(MENTION_PAR_PAYS.CA));
+vrai("... et son avertissement renvoie a la Loi sur la concurrence",
+  /concurrence/i.test(AVERTISSEMENT_PAYS.CA ?? ""));
 
 console.log(ko === 0 ? "\n  TOUT PASSE" : `\n  ${ko} ECHEC(S)`);
 process.exit(ko === 0 ? 0 : 1);

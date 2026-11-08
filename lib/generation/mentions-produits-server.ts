@@ -11,14 +11,27 @@ import { APP_SETTING_KEYS, getJsonSetting } from "@/lib/app-settings";
 import { supabaseServer } from "@/lib/supabase/server";
 import {
   lireReglages,
-  resoudreMention,
+  lireReglagesParSociete,
+  resoudreMentionPourSociete,
   type ReglagesMentions,
-  type ResolutionMention,
+  type ReglagesParSociete,
+  type ResolutionMentionSociete,
 } from "./mentions-produits";
 
 /** Réglages d'activation, tels qu'ils sont en base. */
 export async function reglagesMentions(): Promise<ReglagesMentions> {
   return lireReglages(await getJsonSetting(APP_SETTING_KEYS.devisMentionsProduits));
+}
+
+/**
+ * Réglages PAR SOCIÉTÉ, lus dans le même enregistrement `app_settings`.
+ *
+ * Même clé, sous-clé réservée `societes` : un seul aller-retour en base, et
+ * l'ancien lecteur par pays continue de fonctionner sans rien savoir de
+ * cette couche (il n'examine que les codes pays).
+ */
+export async function reglagesMentionsParSociete(): Promise<ReglagesParSociete> {
+  return lireReglagesParSociete(await getJsonSetting(APP_SETTING_KEYS.devisMentionsProduits));
 }
 
 /**
@@ -51,12 +64,21 @@ export async function paysDeLEntite(entityId: string | null | undefined): Promis
 export async function mentionPourEntite(
   entityId: string | null | undefined,
   emploieDesProduits = true,
-): Promise<ResolutionMention> {
-  const [pays, reglages] = await Promise.all([
+): Promise<ResolutionMentionSociete> {
+  // Le réglage brut est lu UNE SEULE FOIS : les deux couches vivent dans le
+  // même enregistrement, et deux appels à `getJsonSetting` pour la même clé
+  // seraient deux allers-retours pour rien.
+  const [pays, brut] = await Promise.all([
     paysDeLEntite(entityId),
-    reglagesMentions(),
+    getJsonSetting(APP_SETTING_KEYS.devisMentionsProduits),
   ]);
-  return resoudreMention(pays, reglages, emploieDesProduits);
+  return resoudreMentionPourSociete(
+    pays,
+    entityId,
+    lireReglagesParSociete(brut),
+    lireReglages(brut),
+    emploieDesProduits,
+  );
 }
 
 /** Les sociétés et leur pays, pour l'écran de réglages et les contrôles. */

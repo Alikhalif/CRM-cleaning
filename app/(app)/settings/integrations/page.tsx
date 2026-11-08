@@ -2,7 +2,7 @@ import Link from "next/link";
 import Icon from "@/components/Icon/Icon";
 import { getCurrentUserProfile } from "@/lib/users-server";
 import {
-  reglagesMentions, societesEtPays,
+  reglagesMentions, reglagesMentionsParSociete, societesEtPays,
 } from "@/lib/generation/mentions-produits-server";
 import MentionsProduits from "./MentionsProduits";
 import GabaritsDevis from "./GabaritsDevis";
@@ -56,6 +56,7 @@ export default async function IntegrationsPage() {
           chercher le réglage doit comprendre qu'il a disparu volontairement. */}
       <MentionsProduits
         reglages={await reglagesMentions()}
+        reglagesSocietes={await reglagesMentionsParSociete()}
         societes={await societesEtPays()}
       />
 

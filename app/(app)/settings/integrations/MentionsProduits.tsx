@@ -43,15 +43,27 @@ export type SocietePays = { id: string; nom: string; pays: string | null };
 
 type Props = {
   reglages: Partial<Record<Country, ReglagePays>>;
+  /** Couche PAR SOCIÉTÉ : identifiant d'entité → réglages par pays. */
+  reglagesSocietes: Record<string, Partial<Record<Country, ReglagePays>>>;
   societes: SocietePays[];
 };
 
-export default function MentionsProduits({ reglages, societes }: Props) {
+export default function MentionsProduits({ reglages, reglagesSocietes, societes }: Props) {
   const [etat, setEtat] = useState<Record<string, ReglagePays>>(
     Object.fromEntries(
       COUNTRIES.map((p) => [p, reglages[p] ?? { active: false, texte: "" }]),
     ),
   );
+  // État de la couche société. Clé « <entityId>|<pays> » : plate, donc
+  // comparable et sérialisable sans parcours imbriqué.
+  const cle = (id: string, pays: Country) => `${id}|${pays}`;
+  const initialSoc = Object.fromEntries(
+    societes.flatMap((s) =>
+      COUNTRIES.map((p) => [cle(s.id, p), reglagesSocietes[s.id]?.[p]?.active ?? false]),
+    ),
+  ) as Record<string, boolean>;
+  const [etatSoc, setEtatSoc] = useState<Record<string, boolean>>(initialSoc);
+
   const [message, setMessage] = useState<{ ton: "ok" | "ko"; texte: string } | null>(null);
   const [enCours, demarrer] = useTransition();
 
@@ -60,7 +72,8 @@ export default function MentionsProduits({ reglages, societes }: Props) {
   );
   const modifie = COUNTRIES.some((p) =>
     (etat[p]?.active ?? false) !== (initial[p]?.active ?? false)
-    || (etat[p]?.texte ?? "") !== (initial[p]?.texte ?? ""));
+    || (etat[p]?.texte ?? "") !== (initial[p]?.texte ?? ""))
+    || Object.keys(initialSoc).some((k) => (etatSoc[k] ?? false) !== (initialSoc[k] ?? false));
 
   // Sociétés sans pays exploitable : leurs devis ne porteront JAMAIS de
   // mention, quoi qu'on active. Il faut le dire ici, sinon le Super Admin
@@ -87,8 +100,19 @@ export default function MentionsProduits({ reglages, societes }: Props) {
         return;
       }
     }
+    // La couche société reprend la formulation de son pays : on n'offre pas
+    // un texte libre par société. Une allégation par société ET par texte
+    // libre multiplierait les formulations opposables par sept.
+    const parSociete: Record<string, Record<string, { active: boolean; texte: string }>> = {};
+    for (const s of societes) {
+      for (const p of COUNTRIES) {
+        if (!etatSoc[cle(s.id, p)]) continue;
+        parSociete[s.id] = { ...(parSociete[s.id] ?? {}), [p]: { active: true, texte: "" } };
+      }
+    }
+
     demarrer(async () => {
-      const r = await enregistrerMentionsProduits(etat);
+      const r = await enregistrerMentionsProduits(etat, parSociete);
       setMessage(r.ok
         ? { ton: "ok", texte: "Réglages enregistrés. Ils s'appliquent aux prochains devis générés." }
         : { ton: "ko", texte: r.error });
@@ -182,6 +206,44 @@ export default function MentionsProduits({ reglages, societes }: Props) {
                   </button>
                 )}
               </div>
+
+              {/* ── La couche SOCIÉTÉ ─────────────────────────────────
+                  Jusqu'au 8 novembre 2026, activer un pays faisait porter
+                  l'allégation par TOUTES ses sociétés. Chacune l'assume
+                  désormais pour elle-même. */}
+              {concernees.length > 0 && (
+                <div className={styles.ligneMention}>
+                  <span className={styles.compteurMention}>
+                    Sociétés qui assument cette mention
+                    {r.active && " — les non cochées l'héritent du pays tant qu'il est activé"}
+                  </span>
+                </div>
+              )}
+              {concernees.map((s) => {
+                const coche = etatSoc[cle(s.id, pays)] ?? false;
+                return (
+                  <label key={s.id} className={styles.interrupteurPays}>
+                    <span className={styles.labelMention}>
+                      {s.nom}
+                      <span className={styles.paysMention}>
+                        {" · "}
+                        {coche
+                          ? "assume la mention"
+                          : r.active
+                            ? "hérite du réglage par pays — à confirmer"
+                            : "aucune mention"}
+                      </span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={coche}
+                      onChange={(e) =>
+                        setEtatSoc({ ...etatSoc, [cle(s.id, pays)]: e.target.checked })
+                      }
+                    />
+                  </label>
+                );
+              })}
 
               {AVERTISSEMENT_PAYS[pays] && (
                 <p className={styles.avertMention}>
