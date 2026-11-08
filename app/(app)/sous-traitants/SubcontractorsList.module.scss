@@ -1,13 +1,13 @@
 .wrap { padding: var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-4); }
 
 .head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4); }
-.title { font-size: 1.4rem; font-weight: 700; color: var(--text-strong); margin: 0; }
+.title { font-size: 1.4rem; font-weight: 700; color: var(--text-primary); margin: 0; }
 .sub { color: var(--text-muted); font-size: 0.85rem; margin: 4px 0 0; }
 
 .toolbar { display: flex; flex-direction: column; gap: var(--sp-3); }
 .search {
   width: 100%; padding: 10px 14px; border-radius: var(--r-md);
-  border: 1px solid var(--border-subtle); background: var(--bg-surface); color: var(--text-strong);
+  border: 1px solid var(--border-subtle); background: var(--bg-surface); color: var(--text-primary);
   font-size: 0.9rem;
 }
 .chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
@@ -15,7 +15,7 @@
   padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border-subtle);
   background: var(--bg-surface); color: var(--text-muted); font-size: 0.8rem; cursor: pointer;
 }
-.chip:hover { color: var(--text-strong); }
+.chip:hover { color: var(--text-primary); }
 .chipOn { background: var(--brand-600, #0b6e58); border-color: var(--brand-600, #0b6e58); color: #fff; }
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--sp-4); }
@@ -35,7 +35,7 @@
   color: #fff; font-weight: 700; font-size: 0.8rem;
 }
 .who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.name { font-weight: 600; color: var(--text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.name { font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .company { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .conf { display: flex; flex-wrap: wrap; gap: 6px; }

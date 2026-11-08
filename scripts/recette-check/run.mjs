@@ -32,6 +32,7 @@ const SUITES = [
   { fichier: "chiffrement.ts", titre: "Chiffrement : identifiant de clé et rotation progressive" },
   { fichier: "rotation.ts", titre: "Rotation D14 + D17 : décision, périmètre fermé et cinq gardes" },
   { fichier: "iban.ts", titre: "Coordonnées bancaires : cinq pays, et le Canada qui n'a pas d'IBAN" },
+  { fichier: "ux.ts", titre: "UX/UI : jetons CSS valides et cellules étiquetées (I1, I2, I3)" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "recette-check-"));

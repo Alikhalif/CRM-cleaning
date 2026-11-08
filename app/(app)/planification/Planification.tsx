@@ -791,7 +791,7 @@ function Row({
 
   return (
     <tr data-status={dossier.status}>
-      <td>
+      <td data-label="Dossier">
         <Link href={`/leads/${lead.id}`} className={styles.dossierClient}>
           {lead.client}
         </Link>
@@ -864,7 +864,7 @@ function Row({
           <span className={styles.muted}>—</span>
         )}
       </td>
-      <td>
+      <td data-label="Drapeaux">
         <div className={styles.flagsCell}>
           {dossier.flags.length === 0 ? (
             <span className={styles.muted}>—</span>
@@ -882,7 +882,7 @@ function Row({
           </p>
         )}
       </td>
-      <td className={styles.actionsCell}>
+      <td className={styles.actionsCell} data-label="Actions">
         <div className={styles.actionsWrap}>
         {finaleDoc ? (
           <Link

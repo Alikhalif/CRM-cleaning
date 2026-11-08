@@ -155,12 +155,12 @@ export default async function DocumentView({ detail }: Props) {
             <tbody>
               {doc.lines.map((line) => (
                 <tr key={line.id}>
-                  <td>{line.label}</td>
-                  <td className={styles.tNum}>{line.quantity}</td>
-                  <td>{line.unit}</td>
-                  <td className={styles.tNum}>{formatEUR(line.unitPriceHt)}</td>
-                  <td className={styles.tNum}>{line.vatRate} %</td>
-                  <td className={styles.tNum}>{formatEUR(line.totalHt)}</td>
+                  <td data-label="Description">{line.label}</td>
+                  <td className={styles.tNum} data-label="Qté">{line.quantity}</td>
+                  <td data-label="Unité">{line.unit}</td>
+                  <td className={styles.tNum} data-label="P.U. HT">{formatEUR(line.unitPriceHt)}</td>
+                  <td className={styles.tNum} data-label="TVA">{line.vatRate} %</td>
+                  <td className={styles.tNum} data-label="Total HT">{formatEUR(line.totalHt)}</td>
                 </tr>
               ))}
             </tbody>

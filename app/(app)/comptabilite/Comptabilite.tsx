@@ -413,14 +413,14 @@ function Row({
 
   return (
     <tr data-status={doc.status}>
-      <td className={styles.mono}>
+      <td className={styles.mono} data-label="Numéro">
         <Link href={docHref} className={styles.numLink}>{doc.num}</Link>
       </td>
       <td data-label="Client">
         <div className={styles.clientName}>{lead.client}</div>
         <div className={styles.muted}>{lead.city}</div>
       </td>
-      <td>
+      <td data-label="Société émettrice">
         <span className={styles.entityRow}>
           <span
             className={styles.entityDot}
@@ -431,7 +431,12 @@ function Row({
         </span>
       </td>
       <td className={styles.colDate} data-label="Émis">{DATE.format(issued)}</td>
-      <td className={styles.colDate}>{DATE.format(validUntil)}</td>
+      {/* L'en-tête dit « Validité » pour un devis et « Échéance » pour une
+          facture, mais `tabType` n'est pas dans la portée de cette ligne.
+          Plutôt que de le faire descendre en propriété pour un intitulé, on
+          porte les deux : en mode carte, la mention reste juste quel que soit
+          l'onglet. */}
+      <td className={styles.colDate} data-label="Validité / Échéance">{DATE.format(validUntil)}</td>
       <td data-label="Activité">
         <span
           className={styles.activityPill}
@@ -440,7 +445,7 @@ function Row({
           {SECTOR_LABEL[lead.sector]}
         </span>
       </td>
-      <td>
+      <td data-label="Intervenant">
         {row.dossier?.technicianId ? (
           <div className={styles.intervenantCell}>
             <span
@@ -464,14 +469,14 @@ function Row({
           <span className={styles.muted}>—</span>
         )}
       </td>
-      <td className={styles.tNum}>{formatEUR(totalHt)}</td>
+      <td className={styles.tNum} data-label="Total HT">{formatEUR(totalHt)}</td>
       <td className={styles.tNum} data-label="Montant TTC">{formatEUR(doc.totalTtc)}</td>
       <td data-label="Statut">
         <span className={styles.statusPill} data-status={doc.status}>
           {DOC_STATUS_LABEL[doc.status]}
         </span>
       </td>
-      <td className={styles.actionsCell}>
+      <td className={styles.actionsCell} data-label="Actions">
         <div className={styles.actionsAnchor}>
           <button
             type="button"

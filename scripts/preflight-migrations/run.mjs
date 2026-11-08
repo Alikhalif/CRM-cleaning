@@ -28,7 +28,7 @@
 // secret ne transite par la conversation, et le script n'ouvre jamais ce
 // fichier lui-même.
 
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -70,7 +70,20 @@ console.log(`Client                  : ${psql.version}`);
 
 // ── Vérifier la connexion, sans jamais demander de mot de passe ──────
 
-const ENV_PSQL = { ...process.env, PGCONNECT_TIMEOUT: "5", PGCLIENTENCODING: "UTF8" };
+// ⚠️ L'UTILISATEUR DOIT ÊTRE EXPLICITE, et son absence a produit un faux
+// diagnostic au premier essai : psql se connecte par défaut sous le nom de
+// l'utilisateur du SYSTÈME (`dell` ici), qui n'existe pas comme rôle
+// PostgreSQL. Le journal du serveur disait « Le rôle « dell » n'existe pas »
+// — et l'instruction que j'allais donner (un mot de passe pour `postgres`)
+// n'aurait rien débloqué.
+const UTILISATEUR = process.env.PGUSER?.trim() || "postgres";
+
+const ENV_PSQL = {
+  ...process.env,
+  PGUSER: UTILISATEUR,
+  PGCONNECT_TIMEOUT: "5",
+  PGCLIENTENCODING: "UTF8",
+};
 
 function psqlExec(base, args, sql) {
   return spawnSync(
@@ -100,19 +113,29 @@ if (test.status !== 0) {
   console.error((test.stderr || "").trim().split("\n").slice(0, 3).join("\n"));
   console.error(ligne);
   console.error("");
-  console.error("Ce qu'il faut faire — une seule fois, et SANS me transmettre quoi que");
-  console.error("ce soit. Créez le fichier :");
+  console.error(`Utilisateur essayé      : ${UTILISATEUR}`);
   console.error("");
-  console.error("    %APPDATA%\\postgresql\\pgpass.conf");
+  console.error("DEUX FAÇONS DE DÉBLOQUER, et la première ne laisse RIEN derrière elle.");
   console.error("");
-  console.error("avec une seule ligne :");
+  console.error("── Option A — rien n'est écrit sur le disque (recommandée) ──────");
   console.error("");
-  console.error("    localhost:5432:*:postgres:VOTRE_MOT_DE_PASSE");
+  console.error("  Dans VOTRE terminal, le temps de cette session seulement :");
   console.error("");
-  console.error("psql le lit tout seul. Ce script ne l'ouvre jamais, et le mot de passe");
-  console.error("n'apparaît ni dans la conversation, ni dans le dépôt, ni dans un journal.");
+  console.error("      $env:PGPASSWORD = \"<mot de passe de postgres>\"");
+  console.error("      npm run preflight");
   console.error("");
-  console.error("Puis relancez : npm run preflight");
+  console.error("  Le mot de passe vit dans votre session et disparaît en la fermant.");
+  console.error("  La sortie, elle, ne contient AUCUN secret : des noms de migrations");
+  console.error("  et des messages d'erreur. Vous pouvez la coller telle quelle.");
+  console.error("");
+  console.error("── Option B — un fichier, si vous voulez que je puisse relancer ──");
+  console.error("");
+  console.error("      %APPDATA%\\postgresql\\pgpass.conf");
+  console.error(`      localhost:5432:*:${UTILISATEUR}:VOTRE_MOT_DE_PASSE`);
+  console.error("");
+  console.error("  psql le lit tout seul. Ce script ne l'ouvre jamais.");
+  console.error("");
+  console.error("Si votre rôle n'est pas « postgres », posez PGUSER avant de relancer.");
   process.exit(2);
 }
 console.log(`Serveur                 : ${(test.stdout || "").trim().split(",")[0]}`);

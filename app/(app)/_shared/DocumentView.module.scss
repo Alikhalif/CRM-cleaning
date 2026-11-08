@@ -419,3 +419,42 @@
     margin: 0;
   }
 }
+
+// ── Bascule en cartes (<=1024 px) ────────────────────────────────────
+//
+// Les six cellules des lignes de document portent desormais leur
+// `data-label` (anomalie I2). Sans cette regle, l'attribut ne servirait a
+// rien : le tableau resterait un tableau, illisible sur un telephone.
+//
+// Calquee sur l'implementation de reference, `SuiviCommercial.module.scss`,
+// que CLAUDE.md designe comme la reference des six regles responsives. La
+// regle est SCOPEE sous `.lines` : hors de cette classe, elle ne s'applique
+// a aucun autre tableau de l'ecran.
+@media (max-width: 1024px) {
+  .lines {
+    thead { display: none; }
+    tbody, tr, td { display: block; width: 100%; }
+    tr {
+      border-bottom: 1px solid var(--border-subtle);
+      padding: var(--sp-2) 0;
+    }
+    td {
+      border: 0;
+      padding: 4px var(--sp-3);
+      display: flex;
+      justify-content: space-between;
+      gap: var(--sp-3);
+      text-align: left;
+      &::before {
+        content: attr(data-label);
+        font-size: var(--fs-xs);
+        color: var(--text-muted);
+        text-transform: uppercase;
+      }
+    }
+    // Les colonnes numeriques sont alignees a droite en tableau : en mode
+    // carte, la valeur se place en fin de ligne par `space-between`, et
+    // l'alignement du texte redevient naturel.
+    .tNum { text-align: left; }
+  }
+}
