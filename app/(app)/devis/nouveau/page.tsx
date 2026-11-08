@@ -1,4 +1,5 @@
 import NouveauDevis from "./NouveauDevis";
+import { hasScope } from "@/lib/access-server";
 import { getDevisPageData } from "@/lib/devis/prefill";
 import { identitePourLead } from "@/lib/devis/entite-emettrice";
 import { lireReglageGabarits } from "@/lib/devis/reglage-gabarits-server";
@@ -53,6 +54,7 @@ export default async function NouveauDevisPage({ searchParams }: PageProps) {
       vars={vars}
       template={template}
       societe={identite?.enseigne || null}
+      peutFacturer={await hasScope("backOffice")}
     />
   );
 }

@@ -44,7 +44,7 @@ export default async function PipelinePage() {
       <PipelineShell
         rows={suivi.rows}
         kanban={
-          <PipelineBoard initialLeads={leads} commerciaux={commerciaux} visibleSectors={visibleSectors} />
+          <PipelineBoard initialLeads={leads} commerciaux={commerciaux} visibleSectors={visibleSectors} peutEncaisser={isAdmin || isPlanner} />
         }
       />
     </div>

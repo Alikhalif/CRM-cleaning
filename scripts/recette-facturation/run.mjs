@@ -21,6 +21,9 @@ try {
       join(racine, "node_modules", "esbuild", "bin", "esbuild"),
       join(ici, "concurrence.ts"),
       "--bundle", "--platform=node", "--format=cjs", "--alias:@=.",
+      // Le moteur des actions est un module serveur : `server-only` est un garde
+      // de COMPILATION Next, neutralisé ici comme dans les autres vérificateurs.
+      "--alias:server-only=./scripts/recette-check/stubs/server-only.ts",
       `--outfile=${bundle}`, "--log-level=warning",
     ],
     { cwd: racine, stdio: ["ignore", "inherit", "inherit"] },

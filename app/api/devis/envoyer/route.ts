@@ -3,6 +3,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { genererDevisBuffer } from "@/lib/devis/render";
 import { buildDevis, type DevisInput, type DocType } from "@/lib/devis/types";
 import { allocateNumero } from "@/lib/devis/numero";
+import { hasScope } from "@/lib/access-server";
 import { archiveDevis } from "@/lib/devis/archive";
 import { envoyerDevisEmail } from "@/lib/devis/email";
 import { markDevisSentToClient } from "@/app/(app)/pipeline/actions";
@@ -62,6 +63,17 @@ export async function POST(request: Request) {
 
   const docType: DocType =
     body.docType === "facture" || input.docType === "facture" ? "facture" : "devis";
+
+  // D28 · D30 (2026-11-09) — une FACTURE OPTIMIVV ne s'émet qu'au back-office.
+  // Jusqu'ici, toute session — commercial compris — obtenait un numéro FAC
+  // définitif et un PDF de facture par simple appel. Le devis, lui, reste au
+  // commercial : rien ne change pour son parcours.
+  if (docType === "facture" && !(await hasScope("backOffice"))) {
+    return NextResponse.json(
+      { ok: false, error: "facture_reservee_back_office" },
+      { status: 403 },
+    );
+  }
 
   // Secteur du lead → pilote le domaine des liens (devis) ET l'expéditeur
   // (devis + facture). Lecture lancée en parallèle de la génération du PDF.

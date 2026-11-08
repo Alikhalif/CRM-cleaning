@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
 import { assertAdmin } from "@/lib/access-server";
+import { lireSeries } from "@/lib/facturation/series-server";
+import { verifierSaisieSerie } from "@/lib/facturation/series-shared";
 import {
   decryptField,
   encryptField,
@@ -251,4 +253,50 @@ export async function modifierCoordonneesBancaires(
   revalidatePath("/devis");
 
   return { ok: true, id: entityId };
+}
+
+// ── Série de factures d'une société (D26, décision du client du 2026-11-09) ──
+// Super Admin seul, comme les coordonnées bancaires : la série porte la
+// numérotation légale de la société. La base garde les invariants (format,
+// code unique, série active ou employée immuable — 20261109000003) ; cette
+// action les vérifie AVANT, pour un message clair, puis trace.
+export async function definirSerieFacturation(
+  entityId: string,
+  input: { code: string; depuis: string },
+): Promise<{ ok: true; signalements: string[] } | { ok: false; error: string }> {
+  const droit = await assertAdmin();
+  if (!droit.ok) return { ok: false, error: droit.error };
+
+  const { migrationAppliquee, series } = await lireSeries();
+  if (!migrationAppliquee) {
+    return { ok: false, error: "La migration des séries (20261109000003) n'est pas appliquée sur cette base." };
+  }
+  const cible = series.find((s) => s.id === entityId);
+  if (!cible) return { ok: false, error: "Société introuvable." };
+
+  const verdict = verifierSaisieSerie(input, {
+    pays: cible.pays,
+    serieActive: cible.active || cible.employee,
+    codesPris: series.filter((s) => s.id !== entityId && s.code).map((s) => s.code as string),
+  });
+  if (!verdict.ok) return { ok: false, error: verdict.erreur };
+
+  const supabase = await supabaseServer();
+  const { error } = await supabase
+    .from("legal_entities")
+    .update({ code_numerotation: verdict.code, numerotation_depuis: verdict.depuis } as never)
+    .eq("id", entityId);
+  if (error) return { ok: false, error: `Série refusée : ${error.message}` };
+
+  await auditLog({
+    action: "entity.invoice_series.set",
+    // Même convention que les autres actions sur les sociétés (IBAN compris) :
+    // `AuditEntityType` n'a pas de valeur « société » ; l'élargir toucherait la base.
+    entityType: "user",
+    entityId,
+    before: { code: cible.code, depuis: cible.depuis },
+    after: { code: verdict.code, depuis: verdict.depuis },
+  });
+  revalidatePath("/settings/entities");
+  return { ok: true, signalements: verdict.signalements };
 }

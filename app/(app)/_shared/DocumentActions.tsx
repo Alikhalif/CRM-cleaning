@@ -34,7 +34,7 @@ type Props = {
   lead: Lead;
   entity: LegalEntity;
   emailTemplates?: MessageTemplate[];
-  /** Back-office : peut émettre une facture brouillon (2026-11-09). */
+  /** Back-office : émet une facture brouillon, et valide son encaissement (D29). */
   peutEmettre?: boolean;
   /** Super Admin : peut annuler une facture émise, motif à l'appui. */
   peutAnnuler?: boolean;
@@ -305,7 +305,7 @@ export default function DocumentActions({
           </button>
         )}
 
-        {isInvoice && !isPaid && !isInvoiceDraft && !annulee && (
+        {isInvoice && !isPaid && !isInvoiceDraft && !annulee && peutEmettre && (
           <button
             type="button"
             className={`${styles.btn} ${styles.btnSuccess}`}

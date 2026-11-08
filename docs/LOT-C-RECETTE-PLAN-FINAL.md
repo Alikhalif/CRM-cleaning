@@ -87,16 +87,17 @@ autorisation.
 | 3 | Écrire `.env.recette` (dont `CGK_ENV=recette` et `CGK_SUPABASE_URL_PRODUCTION`) | **vous** | — |
 | 4 | `npm run verif:cible -- .env.recette` → me coller la sortie | vous | — |
 | 5 | Lier la CLI à la recette (`npx supabase link --project-ref <recette>`) | **vous** | — |
-| 6 | `npm run migrer:recette` — **simulation** : liste les 181 migrations | moi | — |
+| 6 | `npm run migrer:recette` — **simulation** : liste les 183 migrations | moi | — |
 | 7 | `npm run migrer:recette -- --appliquer` | moi | **oui, explicite** |
 | 8 | Jouer `supabase/recette/00_marqueur_environnement.sql` dans l'éditeur SQL **de la recette** | vous | — |
 | 9 | Charger les semences fictives | moi | oui |
 | 10 | Inscrire les six comptes, **l'administrateur en premier** | **vous** | — |
 | 11 | Jouer `supabase/recette/10_comptes_de_test.sql` | vous | — |
-| 12 | `npm run recette:facturation` — test de concurrence réel | moi | — |
-| 13 | Recette fonctionnelle : parties C1 à C18 du registre, par rôle et par pays | vous + moi | — |
+| 12 | Ajouter à `.env.recette` les identifiants de **deux** comptes de test (`CGK_TEST_COMMERCIAL_*`, `CGK_TEST_PLANIFICATION_*` — gabarit fourni) : ils servent au refus d'encaissement **par rôle**, en base | **vous** | — |
+| 13 | `npm run recette:facturation` — 8 sections réelles : brouillon, double clic, simultanéité, facture figée, annulation, **cinq pays**, **encaissement par rôle**, **notifications** | moi | — |
+| 14 | Recette fonctionnelle : parties C1 à C23 du registre, par rôle et par pays | vous + moi | — |
 
-**181 migrations** = les 177 existantes + les 4 du 9 novembre. Elles n'ont
+**183 migrations** = les 177 existantes + les 6 du 9 novembre (`…01` à `…06`). Elles n'ont
 **jamais** été rejouées depuis une base vide (E7) : l'étape 7 est celle dont la
 durée est imprévisible. Si une migration échoue, **on s'arrête**, on corrige le
 fichier dans le dépôt, on recrée la recette. Jamais de correction à la main dans

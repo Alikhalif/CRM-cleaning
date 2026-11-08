@@ -336,3 +336,22 @@
     }
   }
 }
+
+// Délais d'escalade (2026-11-09). Bascule en cartes ≤1024 px, SCOPÉE à ce
+// tableau (convention du projet) ; cibles de 44 px ≤768 px.
+.tableDelais {
+  width: 100%;
+  border-collapse: collapse;
+  th, td { padding: var(--sp-2); text-align: left; border-bottom: 1px solid var(--border-subtle); }
+  input { width: 7rem; }
+
+  @media (max-width: 1024px) {
+    thead { display: none; }
+    tr { display: block; padding: var(--sp-2) 0; border-bottom: 1px solid var(--border-subtle); }
+    td { display: flex; justify-content: space-between; gap: var(--sp-3); border: 0; }
+    td::before { content: attr(data-label); color: var(--text-secondary); }
+  }
+  @media (max-width: 768px) {
+    input { min-height: 44px; }
+  }
+}

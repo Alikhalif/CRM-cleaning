@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { evaluate } from "@/lib/presence/alerts-server";
 import { evaluateCommercialActions } from "@/lib/commercial-actions/engine-server";
 import { evaluateDocumentAlerts } from "@/lib/documents/alerts-server";
+import { evaluerActionsBackOffice } from "@/lib/actions-back-office/engine-server";
 import { isCurrentUserAdmin } from "@/lib/presence/guard";
 import { rattraperArchivages, rejouerFile } from "@/lib/docusign/notifications-server";
 import { purgerEtatsOAuth } from "@/lib/docusign/oauth-server";
@@ -119,7 +120,19 @@ async function run(request: Request) {
     docusign = { ok: false, error: (e as Error).message };
   }
 
-  return NextResponse.json({ ...result, commercial, documents, docusign });
+  // 5e passe (2026-11-09) — actions attendues du back-office : rattrapage de
+  // ce que l'évaluation immédiate aurait manqué, et ESCALADES au Super Admin
+  // (délais paramétrables). Isolée comme les autres : son échec, ou l'absence
+  // de sa migration (20261109000006), n'arrête aucune autre passe.
+  let backOffice: unknown = { ok: false, skipped: true };
+  try {
+    backOffice = await evaluerActionsBackOffice();
+  } catch (e) {
+    console.error("[actions-back-office.evaluate] échec :", (e as Error).message);
+    backOffice = { ok: false, error: (e as Error).message };
+  }
+
+  return NextResponse.json({ ...result, commercial, documents, docusign, backOffice });
 }
 
 export async function POST(request: Request) {

@@ -80,9 +80,11 @@ type Props = {
   intervenantTemplates: MessageTemplate[];
   smsTemplates: MessageTemplate[];
   canUseRingover: boolean;
+  /** Actions attendues (composant serveur, rendu par la page) — 2026-11-09. */
+  actionsAttendues?: React.ReactNode;
 };
 
-export default function Planification({ initialRows, technicians, intervenantTemplates, smsTemplates, canUseRingover }: Props) {
+export default function Planification({ initialRows, technicians, intervenantTemplates, smsTemplates, canUseRingover, actionsAttendues }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [search, setSearch] = useState("");
@@ -370,6 +372,8 @@ Motif obligatoire :`);
           </p>
         </div>
       </header>
+
+      {actionsAttendues}
 
       {serverError && (
         <p className={styles.errorBanner} role="alert">

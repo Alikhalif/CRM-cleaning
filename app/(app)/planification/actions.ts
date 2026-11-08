@@ -8,6 +8,7 @@ import { getLeadMedia, type LeadMedia } from "@/lib/media-server";
 import { ensureOptimivvFactureForLead } from "@/lib/devis/facture-from-optimivv";
 import type { Database } from "@/lib/supabase/database.types";
 import { assertBackOffice } from "@/lib/access-server";
+import { declencherActionsBackOffice } from "@/lib/actions-back-office/declencher";
 import { calculerFinale } from "@/lib/facturation/finale-shared";
 
 // Dossier mutations exposed to the Planification page. Each one is a small
@@ -94,6 +95,7 @@ export async function editDossier(id: string, input: EditDossierInput): Promise<
 export async function planifyDossier(id: string, input: PlanifyInput): Promise<Result> {
   const access = await assertBackOffice();
   if (!access.ok) return access;
+  declencherActionsBackOffice(); // alerte immédiate (idempotent)
   if (!input.plannedAt) return { ok: false, error: "Date d'intervention requise." };
   if (input.durationHours !== null && (input.durationHours <= 0 || input.durationHours > 999)) {
     return { ok: false, error: "Durée invalide (0–999 h)." };
@@ -145,6 +147,7 @@ export async function startDossierRealisation(id: string): Promise<Result> {
 export async function finalizeDossier(id: string): Promise<Result> {
   const access = await assertBackOffice();
   if (!access.ok) return access;
+  declencherActionsBackOffice(); // alerte immédiate (idempotent)
   const supabase = await supabaseServer();
   const updates: DossierUpdate = {
     status: "finalise",
@@ -176,6 +179,7 @@ export async function finalizeDossier(id: string): Promise<Result> {
 export async function validerIntervention(id: string, commentaire?: string): Promise<Result> {
   const access = await assertBackOffice();
   if (!access.ok) return access;
+  declencherActionsBackOffice(); // alerte immédiate (idempotent)
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Session expirée." };
@@ -219,6 +223,7 @@ export async function validerIntervention(id: string, commentaire?: string): Pro
 export async function annulerValidationIntervention(id: string, motif: string): Promise<Result> {
   const access = await assertBackOffice();
   if (!access.ok) return access;
+  declencherActionsBackOffice(); // alerte immédiate (idempotent)
   if (!motif?.trim()) return { ok: false, error: "Le motif de l'annulation est obligatoire." };
   const supabase = await supabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
@@ -280,6 +285,7 @@ export async function annulerValidationIntervention(id: string, motif: string): 
 export async function soldDossier(id: string): Promise<Result> {
   const access = await assertBackOffice();
   if (!access.ok) return access;
+  declencherActionsBackOffice(); // alerte immédiate (idempotent)
   const supabase = await supabaseServer();
 
   const { data: dossier } = await supabase
@@ -338,6 +344,7 @@ export type GenerateFinaleResult =
 export async function generateFactureFinale(dossierId: string): Promise<GenerateFinaleResult> {
   const access = await assertBackOffice();
   if (!access.ok) return access;
+  declencherActionsBackOffice(); // alerte immédiate (idempotent)
   const supabase = await supabaseServer();
 
   const { data: dossier, error: dossierErr } = await supabase
@@ -557,6 +564,7 @@ export async function markAcomptePaid(
 ): Promise<Result> {
   const access = await assertBackOffice();
   if (!access.ok) return access;
+  declencherActionsBackOffice(); // alerte immédiate (idempotent)
   const supabase = await supabaseServer();
 
   const docUpdate: DocumentUpdate = {

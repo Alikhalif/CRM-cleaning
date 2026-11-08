@@ -34,6 +34,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { bloquants, evaluerCible, modeEffectif, type Config } from "@/lib/env/cible";
+import { aujourdhuiLegal } from "@/lib/facturation/series-shared";
+import { evaluerActionsBackOffice } from "@/lib/actions-back-office/engine-server";
 
 const CODE = "TSTCONC";
 const ANNEE = new Date().getFullYear();
@@ -149,6 +151,7 @@ async function main() {
     const r = await sb.from("legal_entities").insert({
       legal_name: "SOCIÉTÉ FICTIVE — TEST CONCURRENCE", legal_form: "SAS", siret: "00000000000000",
       address: { line1: "1 rue du Test", postal_code: "75000", city: "Paris" }, code_numerotation: CODE,
+      country: "FR", numerotation_depuis: aujourdhuiLegal("FR"),
     }).select("id").single();
     if (r.error) throw new Error(`société fictive : ${r.error.message}`);
     ent = r.data;
@@ -213,8 +216,137 @@ async function main() {
   const { data: garde } = await sb.from("documents").select("num").eq("id", aAnnuler).single();
   vrai("la facture annulée garde son numéro", (garde as { num: string } | null)?.num === nums[1]);
 
+
+  console.log("\n6. CINQ PAYS — cinq séries indépendantes, émissions croisées simultanées");
+  const PAYS = ["FR", "CH", "LU", "BE", "CA"] as const;
+  const entites: Record<string, string> = {};
+  for (const p of PAYS) {
+    const code = `TST${p}`;
+    let { data: e } = await sb.from("legal_entities").select("id").eq("code_numerotation", code).maybeSingle();
+    if (!e) {
+      const r = await sb.from("legal_entities").insert({
+        legal_name: `SOCIÉTÉ FICTIVE ${p} — TEST`, legal_form: "SAS", siret: "00000000000000",
+        address: { line1: "1 rue du Test", postal_code: "00000", city: "Test" },
+        country: p, code_numerotation: code, numerotation_depuis: aujourdhuiLegal(p),
+      }).select("id").single();
+      if (r.error) throw new Error(`société ${p} : ${r.error.message}`);
+      e = r.data;
+    }
+    entites[p] = (e as { id: string }).id;
+  }
+  const brouillons: { pays: string; id: string }[] = [];
+  for (const p of PAYS) for (let i = 0; i < 3; i++) brouillons.push({ pays: p, id: (await brouillon(sb, entites[p])).id });
+  const emis = await Promise.all(brouillons.map(async (x) => ({ pays: x.pays, r: await emettre(sb, x.id) })));
+  vrai("les 15 émissions croisées ont abouti", emis.every((x) => !x.r.error && (x.r.data?.length ?? 0) === 1));
+  for (const p of PAYS) {
+    const nums = emis.filter((x) => x.pays === p).map((x) => (x.r.data?.[0] as { num: string } | undefined)?.num ?? "");
+    vrai(`${p} : les 3 numéros portent le code de SA société`, nums.every((n) => n.startsWith(`FAC-TST${p}-`)), nums.join(", "));
+    const n = nums.map(ESC).sort((a, z) => a - z);
+    vrai(`${p} : consécutifs dans SA série, sans trou`, n.every((v, i) => i === 0 || v === n[i - 1] + 1), n.join(","));
+  }
+  const tous = emis.map((x) => (x.r.data?.[0] as { num: string } | undefined)?.num ?? "");
+  vrai("aucun numéro partagé entre deux sociétés", new Set(tous).size === tous.length);
+  await refuse("changer le code d'une série qui a servi : refusé", sb.from("legal_entities").update({ code_numerotation: "TSTXX" }).eq("id", entites.FR));
+
+  console.log("\n7. ENCAISSEMENT — refus en base selon le RÔLE (comptes de test)");
+  const ident = (r: string) => ({ email: env[`CGK_TEST_${r}_EMAIL`], mdp: env[`CGK_TEST_${r}_MOT_DE_PASSE`] });
+  const com = ident("COMMERCIAL");
+  const pla = ident("PLANIFICATION");
+  if (!com.email || !com.mdp || !pla.email || !pla.mdp) {
+    console.log("  NON EXÉCUTÉE — CGK_TEST_COMMERCIAL_* et CGK_TEST_PLANIFICATION_* absents de .env.recette.");
+    console.log("  (Mots de passe des comptes de test : chez vous seulement, jamais dans le dépôt.)");
+  } else {
+    const anon = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const session = async (e: string, m: string) => {
+      const cl = createClient(url, anon, { auth: { persistSession: false } });
+      const { data, error } = await cl.auth.signInWithPassword({ email: e, password: m });
+      if (error || !data.user) throw new Error(`connexion ${e} : ${error?.message}`);
+      return { cl, uid: data.user.id };
+    };
+    const C = await session(com.email, com.mdp);
+    const Pl = await session(pla.email, pla.mdp);
+    // Un lead DU commercial, et une facture émise sur ce lead : la RLS lui en
+    // donne l'écriture — c'est précisément ce que le trigger doit arrêter.
+    const { data: lead, error: lErr } = await sb.from("leads").insert({
+      short_id: `T-${Date.now()}`, owner_id: C.uid, client_last_name: "Fictif", status: "signe",
+    }).select("id").single();
+    if (lErr || !lead) throw new Error(`lead de test : ${lErr?.message}`);
+    const leadId = (lead as { id: string }).id;
+    const { data: fac, error: fErr } = await sb.from("documents").insert({
+      type: "finale", num: "", status: "brouillon", entity_id: entite, lead_id: leadId,
+      total_ht: 100, total_vat: 20, total_ttc: 120,
+    }).select("id").single();
+    if (fErr || !fac) throw new Error(`facture de test : ${fErr?.message}`);
+    const facId = (fac as { id: string }).id;
+    await sb.from("document_lines").insert({ document_id: facId, label: "Ligne", quantity: 1, unit: "u", unit_price_ht: 100, vat_rate: 20, discount_pct: 0, total_ht: 100, order_index: 0 });
+    await emettre(sb, facId);
+
+    const vu = await C.cl.from("documents").select("status").eq("id", facId).maybeSingle();
+    vrai("le commercial VOIT sa facture et son état de paiement", !vu.error && !!vu.data);
+    await refuse("le commercial ne la marque PAS payée (refus en base)", C.cl.from("documents").update({ status: "paye", paid_at: new Date().toISOString() }).eq("id", facId));
+    await refuse("le commercial ne passe PAS son lead à « encaissé » (refus en base)", C.cl.from("leads").update({ status: "encaisse" }).eq("id", leadId));
+    const okPl = await Pl.cl.from("documents").update({ status: "paye", paid_at: new Date().toISOString() }).eq("id", facId).select("id");
+    vrai("la planification, elle, valide l'encaissement", !okPl.error && (okPl.data?.length ?? 0) === 1, okPl.error?.message);
+  }
+
+
+  console.log("\n8. NOTIFICATIONS — naissance, persistance, statut, escalade (moteur réel)");
+  // Le moteur lit l'environnement au moment de l'appel : on lui donne celui
+  // de la RECETTE, déjà vérifiée par les deux verrous ci-dessus.
+  process.env.NEXT_PUBLIC_SUPABASE_URL = url;
+  process.env.SUPABASE_SERVICE_ROLE_KEY = cle;
+  const { data: ld, error: ldErr } = await sb.from("leads").insert({
+    short_id: `N-${Date.now()}`, client_last_name: "Notification", country: "FR", status: "signe",
+  }).select("id").single();
+  if (ldErr || !ld) throw new Error(`lead : ${ldErr?.message}`);
+  const { data: dos, error: dErr } = await sb.from("dossiers").insert({ lead_id: (ld as { id: string }).id, status: "finalise" })
+    .select("id").single();
+  if (dErr || !dos) throw new Error(`dossier : ${dErr?.message}`);
+  const dossierId = (dos as { id: string }).id;
+  const cleAValider = `dossier.a_valider:${dossierId}`;
+  const ouvertes = async (c: string) =>
+    ((await sb.from("actions_back_office").select("id").eq("cle", c).is("fermee_at", null)).data ?? []).length;
+
+  const b1 = await evaluerActionsBackOffice();
+  vrai("passe 1 : le moteur tourne", b1.ok, b1.ok ? "" : b1.raison);
+  vrai("intervention terminée → action « à valider » OUVERTE", (await ouvertes(cleAValider)) === 1);
+  await evaluerActionsBackOffice();
+  vrai("passe 2 : toujours UNE seule action (aucun doublon)", (await ouvertes(cleAValider)) === 1);
+  const [p1, p2] = await Promise.all([evaluerActionsBackOffice(), evaluerActionsBackOffice()]);
+  vrai("deux passes SIMULTANÉES : toujours une seule", p1.ok && p2.ok && (await ouvertes(cleAValider)) === 1);
+
+  const { data: notifs } = await sb.from("notifications").select("id, user_id").eq("kind", "action.dossier.a_valider").eq("entity_id", dossierId);
+  const parUtilisateur = new Map<string, number>();
+  for (const n of (notifs ?? []) as { user_id: string }[]) parUtilisateur.set(n.user_id, (parUtilisateur.get(n.user_id) ?? 0) + 1);
+  vrai("chaque planificateur du pays notifié UNE fois, malgré quatre passes", [...parUtilisateur.values()].every((v) => v === 1));
+  if ((notifs ?? []).length === 0) console.log("  info  aucun planificateur ne couvre FR sur cette recette : aucune notification attendue");
+
+  await sb.from("notifications").update({ read_at: new Date().toISOString() }).eq("entity_id", dossierId);
+  await evaluerActionsBackOffice();
+  vrai("notification LUE : l'action reste OUVERTE", (await ouvertes(cleAValider)) === 1);
+
+  const futur = new Date(Date.now() + 49 * 3_600_000);
+  const be = await evaluerActionsBackOffice(futur);
+  const { data: esc } = await sb.from("actions_back_office").select("escaladee_at").eq("cle", cleAValider).is("fermee_at", null).single();
+  vrai("passé le délai : ESCALADÉE au Super Admin, et toujours ouverte", be.ok && !!(esc as { escaladee_at: string | null } | null)?.escaladee_at);
+  await evaluerActionsBackOffice(new Date(futur.getTime() + 3_600_000));
+  const { data: escN } = await sb.from("notifications").select("user_id").eq("kind", "action.escalade").eq("entity_id", dossierId);
+  const escParAdmin = new Map<string, number>();
+  for (const n of (escN ?? []) as { user_id: string }[]) escParAdmin.set(n.user_id, (escParAdmin.get(n.user_id) ?? 0) + 1);
+  vrai("l'escalade est notifiée aux administrateurs", escParAdmin.size >= 1);
+  vrai("… UNE fois chacun, malgré une seconde passe après le délai", [...escParAdmin.values()].every((v) => v === 1));
+
+  const v = await sb.from("dossiers").update({ status: "valide" }).eq("id", dossierId);
+  vrai("changement de statut : terminée → validée", !v.error, v.error?.message);
+  await evaluerActionsBackOffice();
+  vrai("l'action « à valider » se FERME d'elle-même", (await ouvertes(cleAValider)) === 0);
+  const { data: fermee } = await sb.from("actions_back_office").select("raison_fermeture").eq("cle", cleAValider).not("fermee_at", "is", null).single();
+  vrai("… pour la raison « action effectuée »", (fermee as { raison_fermeture: string } | null)?.raison_fermeture === "action_effectuee");
+  vrai("… et l'action suivante naît : « facture à préparer »", (await ouvertes(`facture.a_preparer:${dossierId}`)) === 1);
+  await refuse("une action fermée ne se rouvre pas", sb.from("actions_back_office").update({ fermee_at: null, raison_fermeture: null }).eq("cle", cleAValider).not("fermee_at", "is", null));
+  await refuse("une action ne se supprime pas", sb.from("actions_back_office").delete().eq("cle", cleAValider));
+
   console.log(`\n${ok} ok · ${ko} échec(s)`);
-  console.log("⚠️ Non couvert ici : le refus selon le RÔLE (commercial, planification) exige les comptes de test — étape 8 du dossier de recette.");
   process.exit(ko === 0 ? 0 : 1);
 }
 

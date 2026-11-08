@@ -42,9 +42,21 @@ type Props = {
   commerciaux: Commercial[];
   // Secteurs visibles par l'utilisateur (restriction commerciale par activité).
   visibleSectors: Sector[];
+  /**
+   * D29 (décision du client du 2026-11-09) : seuls le back-office et le Super
+   * Admin valident un encaissement. Le commercial VOIT les colonnes
+   * « Acompte encaissé » et « Encaissement final » — elles reflètent la
+   * comptabilité — mais n'y glisse pas de carte. Le serveur et la base le
+   * refusent de toute façon ; ceci évite une erreur après coup.
+   */
+  peutEncaisser?: boolean;
 };
 
-export default function PipelineBoard({ initialLeads, commerciaux, visibleSectors }: Props) {
+const MESSAGE_ENCAISSEMENT =
+  "L'encaissement est validé par le back-office (planification ou Super Admin). "
+  + "La carte passera dans cette colonne dès que le paiement sera enregistré en comptabilité.";
+
+export default function PipelineBoard({ initialLeads, commerciaux, visibleSectors, peutEncaisser = false }: Props) {
   // Local state seeded from the server fetch. Optimistic updates apply
   // immediately; the server action runs in a transition and rolls back on
   // error.
@@ -118,6 +130,13 @@ export default function PipelineBoard({ initialLeads, commerciaux, visibleSector
     // Perdu (you can't "un-pay" or "un-lose" by drag).
     if (COLUMN_ORDER[currentCol] > COLUMN_ORDER[target] && target !== "lead" && target !== "envoye" && target !== "ouvert" && target !== "signe") {
       alert("Ce mouvement n'est pas autorisé (CDC §2.2 — pipeline monotone).");
+      return;
+    }
+
+    // D29 : un commercial ne valide pas un encaissement — on le lui dit au lieu
+    // de laisser le serveur refuser après un déplacement optimiste.
+    if ((target === "acompte_paye" || target === "encaisse") && !peutEncaisser) {
+      alert(MESSAGE_ENCAISSEMENT);
       return;
     }
 

@@ -1,4 +1,5 @@
 import Planification from "./Planification";
+import ActionsAttendues from "./ActionsAttendues";
 import { getAllDossiers, getAllTechnicians } from "@/lib/planification-server";
 import { getIntervenantTemplates, getActiveSmsTemplates } from "@/lib/message-templates-server";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -49,6 +50,7 @@ export default async function PlanificationPage() {
       intervenantTemplates={intervenantTemplates}
       smsTemplates={smsTemplates}
       canUseRingover={canUseRingover}
+      actionsAttendues={<ActionsAttendues />}
     />
   );
 }

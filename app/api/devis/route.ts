@@ -3,6 +3,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { genererDevisBuffer } from "@/lib/devis/render";
 import { buildDevis, type DevisInput, type DocType } from "@/lib/devis/types";
 import { allocateNumero, peekNumero } from "@/lib/devis/numero";
+import { hasScope } from "@/lib/access-server";
 import { verifierAvantCreation } from "@/lib/devis/garde-doublon";
 import { archiveDevis } from "@/lib/devis/archive";
 import { identitePourLead, versPrestataire } from "@/lib/devis/entite-emettrice";
@@ -137,12 +138,29 @@ export async function POST(request: Request) {
   const docType: DocType =
     body.docType === "facture" || input.docType === "facture" ? "facture" : "devis";
 
+  // D28 · D30 (2026-11-09) — une FACTURE OPTIMIVV ne s'émet qu'au back-office.
+  // Jusqu'ici, toute session — commercial compris — obtenait un numéro FAC
+  // définitif et un PDF de facture par simple appel. Le devis, lui, reste au
+  // commercial : rien ne change pour son parcours.
+  if (docType === "facture" && !(await hasScope("backOffice"))) {
+    return NextResponse.json(
+      { ok: false, error: "facture_reservee_back_office" },
+      { status: 403 },
+    );
+  }
+
   if (mode === "preview") {
     // L'aperçu affiche le PROCHAIN numéro de la série, lu sans l'incrémenter :
     // le commercial voit le numéro que portera le document, et la séquence
     // n'est pas brûlée par les régénérations à chaque frappe. Si la lecture
     // échoue, on retombe sur l'ancien libellé plutôt que de casser l'aperçu.
-    const numeroApercu = input.numero || (await peekNumero(docType)) || "APERÇU";
+    // D28 : l'aperçu d'une FACTURE ne porte JAMAIS un numéro qui ressemble à un
+    // numéro émis — téléchargé, il passerait pour une facture définitive. Le
+    // libellé « APERÇU » est le repli historique de ce champ : la mise en page
+    // (gelée) n'en est pas affectée. Le devis garde son aperçu numéroté.
+    const numeroApercu = docType === "facture"
+      ? "APERÇU"
+      : input.numero || (await peekNumero(docType)) || "APERÇU";
     // L'aperçu montre l'identité RÉELLE : sans cela, le commercial validerait
     // un document qui ne ressemble pas à celui qui partira. La garde n'est pas
     // appliquée ici — un aperçu ne s'émet pas.

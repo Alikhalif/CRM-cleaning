@@ -39,6 +39,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      actions_back_office: {
+        Row: {
+          pays: string | null
+          cle: string
+          detail: string | null
+          entity_id: string
+          entity_type: string
+          escaladee_at: string | null
+          fermee_at: string | null
+          href: string | null
+          id: string
+          ouverte_at: string
+          raison_fermeture: string | null
+          role_cible: string
+          titre: string
+          type: string
+        }
+        Insert: {
+          pays?: string | null
+          cle: string
+          detail?: string | null
+          entity_id: string
+          entity_type: string
+          escaladee_at?: string | null
+          fermee_at?: string | null
+          href?: string | null
+          id?: string
+          ouverte_at?: string
+          raison_fermeture?: string | null
+          role_cible: string
+          titre: string
+          type: string
+        }
+        Update: {
+          pays?: string | null
+          cle?: string
+          detail?: string | null
+          entity_id?: string
+          entity_type?: string
+          escaladee_at?: string | null
+          fermee_at?: string | null
+          href?: string | null
+          id?: string
+          ouverte_at?: string
+          raison_fermeture?: string | null
+          role_cible?: string
+          titre?: string
+          type?: string
+        }
+        Relationships: []
+      }
       activities: {
         Row: {
           acompte_pct: number
@@ -2045,6 +2096,12 @@ export type Database = {
         }
         Relationships: []
       }
+      facture_counters: {
+        Row: { doc_type: Database["public"]["Enums"]["document_type"]; entity_id: string; next_value: number; year: number }
+        Insert: { doc_type: Database["public"]["Enums"]["document_type"]; entity_id: string; next_value?: number; year: number }
+        Update: { doc_type?: Database["public"]["Enums"]["document_type"]; entity_id?: string; next_value?: number; year?: number }
+        Relationships: []
+      }
       dossier_validations: {
         Row: {
           action: string
@@ -2713,6 +2770,7 @@ export type Database = {
       }
       legal_entities: {
         Row: {
+          numerotation_depuis: string | null
           code_numerotation: string | null
           address: Json
           ape_code: string | null
@@ -2748,6 +2806,7 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          numerotation_depuis?: string | null
           code_numerotation?: string | null
           address: Json
           ape_code?: string | null
@@ -2783,6 +2842,7 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          numerotation_depuis?: string | null
           code_numerotation?: string | null
           address?: Json
           ape_code?: string | null
@@ -2907,6 +2967,21 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notifications_emises: {
+        Row: {
+          cle: string
+          emise_at: string
+        }
+        Insert: {
+          cle: string
+          emise_at?: string
+        }
+        Update: {
+          cle?: string
+          emise_at?: string
+        }
+        Relationships: []
       }
       notifications: {
         Row: {

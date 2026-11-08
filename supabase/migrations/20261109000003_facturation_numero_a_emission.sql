@@ -57,7 +57,12 @@
 
 -- ── 1. Code de numérotation par société (activation de la série dédiée) ──
 alter table legal_entities
-  add column if not exists code_numerotation text;
+  add column if not exists code_numerotation text,
+  -- Date d'EFFET de la série dédiée (D26, décision du 2026-11-09 : « la date
+  -- de bascule reste en attente »). Avant elle, la série historique continue :
+  -- on peut tout préparer — code, contrôles — et ne rien faire basculer avant
+  -- le jour choisi, de préférence un 1er janvier.
+  add column if not exists numerotation_depuis date;
 
 do $c$
 begin
@@ -69,13 +74,51 @@ begin
 end;
 $c$;
 
+do $c2$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'legal_entities_serie_complete') then
+    alter table legal_entities
+      add constraint legal_entities_serie_complete
+      check ((code_numerotation is null) = (numerotation_depuis is null));
+  end if;
+end;
+$c2$;
+
 create unique index if not exists uq_legal_entities_code_numerotation
   on legal_entities (code_numerotation)
   where code_numerotation is not null;
 
 comment on column legal_entities.code_numerotation is
-  'Active la série de factures PROPRE à la société (FA-<code>-AAAA-NNNN). '
+  'Série de factures PROPRE à la société (FA-<code>-AAAA-NNNN), effective à numerotation_depuis. '
   'NULL = série historique commune. À fixer avec l''expert-comptable, de préférence au 1er janvier.';
+
+-- ── 1 bis. Une série active ou déjà employée ne change plus ──────────────
+-- Changer le code d'une série qui a servi créerait une seconde série pour la
+-- même société ; avancer ou reculer sa date d'effet une fois atteinte
+-- réécrirait la frontière entre deux séries. Les deux sont refusés — y
+-- compris pour le service-role, qui ne contourne pas les triggers. Avant sa
+-- date d'effet et sans aucune facture, la série reste modifiable : c'est le
+-- temps de la préparer avec l'expert-comptable.
+create or replace function garder_serie_societe()
+returns trigger
+language plpgsql
+as $$
+begin
+  if (new.code_numerotation, new.numerotation_depuis)
+     is not distinct from (old.code_numerotation, old.numerotation_depuis) then
+    return new;
+  end if;
+  if old.code_numerotation is not null and (
+       (now() at time zone (case old.country when 'CA' then 'America/Toronto' else 'Europe/Paris' end))::date
+         >= old.numerotation_depuis
+       or exists (select 1 from facture_counters c where c.entity_id = old.id)
+     ) then
+    raise exception 'Société % : sa série de factures est active ou a déjà servi — elle ne se modifie plus.', old.legal_name
+      using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
 
 -- ── 2. Compteurs par société, type et année ──────────────────────────────
 create table if not exists facture_counters (
@@ -89,6 +132,12 @@ create table if not exists facture_counters (
 -- RLS sans politique, VOLONTAIREMENT : seules les fonctions SECURITY DEFINER
 -- ci-dessous y écrivent. Aucune session ne lit ni ne modifie un compteur.
 alter table facture_counters enable row level security;
+
+-- (Le trigger de 1 bis lit `facture_counters` : il est posé APRÈS sa création.)
+drop trigger if exists trg_legal_entities_garder_serie on legal_entities;
+create trigger trg_legal_entities_garder_serie
+  before update of code_numerotation, numerotation_depuis on legal_entities
+  for each row execute function garder_serie_societe();
 
 -- ── 3. Colonnes de traçabilité sur `documents` ───────────────────────────
 alter table documents
@@ -122,6 +171,36 @@ as $$
   select 'BROUILLON-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 12));
 $$;
 
+-- ── 4 bis. Fuseau légal de la société ────────────────────────────────────
+-- L'année d'une facture et la date de bascule se lisent à l'heure LÉGALE de
+-- la société, pas à celle du serveur (UTC) : sans cela, une facture émise le
+-- 1er janvier à 0 h 30 à Paris tomberait dans la série de l'année précédente.
+-- FR, CH, LU, BE : Europe/Paris. CA : America/Toronto (heure de l'Est, celle
+-- du Québec et de l'Ontario) — ⚠️ à confirmer si une société canadienne
+-- opère dans une autre province.
+create or replace function fuseau_societe(p_entity uuid)
+returns text
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select case (select country from legal_entities where id = p_entity)
+           when 'CA' then 'America/Toronto'
+           else 'Europe/Paris'
+         end;
+$$;
+
+create or replace function annee_legale(p_entity uuid, p_instant timestamptz)
+returns integer
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select extract(year from (p_instant at time zone fuseau_societe(p_entity)))::int;
+$$;
+
 -- ── 5. Allocation du numéro définitif ────────────────────────────────────
 create or replace function allouer_numero_facture(p_entity uuid, p_type document_type, p_year integer)
 returns text
@@ -131,6 +210,7 @@ set search_path = public, pg_temp
 as $$
 declare
   v_code   text;
+  v_depuis date;
   v_n      integer;
   v_prefix text;
 begin
@@ -139,11 +219,13 @@ begin
       using errcode = 'P0001';
   end if;
 
-  select code_numerotation into v_code from legal_entities where id = p_entity;
+  select code_numerotation, numerotation_depuis into v_code, v_depuis
+    from legal_entities where id = p_entity;
 
-  if v_code is null then
+  if v_code is null
+     or (now() at time zone fuseau_societe(p_entity))::date < v_depuis then
     -- Série historique commune : comportement INCHANGÉ tant que la société
-    -- n'a pas de code de numérotation.
+    -- n'a pas de série dédiée, ou que sa date d'effet n'est pas atteinte.
     return next_doc_num(p_type, p_year);
   end if;
 
@@ -178,7 +260,7 @@ begin
     elsif new.num is null or new.num = '' or new.num like 'BROUILLON-%' then
       -- Insertion directement émise (ex. import) : numéro à l'instant même.
       new.issued_at := now();
-      new.num       := allouer_numero_facture(new.entity_id, new.type, extract(year from new.issued_at)::int);
+      new.num       := allouer_numero_facture(new.entity_id, new.type, annee_legale(new.entity_id, new.issued_at));
       new.emise_at  := now();
       new.emise_par := auth.uid();
     end if;
@@ -237,7 +319,7 @@ begin
       -- ÉMISSION. Le numéro définitif naît ICI, dans la transaction même.
       if old.num like 'BROUILLON-%' or old.num = '' then
         new.issued_at := now();
-        new.num := allouer_numero_facture(new.entity_id, new.type, extract(year from new.issued_at)::int);
+        new.num := allouer_numero_facture(new.entity_id, new.type, annee_legale(new.entity_id, new.issued_at));
       end if;
       -- (Un brouillon ANTÉRIEUR à cette migration porte déjà un numéro
       -- définitif : il le garde — le renuméroter créerait un trou.)

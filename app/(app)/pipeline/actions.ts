@@ -13,6 +13,7 @@ import { countryFromPhone } from "@/lib/leads";
 import { currentUserHasImmobTravaux } from "@/lib/leads-server";
 import { encryptField, isFieldEncryptionConfigured } from "@/lib/crypto/field-encryption";
 import { isCurrentUserAdmin } from "@/lib/presence/guard";
+import { assertBackOffice } from "@/lib/access-server";
 import type { Country, DiscoveryOutcome, LeadStatus, Sector, SubSignature } from "@/lib/leads";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -42,6 +43,13 @@ const STATUS_RANK: Record<LeadStatus, number> = {
 };
 
 export async function updateLeadStatus(id: string, target: LeadStatus): Promise<Result> {
+  // D29 : « encaissé » est le reflet d'un encaissement COMPTABLE — réservé au
+  // back-office, comme `markDocumentPaid`. Les autres colonnes du pipeline
+  // restent au commercial, inchangées. Doublé en base (trg_leads_garder_encaisse).
+  if (target === "encaisse") {
+    const g = await assertBackOffice();
+    if (!g.ok) return { ok: false, error: "L'encaissement est validé par le back-office (planification ou Super Admin)." };
+  }
   const supabase = await supabaseServer();
 
   // A06 — Garde de monotonie CÔTÉ SERVEUR (le garde navigateur du Kanban est

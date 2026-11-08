@@ -36,6 +36,10 @@ const SUITES = [
   { fichier: "facturation.ts", titre: "Facturation : validation, numéro à l'émission, factures figées" },
   { fichier: "contrat-lien.ts", titre: "D23 — liens de contrat : 60 minutes, renouvelables, tracés" },
   { fichier: "migrer.ts", titre: "Garde des migrations : la recette, et jamais la production" },
+  { fichier: "pdf-brouillon.tsx", titre: "D28 — le PDF d'une facture brouillon le dit (rendu réel)" },
+  { fichier: "encaissement.ts", titre: "D29 · D30 — l'encaissement et la facture OPTIMIVV au back-office" },
+  { fichier: "series.ts", titre: "D26 — séries de factures par société : indépendantes, datées, figées" },
+  { fichier: "actions-back-office.ts", titre: "Notifications intermodules : naissance, persistance, escalade, pays" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "recette-check-"));
@@ -44,7 +48,7 @@ let echecs = 0;
 try {
   for (const { fichier, titre } of SUITES) {
     console.log(`\n${"═".repeat(70)}\n  ${titre}\n${"═".repeat(70)}`);
-    const bundle = join(sortie, fichier.replace(/\.ts$/, ".cjs"));
+    const bundle = join(sortie, fichier.replace(/\.tsx?$/, ".cjs"));
     try {
       execFileSync(
         process.execPath,

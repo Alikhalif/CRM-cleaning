@@ -20,6 +20,11 @@ type Props = {
   /** Pourquoi aucun modèle n'est proposé. Null quand la liste n'est pas vide. */
   motifSansModele?: "sans_profil" | "aucun_modele" | null;
   vars: Record<string, string>;
+  /**
+   * D28 · D30 : une FACTURE OPTIMIVV ne s'émet qu'au back-office — le serveur
+   * le refuse (403) ; l'écran ne propose donc pas le bouton au commercial.
+   */
+  peutFacturer?: boolean;
   // Modèle graphique du PDF (secteur du lead) : "nettoyage" → design OPTIMIVV
   // NETTOYAGE ; "demenagement" (défaut) → design déménagement.
   template?: "demenagement" | "nettoyage";
@@ -106,7 +111,7 @@ function formToInput(f: Form): DevisInput {
 
 export default function NouveauDevis({
   prefill, leadId, templates, vars, motifSansModele = null, template = "demenagement",
-  societe = null,
+  societe = null, peutFacturer = false,
 }: Props) {
   const [form, setForm] = useState<Form>({
     nom: prefill?.client.nom ?? "",
@@ -369,13 +374,15 @@ export default function NouveauDevis({
             >
               Devis
             </button>
-            <button
-              type="button"
-              className={docType === "facture" ? styles.toggleActive : styles.toggleBtn}
-              onClick={() => setDocType("facture")}
-            >
-              Facture
-            </button>
+            {peutFacturer && (
+              <button
+                type="button"
+                className={docType === "facture" ? styles.toggleActive : styles.toggleBtn}
+                onClick={() => setDocType("facture")}
+              >
+                Facture
+              </button>
+            )}
           </div>
         </div>
         <p className={styles.subtitle}>

@@ -5,6 +5,8 @@ import { historiqueBancaireParSociete } from "@/lib/entities/coordonnees-bancair
 import { masquer } from "@/lib/entities/coordonnees-bancaires";
 import EntitiesList from "./EntitiesList";
 import CoordonneesBancaires from "./CoordonneesBancaires";
+import SeriesFacturation from "./SeriesFacturation";
+import { lireSeries } from "@/lib/facturation/series-server";
 import styles from "./Entities.module.scss";
 
 export const metadata = { title: "Sociétés émettrices" };
@@ -65,6 +67,10 @@ export default async function EntitiesPage() {
             }))}
             historique={Object.fromEntries(await historiqueBancaireParSociete())}
           />
+
+          {/* D26 — séries de factures par société, Super Admin seul (la page
+              l'est déjà ; l'action le revérifie). */}
+          <SeriesFacturation {...await lireSeries()} />
         </>
       )}
     </div>

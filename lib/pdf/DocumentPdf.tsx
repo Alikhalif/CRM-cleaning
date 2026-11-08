@@ -212,6 +212,14 @@ export default function DocumentPdf({ detail }: Props) {
   return (
     <Document title={`${numeroAffiche(doc.num)} — ${lead.client}`} author={entity.legalName}>
       <Page size="A4" style={styles.page}>
+        {/* D28 (2026-11-09) : une facture BROUILLON n'est pas une facture. Si son
+            PDF circule, il le dit sur chaque page — `fixed` le répète. */}
+        {isInvoice && doc.status === "brouillon" && (
+          <Text fixed style={{ marginBottom: 8, padding: 6, fontSize: 9, fontWeight: 700, textAlign: "center",
+            color: "#9a3412", backgroundColor: "#ffedd5", border: "0.75pt solid #9a3412", borderRadius: 4 }}>
+            BROUILLON — FACTURE NON ÉMISE, SANS VALEUR DE FACTURE. Seule une facture émise porte un numéro définitif.
+          </Text>
+        )}
         {/* ── Header band ─────────────────────────────────────────── */}
         <View
           style={{

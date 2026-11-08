@@ -115,7 +115,11 @@ console.log(`\n  info  ${rlsActive.size} tables sous RLS · ${sansPolitique.leng
 // les triggers d'émission. Aucune session ne doit pouvoir lire ni brûler un
 // numéro — le refus total est la protection.
 const SERVICE_ROLE_SEUL = [
-  "auth_throttle", "docusign_connections", "docusign_oauth_states", "facture_counters", "webhook_events",
+  // `notifications_emises` (20261109000006) : une clé, un envoi — lue et écrite
+  // par le seul moteur des actions back-office, qui dédoublonne ainsi les
+  // informations ponctuelles. Aucune session n'a à y toucher.
+  "auth_throttle", "docusign_connections", "docusign_oauth_states", "facture_counters",
+  "notifications_emises", "webhook_events",
 ];
 vrai(
   "seules les tables réservées au service-role sont sans politique",

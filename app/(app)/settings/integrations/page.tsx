@@ -6,6 +6,9 @@ import {
 } from "@/lib/generation/mentions-produits-server";
 import MentionsProduits from "./MentionsProduits";
 import GabaritsDevis from "./GabaritsDevis";
+import DelaisEscalade from "./DelaisEscalade";
+import { CLE_CONFIG, lireConfig } from "@/lib/actions-back-office/shared";
+import { getJsonSetting } from "@/lib/app-settings";
 import { lireReglageGabarits } from "@/lib/devis/reglage-gabarits-server";
 import { secteursEmployes } from "@/lib/devis/secteurs-server";
 import styles from "./Integrations.module.scss";
@@ -59,6 +62,9 @@ export default async function IntegrationsPage() {
         reglagesSocietes={await reglagesMentionsParSociete()}
         societes={await societesEtPays()}
       />
+
+      {/* Actions back-office : délais d'escalade (2026-11-09). */}
+      <DelaisEscalade config={lireConfig(await getJsonSetting(CLE_CONFIG))} />
 
       <GabaritsDevis
         reglages={await lireReglageGabarits()}

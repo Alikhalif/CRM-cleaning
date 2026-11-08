@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auditLog } from "@/lib/audit";
 import { sendBrevoEmail } from "@/lib/brevo";
 import { assertAdmin, assertBackOffice } from "@/lib/access-server";
+import { declencherActionsBackOffice } from "@/lib/actions-back-office/declencher";
 import { getDocumentById } from "@/lib/documents-server";
 import { planifierRendu, rendreDocument } from "@/lib/devis/rendu-document-server";
 import { enregistrerVersion } from "@/lib/devis/versions-server";
@@ -106,6 +107,7 @@ export async function markDocumentSigned(
   mode?: SubSignatureMode,
   trusted = false,
 ): Promise<MarkSignedResult> {
+  declencherActionsBackOffice(); // alerte immédiate (idempotent)
   // Contrôle d'accès pour les appels UI (non trusted) : la RLS de session
   // vérifie que l'appelant a bien accès à ce document. Le parcours PUBLIC de
   // signature (trusted) est déjà validé par token en amont — pas de session.
@@ -432,6 +434,13 @@ export async function markDocumentPaid(
   id: string,
   paymentReference: string = "",
 ): Promise<Result> {
+  // D29 (décision du client du 2026-11-09) : la validation COMPTABLE d'un
+  // encaissement est réservée au back-office et au Super Admin. Le commercial
+  // voit l'état de paiement ; il ne le change pas. Doublé en base par
+  // `trg_documents_garder_encaissement` (20261109000005).
+  const g = await assertBackOffice();
+  if (!g.ok) return { ok: false, error: "L'encaissement est validé par le back-office (planification ou Super Admin)." };
+  declencherActionsBackOffice(); // alerte immédiate (idempotent)
   const supabase = await supabaseServer();
 
   // Read enough to decide on the dossier-side update. `*` plutôt qu'une liste :
@@ -749,6 +758,7 @@ export type EmissionResult = { ok: true; num: string; dejaEmise: boolean } | { o
 export async function emettreFacture(id: string): Promise<EmissionResult> {
   const g = await assertBackOffice();
   if (!g.ok) return g;
+  declencherActionsBackOffice(); // alerte immédiate (idempotent)
 
   const detail = await getDocumentById(id);
   if (!detail) return { ok: false, error: "Facture introuvable." };
@@ -808,6 +818,7 @@ export async function emettreFacture(id: string): Promise<EmissionResult> {
 export async function annulerFacture(id: string, motif: string): Promise<Result> {
   const g = await assertAdmin();
   if (!g.ok) return g;
+  declencherActionsBackOffice(); // alerte immédiate (idempotent)
   const m = motif?.trim() ?? "";
   if (m.length < 10) return { ok: false, error: "Motif obligatoire (10 caractères au moins) : il sera conservé." };
 

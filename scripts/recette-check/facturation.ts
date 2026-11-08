@@ -123,7 +123,7 @@ vrai("lignes d'une facture émise figées (insert, update, delete)", fn("protege
 const alloc = fn("allouer_numero_facture");
 vrai("allocation : SECURITY DEFINER", alloc.includes("security definer"));
 vrai("allocation : incrément verrouillé (insert … on conflict do update)", alloc.includes("on conflict (entity_id, doc_type, year)") && alloc.includes("do update set next_value = facture_counters.next_value + 1"));
-vrai("allocation : société sans code → série historique INCHANGÉE", /if v_code is null then[\s\S]{0,200}return next_doc_num\(p_type, p_year\)/.test(alloc));
+vrai("allocation : sans code, OU avant la date d'effet → série historique INCHANGÉE", /if v_code is null\s+or \(now\(\) at time zone fuseau_societe\(p_entity\)\)::date < v_depuis then[\s\S]{0,200}return next_doc_num\(p_type, p_year\)/.test(alloc));
 vrai("allocation : série par société, préfixée de son code", alloc.includes("v_prefix || '-' || v_code || '-' || p_year::text"));
 vrai("allocation : AUCUNE session ne peut l'appeler directement", M.includes("revoke all on function allouer_numero_facture(uuid, document_type, integer) from public"));
 vrai("les triggers qui l'appellent sont SECURITY DEFINER", insertion.includes("security definer") && maj.includes("security definer"));
@@ -213,7 +213,7 @@ const A = lire("app/(app)/_shared/DocumentActions.tsx");
 vrai("« Émettre la facture » : brouillon ET back-office", A.includes("{isInvoiceDraft && peutEmettre && ("));
 vrai("« Envoyer par email » : jamais sur un brouillon ni une facture annulée", A.includes("{!isInvoiceDraft && !annulee && ("));
 vrai("« Dupliquer » : devis seulement", A.includes("{!isInvoice && ("));
-vrai("« Marquer payée » : facture émise, non annulée", A.includes("{isInvoice && !isPaid && !isInvoiceDraft && !annulee && ("));
+vrai("« Marquer payée » : facture émise, non annulée, et BACK-OFFICE seulement (D29)", A.includes("{isInvoice && !isPaid && !isInvoiceDraft && !annulee && peutEmettre && ("));
 vrai("« Annuler la facture » : Super Admin, émise, non encaissée", A.includes("!isPaid && !annulee && peutAnnuler && ("));
 vrai("l'émission prévient AVANT qu'elle est irréversible", A.includes("ne pourra plus être modifiée"));
 

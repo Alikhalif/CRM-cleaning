@@ -1,0 +1,80 @@
+// Panneau des actions attendues — jetons du thème seulement (clair et sombre).
+.panneau {
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  background: var(--bg-surface);
+}
+
+.titre {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-md);
+  color: var(--text-primary);
+}
+
+.compte {
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-sm);
+  background: var(--bg-surface-2);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+}
+
+.escalade {
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-sm);
+  color: var(--tone-danger);
+  background: color-mix(in oklab, var(--tone-danger) 14%, transparent);
+  font-size: var(--fs-xs);
+}
+
+.aide {
+  margin: 0 0 var(--sp-3);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+
+.liste {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+
+  &[data-escaladee="oui"] {
+    border-color: color-mix(in oklab, var(--tone-danger) 45%, transparent);
+  }
+}
+
+.lien {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  color: inherit;
+  text-decoration: none;
+
+  &:hover { background: var(--bg-surface-2); }
+}
+
+.libelle { color: var(--text-primary); }
+.meta { color: var(--text-secondary); font-size: var(--fs-sm); white-space: nowrap; }
+
+// ≤768 px : une colonne, cible tactile de 44 px (règle mobile du projet).
+@media (max-width: 768px) {
+  .lien {
+    flex-direction: column;
+    gap: var(--sp-1);
+    min-height: 44px;
+  }
+  .meta { white-space: normal; }
+}

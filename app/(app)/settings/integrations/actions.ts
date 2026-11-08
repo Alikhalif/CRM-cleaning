@@ -5,6 +5,8 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
 import type { Database } from "@/lib/supabase/database.types";
 import { APP_SETTING_KEYS } from "@/lib/app-settings";
+import { assertAdmin } from "@/lib/access-server";
+import { CLE_CONFIG, lireConfig } from "@/lib/actions-back-office/shared";
 import { GABARITS } from "@/lib/devis/gabarits";
 import {
   CLE_SOCIETES, COUNTRIES, MENTION_PAR_PAYS, controlerMention, type Country,
@@ -205,5 +207,42 @@ export async function enregistrerGabaritsDevis(
 
   revalidatePath("/settings/integrations");
   revalidatePath("/comptabilite");
+  return { ok: true };
+}
+
+// ── Délais d'escalade des actions back-office (2026-11-09) ──────────────────
+// « Délais d'escalade paramétrables, avec une configuration initiale
+// documentée et modifiable par le Super Admin. » Valeurs initiales :
+// CONFIG_INITIALE (lib/actions-back-office/shared.ts). Toute saisie est
+// BORNÉE par la même fonction que celle du moteur : ce qui est enregistré est
+// exactement ce qui sera appliqué. Prise en compte à la passe suivante du
+// moteur — immédiate ou cron —, sans redéploiement.
+export async function enregistrerDelaisEscalade(brut: unknown): Promise<Result> {
+  const droit = await assertAdmin();
+  if (!droit.ok) return droit;
+  const supabase = await supabaseServer();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Non authentifié." };
+
+  const config = lireConfig(brut);
+  const { data: avant } = await supabase.from("app_settings").select("value").eq("key", CLE_CONFIG)
+    .maybeSingle<{ value: unknown }>();
+  const row: AppSettingInsert = {
+    key: CLE_CONFIG,
+    value: config as unknown as AppSettingInsert["value"],
+    updated_at: new Date().toISOString(),
+    updated_by: user.id,
+  };
+  const { error } = await supabase.from("app_settings").upsert(row as never, { onConflict: "key" });
+  if (error) return { ok: false, error: error.message };
+
+  await auditLog({
+    action: "app_setting.change",
+    entityType: "user",
+    entityId: user.id,
+    before: { key: CLE_CONFIG, value: avant?.value ?? null },
+    after: { key: CLE_CONFIG, value: config },
+  });
+  revalidatePath("/settings/integrations");
   return { ok: true };
 }
