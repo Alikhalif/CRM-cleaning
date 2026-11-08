@@ -70,3 +70,20 @@ export async function assertBackOffice(): Promise<{ ok: true } | { ok: false; er
   if (await hasScope("backOffice")) return { ok: true };
   return { ok: false, error: "Action réservée à la planification / l'administration." };
 }
+
+/**
+ * Même sucre, pour les actions réservées au SEUL Super Admin.
+ *
+ * Elle existe parce que `assertBackOffice()` laisse passer la planification,
+ * ce qui est juste pour un dossier ou une facture et faux pour une
+ * coordonnée bancaire : modifier l'IBAN d'une société émettrice change le
+ * compte sur lequel ses clients paient. Le client a tranché le 2026-11-09 —
+ * « seul le Super Admin doit pouvoir effectuer cette opération ».
+ *
+ * ⚠️ Comme partout dans ce dépôt, ce n'est pas la frontière : la RLS l'est.
+ * Cette garde donne un message utile au lieu d'une erreur de base.
+ */
+export async function assertAdmin(): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (await hasScope("admin")) return { ok: true };
+  return { ok: false, error: "Action réservée au Super Admin." };
+}

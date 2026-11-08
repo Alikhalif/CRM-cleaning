@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { getAllEntities } from "@/lib/documents-server";
 import { getCurrentUserProfile } from "@/lib/users-server";
+import { historiqueBancaireParSociete } from "@/lib/entities/coordonnees-bancaires-server";
+import { masquer } from "@/lib/entities/coordonnees-bancaires";
 import EntitiesList from "./EntitiesList";
+import CoordonneesBancaires from "./CoordonneesBancaires";
 import styles from "./Entities.module.scss";
 
 export const metadata = { title: "Sociétés émettrices" };
@@ -40,7 +43,29 @@ export default async function EntitiesPage() {
           </p>
         </div>
       ) : (
-        <EntitiesList entities={entities} />
+        <>
+          <EntitiesList entities={entities} />
+
+          {/* Coordonnées bancaires — bloc séparé, Super Admin seul.
+              La page entière est déjà réservée aux admins (garde ci-dessus) ;
+              l'action serveur le revérifie, parce qu'une garde d'interface ne
+              protège rien.
+
+              ⚠️ Les valeurs sont MASQUÉES ici : les envoyer en clair dans le
+              HTML les ferait voyager dans la page, rester en cache et
+              apparaître sur toute capture d'écran — pour rien, puisque
+              modifier une coordonnée consiste à saisir la nouvelle. */}
+          <CoordonneesBancaires
+            societes={entities.map((e) => ({
+              id: e.id,
+              nom: e.legalName,
+              pays: e.country,
+              ibanMasque: masquer(e.iban),
+              bicMasque: masquer(e.bic),
+            }))}
+            historique={Object.fromEntries(await historiqueBancaireParSociete())}
+          />
+        </>
       )}
     </div>
   );

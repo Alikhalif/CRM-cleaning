@@ -4,6 +4,7 @@ import { Document, Page, View, Text, Svg, Path, Circle, Font, StyleSheet } from 
 import type { DocumentDetail } from "@/lib/documents-shared";
 import { euroPdf } from "./montant";
 import { estIntertitre } from "@/lib/devis/debordement";
+import { libelleCoordonnee } from "@/lib/entities/coordonnees-bancaires";
 
 // Police cursive (slogan + « Bon pour accord »). Fichier embarqué dans public/.
 Font.register({ family: "GreatVibes", src: path.join(process.cwd(), "public/fonts/GreatVibes-Regular.ttf") });
@@ -309,9 +310,11 @@ export default function DevisNettoyagePdf({ detail }: Props) {
             {/* Même garde que sur le document générique : pas d'IBAN, pas de
                 ligne. Le devis annonce « RIB en pièce jointe » juste au-dessus,
                 la promesse reste tenue. */}
+            {/* L'intitulé suit le pays — le Canada n'utilise pas l'IBAN.
+                Voir `lib/entities/coordonnees-bancaires.ts`. */}
             {entity.iban?.trim() && (
               <Text style={{ fontSize: 8, color: MUT, marginTop: 6 }}>
-                IBAN {entity.iban}
+                {libelleCoordonnee(entity.country)} {entity.iban}
                 {entity.bic?.trim() ? ` · BIC ${entity.bic}` : ""}
               </Text>
             )}

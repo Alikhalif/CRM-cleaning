@@ -3,6 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { auditLog } from "@/lib/audit";
+import { assertAdmin } from "@/lib/access-server";
+import {
+  decryptField,
+  encryptField,
+  isFieldEncryptionConfigured,
+} from "@/lib/crypto/field-encryption";
+import {
+  masquer,
+  validerBic,
+  validerCoordonnee,
+} from "@/lib/entities/coordonnees-bancaires";
+import { paysReconnu } from "@/lib/generation/mentions-produits";
 import type { Database } from "@/lib/supabase/database.types";
 import {
   buildPayload,
@@ -104,4 +116,139 @@ export async function deleteEntity(id: string): Promise<Result> {
     entityId: id,
   });
   return { ok: true };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+//  Coordonnées bancaires — Super Admin SEUL (anomalie D17)
+// ══════════════════════════════════════════════════════════════════════
+//
+// ── POURQUOI UNE ACTION À PART ──────────────────────────────────────
+//
+// Les champs `iban` et `bic` avaient été RETIRÉS du formulaire le 2026-11-05 :
+// `buildPayload()` ne les écrit pas, et c'est précisément ce qui a préservé
+// les valeurs des deux sociétés qui en ont une — y mettre une chaîne vide les
+// aurait effacées à la première modification de la fiche.
+//
+// Le client a rouvert le sujet le 2026-11-09 : « L'IBAN doit pouvoir être
+// modifié depuis la fiche société, uniquement par le Super Admin ou un
+// utilisateur disposant d'une autorisation administrative spécifique. »
+//
+// D'où une action SÉPARÉE, et non un retour des champs dans `buildPayload` :
+//
+//   · elle écrit EXACTEMENT deux colonnes, donc aucune autre ne peut être
+//     effacée par un formulaire incomplet ;
+//   · elle est gardée pour le SEUL Super Admin, là où `updateEntity` est
+//     ouverte au back-office ;
+//   · elle chiffre, ce que `buildPayload` ne fait pour aucun champ ;
+//   · et elle laisse une trace, ce qu'une mise à jour ordinaire ne fait pas.
+export async function modifierCoordonneesBancaires(
+  entityId: string,
+  input: { iban: string; bic: string },
+): Promise<Result> {
+  // ── Garde 1 : le Super Admin, et lui seul ─────────────────────────
+  //
+  // `assertBackOffice()` laisserait passer la planification : juste pour un
+  // dossier, faux pour un compte bancaire. Modifier l'IBAN d'une société
+  // change le compte sur lequel ses clients paient.
+  const droit = await assertAdmin();
+  if (!droit.ok) return { ok: false, error: droit.error };
+
+  const supabase = await supabaseServer();
+
+  // ── L'état actuel, pour valider contre le bon pays et tracer l'écart ──
+  const { data: avant, error: eLecture } = await supabase
+    .from("legal_entities")
+    .select("id, legal_name, country, iban, bic")
+    .eq("id", entityId)
+    .maybeSingle<{
+      id: string;
+      legal_name: string | null;
+      country: string | null;
+      iban: string | null;
+      bic: string | null;
+    }>();
+  if (eLecture || !avant) {
+    return { ok: false, error: `Société introuvable : ${eLecture?.message ?? "aucune ligne"}.` };
+  }
+
+  const pays = paysReconnu(avant.country);
+  if (!pays) {
+    return {
+      ok: false,
+      error:
+        "Le pays de cette société n'est pas renseigné ou n'est pas reconnu. " +
+        "Une coordonnée bancaire se valide CONTRE un pays : renseignez-le " +
+        "d'abord (Réglages › Sociétés émettrices).",
+    };
+  }
+
+  // ── Garde 2 : la forme, contre le pays de la société ──────────────
+  const vIban = validerCoordonnee(input.iban, pays);
+  if (!vIban.ok) return { ok: false, error: `IBAN — ${vIban.motif}` };
+  const vBic = validerBic(input.bic, pays);
+  if (!vBic.ok) return { ok: false, error: `BIC — ${vBic.motif}` };
+
+  // ── Garde 3 : pas de chiffrement, pas d'écriture ──────────────────
+  //
+  // Écrire une coordonnée bancaire en clair alors qu'on vient de la déclarer
+  // confidentielle serait un recul. Si la clé manque, on refuse en le disant.
+  const aChiffrer = vIban.valeurNormalisee !== "" || vBic.valeurNormalisee !== "";
+  if (aChiffrer && !isFieldEncryptionConfigured()) {
+    return {
+      ok: false,
+      error:
+        "FIELD_ENCRYPTION_KEY absente : les coordonnées bancaires seraient " +
+        "stockées en clair. Modification refusée.",
+    };
+  }
+
+  // Une valeur vide reste `null` en base : c'est ce qui permet d'effacer, et
+  // les documents n'impriment alors aucune ligne bancaire.
+  const nouveauIban = vIban.valeurNormalisee === "" ? null : encryptField(vIban.valeurNormalisee);
+  const nouveauBic = vBic.valeurNormalisee === "" ? null : encryptField(vBic.valeurNormalisee);
+
+  const { error: eMaj } = await supabase
+    .from("legal_entities")
+    .update({ iban: nouveauIban, bic: nouveauBic } as never)
+    .eq("id", entityId);
+  if (eMaj) return { ok: false, error: `Échec de l'enregistrement : ${eMaj.message}.` };
+
+  // ── La trace, et c'est elle qui fait l'historique ─────────────────
+  //
+  // `audit_logs` est APPEND-ONLY et écrit par la clé de service : il est déjà
+  // l'historique dont le client a besoin. Aucune table nouvelle, donc aucune
+  // migration — et une migration de moins est une autorisation de moins à
+  // demander.
+  //
+  // ⚠️ LA VALEUR N'Y ENTRE JAMAIS EN CLAIR. Le journal est lisible par les
+  // administrateurs et conservé des années, alors que la colonne est
+  // chiffrée : y écrire l'IBAN annulerait le chiffrement qu'on vient de
+  // poser. Seul le masque y figure — assez pour reconnaître un changement de
+  // compte, trop peu pour virer de l'argent.
+  await auditLog({
+    action: "entity.bank_change",
+    entityType: "user",
+    entityId,
+    before: {
+      societe: avant.legal_name,
+      pays,
+      iban: masquer(avant.iban ? decryptField(avant.iban) : ""),
+      bic: masquer(avant.bic ? decryptField(avant.bic) : ""),
+    },
+    after: {
+      societe: avant.legal_name,
+      pays,
+      iban: masquer(vIban.valeurNormalisee),
+      bic: masquer(vBic.valeurNormalisee),
+      chiffre: aChiffrer,
+    },
+  });
+
+  revalidatePath("/settings/entities");
+  // Les documents reprennent la coordonnée de LEUR société émettrice : on
+  // invalide donc aussi les écrans qui les rendent.
+  revalidatePath("/comptabilite");
+  revalidatePath("/devis");
+
+  return { ok: true, id: entityId };
 }

@@ -3,6 +3,7 @@ import type { DocumentDetail } from "@/lib/documents-shared";
 import { DOC_TYPE_LABEL, PAYMENT_TERMS, type Sector } from "@/lib/leads";
 import { euroPdf } from "./montant";
 import DevisNettoyagePdf from "./DevisNettoyagePdf";
+import { libelleCoordonnee } from "@/lib/entities/coordonnees-bancaires";
 
 // Server-side PDF for devis + factures. Two professional themes driven by the
 // lead's secteur:
@@ -366,9 +367,14 @@ export default function DocumentPdf({ detail }: Props) {
               imprimeraient « Coordonnées bancaires — IBAN  · BIC » sur chaque
               facture, et plus personne ne pourrait le corriger depuis
               l'interface. Le RIB circule désormais en pièce jointe. */}
+          {/* L'intitulé suit le PAYS de la société émettrice.
+              ⚠️ LE CANADA N'UTILISE PAS L'IBAN : une société canadienne
+              identifie son compte par institution / transit / numéro de
+              compte. Imprimer « IBAN » devant une telle valeur serait faux
+              sur un document comptable. */}
           {entity.iban?.trim() && (
             <Text style={styles.paymentLine}>
-              Coordonnées bancaires — IBAN {entity.iban}
+              Coordonnées bancaires — {libelleCoordonnee(entity.country)} {entity.iban}
               {entity.bic?.trim() ? ` · BIC ${entity.bic}` : ""}
             </Text>
           )}

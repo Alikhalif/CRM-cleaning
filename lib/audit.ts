@@ -44,6 +44,10 @@ type AuditLogInsert = Database["public"]["Tables"]["audit_logs"]["Insert"];
 //   lead.reassign           — owner_id changed
 //   lead.contact.update     — coordonnées edited
 //   lead.sequence.launch    — n8n WF2 triggered
+//   entity.bank_change      — IBAN/BIC d'une société émettrice modifié par
+//                             le Super Admin. La valeur n'y figure QUE MASQUÉE :
+//                             la colonne est chiffrée, et le journal est lisible
+//                             par les administrateurs pendant des années.
 //   document.create         — devis inserted via the editor
 //   document.duplicate      — copied as new brouillon
 //   document.mark_sent      — brouillon → envoye (Mano path)

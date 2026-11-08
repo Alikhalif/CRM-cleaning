@@ -34,7 +34,6 @@ import {
   decryptField,
   ecritureV2Active,
   encryptField,
-  kidDeCle,
 } from "@/lib/crypto/field-encryption";
 import {
   type ColonneChiffree,
