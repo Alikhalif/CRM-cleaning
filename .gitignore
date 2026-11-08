@@ -67,3 +67,15 @@ __pycache__/
 # Ils contiennent des donnees de test ET les pieces jointes qui auraient ete
 # envoyees : ils ne doivent jamais entrer dans le depot.
 var/
+
+# Echantillons PDF des lots A, B et E : 25 fichiers, 19 Mo de binaires.
+#
+# Git ne les compresse pas en delta : chaque regeneration ajouterait 19 Mo
+# a l'historique DEFINITIVEMENT, et on ne peut les en retirer qu'en
+# reecrivant l'historique — ce que les regles du projet interdisent.
+#
+# Leur contenu probant est conserve dans docs/ECHANTILLONS-PDF.md : ce que
+# chacun demontre, son empreinte, et la commande qui le regenere. Et la
+# preuve DURABLE n'est pas dans ces fichiers mais dans les suites
+# automatisees, qui extraient la couche texte et se rejouent.
+echantillons-lot-*/
