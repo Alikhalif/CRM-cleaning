@@ -48,13 +48,43 @@ Adapte `127.0.0.1:3000` au port/host réellement exposé par le conteneur CRM
 
 ### Option A bis — systemd timer (équivalent, avec logs)
 
+> **⚠️ CORRIGÉ LE 2026-11-08 — la version précédente de cette section ne
+> pouvait pas authentifier.**
+>
+> Elle écrivait `-H "x-cron-secret=%i"`, avec un **signe égal** au lieu de
+> `: `. Mesuré contre un serveur d'écho :
+>
+> ```
+> -H "x-cron-secret: SECRET"   →  en-tête reçu
+> -H "x-cron-secret=SECRET"    →  AUCUN en-tête — curl l'abandonne en silence
+> ```
+>
+> Une installation qui a suivi l'ancienne version **n'envoie aucun secret** :
+> la route répond `403` et le moteur d'alertes ne tourne pas, sans qu'aucun
+> message ne le dise. Second défaut de la même ligne : `%i` ne s'étend que
+> dans une unité *template* (`nom@.service`) — dans une unité simple il
+> n'était pas substitué.
+>
+> **Si votre VPS utilise un timer systemd, vérifiez-le** avec les commandes de
+> l'étape 3 bis ci-dessous avant de supposer que le cron fonctionne.
+
+Le secret passe par un `EnvironmentFile`, jamais en clair dans l'unité.
+
+`/etc/cgk-crm/evaluate.env` (droits `600`, propriétaire `root`) :
+```ini
+CRON_SECRET=le_meme_secret_que_PRESENCE_CRON_SECRET
+```
+
 `/etc/systemd/system/crm-evaluate.service` :
 ```ini
 [Unit]
 Description=CRM — évaluation alertes/relances
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/curl -fsS -X POST http://127.0.0.1:3000/api/presence/evaluate -H "x-cron-secret=%i"
+EnvironmentFile=/etc/cgk-crm/evaluate.env
+# L'en-tête exige « Nom: valeur ». Sans les deux-points, curl abandonne
+# l'en-tête SANS erreur, et l'appel part non authentifié.
+ExecStart=/usr/bin/curl -fsS -X POST http://127.0.0.1:3000/api/presence/evaluate -H "x-cron-secret: ${CRON_SECRET}"
 ```
 `/etc/systemd/system/crm-evaluate.timer` :
 ```ini
@@ -67,7 +97,6 @@ OnUnitActiveSec=2min
 WantedBy=timers.target
 ```
 Puis `systemctl enable --now crm-evaluate.timer`.
-(Passe le secret via un EnvironmentFile plutôt qu'en clair dans l'unit.)
 
 ### Option B — n8n (si tu préfères tout centraliser dans n8n)
 
@@ -91,6 +120,42 @@ Un `403 forbidden` = secret manquant/incorrect côté serveur ou côté appel.
 Ensuite, ouvre `/ma-journee` : les actions (découverte/devis/relance/photos)
 doivent apparaître et se clôturer automatiquement au fil des cycles, et
 `/presence` doit lister les alertes ouvertes sans clic manuel.
+
+## Étape 3 bis — vérifier la configuration RÉELLEMENT en place (lecture seule)
+
+> Ajoutée le 2026-11-08. Elle existe parce que trois formes d'appel se
+> ressemblent et qu'une seule des trois fonctionne. Les quatre commandes
+> **lisent** et ne modifient rien : elles n'interrompent pas le service.
+
+```bash
+# 1. Une tâche cron appelle-t-elle la route, et sous quelle forme ?
+crontab -l 2>/dev/null | grep -i evaluate
+
+# 2. Un timer systemd le fait-il ?
+systemctl list-timers --all 2>/dev/null | grep -i -E "crm|evaluate"
+
+# 3. Si un timer existe, comment appelle-t-il exactement ?
+systemctl cat crm-evaluate.service 2>/dev/null | grep -i execstart
+
+# 4. La route a-t-elle refusé des appels récemment ?
+#    (adapter le nom du conteneur ; -S limite aux dernières 24 h)
+docker compose logs --since 24h crm 2>/dev/null | grep -i "presence.evaluate"
+```
+
+### Lire le résultat
+
+| Ce que la sortie montre | Diagnostic | Action |
+| --- | --- | --- |
+| `-H "x-cron-secret: …"` | ✅ forme correcte | Rien. Poser `CGK_CRON_SECRET_URL=refuse` dans l'environnement du CRM ferme définitivement le chemin par URL. |
+| `?secret=…` dans l'URL | ⚠️ forme tolérée, mais le secret finit dans les journaux du proxy | Corriger la ligne **d'abord**, poser la variable **ensuite**. L'ordre inverse coupe le moteur. |
+| `-H "x-cron-secret=…"` (sans deux-points) | 🔴 **le cron n'a jamais authentifié** | Corriger selon l'Option A bis ci-dessus. Cela expliquerait des alertes et des relances jamais déclenchées. |
+| Aucune des quatre commandes ne renvoie rien | 🔴 **aucun appel périodique n'est configuré** | Poser l'Option A. Sans elle, rien ne se déclenche jamais seul. |
+| Des lignes `secret_en_url_refuse` ou `forbidden` dans les journaux | 🔴 les appels sont rejetés | Comparer le secret appelant et `PRESENCE_CRON_SECRET` côté serveur. |
+
+**Ne collez pas la sortie brute de la commande 3 ou 4 dans un message** : elle
+peut contenir le secret en clair si l'appel le passe en dur. Remplacez la
+valeur par `<SECRET>` avant de la transmettre — seule la **forme** de l'appel
+importe pour le diagnostic.
 
 ## Notes
 

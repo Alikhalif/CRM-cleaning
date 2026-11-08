@@ -1,5 +1,5 @@
 import "server-only";
-import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 
 // Chiffrement applicatif des champs confidentiels (CDC §3.5 / §8.2) — AES-256-GCM.
 //
@@ -41,16 +41,124 @@ import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 
 const PREFIX = "encv1:";
 
-function loadKey(): Buffer | null {
-  const raw = process.env.FIELD_ENCRYPTION_KEY?.trim();
-  if (!raw) return null;
+// ══════════════════════════════════════════════════════════════════════
+//  VOIE 2 — identifiant de clé et rotation progressive (2026-11-08)
+// ══════════════════════════════════════════════════════════════════════
+//
+// ── LE DÉFAUT QUE CECI FERME ────────────────────────────────────────
+//
+// L'enveloppe `encv1:<iv>:<tag>:<ct>` ne porte AUCUN identifiant de clé, et
+// le module ne connaissait qu'une seule clé. Trois conséquences :
+//
+//   · changer la clé rendait tout l'existant indéchiffrable — AES-GCM
+//     authentifie, donc le déchiffrement ÉCHOUE au lieu de rendre une valeur
+//     fausse ;
+//   · aucune cohabitation n'était possible entre anciennes et nouvelles
+//     valeurs ;
+//   · une rotation interrompue laissait une base dont une moitié est
+//     illisible, SANS MOYEN DE SAVOIR LAQUELLE.
+//
+// ── CE QUE LA VOIE 2 CHANGE ─────────────────────────────────────────
+//
+//   `encv2:<kid>:<iv>:<tag>:<ct>`
+//
+// `kid` est une empreinte courte et NON RÉVERSIBLE de la clé : elle dit avec
+// laquelle une valeur a été scellée, sans rien révéler de la clé. La rotation
+// devient alors reprenable (on sait toujours ce qui reste à convertir),
+// progressive (aucune fenêtre d'interruption) et rejouable.
+//
+// ── ET CE QU'ELLE NE CHANGE PAS ─────────────────────────────────────
+//
+// ⚠️ L'ÉCRITURE RESTE EN `encv1` PAR DÉFAUT. Le passage à `encv2` n'a lieu
+// que si `CGK_CHIFFREMENT_V2=oui`. Sans cette variable, le comportement
+// observable est IDENTIQUE à celui d'avant — y compris en production, qui ne
+// la définit pas. La lecture, elle, accepte désormais les trois formes :
+// texte clair hérité, `encv1`, `encv2`.
+//
+// Aucune rotation n'est déclenchée par ce code. Il la rend possible.
+
+const PREFIX_V2 = "encv2:";
+
+/** Longueur de l'identifiant de clé, en caractères hexadécimaux. */
+const LONGUEUR_KID = 8;
+
+function versCle(raw: string): Buffer | null {
+  const v = raw.trim();
+  if (!v) return null;
   let key: Buffer;
   try {
-    key = /^[0-9a-fA-F]{64}$/.test(raw) ? Buffer.from(raw, "hex") : Buffer.from(raw, "base64");
+    key = /^[0-9a-fA-F]{64}$/.test(v) ? Buffer.from(v, "hex") : Buffer.from(v, "base64");
   } catch {
     return null;
   }
   return key.length === 32 ? key : null;
+}
+
+/**
+ * Identifiant d'une clé : empreinte courte, non réversible.
+ *
+ * Elle est calculée sur les OCTETS de la clé, pas sur sa représentation : la
+ * même clé donnée en hexadécimal ou en base64 a le même identifiant.
+ */
+export function kidDeCle(key: Buffer): string {
+  return createHash("sha256").update(key).digest("hex").slice(0, LONGUEUR_KID);
+}
+
+function loadKey(): Buffer | null {
+  const raw = process.env.FIELD_ENCRYPTION_KEY?.trim();
+  return raw ? versCle(raw) : null;
+}
+
+/**
+ * Toutes les clés avec lesquelles on sait DÉCHIFFRER : la courante d'abord,
+ * puis les anciennes, dans l'ordre déclaré.
+ *
+ * `FIELD_ENCRYPTION_KEYS_ANCIENNES` accepte plusieurs clés séparées par des
+ * virgules. Elles ne servent QU'À LIRE : rien n'est jamais réécrit avec une
+ * ancienne clé.
+ */
+export function clesDeLecture(): { kid: string; key: Buffer }[] {
+  const out: { kid: string; key: Buffer }[] = [];
+  const vues = new Set<string>();
+
+  const courante = loadKey();
+  if (courante) {
+    const kid = kidDeCle(courante);
+    out.push({ kid, key: courante });
+    vues.add(kid);
+  }
+
+  for (const brut of (process.env.FIELD_ENCRYPTION_KEYS_ANCIENNES ?? "").split(",")) {
+    const k = versCle(brut);
+    if (!k) continue;
+    const kid = kidDeCle(k);
+    if (vues.has(kid)) continue;
+    out.push({ kid, key: k });
+    vues.add(kid);
+  }
+
+  return out;
+}
+
+/** Forme d'une valeur stockée. Sert aux outils de conversion et de comptage. */
+export type FormeEnveloppe = "clair" | "v1" | "v2";
+
+export function formeEnveloppe(stored: string): FormeEnveloppe {
+  if (stored.startsWith(PREFIX_V2)) return "v2";
+  if (stored.startsWith(PREFIX)) return "v1";
+  return "clair";
+}
+
+/** Identifiant de clé d'une enveloppe `encv2`, ou `null` pour les autres formes. */
+export function kidDeLEnveloppe(stored: string): string | null {
+  if (!stored.startsWith(PREFIX_V2)) return null;
+  const kid = stored.slice(PREFIX_V2.length).split(":")[0] ?? "";
+  return /^[0-9a-f]+$/.test(kid) && kid.length === LONGUEUR_KID ? kid : null;
+}
+
+/** Le passage à `encv2` est-il demandé ? Faux = on continue d'écrire `encv1`. */
+export function ecritureV2Active(): boolean {
+  return (process.env.CGK_CHIFFREMENT_V2 ?? "").trim().toLowerCase() === "oui";
 }
 
 let warned = false;
@@ -104,29 +212,65 @@ export function encryptField(plaintext: string): string {
   const cipher = createCipheriv("aes-256-gcm", key, iv);
   const ct = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
-  return `${PREFIX}${iv.toString("base64")}:${tag.toString("base64")}:${ct.toString("base64")}`;
+  const corps = `${iv.toString("base64")}:${tag.toString("base64")}:${ct.toString("base64")}`;
+
+  // `encv1` par défaut : sans `CGK_CHIFFREMENT_V2=oui`, la sortie est
+  // exactement celle d'avant. Une instance qui ne connaîtrait pas `encv2`
+  // continue donc de lire tout ce qui est écrit.
+  return ecritureV2Active()
+    ? `${PREFIX_V2}${kidDeCle(key)}:${corps}`
+    : `${PREFIX}${corps}`;
 }
 
 // Déchiffre une valeur stockée. Texte clair hérité (sans préfixe) → renvoyé tel
 // quel. Enveloppe chiffrée mais clé absente/invalide, ou déchiffrement échoué →
 // renvoie "" (illisible) plutôt que d'exposer du chiffré brut.
 export function decryptField(stored: string): string {
-  if (!stored.startsWith(PREFIX)) return stored; // texte clair hérité
-  const key = loadKey();
-  if (!key) {
+  const forme = formeEnveloppe(stored);
+  if (forme === "clair") return stored; // texte clair hérité
+
+  const cles = clesDeLecture();
+  if (cles.length === 0) {
     warnOnce("[field-encryption] valeur chiffrée mais FIELD_ENCRYPTION_KEY absente : déchiffrement impossible.");
     return "";
   }
-  try {
-    const [, ivB64, tagB64, ctB64] = stored.split(":");
-    const iv = Buffer.from(ivB64, "base64");
-    const tag = Buffer.from(tagB64, "base64");
-    const ct = Buffer.from(ctB64, "base64");
-    const decipher = createDecipheriv("aes-256-gcm", key, iv);
-    decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8");
-  } catch (e) {
-    console.error("[field-encryption] échec du déchiffrement :", (e as Error).message);
+
+  // Découpage selon la forme. `encv2` porte un identifiant de clé en plus.
+  const parts = stored.split(":");
+  const [ivB64, tagB64, ctB64] = forme === "v2" ? parts.slice(2) : parts.slice(1);
+  if (!ivB64 || !tagB64 || !ctB64) {
+    console.error("[field-encryption] enveloppe mal formée.");
     return "";
   }
+
+  // L'identifiant de clé, quand il existe, désigne la bonne clé du premier
+  // coup. On n'en fait pas une exigence : si elle n'est pas dans la liste, on
+  // essaie les autres plutôt que de déclarer la valeur perdue — une valeur
+  // lisible ne doit pas être déclarée illisible par excès de rigueur.
+  const kid = kidDeLEnveloppe(stored);
+  const ordre = kid
+    ? [...cles.filter((c) => c.kid === kid), ...cles.filter((c) => c.kid !== kid)]
+    : cles;
+
+  let derniereErreur = "";
+  for (const { key } of ordre) {
+    try {
+      const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(ivB64, "base64"));
+      decipher.setAuthTag(Buffer.from(tagB64, "base64"));
+      return Buffer.concat([
+        decipher.update(Buffer.from(ctB64, "base64")),
+        decipher.final(),
+      ]).toString("utf8");
+    } catch (e) {
+      // AES-GCM authentifie : un échec signifie « pas cette clé ». On passe à
+      // la suivante. C'est ce qui rend une rotation progressive possible.
+      derniereErreur = (e as Error).message;
+    }
+  }
+
+  console.error(
+    `[field-encryption] échec du déchiffrement avec ${ordre.length} clé(s)` +
+      `${kid ? ` (kid ${kid})` : ""} : ${derniereErreur}`,
+  );
+  return "";
 }

@@ -29,6 +29,7 @@ const SUITES = [
   { fichier: "cible.ts", titre: "Refus des configurations dangereuses (garde-fou de démarrage)" },
   { fichier: "envoi.ts", titre: "Les DEUX transports d'e-mail, et le goulet qu'aucun ne contourne" },
   { fichier: "urls.ts", titre: "Les cinq points de génération d'URL publiques" },
+  { fichier: "chiffrement.ts", titre: "Chiffrement : identifiant de clé et rotation progressive" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "recette-check-"));

@@ -370,6 +370,8 @@ const SOURCES = [
   "lib/envoi/garde-server.ts",
   "lib/urls/base-publique-server.ts",
   "lib/docusign/config.ts",
+  "lib/crypto/field-encryption.ts",
+  "lib/documents-server.ts",
   "app/api/presence/evaluate/route.ts",
   "app/api/devis/envoyer/route.ts",
 ];

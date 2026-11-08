@@ -111,6 +111,23 @@ export async function redigerPourLead(
       "pays de la société émettrice : aucune mention de produits ne peut être "
       + "portée au devis (à renseigner dans Réglages › Sociétés émettrices)");
   }
+  // ── Les deux cas nés de l'activation PAR SOCIÉTÉ (2026-11-08) ─────
+  //
+  // Sans ces deux signalements, l'absence de mention et une mention héritée
+  // se lisent tous deux comme « rien à signaler » — alors que le premier cas
+  // prive le devis d'une mention attendue, et que le second fait porter à
+  // cette société une allégation qu'elle n'a pas explicitement assumée.
+  if (resolutionMention.mention === null && resolutionMention.motif === "societe_non_activee") {
+    signalements.push(
+      "cette société émettrice n'a pas assumé la mention des produits pour son "
+      + "pays : le devis partira sans elle (à cocher dans Réglages › Intégrations)");
+  }
+  if (resolutionMention.mention !== null && resolutionMention.origine === "pays_herite") {
+    signalements.push(
+      "la mention des produits vient du réglage PAR PAYS, pas de cette société : "
+      + "elle porte donc une allégation qu'elle n'a pas explicitement assumée "
+      + "(à confirmer société par société dans Réglages › Intégrations)");
+  }
   const optimivv = autres.filter((d) => d.origine === "devis_optimivv");
   if (optimivv.length > 0) {
     signalements.push(

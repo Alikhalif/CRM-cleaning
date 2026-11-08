@@ -1,5 +1,6 @@
 import "server-only";
 import { supabaseServer } from "./supabase/server";
+import { decryptField, formeEnveloppe } from "@/lib/crypto/field-encryption";
 import { selectEnLotsTolerant } from "@/lib/supabase/batch";
 import {
   currentUserCanSeeProvenance,
@@ -66,6 +67,42 @@ type EntityRow = {
 
 type EntityAddressJson = { line1?: string; postal_code?: string; city?: string };
 
+/**
+ * Coordonnée bancaire lue en base, quelle que soit sa forme (anomalie D17).
+ *
+ * Trois cas, et le troisième est celui qui compte :
+ *
+ *   · vide          → chaîne vide, les PDF n'impriment alors aucune ligne
+ *                     bancaire (c'est déjà le comportement de cinq sociétés) ;
+ *   · en clair      → rendue telle quelle. C'est l'état actuel des deux
+ *                     sociétés qui ont un IBAN réel ;
+ *   · chiffrée      → déchiffrée. Et si le déchiffrement ÉCHOUE, on le CRIE.
+ *
+ * ⚠️ `decryptField()` rend `""` en cas d'échec — par prudence, pour ne jamais
+ * exposer du chiffré brut. Mais sur un IBAN, ce silence a un coût réel : la
+ * facture partirait **sans coordonnées bancaires**, et le client ne pourrait
+ * pas payer sans que personne ne sache pourquoi. Un IBAN chiffré devenu
+ * illisible doit donc laisser une trace bruyante dans les journaux.
+ */
+function lireCoordonneeBancaire(
+  valeur: string | null,
+  societe: string | null,
+  quoi: "IBAN" | "BIC",
+): string {
+  if (!valeur) return "";
+  if (formeEnveloppe(valeur) === "clair") return valeur;
+
+  const clair = decryptField(valeur);
+  if (!clair) {
+    console.error(
+      `[documents] ${quoi} de « ${societe ?? "société inconnue"} » CHIFFRÉ MAIS ILLISIBLE : ` +
+        "la ligne bancaire sera absente du document. Vérifiez FIELD_ENCRYPTION_KEY " +
+        "et FIELD_ENCRYPTION_KEYS_ANCIENNES.",
+    );
+  }
+  return clair;
+}
+
 function mapEntity(row: EntityRow): LegalEntity {
   const a = (row.address as EntityAddressJson | null) ?? {};
   return {
@@ -83,8 +120,19 @@ function mapEntity(row: EntityRow): LegalEntity {
     city: a.city ?? "",
     contactEmail: row.contact_email ?? "",
     contactPhone: row.contact_phone ?? "",
-    iban: row.iban ?? "",
-    bic: row.bic ?? "",
+    // ── IBAN / BIC : lecture tolérante aux deux formes (anomalie D17) ──
+    //
+    // Ces deux colonnes sont stockées EN CLAIR aujourd'hui, contrairement à ce
+    // qu'annonce le CDC (« encrypted IBAN/BIC »). `lireCoordonneeBancaire()`
+    // rend une valeur en clair telle quelle et déchiffre une valeur chiffrée :
+    // le jour où les deux lignes concernées sont converties, rien d'autre ne
+    // change ici.
+    //
+    // ⚠️ C'est le point de passage UNIQUE entre la base et l'interface pour
+    // ces champs — mesuré. Le poser ici suffit donc à couvrir les PDF, la
+    // liste des sociétés et le RIB joint aux documents.
+    iban: lireCoordonneeBancaire(row.iban, row.legal_name, "IBAN"),
+    bic: lireCoordonneeBancaire(row.bic, row.legal_name, "BIC"),
     defaultVatRate: Number(row.default_vat_rate ?? 20),
     legalMentions: row.legal_mentions ?? "",
     // Repli sur la couleur de marque : une pastille sans couleur casserait
