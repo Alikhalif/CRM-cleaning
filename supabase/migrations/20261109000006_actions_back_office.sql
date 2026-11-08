@@ -40,6 +40,8 @@ create table if not exists actions_back_office (
   -- Pays du dossier : un planificateur ne voit que SES pays (CDC §11, A17).
   -- Sans lui, le panneau et les notifications contourneraient ce cloisonnement.
   pays             text,
+  -- Société concernée (D31) : la RLS de …07 la confronte au périmètre.
+  entite_id        uuid references legal_entities (id) on delete set null,
   titre            text not null,
   detail           text,
   href             text,

@@ -41,6 +41,7 @@ export type Database = {
     Tables: {
       actions_back_office: {
         Row: {
+          entite_id: string | null
           pays: string | null
           cle: string
           detail: string | null
@@ -57,6 +58,7 @@ export type Database = {
           type: string
         }
         Insert: {
+          entite_id?: string | null
           pays?: string | null
           cle: string
           detail?: string | null
@@ -73,6 +75,7 @@ export type Database = {
           type: string
         }
         Update: {
+          entite_id?: string | null
           pays?: string | null
           cle?: string
           detail?: string | null
@@ -2770,6 +2773,9 @@ export type Database = {
       }
       legal_entities: {
         Row: {
+          serie_activation_justification: string | null
+          serie_activee_le: string | null
+          serie_activee_par: string | null
           numerotation_depuis: string | null
           code_numerotation: string | null
           address: Json
@@ -2806,6 +2812,9 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          serie_activation_justification?: string | null
+          serie_activee_le?: string | null
+          serie_activee_par?: string | null
           numerotation_depuis?: string | null
           code_numerotation?: string | null
           address: Json
@@ -2842,6 +2851,9 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          serie_activation_justification?: string | null
+          serie_activee_le?: string | null
+          serie_activee_par?: string | null
           numerotation_depuis?: string | null
           code_numerotation?: string | null
           address?: Json
@@ -2985,6 +2997,8 @@ export type Database = {
       }
       notifications: {
         Row: {
+          entite_id: string | null
+          pays: string | null
           body: string | null
           created_at: string
           entity_id: string | null
@@ -2997,6 +3011,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          entite_id?: string | null
+          pays?: string | null
           body?: string | null
           created_at?: string
           entity_id?: string | null
@@ -3009,6 +3025,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          entite_id?: string | null
+          pays?: string | null
           body?: string | null
           created_at?: string
           entity_id?: string | null
@@ -4797,6 +4815,7 @@ export type Database = {
       }
       users: {
         Row: {
+          entites_autorisees: string[]
           color: string | null
           commercial_profiles: string[]
           countries: string[]
@@ -4816,6 +4835,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          entites_autorisees?: string[]
           color?: string | null
           commercial_profiles?: string[]
           countries?: string[]
@@ -4835,6 +4855,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          entites_autorisees?: string[]
           color?: string | null
           commercial_profiles?: string[]
           countries?: string[]

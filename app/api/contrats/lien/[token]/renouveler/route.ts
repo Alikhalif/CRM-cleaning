@@ -1,4 +1,4 @@
-import { notifyRole } from "@/lib/notifications";
+import { notifierBackOffice, porteeDuContratClient } from "@/lib/notifications/perimetre-server";
 import { jetonBienForme, masquerEmail, peutRenouveler } from "@/lib/documents/contrat-lien-shared";
 import {
   emettreEtEnvoyerLien,
@@ -73,7 +73,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
     return refus("Envoi impossible", "Le nouveau lien n'a pas pu être envoyé. Réessayez plus tard ou contactez-nous.", 503);
   }
 
-  await notifyRole("planification", {
+  // D31 : ciblée par le périmètre du client du contrat.
+  await notifierBackOffice(await porteeDuContratClient(contrat.id), {
     kind: "contract.link.renewed",
     entityType: "contract",
     entityId: contrat.id,

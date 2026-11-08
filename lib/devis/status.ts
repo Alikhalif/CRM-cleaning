@@ -1,7 +1,8 @@
 import "server-only";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 import { auditLog } from "@/lib/audit";
-import { notify, notifyRole } from "@/lib/notifications";
+import { notify } from "@/lib/notifications";
+import { notifierBackOffice, porteeDuLead } from "@/lib/notifications/perimetre-server";
 
 // Fait avancer un lead « Devis envoyé » → « Devis ouvert » (stade 3).
 // MONOTONE : n'agit que si le lead est encore `envoye` — donc naturellement
@@ -112,7 +113,8 @@ export async function markLeadDevisSigne(
     href: `/leads/${leadId}`,
   };
   if (lead.owner_id) await notify({ userId: lead.owner_id, ...notifBody });
-  await notifyRole("planification", notifBody, lead.owner_id ?? undefined);
+  // D31 : planification ciblée par le périmètre du lead (pays, société).
+  await notifierBackOffice(await porteeDuLead(leadId), notifBody, { exclureUserId: lead.owner_id ?? undefined });
 
   return "advanced";
 }

@@ -74,6 +74,8 @@ export type AdminUserRow = {
   commercialProfiles: string[];
   countries: string[];
   entityId: string | null;
+  /** D31 — périmètre d'entités d'une planificatrice. Vide = toutes. */
+  entitesAutorisees: string[];
   // Activités (secteurs) affectées — ids de la table activities.
   activityIds: string[];
 };
@@ -98,7 +100,8 @@ export async function getAllUsersForAdmin(): Promise<AdminUserRow[]> {
   const [usersRes, urRes, uaRes] = await Promise.all([
     supabase
       .from("users")
-      .select("id, email, first_name, last_name, is_premium, is_extreme, ringover_agent_id, commercial_profiles, countries, entity_id")
+      // `*` : `entites_autorisees` (D31) n'existe qu'avec la migration …07.
+      .select("*")
       .order("first_name", { ascending: true })
       .returns<AdminUserRaw[]>(),
     supabase
@@ -137,6 +140,7 @@ export async function getAllUsersForAdmin(): Promise<AdminUserRow[]> {
     commercialProfiles: u.commercial_profiles ?? [],
     countries: u.countries ?? [],
     entityId: u.entity_id ?? null,
+    entitesAutorisees: ((u as { entites_autorisees?: string[] | null }).entites_autorisees) ?? [],
     activityIds: actsByUser.get(u.id) ?? [],
   }));
 }

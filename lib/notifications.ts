@@ -20,6 +20,13 @@ export type NotifyInput = {
   title: string;
   body?: string;
   href?: string;
+  /**
+   * D31 — portée back-office : pays et société de l'objet notifié. Absents =
+   * notification PERSONNELLE. Posés par `notifierBackOffice()` ; la base les
+   * revérifie (migration 20261109000007).
+   */
+  pays?: string | null;
+  entiteId?: string | null;
 };
 
 export async function notify(input: NotifyInput): Promise<void> {
@@ -34,7 +41,17 @@ export async function notify(input: NotifyInput): Promise<void> {
       body: input.body ?? null,
       href: input.href ?? null,
     };
-    await supabase.from("notifications").insert(row as never);
+    const portee = input.pays ? { pays: input.pays, entite_id: input.entiteId ?? null } : {};
+    const { error } = await supabase.from("notifications").insert({ ...row, ...portee } as never);
+    // Sans la migration …07, les colonnes de portée n'existent pas : on
+    // réessaie SANS elles, plutôt que de perdre la notification. Le filtrage
+    // des destinataires, fait en amont par le serveur, s'applique dans tous
+    // les cas ; seul le second verrou (en base) attend la migration.
+    if (error && input.pays && /pays|entite_id|column/i.test(error.message) && error.code !== "P0001") {
+      await supabase.from("notifications").insert(row as never);
+    } else if (error) {
+      console.error("notify refusée :", error.message);
+    }
   } catch (err) {
     console.error("notify failed:", err);
   }

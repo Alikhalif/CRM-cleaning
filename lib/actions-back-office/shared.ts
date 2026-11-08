@@ -71,6 +71,8 @@ export type EtatDossier = {
   id: string;
   status: string;
   pays: string | null;
+  /** Société du dossier (celle du lead) — D31. */
+  entiteId: string | null;
   client: string;
   /** Une facture finale ACTIVE (brouillon ou émise, non annulée) existe. */
   finaleActive: boolean;
@@ -80,6 +82,8 @@ export type EtatFacture = {
   id: string;
   type: "acompte" | "finale";
   pays: string | null;
+  /** Société ÉMETTRICE de la facture — D31. */
+  entiteId: string | null;
   status: string;          // brouillon | envoye | retard | paye
   num: string;
   client: string;
@@ -95,6 +99,8 @@ export type Attendue = {
   entityId: string;
   /** Pays du dossier : seuls les planificateurs qui le couvrent sont concernés. */
   pays: string | null;
+  /** Société concernée : seules les planificatrices qui y ont accès sont averties (D31). */
+  entiteId: string | null;
   titre: string;
   href: string;
   /**
@@ -116,7 +122,7 @@ export function attendues(
 ): Attendue[] {
   const out: Attendue[] = [];
   for (const d of dossiers) {
-    const base = { roleCible: "planification" as const, entityType: "dossier" as const, entityId: d.id, pays: d.pays, href: "/planification" };
+    const base = { roleCible: "planification" as const, entityType: "dossier" as const, entityId: d.id, pays: d.pays, entiteId: d.entiteId, href: "/planification" };
     if (d.status === "a_planifier") {
       out.push({ ...base, cle: `dossier.a_planifier:${d.id}`, type: "dossier.a_planifier", titre: `Intervention à planifier — ${d.client}`, notifier: false });
     } else if (d.status === "finalise") {
@@ -126,7 +132,7 @@ export function attendues(
     }
   }
   for (const f of factures) {
-    const base = { roleCible: "planification" as const, entityType: "document" as const, entityId: f.id, pays: f.pays, href: `/factures/${f.id}` };
+    const base = { roleCible: "planification" as const, entityType: "document" as const, entityId: f.id, pays: f.pays, entiteId: f.entiteId, href: `/factures/${f.id}` };
     if (f.status === "brouillon") {
       if (f.type === "finale") {
         out.push({ ...base, cle: `facture.a_emettre:${f.id}`, type: "facture.a_emettre", titre: `Facture finale préparée, à émettre — ${f.client}`, notifier: true });

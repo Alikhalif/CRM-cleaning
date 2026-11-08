@@ -36,6 +36,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { bloquants, evaluerCible, modeEffectif, type Config } from "@/lib/env/cible";
 import { aujourdhuiLegal } from "@/lib/facturation/series-shared";
 import { evaluerActionsBackOffice } from "@/lib/actions-back-office/engine-server";
+import { notifierBackOffice } from "@/lib/notifications/perimetre-server";
 
 const CODE = "TSTCONC";
 const ANNEE = new Date().getFullYear();
@@ -145,18 +146,39 @@ async function main() {
   }
   console.log("Marqueur de recette : présent. Début des écritures fictives.\n");
 
-  // Société fictive dédiée : sa série ne croise celle d'aucune autre.
-  let { data: ent } = await sb.from("legal_entities").select("id").eq("code_numerotation", CODE).maybeSingle();
-  if (!ent) {
-    const r = await sb.from("legal_entities").insert({
-      legal_name: "SOCIÉTÉ FICTIVE — TEST CONCURRENCE", legal_form: "SAS", siret: "00000000000000",
-      address: { line1: "1 rue du Test", postal_code: "75000", city: "Paris" }, code_numerotation: CODE,
-      country: "FR", numerotation_depuis: aujourdhuiLegal("FR"),
-    }).select("id").single();
-    if (r.error) throw new Error(`société fictive : ${r.error.message}`);
-    ent = r.data;
-  }
-  const entite = (ent as { id: string }).id;
+  // Sociétés fictives : créées ET activées par supabase/recette/20_societes_de_test.sql.
+  // Ce script ne PEUT PAS activer une série — aucun rôle applicatif ne le peut
+  // (instruction du client : aucune activation sans validation explicite).
+  const societe = async (code: string) => {
+    const { data } = await sb.from("legal_entities").select("id, serie_activee_le").eq("code_numerotation", code).maybeSingle();
+    if (!data) throw new Error(`société ${code} absente : jouez supabase/recette/20_societes_de_test.sql dans l'éditeur SQL de la recette.`);
+    return data as { id: string; serie_activee_le: string | null };
+  };
+  // Déclaré ICI, avant la section 0 qui l'emploie : `tsc` a relevé qu'il
+  // l'était en section 4 — le test aurait planté dès sa première section.
+  const refuse = async (nom: string, p: PromiseLike<{ error: unknown }>) => {
+    const r = await p;
+    vrai(nom, !!r.error, r.error ? "" : "ACCEPTÉ — la protection ne tient pas");
+  };
+  const entite = (await societe(CODE)).id;
+
+  console.log("0. VERROU — une série préparée mais NON activée ne sert pas");
+  const verrou = await societe("TSTVERROU");
+  vrai("TSTVERROU est préparée mais non activée", verrou.serie_activee_le === null);
+  const bv = await brouillon(sb, verrou.id);
+  const ev = await emettre(sb, bv.id);
+  const nv = (ev.data?.[0] as { num: string } | undefined)?.num ?? "";
+  vrai("elle émet dans la série HISTORIQUE, pas dans la sienne", /^FAC-\d{4}-\d{4}$/.test(nv) && !nv.includes("TSTVERROU"), nv);
+  await refuse("activer une série par une écriture directe : refusé", sb.from("legal_entities")
+    .update({ serie_activee_le: new Date().toISOString(), serie_activee_par: "test", serie_activation_justification: "tentative de contournement" })
+    .eq("id", verrou.id));
+  const rpc = await sb.rpc("activer_serie_societe" as never, { p_entity: verrou.id, p_valide_par: "test", p_justification: "tentative par le service-role" } as never);
+  vrai("activer par la fonction depuis le service-role : refusé", !!rpc.error, rpc.error ? "" : "ACCEPTÉ — le verrou ne tient pas");
+  await refuse("créer une société DÉJÀ activée : refusé", sb.from("legal_entities").insert({
+    legal_name: "CONTOURNEMENT", legal_form: "SAS", siret: "00000000000000", address: {}, country: "FR",
+    code_numerotation: "TSTCONTO", numerotation_depuis: aujourdhuiLegal("FR"), serie_activee_le: new Date().toISOString(),
+    serie_activee_par: "x", serie_activation_justification: "contournement à la création",
+  }));
 
   console.log("1. Un brouillon ne consomme AUCUN numéro");
   const c0 = await compteur(sb, entite);
@@ -192,10 +214,6 @@ async function main() {
 
   console.log("\n4. Une facture ÉMISE est figée — y compris pour le service-role");
   const cible = lot[0].id;
-  const refuse = async (nom: string, p: PromiseLike<{ error: unknown }>) => {
-    const r = await p;
-    vrai(nom, !!r.error, r.error ? "" : "ACCEPTÉ — la protection ne tient pas");
-  };
   await refuse("renuméroter : refusé", sb.from("documents").update({ num: "FAC-FAUX-0001" }).eq("id", cible));
   await refuse("modifier le montant : refusé", sb.from("documents").update({ total_ttc: 1 }).eq("id", cible));
   await refuse("repasser en brouillon : refusé", sb.from("documents").update({ status: "brouillon" }).eq("id", cible));
@@ -221,18 +239,9 @@ async function main() {
   const PAYS = ["FR", "CH", "LU", "BE", "CA"] as const;
   const entites: Record<string, string> = {};
   for (const p of PAYS) {
-    const code = `TST${p}`;
-    let { data: e } = await sb.from("legal_entities").select("id").eq("code_numerotation", code).maybeSingle();
-    if (!e) {
-      const r = await sb.from("legal_entities").insert({
-        legal_name: `SOCIÉTÉ FICTIVE ${p} — TEST`, legal_form: "SAS", siret: "00000000000000",
-        address: { line1: "1 rue du Test", postal_code: "00000", city: "Test" },
-        country: p, code_numerotation: code, numerotation_depuis: aujourdhuiLegal(p),
-      }).select("id").single();
-      if (r.error) throw new Error(`société ${p} : ${r.error.message}`);
-      e = r.data;
-    }
-    entites[p] = (e as { id: string }).id;
+    const e = await societe(`TST${p}`);
+    vrai(`${p} : série de la société fictive ACTIVÉE (par le script de recette)`, e.serie_activee_le !== null);
+    entites[p] = e.id;
   }
   const brouillons: { pays: string; id: string }[] = [];
   for (const p of PAYS) for (let i = 0; i < 3; i++) brouillons.push({ pays: p, id: (await brouillon(sb, entites[p])).id });
@@ -345,6 +354,71 @@ async function main() {
   vrai("… et l'action suivante naît : « facture à préparer »", (await ouvertes(`facture.a_preparer:${dossierId}`)) === 1);
   await refuse("une action fermée ne se rouvre pas", sb.from("actions_back_office").update({ fermee_at: null, raison_fermeture: null }).eq("cle", cleAValider).not("fermee_at", "is", null));
   await refuse("une action ne se supprime pas", sb.from("actions_back_office").delete().eq("cle", cleAValider));
+
+
+  console.log("\n9. D31 — PÉRIMÈTRE DES NOTIFICATIONS, cinq pays, en base et au serveur");
+  if (!com.email || !com.mdp || !pla.email || !pla.mdp) {
+    console.log("  NON EXÉCUTÉE — comptes de test absents de .env.recette (voir section 7).");
+  } else {
+    const Pl9 = await (async () => {
+      const cl = createClient(url, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+      const { data, error } = await cl.auth.signInWithPassword({ email: pla.email, password: pla.mdp });
+      if (error || !data.user) throw new Error(`connexion planification : ${error?.message}`);
+      return { cl, uid: data.user.id };
+    })();
+    const { data: avant } = await sb.from("users").select("countries, entites_autorisees").eq("id", Pl9.uid).single();
+    const origine = avant as { countries: string[]; entites_autorisees: string[] };
+    const ents = Object.fromEntries(await Promise.all((["FR", "CH", "LU", "BE", "CA"] as const).map(async (p) => [p, (await societe(`TST${p}`)).id])));
+    const inserer = (pays: string | null, entite: string | null) => sb.from("notifications").insert({
+      user_id: Pl9.uid, kind: "test.perimetre", title: `Test ${pays ?? "personnelle"}`, pays, entite_id: entite,
+    }).select("id").maybeSingle();
+    try {
+      // Périmètre réduit le temps du test : FR seulement, toutes entités.
+      await sb.from("users").update({ countries: ["FR"], entites_autorisees: [] }).eq("id", Pl9.uid);
+      for (const p of ["CH", "LU", "BE", "CA"]) {
+        const r = await inserer(p, ents[p]);
+        vrai(`planificatrice FR : notification ${p} REFUSÉE à l'insertion (base)`, !!r.error);
+      }
+      const ok = await inserer("FR", ents.FR);
+      vrai("planificatrice FR : notification FR acceptée", !ok.error && !!ok.data, ok.error?.message);
+      const okId = (ok.data as { id: string } | null)?.id ?? "";
+      const lu = await Pl9.cl.from("notifications").select("id").eq("id", okId).maybeSingle();
+      vrai("… et lisible par elle (RLS)", !lu.error && !!lu.data);
+      await refuse("elle ne peut pas DÉMASQUER en effaçant la portée", Pl9.cl.from("notifications").update({ pays: null }).eq("id", okId));
+      const perso = await inserer(null, null);
+      vrai("une notification PERSONNELLE (sans pays) passe toujours", !perso.error, perso.error?.message);
+
+      // Périmètre d'ENTITÉS : FR + la seule société TSTFR.
+      await sb.from("users").update({ countries: ["FR"], entites_autorisees: [ents.FR] }).eq("id", Pl9.uid);
+      vrai("entité autorisée : acceptée", !(await inserer("FR", ents.FR)).error);
+      vrai("autre entité du même pays : REFUSÉE", !!(await inserer("FR", ents.CH)).error);
+      vrai("entité inconnue alors que le périmètre est restreint : REFUSÉE (fail-closed)", !!(await inserer("FR", null)).error);
+
+      // Une notification ancienne, devenue hors périmètre : MASQUÉE, pas supprimée.
+      await sb.from("users").update({ countries: ["BE"], entites_autorisees: [] }).eq("id", Pl9.uid);
+      const masquee = await Pl9.cl.from("notifications").select("id").eq("id", okId).maybeSingle();
+      const toujours = await sb.from("notifications").select("id").eq("id", okId).maybeSingle();
+      vrai("périmètre retiré : l'ancienne notification FR n'est plus lisible par elle", !masquee.data);
+      vrai("… mais elle est TOUJOURS en base (aucune suppression)", !!toujours.data);
+
+      // Le service serveur, lui, ne vise que le périmètre.
+      process.env.NEXT_PUBLIC_SUPABASE_URL = url;
+      process.env.SUPABASE_SERVICE_ROLE_KEY = cle;
+      await sb.from("users").update({ countries: ["FR"], entites_autorisees: [] }).eq("id", Pl9.uid);
+      const marque = `test.service.${Date.now()}`;
+      await notifierBackOffice({ pays: "BE", entiteId: ents.BE }, { kind: marque, title: "Hors périmètre" });
+      await notifierBackOffice({ pays: "FR", entiteId: ents.FR }, { kind: marque, title: "Dans le périmètre" });
+      const recu = await sb.from("notifications").select("pays").eq("user_id", Pl9.uid).eq("kind", marque);
+      const pays = ((recu.data ?? []) as { pays: string }[]).map((r) => r.pays);
+      vrai("service serveur : la planificatrice FR reçoit FR, pas BE", pays.includes("FR") && !pays.includes("BE"), pays.join(","));
+      await notifierBackOffice({ pays: null, entiteId: null }, { kind: marque, title: "Pays inconnu" });
+      const inconnu = await sb.from("notifications").select("id").eq("user_id", Pl9.uid).eq("kind", marque).eq("title", "Pays inconnu");
+      vrai("pays inconnu : aucune planificatrice n'est avertie (fail-closed)", (inconnu.data ?? []).length === 0);
+    } finally {
+      await sb.from("users").update({ countries: origine.countries, entites_autorisees: origine.entites_autorisees }).eq("id", Pl9.uid);
+      console.log("  info  périmètre d'origine de la planificatrice restauré");
+    }
+  }
 
   console.log(`\n${ok} ok · ${ko} échec(s)`);
   process.exit(ko === 0 ? 0 : 1);

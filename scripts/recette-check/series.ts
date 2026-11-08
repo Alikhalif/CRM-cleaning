@@ -41,6 +41,21 @@ vrai("série active ou déjà employée : immuable en base", M.includes("garder_
 vrai("… trigger posé APRÈS la création des compteurs qu'il lit", M.indexOf("create table if not exists facture_counters") < M.indexOf("create trigger trg_legal_entities_garder_serie"));
 vrai("année de la facture lue à l'heure LÉGALE de la société", M.includes("annee_legale(new.entity_id, new.issued_at)") && !M.includes("extract(year from new.issued_at)"));
 vrai("Canada : America/Toronto ; les quatre autres : Europe/Paris", M.includes("when 'ca' then 'america/toronto'") && M.includes("else 'europe/paris'"));
+// Instruction du client du 2026-11-09 : « Aucune activation de nouvelle série
+// sans validation explicite. » Préparer ≠ activer.
+const act = M.slice(M.indexOf("create or replace function activer_serie_societe("));
+vrai("ACTIVATION : préparer une série ne l'active pas (colonne dédiée)", M.includes("add column if not exists serie_activee_le timestamptz"));
+vrai("… l'allocation exige l'activation, pas seulement la date", M.includes("or v_activee is null"));
+vrai("… la fonction d'activation n'est exécutable par AUCUN rôle applicatif", M.includes("revoke all on function activer_serie_societe(uuid, text, text) from anon, authenticated, service_role"));
+vrai("… elle exige un validateur et une justification de 20 caractères", act.includes("length(btrim(p_justification)), 0) < 20"));
+vrai("… une écriture directe des colonnes d'activation est refusée", M.includes("une série ne s''active que par la procédure de validation explicite"));
+vrai("… à la CRÉATION aussi (pas de société créée déjà activée)", M.includes("before insert on legal_entities") && M.includes("pas à la création"));
+vrai("… une activation ne se défait pas", M.includes("son activation est déjà enregistrée et ne se défait pas"));
+vrai("… une série ACTIVÉE ne se modifie plus (code, date)", M.includes("old.serie_activee_le is not null\n       or exists (select 1 from facture_counters c"));
+const PROC = lire("supabase/procedures/activation-serie-societe.sql").toLowerCase();
+vrai("procédure d'activation : modèle, se termine par ROLLBACK", PROC.includes("select activer_serie_societe(") && PROC.trim().endsWith("rollback;"));
+vrai("aucun écran n'active une série", !lire("app/(app)/settings/entities/SeriesFacturation.tsx").includes("activer_serie_societe")
+  && !lire("app/(app)/settings/entities/actions.ts").includes("activer_serie_societe"));
 vrai("une facture déjà émise garde son numéro (brouillon ancien compris)", M.includes("son numéro ne change pas") && M.includes("old.num like 'brouillon-%' or old.num = ''"));
 
 console.log("\n3. Serveur et écran — LUS");

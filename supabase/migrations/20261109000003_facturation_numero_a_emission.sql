@@ -62,7 +62,16 @@ alter table legal_entities
   -- de bascule reste en attente »). Avant elle, la série historique continue :
   -- on peut tout préparer — code, contrôles — et ne rien faire basculer avant
   -- le jour choisi, de préférence un 1er janvier.
-  add column if not exists numerotation_depuis date;
+  add column if not exists numerotation_depuis date,
+  -- ACTIVATION (instruction du client du 2026-11-09 : « aucune activation de
+  -- nouvelle série sans validation explicite »). Préparer une série — code et
+  -- date — ne l'active PAS. Seule `activer_serie_societe()`, qu'aucun rôle
+  -- applicatif ne peut appeler, pose ces trois colonnes, avec une
+  -- justification. Sans elles, la série historique continue, quelle que soit
+  -- la date.
+  add column if not exists serie_activee_le timestamptz,
+  add column if not exists serie_activee_par text,
+  add column if not exists serie_activation_justification text;
 
 do $c$
 begin
@@ -104,13 +113,25 @@ returns trigger
 language plpgsql
 as $$
 begin
+  -- L'activation ne se pose, ni ne se défait, que par activer_serie_societe().
+  if (new.serie_activee_le, new.serie_activee_par, new.serie_activation_justification)
+     is distinct from (old.serie_activee_le, old.serie_activee_par, old.serie_activation_justification)
+     and coalesce(current_setting('cgk.activation_serie', true), '') <> 'autorisee' then
+    raise exception 'Société % : une série ne s''active que par la procédure de validation explicite.', old.legal_name
+      using errcode = 'P0001';
+  end if;
+  if old.serie_activee_le is not null
+     and (new.serie_activee_le, new.serie_activee_par, new.serie_activation_justification)
+         is distinct from (old.serie_activee_le, old.serie_activee_par, old.serie_activation_justification) then
+    raise exception 'Société % : son activation est déjà enregistrée et ne se défait pas.', old.legal_name
+      using errcode = 'P0001';
+  end if;
   if (new.code_numerotation, new.numerotation_depuis)
      is not distinct from (old.code_numerotation, old.numerotation_depuis) then
     return new;
   end if;
   if old.code_numerotation is not null and (
-       (now() at time zone (case old.country when 'CA' then 'America/Toronto' else 'Europe/Paris' end))::date
-         >= old.numerotation_depuis
+       old.serie_activee_le is not null
        or exists (select 1 from facture_counters c where c.entity_id = old.id)
      ) then
     raise exception 'Société % : sa série de factures est active ou a déjà servi — elle ne se modifie plus.', old.legal_name
@@ -134,9 +155,32 @@ create table if not exists facture_counters (
 alter table facture_counters enable row level security;
 
 -- (Le trigger de 1 bis lit `facture_counters` : il est posé APRÈS sa création.)
+-- Même verrou à la CRÉATION : sans lui, une société créée avec ses colonnes
+-- d'activation déjà remplies contournerait la validation explicite.
+create or replace function garder_activation_a_la_creation()
+returns trigger
+language plpgsql
+as $$
+begin
+  if (new.serie_activee_le is not null or new.serie_activee_par is not null
+      or new.serie_activation_justification is not null)
+     and coalesce(current_setting('cgk.activation_serie', true), '') <> 'autorisee' then
+    raise exception 'Une série ne s''active que par la procédure de validation explicite, pas à la création.'
+      using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_legal_entities_activation_creation on legal_entities;
+create trigger trg_legal_entities_activation_creation
+  before insert on legal_entities
+  for each row execute function garder_activation_a_la_creation();
+
 drop trigger if exists trg_legal_entities_garder_serie on legal_entities;
 create trigger trg_legal_entities_garder_serie
-  before update of code_numerotation, numerotation_depuis on legal_entities
+  before update of code_numerotation, numerotation_depuis,
+                   serie_activee_le, serie_activee_par, serie_activation_justification on legal_entities
   for each row execute function garder_serie_societe();
 
 -- ── 3. Colonnes de traçabilité sur `documents` ───────────────────────────
@@ -211,6 +255,7 @@ as $$
 declare
   v_code   text;
   v_depuis date;
+  v_activee timestamptz;
   v_n      integer;
   v_prefix text;
 begin
@@ -219,13 +264,14 @@ begin
       using errcode = 'P0001';
   end if;
 
-  select code_numerotation, numerotation_depuis into v_code, v_depuis
+  select code_numerotation, numerotation_depuis, serie_activee_le into v_code, v_depuis, v_activee
     from legal_entities where id = p_entity;
 
   if v_code is null
+     or v_activee is null
      or (now() at time zone fuseau_societe(p_entity))::date < v_depuis then
     -- Série historique commune : comportement INCHANGÉ tant que la société
-    -- n'a pas de série dédiée, ou que sa date d'effet n'est pas atteinte.
+    -- n'a pas de série dédiée ACTIVÉE, ou que sa date d'effet n'est pas atteinte.
     return next_doc_num(p_type, p_year);
   end if;
 
@@ -243,6 +289,44 @@ $$;
 -- Appelée seulement par les triggers ci-dessous (eux-mêmes SECURITY DEFINER) :
 -- aucune session ne peut brûler un numéro en l'appelant directement.
 revoke all on function allouer_numero_facture(uuid, document_type, integer) from public;
+
+-- ── 5 bis. Activation d'une série — VALIDATION EXPLICITE ─────────────────
+-- Exécutable par AUCUN rôle applicatif : ni `authenticated`, ni
+-- `service_role`. Elle ne s'appelle que depuis l'éditeur SQL, par
+-- l'opérateur, après la validation écrite du client et de son
+-- expert-comptable (supabase/procedures/activation-serie-societe.sql).
+create or replace function activer_serie_societe(p_entity uuid, p_valide_par text, p_justification text)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_code text; v_depuis date; v_activee timestamptz;
+begin
+  select code_numerotation, numerotation_depuis, serie_activee_le into v_code, v_depuis, v_activee
+    from legal_entities where id = p_entity for update;
+  if not found then raise exception 'Société introuvable.' using errcode = 'P0001'; end if;
+  if v_activee is not null then raise exception 'Série déjà activée le %.', v_activee using errcode = 'P0001'; end if;
+  if v_code is null or v_depuis is null then
+    raise exception 'Aucune série préparée (code et date d''effet) pour cette société.' using errcode = 'P0001';
+  end if;
+  if coalesce(length(btrim(p_valide_par)), 0) < 3 or coalesce(length(btrim(p_justification)), 0) < 20 then
+    raise exception 'Validation explicite requise : nom du validateur et justification (20 caractères au moins).'
+      using errcode = 'P0001';
+  end if;
+  perform set_config('cgk.activation_serie', 'autorisee', true);
+  update legal_entities
+     set serie_activee_le = now(),
+         serie_activee_par = btrim(p_valide_par),
+         serie_activation_justification = btrim(p_justification)
+   where id = p_entity;
+  perform set_config('cgk.activation_serie', '', true);
+end;
+$$;
+
+revoke all on function activer_serie_societe(uuid, text, text) from public;
+revoke all on function activer_serie_societe(uuid, text, text) from anon, authenticated, service_role;
 
 -- ── 6. À l'INSERTION : un brouillon n'a qu'un numéro provisoire ──────────
 create or replace function assign_doc_num()

@@ -27,11 +27,15 @@ export default async function PlanificationPage() {
   const { canUseRingover } = profileCapabilities(me?.commercialProfiles ?? [], isAdmin, isPlanif);
 
   let myCountries: string[] = [];
+  // D31 : périmètre d'ENTITÉS (vide = toutes). `select("*")` : la colonne
+  // n'existe qu'avec la migration 20261109000007.
+  let myEntites: string[] = [];
   if (isPlanif && !isAdmin && me) {
     const supabase = await supabaseServer();
     const { data } = await supabase
-      .from("users").select("countries").eq("id", me.id).maybeSingle<{ countries: string[] | null }>();
+      .from("users").select("*").eq("id", me.id).maybeSingle<{ countries: string[] | null; entites_autorisees?: string[] | null }>();
     myCountries = data?.countries ?? [];
+    myEntites = data?.entites_autorisees ?? [];
   }
 
   // A17 — sécurité par défaut : un planificateur (non-admin) est TOUJOURS scopé
@@ -40,7 +44,10 @@ export default async function PlanificationPage() {
   // conservent la vision globale.
   const scoped =
     isPlanif && !isAdmin
-      ? rows.filter((r) => r.lead.country != null && myCountries.includes(r.lead.country))
+      ? rows.filter((r) =>
+          r.lead.country != null && myCountries.includes(r.lead.country)
+          // Entités restreintes : une société inconnue est écartée (fail-closed).
+          && (myEntites.length === 0 || (r.lead.entityId != null && myEntites.includes(r.lead.entityId))))
       : rows;
 
   return (

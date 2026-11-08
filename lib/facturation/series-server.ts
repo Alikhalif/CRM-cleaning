@@ -17,7 +17,13 @@ export type EtatSerie = {
   pays: Country | null;
   code: string | null;
   depuis: string | null;
-  /** Date d'effet atteinte : la société numérote déjà dans sa série. */
+  /**
+   * ACTIVÉE par la procédure de validation explicite (`activer_serie_societe`)
+   * — jamais par l'écran. Sans activation, la série reste PRÉPARÉE et la
+   * société numérote dans la série historique, quelle que soit la date.
+   */
+  activee: boolean;
+  /** Activée ET date d'effet atteinte : la société numérote dans sa série. */
   active: boolean;
   /** Au moins une facture a été numérotée dans la série dédiée. */
   employee: boolean;
@@ -42,13 +48,15 @@ export async function lireSeries(): Promise<{ migrationAppliquee: boolean; serie
     const pays = (l.country as Country | null) ?? null;
     const code = (l.code_numerotation as string | null) ?? null;
     const depuis = (l.numerotation_depuis as string | null) ?? null;
+    const activee = !!l.serie_activee_le;
     return {
       id: l.id as string,
       nom: (l.legal_name as string) ?? "",
       pays,
       code,
       depuis,
-      active: !!code && !!depuis && aujourdhuiLegal(pays) >= depuis,
+      activee,
+      active: activee && !!code && !!depuis && aujourdhuiLegal(pays) >= depuis,
       employee: employees.has(l.id as string),
     };
   });

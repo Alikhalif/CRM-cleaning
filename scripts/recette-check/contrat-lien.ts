@@ -74,7 +74,7 @@ vrai("renouvellement : un lien encore valide ne se renouvelle pas", R.includes("
 vrai("renouvellement : plafond et fenêtre appliqués", R.includes("peutRenouveler("));
 vrai("renouvellement : verrou contre deux demandes simultanées", /\.update\(\{ revoque_at: new Date\(\)\.toISOString\(\) \}\)\s+\.eq\("id", lien\.id\)\s+\.is\("revoque_at", null\)/.test(R));
 vrai("renouvellement : l'échec d'envoi rend l'ancien lien renouvelable", R.includes("update({ revoque_at: null })"));
-vrai("renouvellement : le back-office est notifié", R.includes('notifyRole("planification"'));
+vrai("renouvellement : le back-office est notifié, DANS son périmètre (D31)", R.includes("notifierBackOffice(await porteeDuContratClient(contrat.id)") && !R.includes('notifyRole("planification"'));
 
 const P = lire("proxy.ts");
 vrai("la route est publique par construction (/api/* hors session)", /\/api/.test(P));

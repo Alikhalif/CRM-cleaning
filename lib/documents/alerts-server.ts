@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseServiceRole } from "@/lib/supabase/service";
-import { notifyRole } from "@/lib/notifications";
+import { notifierBackOffice, porteeDuContratClient } from "@/lib/notifications/perimetre-server";
 
 // Alertes documentaires « push » (§9) — cloche de la planification. Volontairement
 // conservateur et dédupliqué au jour (une notification par contrat et par jour)
@@ -44,7 +44,9 @@ export async function evaluateDocumentAlerts(): Promise<{ ok: true; notified: nu
 
   for (const c of contracts ?? []) {
     if (await alreadyNotifiedToday(sb, "contract.expiring", c.id, sinceIso)) continue;
-    await notifyRole("planification", {
+    // D31 : par le lead source du client. Client direct, sans lead : pays
+    // inconnu — aucune planificatrice n'est avertie hors périmètre.
+    await notifierBackOffice(await porteeDuContratClient(c.id), {
       kind: "contract.expiring",
       entityType: "client",
       entityId: c.id, // clé de dédup (le lien pointe vers le tableau de bord)

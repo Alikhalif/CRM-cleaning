@@ -276,7 +276,8 @@ export async function definirSerieFacturation(
 
   const verdict = verifierSaisieSerie(input, {
     pays: cible.pays,
-    serieActive: cible.active || cible.employee,
+    // Préparable tant qu'elle n'est ni ACTIVÉE (validation explicite) ni employée.
+    serieActive: cible.activee || cible.employee,
     codesPris: series.filter((s) => s.id !== entityId && s.code).map((s) => s.code as string),
   });
   if (!verdict.ok) return { ok: false, error: verdict.erreur };

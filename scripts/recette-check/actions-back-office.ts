@@ -21,7 +21,7 @@ const h = (n: number) => new Date(T0.getTime() + n * 3_600_000);
 const C = CONFIG_INITIALE;
 
 console.log("\n1. Ce qui est attendu, état par état — EXÉCUTÉ");
-const d = (status: string, finaleActive = false): EtatDossier => ({ id: `d-${status}${finaleActive ? "-facture" : ""}`, status, pays: "FR", client: "Client", finaleActive });
+const d = (status: string, finaleActive = false): EtatDossier => ({ id: `d-${status}${finaleActive ? "-facture" : ""}`, status, pays: "FR", entiteId: "ent-fr", client: "Client", finaleActive });
 const A = attendues([d("a_planifier"), d("finalise"), d("valide"), d("valide", true), d("planifie"), d("solde")], [], T0, C);
 vrai("à planifier → action « à planifier »", A.some((a) => a.type === "dossier.a_planifier"));
 vrai("… SANS notification (quote.signed l'a déjà faite : pas de doublon)", A.find((a) => a.type === "dossier.a_planifier")?.notifier === false);
@@ -29,9 +29,9 @@ vrai("terminée → « à valider », notifiée", A.some((a) => a.type === "doss
 vrai("validée sans facture → « facture à préparer »", A.filter((a) => a.type === "facture.a_preparer").length === 1);
 vrai("validée AVEC facture active → plus rien à préparer", !A.some((a) => a.entityId === "d-valide-facture"));
 vrai("planifiée, soldée → aucune action", !A.some((a) => a.entityId === "d-planifie" || a.entityId === "d-solde"));
-vrai("le pays du dossier accompagne l'action (cloisonnement CDC §11)", A.every((a) => a.pays === "FR"));
+vrai("le pays ET la société du dossier accompagnent l'action (CDC §11, D31)", A.every((a) => a.pays === "FR" && a.entiteId === "ent-fr"));
 
-const f = (o: Partial<EtatFacture>): EtatFacture => ({ id: "f", type: "finale", status: "envoye", pays: "BE", num: "FAC-1", client: "C", emiseAt: T0.toISOString(), termeSlug: "30j", ...o });
+const f = (o: Partial<EtatFacture>): EtatFacture => ({ id: "f", type: "finale", status: "envoye", pays: "BE", entiteId: "ent-be", num: "FAC-1", client: "C", emiseAt: T0.toISOString(), termeSlug: "30j", ...o });
 vrai("finale brouillon → « à émettre »", attendues([], [f({ status: "brouillon", emiseAt: null })], T0, C).some((a) => a.type === "facture.a_emettre"));
 vrai("finale à 30 j : pas impayée au 29e jour", attendues([], [f({})], h(29 * 24), C).length === 0);
 vrai("… impayée au 30e jour (échéance + 0 j)", attendues([], [f({})], h(30 * 24), C).some((a) => a.type === "facture.impayee"));
@@ -71,16 +71,16 @@ vrai("une seule action OUVERTE par clé (index unique partiel)", M.includes("cre
 vrai("AUCUNE colonne « lue » : lire ne peut rien fermer", !/\blu(e)?_at\b|read_at/.test(M.slice(M.indexOf("create table if not exists actions_back_office"), M.indexOf("create unique index"))));
 vrai("fermeture : « action effectuée » ou « objet disparu », rien d'autre", M.includes("raison_fermeture in ('action_effectuee', 'objet_disparu')"));
 vrai("une action fermée ne se rouvre pas ; rien ne se supprime (même le service-role)", M.includes("fermée : elle ne se modifie plus") && M.includes("pas de suppression"));
-vrai("RLS : un planificateur ne voit que SES pays", M.includes("pays = any (u.countries)"));
+vrai("RLS (…06) : un planificateur ne voit que SES pays — redéfinie par …07 avec les entités", M.includes("pays = any (u.countries)") && lire("supabase/migrations/20261109000007_notifications_perimetre.sql").includes("drop policy if exists actions_bo_select on actions_back_office"));
 vrai("RLS : aucune politique d'écriture", !/for (insert|update|delete|all)/.test(M));
 vrai("informations ponctuelles : une clé, un envoi (clé primaire)", M.includes("cle        text primary key"));
 
 console.log("\n5. Le moteur et ses branchements (lus)");
 const E = lire("lib/actions-back-office/engine-server.ts");
 vrai("notification seulement si L'INSERTION a réussi (le perdant d'une course ne notifie pas)", /if \(error \|\| !data\) continue;\s+nOuvertes\+\+;\s+if \(a\.notifier\)/.test(E));
-vrai("notification ciblée sur les planificateurs du PAYS", E.includes("notifierPlanificateursDuPays(a.pays") && E.includes('.contains("countries", [pays])'));
+vrai("notification ciblée par PAYS et ENTITÉ, via le service commun (D31)", E.includes("notifierBackOffice({ pays: a.pays, entiteId: a.entiteId }") && !E.includes("notifierPlanificateursDuPays"));
 vrai("escalade : mise à jour conditionnelle, puis notification au Super Admin", E.includes('.is("escaladee_at", null).is("fermee_at", null)') && E.includes('notifyRole("admin"'));
-vrai("contrat DocuSign signé : une fois par enveloppe, ciblé par pays", E.includes("docusign.signe:${e.envelope_id}") && E.includes("notifierPlanificateursDuPays(e.contrat?.dossier?.lead?.country"));
+vrai("contrat DocuSign signé : une fois par enveloppe, ciblé par pays et entité", E.includes("docusign.signe:${e.envelope_id}") && E.includes("notifierBackOffice({ pays: e.contrat?.dossier?.lead?.country ?? null, entiteId: e.entity_id }"));
 vrai("délais lus par le SERVICE-ROLE (le cron n'a pas de session)", /async function config\(\)[\s\S]{0,200}supabaseServiceRole\(\)/.test(E));
 vrai("sans migration : le moteur le dit, ne fabrique rien", E.includes("migration non appliquée ?"));
 const R = lire("app/api/presence/evaluate/route.ts");

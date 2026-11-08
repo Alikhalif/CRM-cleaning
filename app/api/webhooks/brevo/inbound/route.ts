@@ -2,7 +2,8 @@ import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { supabaseServiceRole } from "@/lib/supabase/service";
 import { auditLog } from "@/lib/audit";
-import { notify, notifyRole } from "@/lib/notifications";
+import { notify } from "@/lib/notifications";
+import { notifierBackOffice, porteeDuLead } from "@/lib/notifications/perimetre-server";
 import { MEDIA_BUCKET } from "@/lib/media-server";
 import { isDuplicateWebhook } from "@/lib/webhook-dedup";
 
@@ -199,7 +200,8 @@ export async function POST(request: Request) {
       // Le commercial propriétaire…
       if (ownerId) await notify({ userId: ownerId, ...mediaNotif });
       // …ET la planification (toutes les planificatrices), sans doublonner le propriétaire.
-      await notifyRole("planification", mediaNotif, ownerId ?? undefined);
+      // D31 : planification ciblée par le périmètre du lead.
+      await notifierBackOffice(await porteeDuLead(leadId), mediaNotif, { exclureUserId: ownerId ?? undefined });
     }
   }
 

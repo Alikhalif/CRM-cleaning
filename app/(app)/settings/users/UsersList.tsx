@@ -18,6 +18,7 @@ import {
   setRingoverAgentId,
   setUserActivities,
   setUserCountries,
+  setUserEntitesAutorisees,
   setUserEntity,
   setUserFlag,
   setUserProfiles,
@@ -431,6 +432,45 @@ export default function UsersList({ users, roles, entities, activities }: Props)
                       <option key={ent.id} value={ent.id}>{ent.name}</option>
                     ))}
                   </select>
+                  {/* D31 — périmètre d'ENTITÉS d'une planificatrice : aucune
+                      cochée = toutes (comportement antérieur). Ses
+                      notifications et sa vue Planification s'y limitent. */}
+                  {u.roleSlugs.includes("planification") && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}
+                      title="Périmètre d'entités (planification). Aucune = toutes.">
+                      {entities.map((ent) => {
+                        const active = u.entitesAutorisees.includes(ent.id);
+                        const key = `ents-${u.id}-${ent.id}`;
+                        const next = active
+                          ? u.entitesAutorisees.filter((x) => x !== ent.id)
+                          : [...u.entitesAutorisees, ent.id];
+                        return (
+                          <button
+                            key={ent.id}
+                            type="button"
+                            disabled={busy !== null}
+                            aria-pressed={active}
+                            onClick={() => run(key, () => setUserEntitesAutorisees(u.id, next))}
+                            style={{
+                              padding: "3px 8px",
+                              minHeight: 28,
+                              borderRadius: "999px",
+                              fontSize: "0.75rem",
+                              cursor: busy !== null ? "default" : "pointer",
+                              border: active ? "1px solid var(--color-brand-500)" : "1px solid var(--border-strong)",
+                              background: active ? "var(--color-brand-500)" : "transparent",
+                              color: active ? "#fff" : "var(--text-muted)",
+                            }}
+                          >
+                            {busy === key ? "…" : ent.name}
+                          </button>
+                        );
+                      })}
+                      {u.entitesAutorisees.length === 0 && (
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>toutes les entités</span>
+                      )}
+                    </div>
+                  )}
                 </td>
                 <td style={td}>
                   <input

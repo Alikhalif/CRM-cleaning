@@ -9,7 +9,8 @@ import DocumentPdf from "./pdf/DocumentPdf";
 import SignatureAttestationPdf from "./pdf/SignatureAttestationPdf";
 import SignatureCertificatePdf from "./pdf/SignatureCertificatePdf";
 import { markDocumentSigned } from "@/app/(app)/_shared/document-actions";
-import { notify, notifyRole } from "./notifications";
+import { notify } from "./notifications";
+import { notifierBackOffice, porteeDuDocument } from "@/lib/notifications/perimetre-server";
 import { sendBrevoEmail, PLANIF_SENDER } from "./brevo";
 import { formatEUR } from "./leads";
 import {
@@ -382,7 +383,9 @@ export async function finalizeSignature(
       href: `/signatures/${sr.id}`,
     };
     if (lead?.owner_id) await notify({ userId: lead.owner_id, ...notifBody });
-    await notifyRole("planification", notifBody, lead?.owner_id ?? undefined);
+    // D31 : la planification n'est avertie que DANS son périmètre (pays du lead,
+    // société émettrice du devis). La copie du propriétaire reste personnelle.
+    await notifierBackOffice(await porteeDuDocument(sr.document_id), notifBody, { exclureUserId: lead?.owner_id ?? undefined });
 
     await sendBrevoEmail({
       to: sr.recipient_email,

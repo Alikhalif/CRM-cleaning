@@ -74,7 +74,7 @@ export async function setRingoverAgentId(userId: string, value: string): Promise
 // Replace a user's commercial profiles or country coverage (multi-value).
 async function setUserArray(
   userId: string,
-  column: "commercial_profiles" | "countries",
+  column: "commercial_profiles" | "countries" | "entites_autorisees",
   values: string[],
   auditAction: string,
 ): Promise<Result> {
@@ -114,6 +114,13 @@ export async function setUserEntity(userId: string, entityId: string): Promise<R
 
 export async function setUserProfiles(userId: string, profiles: string[]): Promise<Result> {
   return setUserArray(userId, "commercial_profiles", profiles, "user.profiles.set");
+}
+
+// D31 — périmètre d'entités juridiques d'une planificatrice. Vide = toutes
+// (comportement antérieur) ; renseigné = ses notifications ET sa vue
+// Planification se limitent à ces sociétés. Réservé aux administrateurs.
+export async function setUserEntitesAutorisees(userId: string, entites: string[]): Promise<Result> {
+  return setUserArray(userId, "entites_autorisees", entites, "user.entities_scope.set");
 }
 
 export async function setUserCountries(userId: string, countries: string[]): Promise<Result> {

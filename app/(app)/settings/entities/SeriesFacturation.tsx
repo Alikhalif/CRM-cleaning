@@ -28,8 +28,9 @@ export default function SeriesFacturation({ migrationAppliquee, series }: Props)
 
   const enregistrer = (s: EtatSerie) => {
     if (!confirm(
-      `Préparer la série ${code.toUpperCase() || "?"} pour ${s.nom}, effective le ${depuis} ?\n\n`
-      + "Avant cette date, rien ne change. À cette date, la série devient définitive et ne se modifie plus.",
+      `Préparer la série ${code.toUpperCase() || "?"} pour ${s.nom}, date prévue ${depuis} ?\n\n`
+      + "Rien ne change : une série préparée ne sert pas. Elle ne s'active que par la procédure de "
+      + "validation explicite ; une fois activée, elle ne se modifie plus.",
     )) return;
     demarrer(async () => {
       const r = await definirSerieFacturation(s.id, { code, depuis });
@@ -65,13 +66,15 @@ export default function SeriesFacturation({ migrationAppliquee, series }: Props)
       ) : (
         <>
           <p className={styles.itemMetaAlert}>
-            <Icon name="alert" size={14} /> Date recommandée : un <strong>1er janvier</strong>,
-            pour qu&apos;une société n&apos;ait jamais deux séries la même année. À fixer avec
-            l&apos;expert-comptable.
+            <Icon name="alert" size={14} /> Ici, une série se <strong>prépare</strong> seulement :
+            elle <strong>ne s&apos;active jamais depuis cet écran</strong>. L&apos;activation exige
+            votre <strong>validation explicite</strong>, par une procédure dédiée
+            (supabase/procedures/activation-serie-societe.sql). Date recommandée : un
+            <strong> 1er janvier</strong>, à fixer avec l&apos;expert-comptable.
           </p>
           <ul className={styles.list}>
             {series.map((s) => {
-              const figee = s.active || s.employee;
+              const figee = s.activee || s.employee;
               return (
                 <li key={s.id} className={styles.item}>
                   <div className={styles.itemBody}>
@@ -79,9 +82,10 @@ export default function SeriesFacturation({ migrationAppliquee, series }: Props)
                     <span className={styles.itemMeta}>{s.pays ? COUNTRY_LABEL[s.pays as Country] : "pays non renseigné"}</span>
                     <div className={styles.itemMeta}>
                       {s.code
-                        ? <>Série <strong>{s.code}</strong> — {figee ? "active depuis" : "effective le"} {s.depuis} · ex. {exemple(s.code, s.depuis)}</>
+                        ? <>Série <strong>{s.code}</strong> — date prévue {s.depuis} · ex. {exemple(s.code, s.depuis)}</>
                         : <>Série historique commune</>}
-                      {figee && <> · <strong>figée</strong></>}
+                      {s.code && !s.activee && <> · <strong>préparée, NON activée</strong> — la série historique continue</>}
+                      {s.activee && <> · <strong>activée</strong>, figée</>}
                     </div>
                   </div>
                   {!figee && (

@@ -40,6 +40,8 @@ const SUITES = [
   { fichier: "encaissement.ts", titre: "D29 · D30 — l'encaissement et la facture OPTIMIVV au back-office" },
   { fichier: "series.ts", titre: "D26 — séries de factures par société : indépendantes, datées, figées" },
   { fichier: "actions-back-office.ts", titre: "Notifications intermodules : naissance, persistance, escalade, pays" },
+  { fichier: "notifications-perimetre.ts", titre: "D31 — périmètre des notifications : cinq pays, rôles, entités" },
+  { fichier: "recette-pret.ts", titre: "Préparation de la recette : l'étape suivante, et qui doit agir" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "recette-check-"));
