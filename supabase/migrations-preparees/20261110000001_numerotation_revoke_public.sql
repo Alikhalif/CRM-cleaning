@@ -1,0 +1,143 @@
+-- ════════════════════════════════════════════════════════════════════
+--  D23 — Fermer PUBLIC sur trois fonctions de numérotation
+--        SECURITY DEFINER, sans casser l'émission des contrats.
+--
+--  ⚠️ PRÉPARÉE, NON APPLIQUÉE. Ce fichier n'est pas dans le chemin de
+--     `supabase db push` — voir le README du dossier.
+-- ════════════════════════════════════════════════════════════════════
+--
+--  LE DÉFAUT
+--
+--  En PostgreSQL, `EXECUTE` sur une fonction est accordé à PUBLIC par
+--  défaut. Trois fonctions de numérotation n'ont jamais été révoquées :
+--
+--    · next_contract_num(integer)
+--    · allocate_subcontract_ref(text, text)
+--    · allocate_document_archive_ref(text)
+--
+--  Elles sont `SECURITY DEFINER`, donc elles tournent avec les droits du
+--  propriétaire et contournent la RLS. Le rôle `anon` fait partie de
+--  PUBLIC. `allocate_subcontract_ref` CONSOMME une référence dans une
+--  séquence sans trou (`last + 1` sur subcontract_sequences) — une
+--  référence consommée ne se récupère pas.
+--
+--  Leurs six sœurs (next_doc_num, next_devis_optimivv_num,
+--  next_facture_optimivv_num, next_cert_hotte_num, peek_devis_optimivv_num,
+--  peek_facture_optimivv_num) sont correctement révoquées : la règle était
+--  connue, ces trois ont été oubliées.
+--
+-- ════════════════════════════════════════════════════════════════════
+--
+--  ⚠️ LE PIÈGE, ET POURQUOI CETTE MIGRATION N'EST PAS TROIS LIGNES
+--
+--  Ces fonctions FONCTIONNENT AUJOURD'HUI GRÂCE au PUBLIC par défaut.
+--  Un `revoke` seul leur retirerait le droit d'exécuter à leurs propres
+--  appelants, et l'émission échouerait sur une erreur de permission.
+--
+--  Appelants relevés dans le code (recherche exhaustive, 9 novembre 2026) :
+--
+--  ┌─────────────────────────────────┬──────────────────────────────────────┬────────────────┐
+--  │ Fonction                        │ Appelant                             │ Rôle effectif  │
+--  ├─────────────────────────────────┼──────────────────────────────────────┼────────────────┤
+--  │ next_contract_num               │ lib/documents/contracts-server.ts:238│ service_role   │
+--  │                                 │ via supabaseServiceRole()            │                │
+--  │ allocate_subcontract_ref        │ app/(app)/planification/[id]/        │ authenticated  │
+--  │                                 │ actions.ts:329 via supabaseServer()  │                │
+--  │ allocate_document_archive_ref   │ AUCUN appelant applicatif            │ —              │
+--  └─────────────────────────────────┴──────────────────────────────────────┴────────────────┘
+--
+--  Chaque `revoke` est donc apparié à un `grant` au rôle qui appelle
+--  réellement. C'est ce que cette migration fait, et rien d'autre.
+--
+-- ════════════════════════════════════════════════════════════════════
+--
+--  CE QUE CETTE MIGRATION NE FAIT PAS, DÉLIBÉRÉMENT
+--
+--  Elle NE RETIRE PAS le `grant … to authenticated` existant sur
+--  next_contract_num. Ce serait un durcissement supplémentaire — aucun
+--  chemin applicatif ne l'appelle en session — mais c'est une décision
+--  distincte, à prendre en connaissance de cause, et non un effet de bord
+--  de la fermeture de PUBLIC. Elle est signalée au client, pas appliquée.
+--
+--  Elle NE TOUCHE À AUCUNE DONNÉE. Ni table, ni compteur, ni document
+--  déjà émis. Uniquement des droits d'exécution.
+--
+--  Elle EST IDEMPOTENTE : `revoke` et `grant` se rejouent sans erreur.
+--
+-- ════════════════════════════════════════════════════════════════════
+
+-- ── 1. next_contract_num — appelée en service_role ───────────────────
+--
+-- Le `grant … to authenticated` posé par 20260915000002 survit au revoke
+-- (c'est un privilège distinct de celui de PUBLIC) : la fonction reste
+-- donc joignable par une session authentifiée, et le devient par
+-- service_role, qui en avait besoin et ne l'avait jamais reçu.
+
+revoke all on function next_contract_num(integer) from public;
+grant execute on function next_contract_num(integer) to service_role;
+
+-- ── 2. allocate_subcontract_ref — appelée en authenticated ───────────
+--
+-- Aucun grant n'existait : elle ne marchait que par PUBLIC. On accorde à
+-- `authenticated` (son appelant réel, via supabaseServer()) et à
+-- `service_role` (pour les chemins machine : cron, webhooks, rattrapage).
+--
+-- ⚠️ L'autorisation métier reste côté application : `ensurePlanner()`
+-- garde les 7 actions du module. La RLS, elle, est contournée par
+-- SECURITY DEFINER — c'est son objet, puisqu'il faut écrire dans une
+-- table de séquences qu'aucun utilisateur ne doit pouvoir modifier.
+
+revoke all on function allocate_subcontract_ref(text, text) from public;
+grant execute on function allocate_subcontract_ref(text, text) to authenticated, service_role;
+
+-- ── 3. allocate_document_archive_ref — aucun appelant ────────────────
+--
+-- Révoquer PUBLIC ici est sans effet de bord : rien ne l'appelle.
+-- Le grant à `service_role` anticipe le seul chemin qui l'appellera un
+-- jour — l'archivage DocuSign, qui tourne en service_role
+-- (lib/docusign/archivage-server.ts). Sans ce grant, le jour où le
+-- raccordement se fera, l'archivage échouerait sur une permission.
+
+revoke all on function allocate_document_archive_ref(text) from public;
+grant execute on function allocate_document_archive_ref(text) to service_role;
+
+-- ════════════════════════════════════════════════════════════════════
+--
+--  VÉRIFICATION APRÈS APPLICATION (sur la recette)
+--
+--  1. Lire les droits effectifs :
+--
+--     select p.proname,
+--            p.prosecdef                       as security_definer,
+--            coalesce(array_to_string(p.proacl, ' | '), '(défaut = PUBLIC)') as droits
+--     from pg_proc p
+--     join pg_namespace n on n.oid = p.pronamespace
+--     where n.nspname = 'public'
+--       and p.proname in ('next_contract_num',
+--                         'allocate_subcontract_ref',
+--                         'allocate_document_archive_ref')
+--     order by p.proname;
+--
+--     Attendu : plus aucune ligne « (défaut = PUBLIC) », et chaque proacl
+--     nomme explicitement les rôles accordés.
+--
+--  2. Vérifier qu'anon est refusé :
+--
+--     set local role anon;
+--     select allocate_subcontract_ref('test', 'ZZ');   -- doit ÉCHOUER
+--     reset role;
+--
+--     ⚠️ Si cet appel RÉUSSIT, la migration n'a pas eu l'effet attendu.
+--     S'il échoue pour « permission denied for function », c'est le but.
+--
+--  3. ÉPROUVER L'ÉMISSION, qui est le vrai test :
+--
+--     · créer un contrat de sous-traitance depuis /planification/[id]
+--       → la référence ST-AAAA-NNNN doit s'allouer ;
+--     · émettre un contrat depuis le module Documents & Contrats
+--       → le numéro doit s'allouer.
+--
+--     Un contrôle statique ne remplace pas ces deux gestes : c'est
+--     exactement ce que cette migration pourrait casser.
+--
+-- ════════════════════════════════════════════════════════════════════

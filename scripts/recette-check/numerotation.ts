@@ -24,7 +24,7 @@
 // ni s'allonger — une quatrième ferait tomber le contrôle — ni changer
 // d'identité en silence.
 
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { eq, faux, titre, vrai, bilan, sansCommentairesSql } from "./commun";
 
@@ -234,6 +234,74 @@ titre("Invariant 4 — une fonction révoquée porte toujours un grant explicite
 
 for (const fn of definer.filter(estRevoquee)) {
   vrai(`${fn} : revoke accompagné d'un grant`, aUnGrant(fn));
+}
+
+// ── La migration PRÉPARÉE : cohérente, et hors du chemin d'application ──
+//
+// Elle corrige D23. Elle n'est PAS appliquée, et elle n'est pas dans
+// `supabase/migrations/` — donc un `supabase db push` ne peut pas
+// l'appliquer par accident. Ces contrôles vérifient deux choses :
+//
+//   · qu'elle reste hors du chemin tant que le client ne l'a pas autorisée ;
+//   · qu'elle apparie bien chaque `revoke` à un `grant` au rôle qui appelle
+//     réellement — sans quoi elle casserait l'émission qu'elle prétend
+//     préserver. C'est l'invariant 4, appliqué au correctif lui-même.
+
+titre("La migration préparée pour D23 — cohérente et non appliquée");
+
+const PREPAREES = join(process.cwd(), "supabase", "migrations-preparees");
+const FICHIER_D23 = "20261110000001_numerotation_revoke_public.sql";
+
+const prepareeExiste = existsSync(join(PREPAREES, FICHIER_D23));
+vrai("la migration préparée pour D23 existe", prepareeExiste);
+
+faux(
+  "elle n'est PAS dans le chemin de `supabase db push`",
+  readdirSync(MIGRATIONS).includes(FICHIER_D23),
+);
+
+if (prepareeExiste) {
+  const sqlPrep = sansCommentairesSql(readFileSync(join(PREPAREES, FICHIER_D23), "utf8"));
+
+  // Chaque fonction : son revoke, et le grant au rôle réellement appelant.
+  const ATTENDU: Array<[string, string, string[]]> = [
+    ["next_contract_num", String.raw`\(integer\)`, ["service_role"]],
+    ["allocate_subcontract_ref", String.raw`\(text,\s*text\)`, ["authenticated", "service_role"]],
+    ["allocate_document_archive_ref", String.raw`\(text\)`, ["service_role"]],
+  ];
+
+  for (const [fn, sig, roles] of ATTENDU) {
+    vrai(
+      `${fn} : PUBLIC est révoqué`,
+      new RegExp(String.raw`revoke\s+all\s+on\s+function\s+${fn}\s*${sig}\s+from\s+public`, "i").test(sqlPrep),
+    );
+    const grant = new RegExp(
+      String.raw`grant\s+execute\s+on\s+function\s+${fn}\s*${sig}\s+to\s+([a-z_,\s]+);`,
+      "i",
+    ).exec(sqlPrep);
+    vrai(`${fn} : un grant accompagne le revoke`, grant !== null);
+    if (grant) {
+      for (const r of roles) {
+        vrai(`${fn} : accordé à ${r}`, grant[1].includes(r));
+      }
+    }
+  }
+
+  // Les trois, et seulement les trois : une migration qui révoquerait une
+  // quatrième fonction toucherait à quelque chose qui marche.
+  eq(
+    "elle ne révoque exactement que les 3 fonctions de D23",
+    (sqlPrep.match(/revoke\s+all\s+on\s+function/gi) || []).length,
+    3,
+  );
+
+  // Aucune donnée touchée : ni table, ni compteur, ni document émis.
+  for (const interdit of ["update ", "delete ", "insert ", "drop ", "alter table", "truncate"]) {
+    faux(
+      `elle ne contient aucun \`${interdit.trim()}\``,
+      new RegExp(String.raw`\b${interdit.trim()}\b`, "i").test(sqlPrep),
+    );
+  }
 }
 
 bilan("numérotation : droits des compteurs et consommation");
