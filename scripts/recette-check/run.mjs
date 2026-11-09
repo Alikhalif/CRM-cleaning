@@ -43,6 +43,7 @@ const SUITES = [
   { fichier: "notifications-perimetre.ts", titre: "D31 — périmètre des notifications : cinq pays, rôles, entités" },
   { fichier: "recette-pret.ts", titre: "Préparation de la recette : l'étape suivante, et qui doit agir" },
   { fichier: "d32-cloisonnement.ts", titre: "D32 — cloisonnement par pays et entité : règle, schéma, serveur, procédure" },
+  { fichier: "numerotation.ts", titre: "Numérotation : droits des compteurs et consommation (D23)" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "recette-check-"));
