@@ -33,6 +33,7 @@ const SUITES = [
   { fichier: "rotation.ts", titre: "Rotation D14 + D17 : décision, périmètre fermé et cinq gardes" },
   { fichier: "iban.ts", titre: "Coordonnées bancaires : cinq pays, et le Canada qui n'a pas d'IBAN" },
   { fichier: "ux.ts", titre: "UX/UI : jetons CSS valides et cellules étiquetées (I1, I2, I3)" },
+  { fichier: "numerotation.ts", titre: "Numérotation : droits des compteurs et consommation (D23)" },
 ];
 
 const sortie = mkdtempSync(join(tmpdir(), "recette-check-"));

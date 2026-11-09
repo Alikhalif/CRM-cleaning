@@ -53,6 +53,23 @@ export function sansCommentaires(source: string): string {
     .replace(/(^|[^:])\/\/.*$/gm, "$1"); // lignes, sans casser « https:// »
 }
 
+/**
+ * La même précaution, pour le SQL — qui commente avec `--`, pas avec `//`.
+ *
+ * Sans elle, un contrôle cherchant `revoke … from public` se déclencherait
+ * sur le commentaire d'une migration qui EXPLIQUE pourquoi il faut un
+ * `revoke`. C'est le piège déjà rencontré trois fois côté TypeScript, et il
+ * n'y a aucune raison qu'il épargne le SQL.
+ *
+ * ⚠️ Même limite : ce n'est pas un analyseur. Un `--` dans une chaîne de
+ * caractères serait pris pour un commentaire.
+ */
+export function sansCommentairesSql(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, " ") // blocs
+    .replace(/--.*$/gm, ""); // lignes
+}
+
 export function titre(s: string) {
   console.log(`\n── ${s} ${"─".repeat(Math.max(0, 66 - s.length))}`);
 }
